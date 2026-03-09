@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vision Widget</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@200;300;400;600;700&family=Noto+Sans+KR:wght@200;300;400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body, #root {
+        background: transparent;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: 'Noto Sans KR', sans-serif;
+        user-select: none;
+      }
+      /* 드래그 영역 - 상단 바 */
+      [data-tauri-drag-region] {
+        cursor: grab;
+      }
+      [data-tauri-drag-region]:active {
+        cursor: grabbing;
+      }
+      /* 스크롤바 숨김 */
+      ::-webkit-scrollbar { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
