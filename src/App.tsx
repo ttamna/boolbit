@@ -5,7 +5,9 @@ import { useState, useEffect, useCallback, CSSProperties } from "react";
 import type { WidgetData } from "./types";
 import { colors, fonts, fontSizes, radius, shadows } from "./theme";
 import { invoke } from "./lib/tauri";
+import { useSettings } from "./hooks/useSettings";
 import { Clock } from "./components/Clock";
+import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
 import { ProjectCard } from "./components/ProjectCard";
 import { HabitStreak } from "./components/HabitStreak";
@@ -49,14 +51,6 @@ const s = {
     boxShadow: shadows.container,
   } as CSSProperties,
 
-  dragBar: {
-    padding: "12px 16px 8px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    cursor: "grab",
-  } as CSSProperties,
-
   content: {
     flex: 1,
     overflowY: "auto",
@@ -71,6 +65,7 @@ export default function App() {
   const [data, setData] = useState<WidgetData>(DEFAULT_DATA);
   const [loaded, setLoaded] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const { settings, updateSettings } = useSettings();
 
   useEffect(() => {
     (async () => {
@@ -118,12 +113,7 @@ export default function App() {
       onMouseLeave={() => setHovered(false)}
     >
       {/* ── Drag handle ── */}
-      <div data-tauri-drag-region style={s.dragBar}>
-        <div style={{ ...s.mono, fontSize: fontSizes.micro, color: colors.textLabel, letterSpacing: 2 }}>VISION</div>
-        <div style={{ display: "flex", gap: 5, opacity: hovered ? 0.6 : 0, transition: "opacity 0.3s ease" }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: colors.surfaceHover }} />
-        </div>
-      </div>
+      <DragBar hovered={hovered} settings={settings} onSettingsChange={updateSettings} />
 
       {/* ── Content ── */}
       <div style={s.content}>
