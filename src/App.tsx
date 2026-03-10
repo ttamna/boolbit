@@ -92,6 +92,20 @@ export default function App() {
     persist(next);
   }, [data, persist]);
 
+  const renameHabit = useCallback((i: number, name: string) => {
+    const next = { ...data, habits: data.habits.map((h, idx) =>
+      idx === i ? { ...h, name } : h
+    )};
+    persist(next);
+  }, [data, persist]);
+
+  const updateProject = useCallback((id: number, patch: Partial<import("./types").Project>) => {
+    const next = { ...data, projects: data.projects.map(p =>
+      p.id === id ? { ...p, ...patch } : p
+    )};
+    persist(next);
+  }, [data, persist]);
+
   return (
     <div
       style={{
@@ -116,10 +130,10 @@ export default function App() {
         <Clock />
 
         <SectionLabel>Projects</SectionLabel>
-        {data.projects.map(p => <ProjectCard key={p.id} project={p} />)}
+        {data.projects.map(p => <ProjectCard key={p.id} project={p} onUpdate={patch => updateProject(p.id, patch)} />)}
 
         <SectionLabel>Streaks</SectionLabel>
-        <HabitStreak habits={data.habits} onIncrement={incrementHabit} />
+        <HabitStreak habits={data.habits} onIncrement={incrementHabit} onRename={renameHabit} />
 
         <SectionLabel>Direction</SectionLabel>
         <QuoteRotator quotes={data.quotes} />
