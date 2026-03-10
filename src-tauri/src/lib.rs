@@ -2,6 +2,27 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+// ─── Settings types ──────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WindowPosition {
+    pub x: i32,
+    pub y: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WindowSize {
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WidgetSettings {
+    pub position: WindowPosition,
+    pub size: WindowSize,
+    pub opacity: f64,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Project {
     pub id: u32,
@@ -32,6 +53,20 @@ fn get_data_path() -> PathBuf {
     let mut path = dirs_next().unwrap_or_else(|| PathBuf::from("."));
     path.push("vision-widget-data.json");
     path
+}
+
+fn get_settings_path() -> PathBuf {
+    let mut path = dirs_next().unwrap_or_else(|| PathBuf::from("."));
+    path.push("vision-widget-settings.json");
+    path
+}
+
+fn default_settings() -> WidgetSettings {
+    WidgetSettings {
+        position: WindowPosition { x: 20, y: 60 },
+        size: WindowSize { width: 380, height: 700 },
+        opacity: 1.0,
+    }
 }
 
 fn dirs_next() -> Option<PathBuf> {
@@ -116,10 +151,26 @@ fn save_data(data: WidgetData) -> Result<(), String> {
     fs::write(&path, json).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn load_settings() -> WidgetSettings {
+    let path = get_settings_path();
+    match fs::read_to_string(&path) {
+        Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| default_settings()),
+        Err(_) => default_settings(),
+    }
+}
+
+#[tauri::command]
+fn save_settings(settings: WidgetSettings) -> Result<(), String> {
+    let path = get_settings_path();
+    let json = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![load_data, save_data])
+        .invoke_handler(tauri::generate_handler![load_data, save_data, load_settings, save_settings])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

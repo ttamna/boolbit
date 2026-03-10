@@ -20,3 +20,19 @@ export interface WidgetData {
   habits: Habit[];
   quotes: string[];
 }
+
+export interface WindowPosition {
+  x: number;
+  y: number;
+}
+
+export interface WindowSize {
+  width: number;
+  height: number;
+}
+
+export interface WidgetSettings {
+  position: WindowPosition;
+  size: WindowSize;
+  opacity: number; // 0.0 ~ 1.0
+}
