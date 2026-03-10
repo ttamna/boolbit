@@ -6,6 +6,7 @@ import type { WidgetData } from "./types";
 import { colors, fonts, fontSizes, radius, shadows } from "./theme";
 import { invoke } from "./lib/tauri";
 import { useSettings } from "./hooks/useSettings";
+import { useWindowSync } from "./hooks/useWindowSync";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -65,7 +66,13 @@ export default function App() {
   const [data, setData] = useState<WidgetData>(DEFAULT_DATA);
   const [loaded, setLoaded] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, loaded: settingsLoaded } = useSettings();
+
+  useWindowSync({
+    settings,
+    settingsLoaded,
+    onPositionSave: (x, y) => updateSettings({ position: { x, y } }),
+  });
 
   useEffect(() => {
     (async () => {
