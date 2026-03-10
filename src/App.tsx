@@ -1,12 +1,13 @@
 // ABOUTME: Vision Widget root component - composes all widget sections
 // ABOUTME: Handles data loading/saving and habit increment interactions
 
-import { useState, useEffect, useCallback, CSSProperties } from "react";
+import { useState, useEffect, useCallback, useRef, CSSProperties } from "react";
 import type { WidgetData } from "./types";
 import { colors, fonts, fontSizes, radius, shadows } from "./theme";
 import { invoke } from "./lib/tauri";
 import { useSettings } from "./hooks/useSettings";
 import { useWindowSync } from "./hooks/useWindowSync";
+import { useWindowResize } from "./hooks/useWindowResize";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -42,7 +43,7 @@ const DEFAULT_DATA: WidgetData = {
 const s = {
   container: {
     width: "100%",
-    height: "100%",
+    maxHeight: "100vh",
     background: colors.bgBase,
     backdropFilter: "blur(40px)",
     WebkitBackdropFilter: "blur(40px)",
@@ -56,6 +57,7 @@ const s = {
 
   content: {
     flex: 1,
+    minHeight: 0,
     overflowY: "auto",
     padding: "0 24px 28px",
   } as CSSProperties,
@@ -65,6 +67,7 @@ const s = {
 
 // ─── App ────────────────────────────────────────────────
 export default function App() {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<WidgetData>(DEFAULT_DATA);
   const [loaded, setLoaded] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -76,6 +79,7 @@ export default function App() {
     settingsLoaded,
     onPositionSave: (x, y) => updateSettings({ position: { x, y } }),
   });
+  useWindowResize(containerRef);
 
   useEffect(() => {
     (async () => {
@@ -113,12 +117,13 @@ export default function App() {
 
   return (
     <div
+      ref={containerRef}
       style={{
         ...s.container,
-        background: `rgba(12, 12, 16, ${0.75 * settings.opacity})`,
+        background: `rgba(12, 12, 16, ${settings.opacity})`,
         opacity: loaded ? 1 : 0,
         transform: loaded ? "translateY(0)" : "translateY(12px)",
-        transition: "all 0.8s cubic-bezier(0.16, 1, 0.3, 1)",
+        transition: "opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1)",
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -126,7 +131,6 @@ export default function App() {
       {/* ── Drag handle ── */}
       <DragBar
         hovered={hovered}
-        settings={settings}
         onSettingsChange={updateSettings}
         settingsOpen={settingsOpen}
         onToggleSettings={() => setSettingsOpen(o => !o)}

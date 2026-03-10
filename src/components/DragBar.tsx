@@ -25,13 +25,12 @@ const PRESETS: Preset[] = [
 
 interface DragBarProps {
   hovered: boolean;
-  settings: WidgetSettings;
   onSettingsChange: (patch: Partial<WidgetSettings>) => void;
   settingsOpen: boolean;
   onToggleSettings: () => void;
 }
 
-export function DragBar({ hovered, settings, onSettingsChange, settingsOpen, onToggleSettings }: DragBarProps) {
+export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSettings }: DragBarProps) {
   const [moving, setMoving] = useState(false);
 
   const applyPreset = async (preset: Preset) => {
@@ -42,18 +41,26 @@ export function DragBar({ hovered, settings, onSettingsChange, settingsOpen, onT
       const monitor = await currentMonitor();
       if (!monitor) return;
 
+      const sf = monitor.scaleFactor;
+      // Use actual window size (not stale settings.size)
+      const winPhys = await win.outerSize();
+
+      // All values in logical pixels for consistent calculation
       const { x, y } = preset.getPos(
         {
-          x: monitor.position.x,
-          y: monitor.position.y,
-          width: monitor.size.width / monitor.scaleFactor,
-          height: monitor.size.height / monitor.scaleFactor,
+          x: monitor.position.x / sf,
+          y: monitor.position.y / sf,
+          width: monitor.size.width / sf,
+          height: monitor.size.height / sf,
         },
-        settings.size.width,
-        settings.size.height
+        winPhys.width / sf,
+        winPhys.height / sf,
       );
-      await win.setPosition(new PhysicalPosition(Math.round(x * monitor.scaleFactor), Math.round(y * monitor.scaleFactor)));
-      onSettingsChange({ position: { x: Math.round(x), y: Math.round(y) } });
+
+      const xPhys = Math.round(x * sf);
+      const yPhys = Math.round(y * sf);
+      await win.setPosition(new PhysicalPosition(xPhys, yPhys));
+      onSettingsChange({ position: { x: xPhys, y: yPhys } });
     } finally {
       setMoving(false);
     }
@@ -68,28 +75,32 @@ export function DragBar({ hovered, settings, onSettingsChange, settingsOpen, onT
       cursor: "grab",
     }}>
       <div style={{ ...mono, fontSize: fontSizes.micro, color: colors.textLabel, letterSpacing: 2 }}>VISION</div>
-      <div style={{ display: "flex", gap: 4, opacity: hovered ? 1 : 0, transition: "opacity 0.3s ease" }}>
-        {PRESETS.map(preset => (
-          <button
-            key={preset.label}
-            onClick={e => { e.stopPropagation(); applyPreset(preset); }}
-            title={`이동: ${preset.label}`}
-            style={{
-              width: 16, height: 16,
-              borderRadius: 3,
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: colors.textGhost,
-              fontSize: 8,
-              cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              padding: 0,
-              lineHeight: 1,
-            }}
-          >
-            {preset.label}
-          </button>
-        ))}
+      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        {/* Preset buttons: hover-only */}
+        <div style={{ display: "flex", gap: 4, opacity: hovered ? 1 : 0, transition: "opacity 0.3s ease" }}>
+          {PRESETS.map(preset => (
+            <button
+              key={preset.label}
+              onClick={e => { e.stopPropagation(); applyPreset(preset); }}
+              title={`이동: ${preset.label}`}
+              style={{
+                width: 16, height: 16,
+                borderRadius: 3,
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: colors.textGhost,
+                fontSize: 8,
+                cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                padding: 0,
+                lineHeight: 1,
+              }}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+        {/* Settings button: always visible */}
         <button
           onClick={e => { e.stopPropagation(); onToggleSettings(); }}
           title="설정"
@@ -99,6 +110,8 @@ export function DragBar({ hovered, settings, onSettingsChange, settingsOpen, onT
             border: `1px solid ${settingsOpen ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.1)"}`,
             color: colors.textGhost, fontSize: 9, cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+            opacity: hovered ? 1 : 0.4,
+            transition: "opacity 0.3s ease",
           }}
         >
           ⚙
