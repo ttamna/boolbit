@@ -16,6 +16,7 @@
     "core:window:allow-current-monitor",
     "core:window:allow-available-monitors",
     "core:window:allow-outer-position",
-    "core:window:allow-set-effects"
+    "core:window:allow-set-effects",
+    "notification:default"
   ]
 }

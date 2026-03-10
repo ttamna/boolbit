@@ -14,6 +14,7 @@ import { ProjectCard } from "./components/ProjectCard";
 import { HabitStreak } from "./components/HabitStreak";
 import { QuoteRotator } from "./components/QuoteRotator";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { PomodoroTimer } from "./components/PomodoroTimer";
 
 // ─── Default Data ───────────────────────────────────────
 const DEFAULT_DATA: WidgetData = {
@@ -140,6 +141,8 @@ export default function App() {
 
         <SectionLabel>Streaks</SectionLabel>
         <HabitStreak habits={data.habits} onIncrement={incrementHabit} onRename={renameHabit} />
+
+        <PomodoroTimer />
 
         <SectionLabel>Direction</SectionLabel>
         <QuoteRotator quotes={data.quotes} />
