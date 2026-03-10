@@ -5,6 +5,8 @@ import { useEffect, useRef } from "react";
 import { getCurrentWindow, PhysicalPosition } from "@tauri-apps/api/window";
 import type { WidgetSettings } from "../types";
 
+const isTauri = () => Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+
 interface UseWindowSyncOptions {
   settings: WidgetSettings;
   settingsLoaded: boolean;
@@ -16,23 +18,21 @@ export function useWindowSync({ settings, settingsLoaded, onPositionSave }: UseW
 
   // Restore position once on startup after settings load
   useEffect(() => {
-    if (!settingsLoaded || restoredRef.current) return;
+    if (!settingsLoaded || restoredRef.current || !isTauri()) return;
     restoredRef.current = true;
 
     const win = getCurrentWindow();
-    win.setPosition(new PhysicalPosition(settings.position.x, settings.position.y)).catch(() => {
-      // Ignore if window API unavailable (browser dev mode)
-    });
+    win.setPosition(new PhysicalPosition(settings.position.x, settings.position.y)).catch(() => {});
   }, [settingsLoaded, settings.position.x, settings.position.y]);
 
   // Save position after drag ends
   useEffect(() => {
+    if (!isTauri()) return;
+
     const win = getCurrentWindow();
     let unlisten: (() => void) | undefined;
 
     win.onMoved(({ payload }) => {
-      // payload is PhysicalPosition with x, y in physical pixels
-      // We store logical pixels for settings consistency
       onPositionSave(payload.x, payload.y);
     }).then(fn => { unlisten = fn; }).catch(() => {});
 
