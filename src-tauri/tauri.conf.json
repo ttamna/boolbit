@@ -15,7 +15,7 @@
         "label": "main",
         "title": "Vision Widget",
         "width": 380,
-        "height": 700,
+        "height": 2000,
         "resizable": true,
         "transparent": true,
         "decorations": false,

@@ -10,13 +10,16 @@
     />
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body, #root {
+      html, body {
         background: transparent;
         width: 100%;
-        height: 100%;
         overflow: hidden;
         font-family: 'Noto Sans KR', sans-serif;
         user-select: none;
+      }
+      #root {
+        background: transparent;
+        width: 100%;
       }
       /* 드래그 영역 - 상단 바 */
       [data-tauri-drag-region] {
