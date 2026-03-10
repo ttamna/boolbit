@@ -1,0 +1,61 @@
+// ABOUTME: Design token definitions - single source of truth for the widget's visual language
+// ABOUTME: Covers colors, typography, border radius, and shadows used via inline React styles
+
+export const colors = {
+  // Container background
+  bgBase: "rgba(12, 12, 16, 0.75)",
+
+  // Borders
+  borderSubtle: "rgba(255,255,255,0.06)",
+  borderFaint: "rgba(255,255,255,0.04)",
+  borderAccent: "rgba(255,255,255,0.08)",
+
+  // Text hierarchy (descending opacity)
+  textPrimary: "rgba(255,255,255,0.95)",
+  textHigh: "rgba(255,255,255,0.88)",
+  textMid: "rgba(255,255,255,0.5)",
+  textLow: "rgba(255,255,255,0.45)",
+  textMuted: "rgba(255,255,255,0.4)",
+  textFaint: "rgba(255,255,255,0.35)",
+  textDim: "rgba(255,255,255,0.3)",
+  textSubtle: "rgba(255,255,255,0.25)",
+  textGhost: "rgba(255,255,255,0.2)",
+  textPhantom: "rgba(255,255,255,0.15)",
+  textLabel: "rgba(255,255,255,0.12)",
+
+  // Surfaces
+  surfaceFaint: "rgba(255,255,255,0.04)",
+  surfaceHover: "rgba(255,255,255,0.15)",
+
+  // Status accents (project status, habit streaks)
+  statusActive: "#4ADE80",
+  statusProgress: "#FBBF24",
+  statusPaused: "#F87171",
+} as const;
+
+export const fonts = {
+  mono: "'JetBrains Mono', 'SF Mono', monospace",
+  sans: "'Noto Sans KR', -apple-system, sans-serif",
+} as const;
+
+export const fontSizes = {
+  clock: 56,    // Main clock digits
+  clockSec: 32, // Clock seconds
+  lg: 14,       // Project names, habit icons
+  base: 13,     // Dates, general text
+  sm: 12,       // Goals, habits, quotes
+  xs: 11,       // Progress %, metrics
+  label: 10,    // Section labels
+  mini: 9,      // Footer, chips
+  micro: 8,     // Drag bar label
+} as const;
+
+export const radius = {
+  container: 16,
+  chip: 4,
+  bar: 2,
+} as const;
+
+export const shadows = {
+  container: "0 32px 64px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)",
+} as const;

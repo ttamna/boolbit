@@ -1,0 +1,58 @@
+/* ABOUTME: CSS custom properties mirroring theme.ts tokens for non-inline styling */
+/* ABOUTME: Import this file in main.tsx to make CSS vars available globally */
+
+:root {
+  /* Colors - backgrounds */
+  --color-bg-base: rgba(12, 12, 16, 0.75);
+
+  /* Colors - borders */
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-faint: rgba(255, 255, 255, 0.04);
+  --color-border-accent: rgba(255, 255, 255, 0.08);
+
+  /* Colors - text hierarchy */
+  --color-text-primary: rgba(255, 255, 255, 0.95);
+  --color-text-high: rgba(255, 255, 255, 0.88);
+  --color-text-mid: rgba(255, 255, 255, 0.5);
+  --color-text-low: rgba(255, 255, 255, 0.45);
+  --color-text-muted: rgba(255, 255, 255, 0.4);
+  --color-text-faint: rgba(255, 255, 255, 0.35);
+  --color-text-dim: rgba(255, 255, 255, 0.3);
+  --color-text-subtle: rgba(255, 255, 255, 0.25);
+  --color-text-ghost: rgba(255, 255, 255, 0.2);
+  --color-text-phantom: rgba(255, 255, 255, 0.15);
+  --color-text-label: rgba(255, 255, 255, 0.12);
+
+  /* Colors - surfaces */
+  --color-surface-faint: rgba(255, 255, 255, 0.04);
+  --color-surface-hover: rgba(255, 255, 255, 0.15);
+
+  /* Colors - status accents */
+  --color-status-active: #4ade80;
+  --color-status-progress: #fbbf24;
+  --color-status-paused: #f87171;
+
+  /* Typography */
+  --font-mono: "JetBrains Mono", "SF Mono", monospace;
+  --font-sans: "Noto Sans KR", -apple-system, sans-serif;
+
+  /* Font sizes */
+  --fs-clock: 56px;
+  --fs-clock-sec: 32px;
+  --fs-lg: 14px;
+  --fs-base: 13px;
+  --fs-sm: 12px;
+  --fs-xs: 11px;
+  --fs-label: 10px;
+  --fs-mini: 9px;
+  --fs-micro: 8px;
+
+  /* Border radius */
+  --radius-container: 16px;
+  --radius-chip: 4px;
+  --radius-bar: 2px;
+
+  /* Shadows */
+  --shadow-container: 0 32px 64px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
