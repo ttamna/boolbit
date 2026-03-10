@@ -27,9 +27,11 @@ interface DragBarProps {
   hovered: boolean;
   settings: WidgetSettings;
   onSettingsChange: (patch: Partial<WidgetSettings>) => void;
+  settingsOpen: boolean;
+  onToggleSettings: () => void;
 }
 
-export function DragBar({ hovered, settings, onSettingsChange }: DragBarProps) {
+export function DragBar({ hovered, settings, onSettingsChange, settingsOpen, onToggleSettings }: DragBarProps) {
   const [moving, setMoving] = useState(false);
 
   const applyPreset = async (preset: Preset) => {
@@ -88,7 +90,19 @@ export function DragBar({ hovered, settings, onSettingsChange }: DragBarProps) {
             {preset.label}
           </button>
         ))}
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: colors.surfaceHover, marginLeft: 2, alignSelf: "center" }} />
+        <button
+          onClick={e => { e.stopPropagation(); onToggleSettings(); }}
+          title="설정"
+          style={{
+            width: 16, height: 16, borderRadius: 3,
+            background: settingsOpen ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)",
+            border: `1px solid ${settingsOpen ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.1)"}`,
+            color: colors.textGhost, fontSize: 9, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+          }}
+        >
+          ⚙
+        </button>
       </div>
     </div>
   );

@@ -13,6 +13,7 @@ import { SectionLabel } from "./components/SectionLabel";
 import { ProjectCard } from "./components/ProjectCard";
 import { HabitStreak } from "./components/HabitStreak";
 import { QuoteRotator } from "./components/QuoteRotator";
+import { SettingsPanel } from "./components/SettingsPanel";
 
 // ─── Default Data ───────────────────────────────────────
 const DEFAULT_DATA: WidgetData = {
@@ -66,6 +67,7 @@ export default function App() {
   const [data, setData] = useState<WidgetData>(DEFAULT_DATA);
   const [loaded, setLoaded] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { settings, updateSettings, loaded: settingsLoaded } = useSettings();
 
   useWindowSync({
@@ -112,6 +114,7 @@ export default function App() {
     <div
       style={{
         ...s.container,
+        background: `rgba(12, 12, 16, ${0.75 * settings.opacity})`,
         opacity: loaded ? 1 : 0,
         transform: loaded ? "translateY(0)" : "translateY(12px)",
         transition: "all 0.8s cubic-bezier(0.16, 1, 0.3, 1)",
@@ -120,7 +123,13 @@ export default function App() {
       onMouseLeave={() => setHovered(false)}
     >
       {/* ── Drag handle ── */}
-      <DragBar hovered={hovered} settings={settings} onSettingsChange={updateSettings} />
+      <DragBar
+        hovered={hovered}
+        settings={settings}
+        onSettingsChange={updateSettings}
+        settingsOpen={settingsOpen}
+        onToggleSettings={() => setSettingsOpen(o => !o)}
+      />
 
       {/* ── Content ── */}
       <div style={s.content}>
@@ -158,6 +167,11 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* ── Settings panel ── */}
+      {settingsOpen && (
+        <SettingsPanel settings={settings} onUpdate={updateSettings} />
+      )}
     </div>
   );
 }
