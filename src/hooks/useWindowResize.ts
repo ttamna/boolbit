@@ -3,9 +3,9 @@
 
 import { useEffect, RefObject } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { isTauri } from "../lib/tauri";
 
 const WIDGET_WIDTH = 380;
-const isTauri = () => Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
 
 export function useWindowResize(containerRef: RefObject<HTMLElement | null>) {
   useEffect(() => {

@@ -3,6 +3,9 @@
 
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 
+export const isTauri = () =>
+  Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+
 export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   try {
     return await tauriInvoke<T>(cmd, args);

@@ -4,8 +4,7 @@
 import { useEffect, useRef } from "react";
 import { getCurrentWindow, PhysicalPosition } from "@tauri-apps/api/window";
 import type { WidgetSettings } from "../types";
-
-const isTauri = () => Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+import { isTauri } from "../lib/tauri";
 
 interface UseWindowSyncOptions {
   settings: WidgetSettings;
