@@ -13,6 +13,7 @@ export interface Habit {
   name: string;
   streak: number;
   icon: string;
+  lastChecked?: string; // ISO date string (YYYY-MM-DD), set when habit is checked today
 }
 
 export interface WidgetData {

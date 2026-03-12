@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click icon, name, or streak to edit inline; edit mode enables habit add/delete
+// ABOUTME: Click ✓ to check habit for today (auto-increments streak); edit mode enables add/delete
 
 import { useState, useEffect, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -7,6 +7,8 @@ import { fonts, fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
+
+const getToday = () => new Date().toLocaleDateString("sv"); // YYYY-MM-DD local date
 
 interface HabitStreakProps {
   habits: Habit[];
@@ -18,6 +20,12 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
   const [editing, setEditing] = useState(false);
   const [newIcon, setNewIcon] = useState("⭐");
   const [newName, setNewName] = useState("");
+  // Refresh todayStr every minute so the ✓ button state updates correctly around midnight
+  const [todayStr, setTodayStr] = useState(getToday);
+  useEffect(() => {
+    const id = setInterval(() => setTodayStr(getToday()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const addHabit = () => {
     const trimmed = newName.trim();
@@ -29,6 +37,12 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
 
   const patchHabit = (i: number, patch: Partial<Habit>) =>
     onHabitsChange?.(habits.map((h, j) => j === i ? { ...h, ...patch } : h));
+
+  const checkHabit = (i: number) => {
+    const h = habits[i];
+    if (h.lastChecked === todayStr) return; // already checked today
+    onUpdate?.(i, { streak: h.streak + 1, lastChecked: todayStr });
+  };
 
   useEffect(() => {
     if (!editing) return;
@@ -141,41 +155,57 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
-        {habits.map((h, i) => (
-          <div
-            key={h.icon + h.name}
-            style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}
-          >
-            <InlineEdit
-              value={h.icon}
-              onSave={icon => onUpdate?.(i, { icon })}
-              style={{ fontSize: fontSizes.lg }}
-              inputStyle={{ fontSize: fontSizes.lg, width: 36, textAlign: "center" }}
-            />
-            <span style={{ fontSize: fontSizes.sm, color: colors.textLow, flex: 1, minWidth: 0 }}>
+        {habits.map((h, i) => {
+          const doneToday = h.lastChecked === todayStr;
+          return (
+            <div
+              key={h.icon + h.name}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}
+            >
               <InlineEdit
-                value={h.name}
-                onSave={name => onUpdate?.(i, { name })}
-                style={{ color: colors.textLow }}
+                value={h.icon}
+                onSave={icon => onUpdate?.(i, { icon })}
+                style={{ fontSize: fontSizes.lg }}
+                inputStyle={{ fontSize: fontSizes.lg, width: 36, textAlign: "center" }}
               />
-            </span>
-            <span style={{ ...mono, display: "flex", alignItems: "baseline", gap: 2 }}>
-              <InlineEdit
-                value={String(h.streak)}
-                onSave={v => {
-                  const n = parseInt(v, 10);
-                  if (!isNaN(n) && n >= 0) onUpdate?.(i, { streak: n });
-                }}
+              <span style={{ fontSize: fontSizes.sm, color: colors.textLow, flex: 1, minWidth: 0 }}>
+                <InlineEdit
+                  value={h.name}
+                  onSave={name => onUpdate?.(i, { name })}
+                  style={{ color: colors.textLow }}
+                />
+              </span>
+              <span style={{ ...mono, display: "flex", alignItems: "baseline", gap: 2 }}>
+                <InlineEdit
+                  value={String(h.streak)}
+                  onSave={v => {
+                    const n = parseInt(v, 10);
+                    if (!isNaN(n) && n >= 0) onUpdate?.(i, { streak: n });
+                  }}
+                  style={{
+                    fontSize: fontSizes.base, fontWeight: 700,
+                    color: h.streak >= 10 ? colors.statusActive : h.streak >= 5 ? colors.statusProgress : colors.textMid,
+                  }}
+                  inputStyle={{ ...mono, fontSize: fontSizes.base, width: 36, textAlign: "right" }}
+                />
+                <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
+              </span>
+              {/* Daily check-in button */}
+              <button
+                onClick={() => checkHabit(i)}
+                title={doneToday ? "오늘 완료됨" : "오늘 완료 체크"}
                 style={{
-                  fontSize: fontSizes.base, fontWeight: 700,
-                  color: h.streak >= 10 ? colors.statusActive : h.streak >= 5 ? colors.statusProgress : colors.textMid,
+                  background: "transparent", border: "none", cursor: doneToday ? "default" : "pointer",
+                  color: doneToday ? colors.statusActive : colors.textPhantom,
+                  fontSize: fontSizes.xs, padding: "0 2px", lineHeight: 1,
+                  transition: "color 0.2s",
                 }}
-                inputStyle={{ ...mono, fontSize: fontSizes.base, width: 36, textAlign: "right" }}
-              />
-              <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
-            </span>
-          </div>
-        ))}
+              >
+                ✓
+              </button>
+            </div>
+          );
+        })}
       </div>
       {onHabitsChange && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>

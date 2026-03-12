@@ -40,6 +40,8 @@ pub struct Habit {
     pub name: String,
     pub streak: u32,
     pub icon: String,
+    #[serde(rename = "lastChecked", default, skip_serializing_if = "Option::is_none")]
+    pub last_checked: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -127,10 +129,10 @@ fn default_data() -> WidgetData {
             },
         ],
         habits: vec![
-            Habit { name: "푸시업".into(), streak: 0, icon: "💪".into() },
-            Habit { name: "풀업".into(), streak: 0, icon: "🏋️".into() },
-            Habit { name: "폰 사용↓".into(), streak: 0, icon: "📵".into() },
-            Habit { name: "포모도로".into(), streak: 0, icon: "🍅".into() },
+            Habit { name: "푸시업".into(), streak: 0, icon: "💪".into(), last_checked: None },
+            Habit { name: "풀업".into(), streak: 0, icon: "🏋️".into(), last_checked: None },
+            Habit { name: "폰 사용↓".into(), streak: 0, icon: "📵".into(), last_checked: None },
+            Habit { name: "포모도로".into(), streak: 0, icon: "🍅".into(), last_checked: None },
         ],
         quotes: vec![
             "Design so it cannot fail fatally, then execute.".into(),
