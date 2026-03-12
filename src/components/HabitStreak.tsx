@@ -1,7 +1,7 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
 // ABOUTME: Click icon, name, or streak to edit inline; edit mode enables habit add/delete
 
-import { useState, CSSProperties } from "react";
+import { useState, useEffect, CSSProperties } from "react";
 import type { Habit } from "../types";
 import { fonts, fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
@@ -29,6 +29,13 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
 
   const patchHabit = (i: number, patch: Partial<Habit>) =>
     onHabitsChange?.(habits.map((h, j) => j === i ? { ...h, ...patch } : h));
+
+  useEffect(() => {
+    if (!editing) return;
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") setEditing(false); };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [editing]);
 
   if (editing) {
     return (

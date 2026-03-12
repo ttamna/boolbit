@@ -90,6 +90,15 @@ export default function App() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!editingProjects) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setEditingProjects(false); setNewProjectName(""); }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [editingProjects]);
+
   const persist = useCallback(async (next: WidgetData) => {
     setData(next);
     await invoke("save_data", { data: next });

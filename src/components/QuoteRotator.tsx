@@ -1,7 +1,7 @@
 // ABOUTME: QuoteRotator component - cycles through motivational quotes with fade transition
 // ABOUTME: Supports inline add, edit, and delete of quotes via toggle edit mode
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
 
@@ -41,10 +41,17 @@ export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
     setNewDraft("");
   };
 
-  const closeEditing = () => {
+  const closeEditing = useCallback(() => {
     setEditing(false);
     setOpacity(1); // Prevent opacity stuck at 0 if fade was mid-way
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!editing) return;
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeEditing(); };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [editing, closeEditing]);
 
   if (editing) {
     return (

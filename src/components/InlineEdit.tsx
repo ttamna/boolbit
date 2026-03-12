@@ -45,7 +45,7 @@ export function InlineEdit({ value, onSave, style, inputStyle }: InlineEditProps
         onBlur={commit}
         onKeyDown={e => {
           if (e.key === "Enter") commit();
-          if (e.key === "Escape") cancel();
+          if (e.key === "Escape") { e.stopPropagation(); cancel(); }
         }}
         style={{
           background: "rgba(255,255,255,0.06)",
