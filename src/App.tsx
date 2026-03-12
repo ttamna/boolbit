@@ -115,6 +115,10 @@ export default function App() {
     persist(next);
   }, [data, persist]);
 
+  const updateQuotes = useCallback((quotes: string[]) => {
+    persist({ ...data, quotes });
+  }, [data, persist]);
+
   return (
     <div
       ref={containerRef}
@@ -149,7 +153,7 @@ export default function App() {
         <PomodoroTimer />
 
         <SectionLabel>Direction</SectionLabel>
-        <QuoteRotator quotes={data.quotes} />
+        <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} />
 
         {/* Footer */}
         <div style={{
