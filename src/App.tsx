@@ -123,6 +123,18 @@ export default function App() {
     persist({ ...data, pomodoroDurations });
   }, [data, persist]);
 
+  const handlePomodoroSession = useCallback(() => {
+    const today = new Date().toLocaleDateString("sv"); // YYYY-MM-DD local date (sv = Swedish = ISO format)
+    const count = data.pomodoroSessionsDate === today ? (data.pomodoroSessions ?? 0) + 1 : 1;
+    persist({ ...data, pomodoroSessionsDate: today, pomodoroSessions: count });
+  }, [data, persist]);
+
+  // Derived: today's completed focus session count, reset to 0 when date changes
+  const pomodoroSessionsToday =
+    data.pomodoroSessionsDate === new Date().toLocaleDateString("sv")
+      ? (data.pomodoroSessions ?? 0)
+      : 0;
+
   return (
     <div
       ref={containerRef}
@@ -162,6 +174,8 @@ export default function App() {
           <PomodoroTimer
             initialDurations={data.pomodoroDurations}
             onDurationsChange={updatePomodoroDurations}
+            sessionsToday={pomodoroSessionsToday}
+            onSessionComplete={handlePomodoroSession}
           />
         )}
 

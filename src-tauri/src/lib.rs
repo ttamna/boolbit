@@ -59,6 +59,12 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "pomodoroDurations")]
     pub pomodoro_durations: Option<PomodoroDurations>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "pomodoroSessionsDate")]
+    pub pomodoro_sessions_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "pomodoroSessions")]
+    pub pomodoro_sessions: Option<u32>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -141,6 +147,8 @@ fn default_data() -> WidgetData {
             "완벽보다 실행. 실행보다 피드백.".into(),
         ],
         pomodoro_durations: None,
+        pomodoro_sessions_date: None,
+        pomodoro_sessions: None,
     }
 }
 

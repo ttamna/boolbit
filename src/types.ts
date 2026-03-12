@@ -21,6 +21,8 @@ export interface WidgetData {
   habits: Habit[];
   quotes: string[];
   pomodoroDurations?: { focus: number; break: number };
+  pomodoroSessionsDate?: string; // YYYY-MM-DD, date of the last counted session
+  pomodoroSessions?: number;     // focus sessions completed on pomodoroSessionsDate
 }
 
 export interface WindowPosition {

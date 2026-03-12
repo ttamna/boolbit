@@ -29,9 +29,11 @@ async function notify(title: string, body: string) {
 interface PomodoroTimerProps {
   initialDurations?: { focus: number; break: number };
   onDurationsChange?: (d: { focus: number; break: number }) => void;
+  sessionsToday?: number;         // completed focus sessions today, from persisted data
+  onSessionComplete?: () => void; // called when a focus phase finishes
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange }: PomodoroTimerProps) {
+export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete }: PomodoroTimerProps) {
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>("focus");
   const [durations, setDurations] = useState<Record<Phase, number>>(initialDurations ?? DEFAULT_DURATION);
@@ -45,6 +47,10 @@ export function PomodoroTimer({ initialDurations, onDurationsChange }: PomodoroT
   durationsRef.current = durations;
   const remainingRef = useRef(remaining);
   remainingRef.current = remaining;
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const onSessionCompleteRef = useRef(onSessionComplete);
+  onSessionCompleteRef.current = onSessionComplete;
 
   useEffect(() => {
     if (!running) {
@@ -56,12 +62,14 @@ export function PomodoroTimer({ initialDurations, onDurationsChange }: PomodoroT
       if (next_val <= 0) {
         clearInterval(intervalRef.current!);
         intervalRef.current = null;
-        const next: Phase = phase === "focus" ? "break" : "focus";
+        const currentPhase = phaseRef.current;
+        const next: Phase = currentPhase === "focus" ? "break" : "focus";
         const breakMins = durationsRef.current.break;
-        const msg = phase === "focus"
+        const msg = currentPhase === "focus"
           ? `🍅 포모도로 완료! ${breakMins}분 휴식하세요.`
           : "💪 휴식 종료! 다시 집중할 시간.";
         notify("Vision Widget", msg);
+        if (currentPhase === "focus") onSessionCompleteRef.current?.();
         setRunning(false);
         setPhase(next);
         setRemaining(durationsRef.current[next] * 60);
@@ -174,9 +182,16 @@ export function PomodoroTimer({ initialDurations, onDurationsChange }: PomodoroT
         <span style={{ fontSize: fontSizes.label, fontWeight: 600, color: colors.textGhost, textTransform: "uppercase", letterSpacing: 3 }}>
           Pomodoro
         </span>
-        <span style={{ ...mono, fontSize: fontSizes.xs, color: accent }}>
-          {running ? `${pad(minutes)}:${pad(seconds)}` : "▶"}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {sessionsToday > 0 && (
+            <span style={{ fontSize: fontSizes.mini, color: colors.textSubtle }}>
+              🍅 ×{sessionsToday}
+            </span>
+          )}
+          <span style={{ ...mono, fontSize: fontSizes.xs, color: accent }}>
+            {running ? `${pad(minutes)}:${pad(seconds)}` : "▶"}
+          </span>
+        </div>
       </div>
 
       {/* Expanded panel */}
