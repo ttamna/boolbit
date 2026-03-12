@@ -1,5 +1,5 @@
 // ABOUTME: ProjectCard component - displays a single project with progress bar and metrics
-// ABOUTME: Supports inline editing of metric_value and progress via InlineEdit
+// ABOUTME: Supports inline editing of all fields: name, goal, progress, metric, metric_value, metric_target, status
 
 import { CSSProperties } from "react";
 import type { Project } from "../types";
@@ -12,6 +12,12 @@ const STATUS_COLORS: Record<string, string> = {
   active: colors.statusActive,
   "in-progress": colors.statusProgress,
   paused: colors.statusPaused,
+};
+
+const STATUS_CYCLE: Record<string, Project["status"]> = {
+  active: "in-progress",
+  "in-progress": "paused",
+  paused: "active",
 };
 
 function ProgressBar({ value, color }: { value: number; color: string }) {
@@ -38,7 +44,14 @@ export function ProjectCard({ project, onUpdate }: ProjectCardProps) {
     <div style={{ padding: "12px 0", borderBottom: `1px solid ${colors.borderFaint}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, boxShadow: `0 0 8px ${color}66` }} />
+          <div
+            onClick={() => {
+              const next = STATUS_CYCLE[project.status];
+              if (next) onUpdate?.({ status: next });
+            }}
+            title="클릭하여 상태 변경 (active → in-progress → paused)"
+            style={{ width: 6, height: 6, borderRadius: "50%", background: color, boxShadow: `0 0 8px ${color}66`, cursor: "pointer", flexShrink: 0 }}
+          />
           <InlineEdit
             value={project.name}
             onSave={name => onUpdate?.({ name })}
@@ -48,7 +61,7 @@ export function ProjectCard({ project, onUpdate }: ProjectCardProps) {
         <InlineEdit
           value={String(project.progress)}
           onSave={v => {
-            const n = parseInt(v);
+            const n = parseInt(v, 10);
             if (!isNaN(n)) onUpdate?.({ progress: Math.min(100, Math.max(0, n)) });
           }}
           style={{ ...mono, fontSize: fontSizes.xs, color: colors.textDim }}
@@ -66,7 +79,11 @@ export function ProjectCard({ project, onUpdate }: ProjectCardProps) {
         <ProgressBar value={project.progress} color={color} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", paddingLeft: 14, marginTop: 6 }}>
-        <span style={{ fontSize: fontSizes.xs, color: colors.textSubtle }}>{project.metric}</span>
+        <InlineEdit
+          value={project.metric}
+          onSave={metric => onUpdate?.({ metric })}
+          style={{ fontSize: fontSizes.xs, color: colors.textSubtle }}
+        />
         <span style={{ ...mono, fontSize: fontSizes.xs, color: colors.textMid }}>
           <InlineEdit
             value={project.metric_value}

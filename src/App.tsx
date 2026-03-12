@@ -1,8 +1,8 @@
 // ABOUTME: Vision Widget root component - composes all widget sections
-// ABOUTME: Handles data loading/saving and habit increment interactions
+// ABOUTME: Handles data loading/saving and inline patch updates for projects/habits/quotes
 
 import { useState, useEffect, useCallback, useRef, CSSProperties } from "react";
-import type { WidgetData } from "./types";
+import type { WidgetData, Habit, Project } from "./types";
 import { colors, fonts, fontSizes, radius, shadows, THEMES } from "./theme";
 import { invoke } from "./lib/tauri";
 import { useSettings } from "./hooks/useSettings";
@@ -93,21 +93,14 @@ export default function App() {
     await invoke("save_data", { data: next });
   }, []);
 
-  const incrementHabit = useCallback((i: number) => {
+  const updateHabit = useCallback((i: number, patch: Partial<Habit>) => {
     const next = { ...data, habits: data.habits.map((h, idx) =>
-      idx === i ? { ...h, streak: h.streak + 1 } : h
+      idx === i ? { ...h, ...patch } : h
     )};
     persist(next);
   }, [data, persist]);
 
-  const renameHabit = useCallback((i: number, name: string) => {
-    const next = { ...data, habits: data.habits.map((h, idx) =>
-      idx === i ? { ...h, name } : h
-    )};
-    persist(next);
-  }, [data, persist]);
-
-  const updateProject = useCallback((id: number, patch: Partial<import("./types").Project>) => {
+  const updateProject = useCallback((id: number, patch: Partial<Project>) => {
     const next = { ...data, projects: data.projects.map(p =>
       p.id === id ? { ...p, ...patch } : p
     )};
@@ -147,7 +140,7 @@ export default function App() {
         {data.projects.map(p => <ProjectCard key={p.id} project={p} onUpdate={patch => updateProject(p.id, patch)} />)}
 
         <SectionLabel>Streaks</SectionLabel>
-        <HabitStreak habits={data.habits} onIncrement={incrementHabit} onRename={renameHabit} />
+        <HabitStreak habits={data.habits} onUpdate={updateHabit} />
 
         <PomodoroTimer />
 
