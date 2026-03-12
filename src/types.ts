@@ -23,6 +23,7 @@ export interface WidgetData {
   pomodoroDurations?: { focus: number; break: number };
   pomodoroSessionsDate?: string; // YYYY-MM-DD, date of the last counted session
   pomodoroSessions?: number;     // focus sessions completed on pomodoroSessionsDate
+  pomodoroAutoStart?: boolean;   // auto-start next phase when current phase ends
 }
 
 export interface WindowPosition {
