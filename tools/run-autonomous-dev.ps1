@@ -6,6 +6,7 @@ chcp 65001 | Out-Null
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::InputEncoding  = [System.Text.Encoding]::UTF8
 $OutputEncoding           = [System.Text.Encoding]::UTF8
+$PSDefaultParameterValues['Add-Content:Encoding'] = 'utf8'
 
 # 경로 설정
 $ProjectDir = "C:\Users\gyunw\projects\vision-widget"
