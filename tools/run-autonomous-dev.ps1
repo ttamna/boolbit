@@ -1,12 +1,9 @@
 # ABOUTME: Windows Task Scheduler에서 autonomous-dev 에이전트를 헤드리스로 실행하는 스크립트
 # ABOUTME: 30분 주기로 vision-widget 코드베이스를 자율 개선한다
 
-# UTF-8 인코딩 강제
+# UTF-8 인코딩 강제 (pwsh 7+ 기본값이지만 명시)
 chcp 65001 | Out-Null
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
-$OutputEncoding           = [System.Text.Encoding]::UTF8
-$PSDefaultParameterValues['Add-Content:Encoding'] = 'utf8'
 
 # 경로 설정
 $ProjectDir = "C:\Users\gyunw\projects\vision-widget"
