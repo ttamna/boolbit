@@ -107,6 +107,10 @@ export default function App() {
     persist(next);
   }, [data, persist]);
 
+  const updateHabits = useCallback((habits: Habit[]) => {
+    persist({ ...data, habits });
+  }, [data, persist]);
+
   const updateQuotes = useCallback((quotes: string[]) => {
     persist({ ...data, quotes });
   }, [data, persist]);
@@ -144,7 +148,7 @@ export default function App() {
         {data.projects.map(p => <ProjectCard key={p.id} project={p} onUpdate={patch => updateProject(p.id, patch)} />)}
 
         <SectionLabel>Streaks</SectionLabel>
-        <HabitStreak habits={data.habits} onUpdate={updateHabit} />
+        <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} />
 
         {loaded && (
           <PomodoroTimer
