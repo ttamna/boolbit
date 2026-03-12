@@ -1,8 +1,8 @@
 // ABOUTME: SettingsPanel component - collapsible panel for widget appearance settings
-// ABOUTME: Currently provides opacity slider; more settings will be added in future tasks
+// ABOUTME: Provides opacity slider and color theme switcher (4 presets)
 
 import { CSSProperties } from "react";
-import { fontSizes, colors } from "../theme";
+import { fontSizes, colors, THEMES, ThemeKey } from "../theme";
 import type { WidgetSettings } from "../types";
 
 interface SettingsPanelProps {
@@ -25,6 +25,9 @@ const label: CSSProperties = {
 };
 
 export function SettingsPanel({ settings, onUpdate }: SettingsPanelProps) {
+  const currentTheme = settings.theme;
+  const themeAccent = THEMES[currentTheme].accent;
+
   return (
     <div style={{
       borderTop: `1px solid ${colors.borderFaint}`,
@@ -39,11 +42,41 @@ export function SettingsPanel({ settings, onUpdate }: SettingsPanelProps) {
             max={100}
             value={Math.round(settings.opacity * 100)}
             onChange={e => onUpdate({ opacity: Number(e.target.value) / 100 })}
-            style={{ flex: 1, accentColor: colors.statusActive, cursor: "pointer" }}
+            style={{ flex: 1, accentColor: themeAccent, cursor: "pointer" }}
           />
           <span style={{ fontSize: fontSizes.xs, color: colors.textDim, width: 32, textAlign: "right" }}>
             {Math.round(settings.opacity * 100)}%
           </span>
+        </div>
+      </div>
+
+      <div style={row}>
+        <span style={label}>테마</span>
+        <div style={{ display: "flex", gap: 6 }}>
+          {(Object.keys(THEMES) as ThemeKey[]).map(key => {
+            const t = THEMES[key];
+            const active = currentTheme === key;
+            return (
+              <button
+                key={key}
+                title={t.name}
+                onClick={() => onUpdate({ theme: key })}
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: "50%",
+                  background: `rgb(${t.bgRgb})`,
+                  border: active
+                    ? `2px solid ${t.accent}`
+                    : `2px solid rgba(255,255,255,0.15)`,
+                  cursor: "pointer",
+                  padding: 0,
+                  boxShadow: active ? `0 0 6px ${t.accent}60` : "none",
+                  transition: "border 0.15s, box-shadow 0.15s",
+                }}
+              />
+            );
+          })}
         </div>
       </div>
     </div>

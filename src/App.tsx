@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef, CSSProperties } from "react";
 import type { WidgetData } from "./types";
-import { colors, fonts, fontSizes, radius, shadows } from "./theme";
+import { colors, fonts, fontSizes, radius, shadows, THEMES } from "./theme";
 import { invoke } from "./lib/tauri";
 import { useSettings } from "./hooks/useSettings";
 import { useWindowSync } from "./hooks/useWindowSync";
@@ -44,7 +44,6 @@ const s = {
   container: {
     width: "100%",
     maxHeight: "100vh",
-    background: colors.bgBase,
     backdropFilter: "blur(40px)",
     WebkitBackdropFilter: "blur(40px)",
     borderRadius: radius.container,
@@ -124,7 +123,7 @@ export default function App() {
       ref={containerRef}
       style={{
         ...s.container,
-        background: `rgba(12, 12, 16, ${settings.opacity})`,
+        background: `rgba(${THEMES[settings.theme].bgRgb}, ${settings.opacity})`,
         opacity: loaded ? 1 : 0,
         transform: loaded ? "translateY(0)" : "translateY(12px)",
         transition: "opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1)",

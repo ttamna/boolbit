@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS: WidgetSettings = {
   position: { x: 20, y: 60 },
   size: { width: 380, height: 700 },
   opacity: 1.0,
+  theme: "void",
 };
 
 export function useSettings() {
@@ -20,8 +21,12 @@ export function useSettings() {
     (async () => {
       const saved = await invoke<WidgetSettings>("load_settings");
       if (saved) {
-        setSettings(saved);
-        settingsRef.current = saved;
+        // Shallow merge is safe: Rust always serializes complete position/size objects,
+        // so partial nested objects cannot arrive. New top-level fields (e.g. theme)
+        // get DEFAULT_SETTINGS fallback when loading pre-existing save files.
+        const merged = { ...DEFAULT_SETTINGS, ...saved };
+        setSettings(merged);
+        settingsRef.current = merged;
       }
       setLoaded(true);
     })();
