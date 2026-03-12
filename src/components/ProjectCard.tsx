@@ -35,9 +35,10 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
 interface ProjectCardProps {
   project: Project;
   onUpdate?: (patch: Partial<Project>) => void;
+  onDelete?: () => void;
 }
 
-export function ProjectCard({ project, onUpdate }: ProjectCardProps) {
+export function ProjectCard({ project, onUpdate, onDelete }: ProjectCardProps) {
   const color = STATUS_COLORS[project.status] || colors.statusActive;
 
   return (
@@ -58,15 +59,29 @@ export function ProjectCard({ project, onUpdate }: ProjectCardProps) {
             style={{ fontSize: fontSizes.lg, fontWeight: 600, color: colors.textHigh, letterSpacing: 0.3 }}
           />
         </div>
-        <InlineEdit
-          value={String(project.progress)}
-          onSave={v => {
-            const n = parseInt(v, 10);
-            if (!isNaN(n)) onUpdate?.({ progress: Math.min(100, Math.max(0, n)) });
-          }}
-          style={{ ...mono, fontSize: fontSizes.xs, color: colors.textDim }}
-          inputStyle={{ ...mono, fontSize: fontSizes.xs, width: 40, textAlign: "right" }}
-        />
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <InlineEdit
+            value={String(project.progress)}
+            onSave={v => {
+              const n = parseInt(v, 10);
+              if (!isNaN(n)) onUpdate?.({ progress: Math.min(100, Math.max(0, n)) });
+            }}
+            style={{ ...mono, fontSize: fontSizes.xs, color: colors.textDim }}
+            inputStyle={{ ...mono, fontSize: fontSizes.xs, width: 40, textAlign: "right" }}
+          />
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              title="프로젝트 삭제"
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: colors.textSubtle, fontSize: fontSizes.xs, padding: "0 2px", lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
       <div style={{ fontSize: fontSizes.sm, color: colors.textMuted, marginTop: 4, paddingLeft: 14 }}>
         <InlineEdit

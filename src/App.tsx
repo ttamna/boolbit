@@ -71,6 +71,8 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editingProjects, setEditingProjects] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
   const { settings, updateSettings, loaded: settingsLoaded } = useSettings();
 
   useWindowSync({
@@ -119,6 +121,27 @@ export default function App() {
     persist({ ...data, pomodoroDurations });
   }, [data, persist]);
 
+  const addProject = useCallback((name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const maxId = data.projects.reduce((m, p) => Math.max(m, p.id), 0);
+    const newProject: Project = {
+      id: maxId + 1,
+      name: trimmed,
+      status: "active",
+      goal: "목표를 입력하세요",
+      progress: 0,
+      metric: "지표",
+      metric_value: "0",
+      metric_target: "100",
+    };
+    persist({ ...data, projects: [...data.projects, newProject] });
+  }, [data, persist]);
+
+  const deleteProject = useCallback((id: number) => {
+    persist({ ...data, projects: data.projects.filter(p => p.id !== id) });
+  }, [data, persist]);
+
   return (
     <div
       ref={containerRef}
@@ -145,7 +168,74 @@ export default function App() {
         <Clock />
 
         <SectionLabel>Projects</SectionLabel>
-        {data.projects.map(p => <ProjectCard key={p.id} project={p} onUpdate={patch => updateProject(p.id, patch)} />)}
+        {editingProjects ? (
+          <div style={{ borderLeft: `2px solid ${colors.borderAccent}`, paddingLeft: 12 }}>
+            {data.projects.map(p => (
+              <ProjectCard
+                key={p.id}
+                project={p}
+                onUpdate={patch => updateProject(p.id, patch)}
+                onDelete={() => deleteProject(p.id)}
+              />
+            ))}
+            {/* Add new project */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 0" }}>
+              <input
+                value={newProjectName}
+                onChange={e => setNewProjectName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter" && newProjectName.trim()) { addProject(newProjectName); setNewProjectName(""); }
+                }}
+                placeholder="새 프로젝트 추가..."
+                style={{
+                  flex: 1,
+                  background: "rgba(255,255,255,0.04)",
+                  border: `1px solid ${colors.borderSubtle}`,
+                  borderRadius: 4, color: colors.textDim,
+                  fontSize: fontSizes.sm, outline: "none",
+                  padding: "2px 6px",
+                }}
+              />
+              <button
+                onClick={() => { if (newProjectName.trim()) { addProject(newProjectName); setNewProjectName(""); } }}
+                style={{
+                  background: "transparent", border: "none", cursor: "pointer",
+                  color: colors.textMid, fontSize: fontSizes.base, padding: "0 2px", lineHeight: 1,
+                }}
+              >
+                +
+              </button>
+            </div>
+            <button
+              onClick={() => setEditingProjects(false)}
+              style={{
+                marginTop: 4, background: "transparent",
+                border: `1px solid ${colors.borderFaint}`,
+                borderRadius: 4, cursor: "pointer",
+                color: colors.textSubtle, fontSize: fontSizes.xs, padding: "2px 8px",
+              }}
+            >
+              완료
+            </button>
+          </div>
+        ) : (
+          <>
+            {data.projects.map(p => <ProjectCard key={p.id} project={p} onUpdate={patch => updateProject(p.id, patch)} />)}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+              <button
+                onClick={() => setEditingProjects(true)}
+                title="프로젝트 추가/삭제"
+                style={{
+                  background: "transparent", border: "none", cursor: "pointer",
+                  color: colors.textPhantom, fontSize: fontSizes.mini,
+                  padding: "0 2px", lineHeight: 1,
+                }}
+              >
+                ✏
+              </button>
+            </div>
+          </>
+        )}
 
         <SectionLabel>Streaks</SectionLabel>
         <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} />
