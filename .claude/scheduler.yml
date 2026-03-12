@@ -1,0 +1,14 @@
+tasks:
+  autonomous-dev:
+    description: "우주선 기장 대시보드 자율 개발 — 편집가능성·테마·뽀모도로·인용구 개선"
+    script: tools/run-autonomous-dev.ps1
+    interval: 30m
+    concurrency: 1
+    timeout: 25m
+    windows:
+      executor: powershell
+      run_level: limited
+
+logs:
+  dir: tools/logs
+  retention_days: 14

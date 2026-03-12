@@ -28,7 +28,6 @@ src-tauri/gen/schemas/
 Thumbs.db
 
 # Tools
-.claude/
 .playwright-mcp/
 
 # Logs
