@@ -5,6 +5,7 @@ import { useState, useEffect, CSSProperties } from "react";
 import type { Habit } from "../types";
 import { fonts, fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
+import { useEditMode } from "../hooks/useEditMode";
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
 
@@ -17,9 +18,9 @@ interface HabitStreakProps {
 }
 
 export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakProps) {
-  const [editing, setEditing] = useState(false);
   const [newIcon, setNewIcon] = useState("⭐");
   const [newName, setNewName] = useState("");
+  const { editing, openEditing, closeEditing } = useEditMode();
   // Refresh todayStr every minute so the ✓ button state updates correctly around midnight
   const [todayStr, setTodayStr] = useState(getToday);
   useEffect(() => {
@@ -43,13 +44,6 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
     if (h.lastChecked === todayStr) return; // already checked today
     onUpdate?.(i, { streak: h.streak + 1, lastChecked: todayStr });
   };
-
-  useEffect(() => {
-    if (!editing) return;
-    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") setEditing(false); };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [editing]);
 
   if (editing) {
     return (
@@ -138,7 +132,7 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
 
         {/* Done */}
         <button
-          onClick={() => setEditing(false)}
+          onClick={closeEditing}
           style={{
             marginTop: 8, background: "transparent",
             border: `1px solid ${colors.borderFaint}`,
@@ -210,7 +204,7 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
       {onHabitsChange && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
           <button
-            onClick={() => setEditing(true)}
+            onClick={openEditing}
             title="습관 추가/삭제"
             style={{
               background: "transparent", border: "none", cursor: "pointer",

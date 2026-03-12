@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import { fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
+import { useEditMode } from "../hooks/useEditMode";
 
 const navBtnStyle: CSSProperties = {
   background: "transparent", border: "none", cursor: "pointer",
@@ -19,7 +20,6 @@ interface QuoteRotatorProps {
 export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
   const [idx, setIdx] = useState(0);
   const [opacity, setOpacity] = useState(1);
-  const [editing, setEditing] = useState(false);
   const [newDraft, setNewDraft] = useState("");
   // timerKey: increment to restart the auto-rotation interval after manual navigation
   const [timerKey, setTimerKey] = useState(0);
@@ -36,6 +36,15 @@ export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
     if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
     if (autoFadeTimeoutRef.current) clearTimeout(autoFadeTimeoutRef.current);
   }, []);
+
+  // Cancel all pending fade timeouts — stable (only refs + stable setter), safe as useCallback dep
+  const cancelPendingFades = useCallback(() => {
+    if (navTimeoutRef.current) { clearTimeout(navTimeoutRef.current); navTimeoutRef.current = null; }
+    if (autoFadeTimeoutRef.current) { clearTimeout(autoFadeTimeoutRef.current); autoFadeTimeoutRef.current = null; }
+    setOpacity(1);
+  }, []);
+
+  const { editing, openEditing, closeEditing } = useEditMode();
 
   useEffect(() => {
     if (editing || quotes.length === 0) return;
@@ -55,13 +64,6 @@ export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
       }
     };
   }, [quotes.length, editing, timerKey]);
-
-  // Cancel all pending fade timeouts — stable (only refs + stable setter), safe as useCallback dep
-  const cancelPendingFades = useCallback(() => {
-    if (navTimeoutRef.current) { clearTimeout(navTimeoutRef.current); navTimeoutRef.current = null; }
-    if (autoFadeTimeoutRef.current) { clearTimeout(autoFadeTimeoutRef.current); autoFadeTimeoutRef.current = null; }
-    setOpacity(1);
-  }, []);
 
   const navigate = (dir: 1 | -1) => {
     if (quotes.length <= 1) return;
@@ -87,18 +89,6 @@ export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
     onUpdate([...quotes, trimmed]);
     setNewDraft("");
   };
-
-  const closeEditing = useCallback(() => {
-    cancelPendingFades(); // cancel any pending fade and restore opacity
-    setEditing(false);
-  }, [cancelPendingFades]);
-
-  useEffect(() => {
-    if (!editing) return;
-    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeEditing(); };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [editing, closeEditing]);
 
   if (editing) {
     return (
@@ -184,7 +174,7 @@ export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
         {quotes.length > 1 && (
           <button onClick={() => navigate(1)} title="다음 인용구" style={navBtnStyle}>›</button>
         )}
-        <button onClick={() => { cancelPendingFades(); setEditing(true); }} title="인용구 편집" style={navBtnStyle}>✏</button>
+        <button onClick={() => { cancelPendingFades(); openEditing(); }} title="인용구 편집" style={navBtnStyle}>✏</button>
       </div>
     </div>
   );
