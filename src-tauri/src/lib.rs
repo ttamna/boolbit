@@ -65,6 +65,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "pomodoroSessions")]
     pub pomodoro_sessions: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "pomodoroAutoStart")]
+    pub pomodoro_auto_start: Option<bool>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -149,6 +152,7 @@ fn default_data() -> WidgetData {
         pomodoro_durations: None,
         pomodoro_sessions_date: None,
         pomodoro_sessions: None,
+        pomodoro_auto_start: None,
     }
 }
 

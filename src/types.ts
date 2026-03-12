@@ -1,3 +1,6 @@
+// ABOUTME: TypeScript type definitions for widget data, settings, and domain models
+// ABOUTME: Shared across components and hooks; mirrors the Rust WidgetData struct in lib.rs
+
 export interface Project {
   id: number;
   name: string;
@@ -23,6 +26,7 @@ export interface WidgetData {
   pomodoroDurations?: { focus: number; break: number };
   pomodoroSessionsDate?: string; // YYYY-MM-DD, date of the last counted session
   pomodoroSessions?: number;     // focus sessions completed on pomodoroSessionsDate
+  pomodoroAutoStart?: boolean;   // whether the next phase starts automatically after each phase ends
 }
 
 export interface WindowPosition {

@@ -29,16 +29,19 @@ async function notify(title: string, body: string) {
 interface PomodoroTimerProps {
   initialDurations?: { focus: number; break: number };
   onDurationsChange?: (d: { focus: number; break: number }) => void;
+  initialAutoStart?: boolean;          // whether to auto-start the next phase when current ends
+  onAutoStartChange?: (v: boolean) => void;
   sessionsToday?: number;         // completed focus sessions today, from persisted data
   onSessionComplete?: () => void; // called when a focus phase finishes
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete }: PomodoroTimerProps) {
+export function PomodoroTimer({ initialDurations, onDurationsChange, initialAutoStart, onAutoStartChange, sessionsToday = 0, onSessionComplete }: PomodoroTimerProps) {
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>("focus");
   const [durations, setDurations] = useState<Record<Phase, number>>(initialDurations ?? DEFAULT_DURATION);
   const [remaining, setRemaining] = useState((initialDurations?.focus ?? DEFAULT_DURATION.focus) * 60);
   const [running, setRunning] = useState(false);
+  const [autoStart, setAutoStart] = useState(initialAutoStart ?? false);
   const [editingPhase, setEditingPhase] = useState<Phase | null>(null);
   const [editValue, setEditValue] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -49,6 +52,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   remainingRef.current = remaining;
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+  const autoStartRef = useRef(autoStart);
+  autoStartRef.current = autoStart;
   const onSessionCompleteRef = useRef(onSessionComplete);
   onSessionCompleteRef.current = onSessionComplete;
 
@@ -70,9 +75,10 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           : "💪 휴식 종료! 다시 집중할 시간.";
         notify("Vision Widget", msg);
         if (currentPhase === "focus") onSessionCompleteRef.current?.();
-        setRunning(false);
         setPhase(next);
         setRemaining(durationsRef.current[next] * 60);
+        // Auto-start next phase if enabled; otherwise pause and wait for user
+        setRunning(autoStartRef.current);
       } else {
         setRemaining(next_val);
       }
@@ -254,6 +260,24 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               }}
             >
               ↺
+            </button>
+            {/* Auto-start toggle: cycles phases automatically without user interaction */}
+            <button
+              onClick={() => {
+                const next = !autoStart;
+                setAutoStart(next);
+                onAutoStartChange?.(next);
+              }}
+              title={autoStart ? "자동 시작 켜짐 — 클릭하여 끄기" : "자동 시작 꺼짐 — 클릭하여 켜기"}
+              style={{
+                padding: "6px 12px", borderRadius: radius.chip,
+                background: autoStart ? `${accent}22` : "transparent",
+                border: `1px solid ${autoStart ? accent + "44" : colors.borderFaint}`,
+                color: autoStart ? accent : colors.textSubtle,
+                fontSize: fontSizes.sm, cursor: "pointer",
+              }}
+            >
+              ∞
             </button>
           </div>
         </div>
