@@ -1,5 +1,5 @@
 // ABOUTME: PomodoroTimer component - configurable focus/break timer with desktop notification
-// ABOUTME: Durations are editable inline (click the minute value in each phase tab when stopped)
+// ABOUTME: Durations are editable inline and persisted via onDurationsChange callback
 
 import { useState, useEffect, useRef, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
@@ -26,11 +26,16 @@ async function notify(title: string, body: string) {
   }
 }
 
-export function PomodoroTimer() {
+interface PomodoroTimerProps {
+  initialDurations?: { focus: number; break: number };
+  onDurationsChange?: (d: { focus: number; break: number }) => void;
+}
+
+export function PomodoroTimer({ initialDurations, onDurationsChange }: PomodoroTimerProps) {
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>("focus");
-  const [durations, setDurations] = useState<Record<Phase, number>>(DEFAULT_DURATION);
-  const [remaining, setRemaining] = useState(DEFAULT_DURATION.focus * 60);
+  const [durations, setDurations] = useState<Record<Phase, number>>(initialDurations ?? DEFAULT_DURATION);
+  const [remaining, setRemaining] = useState((initialDurations?.focus ?? DEFAULT_DURATION.focus) * 60);
   const [running, setRunning] = useState(false);
   const [editingPhase, setEditingPhase] = useState<Phase | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -91,7 +96,9 @@ export function PomodoroTimer() {
     const parsed = parseInt(editValue, 10);
     // Use original value on empty/non-numeric; clamp 1-99 for valid input (including 0)
     const mins = Math.max(1, Math.min(99, isNaN(parsed) ? durations[editingPhase] : parsed));
-    setDurations(prev => ({ ...prev, [editingPhase]: mins }));
+    const next = { ...durations, [editingPhase]: mins };
+    setDurations(next);
+    onDurationsChange?.(next);
     if (editingPhase === phase && !running) {
       setRemaining(mins * 60);
     }

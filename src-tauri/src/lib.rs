@@ -43,10 +43,20 @@ pub struct Habit {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PomodoroDurations {
+    pub focus: u32,
+    #[serde(rename = "break")]
+    pub break_mins: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WidgetData {
     pub projects: Vec<Project>,
     pub habits: Vec<Habit>,
     pub quotes: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "pomodoroDurations")]
+    pub pomodoro_durations: Option<PomodoroDurations>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -128,6 +138,7 @@ fn default_data() -> WidgetData {
             "Ship small, get feedback, adjust.".into(),
             "완벽보다 실행. 실행보다 피드백.".into(),
         ],
+        pomodoro_durations: None,
     }
 }
 

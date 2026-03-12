@@ -111,6 +111,10 @@ export default function App() {
     persist({ ...data, quotes });
   }, [data, persist]);
 
+  const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number }) => {
+    persist({ ...data, pomodoroDurations });
+  }, [data, persist]);
+
   return (
     <div
       ref={containerRef}
@@ -142,7 +146,12 @@ export default function App() {
         <SectionLabel>Streaks</SectionLabel>
         <HabitStreak habits={data.habits} onUpdate={updateHabit} />
 
-        <PomodoroTimer />
+        {loaded && (
+          <PomodoroTimer
+            initialDurations={data.pomodoroDurations}
+            onDurationsChange={updatePomodoroDurations}
+          />
+        )}
 
         <SectionLabel>Direction</SectionLabel>
         <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} />

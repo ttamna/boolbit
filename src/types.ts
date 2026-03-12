@@ -19,6 +19,7 @@ export interface WidgetData {
   projects: Project[];
   habits: Habit[];
   quotes: string[];
+  pomodoroDurations?: { focus: number; break: number };
 }
 
 export interface WindowPosition {
