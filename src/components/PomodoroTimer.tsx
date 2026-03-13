@@ -64,9 +64,15 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
       if (intervalRef.current) clearInterval(intervalRef.current);
       return;
     }
+    // Compute effective start time from current remaining so pause/resume works correctly.
+    // effectiveStart = now - (totalSecs - remaining) * 1000
+    // This lets us resume mid-countdown without resetting to the full duration.
+    const totalSecs = durationsRef.current[phaseRef.current] * 60;
+    const effectiveStart = Date.now() - (totalSecs - remainingRef.current) * 1000;
     intervalRef.current = setInterval(() => {
-      const next_val = remainingRef.current - 1;
-      if (next_val <= 0) {
+      const newElapsed = Math.floor((Date.now() - effectiveStart) / 1000);
+      const newRemaining = Math.max(0, totalSecs - newElapsed);
+      if (newRemaining <= 0) {
         clearInterval(intervalRef.current!);
         intervalRef.current = null;
         const currentPhase = phaseRef.current;
@@ -86,7 +92,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           setRunning(false);
         }
       } else {
-        setRemaining(next_val);
+        setRemaining(newRemaining);
       }
     }, 1000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
