@@ -265,7 +265,14 @@ export default function App() {
     const newHistory = [...history.filter(d => d.date !== today), { date: today, count }]
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(-14);
-    persist({ ...data, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory });
+    // Credit session to the ★ focused project (if any) as a lifetime counter.
+    const focusIdx = data.projects.findIndex(p => p.isFocus);
+    const updatedProjects = focusIdx >= 0
+      ? data.projects.map((p, i) =>
+          i === focusIdx ? { ...p, pomodoroSessions: (p.pomodoroSessions ?? 0) + 1 } : p
+        )
+      : data.projects;
+    persist({ ...data, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects });
   }, [data, persist]);
 
   const toggleSection = useCallback((section: SectionKey) => {

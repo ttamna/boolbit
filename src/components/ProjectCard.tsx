@@ -184,6 +184,15 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
               fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
             }}
           >+</button>
+          {/* Pomodoro session counter: visible when at least one session has been credited */}
+          {(project.pomodoroSessions ?? 0) > 0 && (
+            <span
+              title={`뽀모도로 ${project.pomodoroSessions}세션 투자됨`}
+              style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, padding: "0 2px", lineHeight: 1 }}
+            >
+              🍅{project.pomodoroSessions}
+            </span>
+          )}
           {/* Focus marker: hidden for done projects since they are no longer active work */}
           {project.status !== "done" && (
             <button

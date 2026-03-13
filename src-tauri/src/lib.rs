@@ -58,6 +58,8 @@ pub struct Project {
     pub notes: Option<String>,
     #[serde(rename = "isFocus", default, skip_serializing_if = "Option::is_none")]
     pub is_focus: Option<bool>,
+    #[serde(rename = "pomodoroSessions", default, skip_serializing_if = "Option::is_none")]
+    pub pomodoro_sessions: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -188,6 +190,7 @@ fn default_data() -> WidgetData {
                 deadline: None,
                 notes: None,
                 is_focus: None,
+                pomodoro_sessions: None,
             },
             Project {
                 id: 2,
@@ -203,6 +206,7 @@ fn default_data() -> WidgetData {
                 deadline: None,
                 notes: None,
                 is_focus: None,
+                pomodoro_sessions: None,
             },
             Project {
                 id: 3,
@@ -218,6 +222,7 @@ fn default_data() -> WidgetData {
                 deadline: None,
                 notes: None,
                 is_focus: None,
+                pomodoro_sessions: None,
             },
         ],
         habits: vec![
@@ -332,6 +337,10 @@ fn load_data() -> WidgetData {
         // is_focus: false is equivalent to absent (absent = not focused)
         if project.is_focus == Some(false) {
             project.is_focus = None;
+        }
+        // pomodoro_sessions: clamp to [0, 10000] to guard against corrupt JSON
+        if let Some(n) = project.pomodoro_sessions {
+            project.pomodoro_sessions = Some(n.min(10000));
         }
     }
     data

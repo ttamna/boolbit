@@ -26,6 +26,7 @@ export interface Project {
   deadline?: string;      // YYYY-MM-DD, project target completion date
   notes?: string;         // freeform project notes: context, blockers, next steps
   isFocus?: boolean;      // marks project as today's focus/priority; absent = not focused
+  pomodoroSessions?: number; // lifetime focus sessions completed while this project was ★; absent = 0
 }
 
 export interface Habit {
