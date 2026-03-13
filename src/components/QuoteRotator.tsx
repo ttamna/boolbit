@@ -1,5 +1,5 @@
 // ABOUTME: QuoteRotator component - cycles through motivational quotes with fade transition
-// ABOUTME: Supports inline add, edit, and delete of quotes; manual prev/next navigation via ‹/› buttons
+// ABOUTME: Supports inline add, edit, delete, and reorder (↑↓) of quotes; manual prev/next navigation via ‹/› buttons
 
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import { fontSizes, colors } from "../theme";
@@ -12,6 +12,13 @@ const navBtnStyle: CSSProperties = {
   padding: "0 2px", lineHeight: 1,
 };
 
+// Reorder button style — disabled state uses textLabel, enabled uses textSubtle
+const moveBtnStyle = (disabled: boolean): CSSProperties => ({
+  background: "transparent", border: "none", cursor: disabled ? "default" : "pointer",
+  color: disabled ? colors.textLabel : colors.textSubtle,
+  fontSize: fontSizes.mini, padding: "1px 2px", lineHeight: 1,
+});
+
 interface QuoteRotatorProps {
   quotes: string[];
   onUpdate: (quotes: string[]) => void;
@@ -23,6 +30,8 @@ export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
   const [newDraft, setNewDraft] = useState("");
   // timerKey: increment to restart the auto-rotation interval after manual navigation
   const [timerKey, setTimerKey] = useState(0);
+  // editKeysRef: stable React keys per quote during edit mode — prevents InlineEdit state loss on reorder
+  const editKeysRef = useRef<string[]>([]);
 
   // Keep a ref to always have fresh quotes.length inside setTimeout callbacks
   const quotesLengthRef = useRef(quotes.length);
@@ -45,6 +54,13 @@ export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
   }, []);
 
   const { editing, openEditing, closeEditing } = useEditMode();
+
+  // Assign stable UUIDs per quote on edit entry so reorder doesn't remount InlineEdits
+  const openEditingWithKeys = () => {
+    editKeysRef.current = quotes.map(() => crypto.randomUUID());
+    cancelPendingFades();
+    openEditing();
+  };
 
   useEffect(() => {
     if (editing || quotes.length === 0) return;
@@ -83,10 +99,25 @@ export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
 
   const safeIdx = quotes.length > 0 ? idx % quotes.length : 0;
 
+  const moveQuote = (from: number, dir: -1 | 1) => {
+    const to = from + dir;
+    if (to < 0 || to >= quotes.length) return;
+    const next = [...quotes];
+    [next[from], next[to]] = [next[to], next[from]];
+    // Swap stable edit keys to match new order
+    const keys = editKeysRef.current;
+    [keys[from], keys[to]] = [keys[to], keys[from]];
+    onUpdate(next);
+    // Adjust idx so the same quote stays visible after editing exits
+    if (from === safeIdx) setIdx(to);
+    else if (to === safeIdx) setIdx(from);
+  };
+
   const addQuote = () => {
     const trimmed = newDraft.trim();
     if (!trimmed) return;
     onUpdate([...quotes, trimmed]);
+    editKeysRef.current.push(crypto.randomUUID());
     setNewDraft("");
   };
 
@@ -94,14 +125,25 @@ export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
     return (
       <div style={{ borderLeft: `2px solid ${colors.borderAccent}`, paddingLeft: 12 }}>
         {quotes.map((q, i) => (
-          <div key={q + '-' + i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+          <div key={editKeysRef.current[i] ?? String(i)} style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
+              <button onClick={() => moveQuote(i, -1)} disabled={i === 0} title="위로 이동" style={moveBtnStyle(i === 0)}>↑</button>
+              <button onClick={() => moveQuote(i, 1)} disabled={i === quotes.length - 1} title="아래로 이동" style={moveBtnStyle(i === quotes.length - 1)}>↓</button>
+            </div>
             <InlineEdit
               value={q}
               onSave={val => onUpdate(quotes.map((x, j) => j === i ? val : x))}
               style={{ fontSize: fontSizes.sm, color: colors.textDim, fontStyle: "italic", flex: 1 }}
             />
             <button
-              onClick={() => onUpdate(quotes.filter((_, j) => j !== i))}
+              onClick={() => {
+                onUpdate(quotes.filter((_, j) => j !== i));
+                editKeysRef.current.splice(i, 1);
+                // Keep the same quote visible after editing exits:
+                // deleted item before display position → shift idx left; deleted the current item → retreat one
+                if (i < safeIdx) setIdx(safeIdx - 1);
+                else if (i === safeIdx) setIdx(Math.max(0, safeIdx - 1));
+              }}
               style={{
                 background: "transparent", border: "none", cursor: "pointer",
                 color: colors.textSubtle, fontSize: fontSizes.xs, padding: "0 2px", lineHeight: 1,
@@ -174,7 +216,7 @@ export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
         {quotes.length > 1 && (
           <button onClick={() => navigate(1)} title="다음 인용구" style={navBtnStyle}>›</button>
         )}
-        <button onClick={() => { cancelPendingFades(); openEditing(); }} title="인용구 편집" style={navBtnStyle}>✏</button>
+        <button onClick={openEditingWithKeys} title="인용구 편집" style={navBtnStyle}>✏</button>
       </div>
     </div>
   );
