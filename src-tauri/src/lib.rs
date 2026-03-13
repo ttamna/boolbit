@@ -52,6 +52,8 @@ pub struct Project {
     pub github_repo: Option<String>,
     #[serde(rename = "githubData", default, skip_serializing_if = "Option::is_none")]
     pub github_data: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deadline: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -148,6 +150,7 @@ fn default_data() -> WidgetData {
                 metric_target: "100".into(),
                 github_repo: None,
                 github_data: None,
+                deadline: None,
             },
             Project {
                 id: 2,
@@ -160,6 +163,7 @@ fn default_data() -> WidgetData {
                 metric_target: "₩300K".into(),
                 github_repo: None,
                 github_data: None,
+                deadline: None,
             },
             Project {
                 id: 3,
@@ -172,6 +176,7 @@ fn default_data() -> WidgetData {
                 metric_target: "40".into(),
                 github_repo: None,
                 github_data: None,
+                deadline: None,
             },
         ],
         habits: vec![
@@ -216,6 +221,12 @@ fn load_data() -> WidgetData {
     // Sanitize pomodoro_session_goal: 0 is not a valid goal (0 means "clear" in the UI)
     if data.pomodoro_session_goal == Some(0) {
         data.pomodoro_session_goal = None;
+    }
+    // Sanitize project deadlines: remove empty strings that could arrive from partial saves
+    for project in &mut data.projects {
+        if project.deadline.as_deref() == Some("") {
+            project.deadline = None;
+        }
     }
     data
 }

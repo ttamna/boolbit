@@ -23,6 +23,7 @@ export interface Project {
   metric_target: string;
   githubRepo?: string;    // "owner/repo"
   githubData?: GitHubData;
+  deadline?: string;      // YYYY-MM-DD, project target completion date
 }
 
 export interface Habit {

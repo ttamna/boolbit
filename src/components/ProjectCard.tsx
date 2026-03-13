@@ -1,5 +1,5 @@
 // ABOUTME: ProjectCard component - displays a single project with progress bar and metrics
-// ABOUTME: Supports inline editing of all fields: name, goal, progress, metric, metric_value, metric_target, status, githubRepo
+// ABOUTME: Supports inline editing of all fields: name, goal, deadline, progress, metric, metric_value, metric_target, status, githubRepo
 
 import { useState, CSSProperties } from "react";
 import type { Project, GitHubData } from "../types";
@@ -35,6 +35,37 @@ const CI_COLOR: Record<NonNullable<GitHubData["ciStatus"]>, string> = {
   failure: "#f87171",
   pending: "#facc15",
 };
+
+// Returns days remaining until deadline relative to local midnight.
+// Requires strict YYYY-MM-DD format; returns null for invalid/empty strings.
+// Uses T00:00:00 for local-midnight parsing (avoids UTC off-by-one).
+// Uses Math.floor so DST days (23h) count as 0 remaining, not 1.
+function deadlineDays(dateStr: string): number | null {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const ts = new Date(dateStr + "T00:00:00").getTime();
+  if (isNaN(ts)) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.floor((ts - today.getTime()) / 86400000);
+}
+
+// Returns a relative deadline label: "D-5", "오늘 마감", "5d 초과", or "—" if invalid.
+function deadlineRelative(dateStr: string): string {
+  const days = deadlineDays(dateStr);
+  if (days === null) return "—";
+  if (days === 0) return "오늘 마감";
+  if (days > 0) return `D-${days}`;
+  return `${-days}d 초과`;
+}
+
+// Returns urgency color: red if today or overdue (days ≤ 0), yellow if ≤7 days, dim otherwise.
+function deadlineColor(dateStr: string): string {
+  const days = deadlineDays(dateStr);
+  if (days === null) return colors.textPhantom;
+  if (days <= 0) return colors.statusPaused;
+  if (days <= 7) return colors.statusProgress;
+  return colors.textSubtle;
+}
 
 // Opens a GitHub URL path under the given repo; no-op if repo is absent or malformed
 function openGitHubUrl(repo: string | undefined, path = "") {
@@ -153,6 +184,48 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
           style={{ color: colors.textMuted }}
         />
       </div>
+      {/* Deadline — inline editable; faint placeholder when unset; urgency color when set */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 14, marginTop: 2 }}>
+        {project.deadline ? (
+          <>
+            <span
+              title={project.deadline}
+              style={{ ...mono, fontSize: fontSizes.mini, color: deadlineColor(project.deadline), fontWeight: 600 }}
+            >
+              {deadlineRelative(project.deadline)}
+            </span>
+            <InlineEdit
+              value={project.deadline}
+              onSave={v => {
+                if (deadlineDays(v) !== null) onUpdate?.({ deadline: v });
+              }}
+              style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom }}
+              inputStyle={{ ...mono, fontSize: fontSizes.mini, width: 90 }}
+            />
+            <button
+              onClick={() => onUpdate?.({ deadline: undefined })}
+              title="마감일 삭제"
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: colors.textPhantom, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+          </>
+        ) : (
+          <InlineEdit
+            value=""
+            placeholder="+ 마감일"
+            onSave={v => {
+              if (deadlineDays(v) !== null) onUpdate?.({ deadline: v });
+            }}
+            style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom }}
+            inputStyle={{ ...mono, fontSize: fontSizes.mini, width: 90 }}
+          />
+        )}
+      </div>
+
       <div style={{ paddingLeft: 14 }}>
         <ProgressBar value={project.progress} color={color} />
       </div>
