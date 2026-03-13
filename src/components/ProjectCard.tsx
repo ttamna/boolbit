@@ -195,6 +195,19 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
           </div>
         )}
       </div>
+      {/* Last commit message */}
+      {!repoMsg && project.githubData && (
+        <div
+          title={project.githubData.lastCommitMsg}
+          style={{
+            paddingLeft: 14, marginTop: 2, width: "100%",
+            ...mono, fontSize: fontSizes.mini, color: colors.textPhantom,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}
+        >
+          {project.githubData.lastCommitMsg}
+        </div>
+      )}
     </div>
   );
 }
