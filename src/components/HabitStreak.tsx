@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today; edit mode enables add/delete/reorder/targetStreak/bestStreak; 7-day dot heatmap shows check-in history
+// ABOUTME: Click ✓ to check/uncheck today; amber ✓ = streak at risk (checked yesterday, not today); edit mode: add/delete/reorder/targetStreak/bestStreak; 7-day dot heatmap
 
 import { useState, useEffect, useMemo, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -71,6 +71,14 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
       d.setDate(d.getDate() - (6 - i));
       return d.toLocaleDateString("sv");
     });
+  }, [todayStr]);
+
+  // Yesterday as YYYY-MM-DD — same todayStr base as last7Days to stay consistent around midnight.
+  // Explicit derivation avoids fragile dependency on last7Days array length or index.
+  const yesterdayStr = useMemo(() => {
+    const d = new Date(todayStr + "T00:00:00");
+    d.setDate(d.getDate() - 1);
+    return d.toLocaleDateString("sv");
   }, [todayStr]);
 
   const addHabit = () => {
@@ -306,6 +314,8 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
         {habits.map((h, i) => {
           const doneToday = h.lastChecked === todayStr;
+          // atRisk: streak > 0, last checked yesterday, not yet today — will reset at midnight
+          const atRisk = !doneToday && h.streak > 0 && h.lastChecked === yesterdayStr;
           const milestone = getMilestone(h.streak);
           const upcoming = getUpcomingMilestone(h.streak);
           const history = h.checkHistory ?? [];
@@ -372,13 +382,18 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                     +{upcoming.days}{upcoming.badge}
                   </span>
                 ) : null}
-                {/* Daily check-in button — click to check, click again to undo */}
+                {/* Daily check-in button — click to check, click again to undo.
+                    atRisk amber: checked yesterday but not today → streak resets at midnight */}
                 <button
                   onClick={() => checkHabit(i)}
-                  title={doneToday ? "오늘 완료됨 — 클릭하여 취소" : "오늘 완료 체크"}
+                  title={
+                    doneToday ? "오늘 완료됨 — 클릭하여 취소"
+                    : atRisk ? "오늘 완료하지 않으면 자정에 스트릭 초기화"
+                    : "오늘 완료 체크"
+                  }
                   style={{
                     background: "transparent", border: "none", cursor: "pointer",
-                    color: doneToday ? (accent ?? colors.statusActive) : colors.textPhantom,
+                    color: doneToday ? (accent ?? colors.statusActive) : atRisk ? colors.statusProgress : colors.textPhantom,
                     fontSize: fontSizes.xs, padding: "0 2px", lineHeight: 1,
                     transition: "color 0.2s",
                   }}
