@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check habit for today (auto-increments streak); edit mode enables add/delete
+// ABOUTME: Click ✓ to check/uncheck today (toggles streak +1/-1); edit mode enables add/delete
 
 import { useState, useEffect, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -49,8 +49,15 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
 
   const checkHabit = (i: number) => {
     const h = habits[i];
-    if (h.lastChecked === todayStr) return; // already checked today
-    onUpdate?.(i, { streak: h.streak + 1, lastChecked: todayStr });
+    if (h.lastChecked === todayStr) {
+      // Undo today's check-in: decrement streak and clear lastChecked.
+      // `lastChecked: undefined` is intentional — JSON.stringify omits undefined keys,
+      // so Tauri receives no `lastChecked` field, Rust's #[serde(default)] yields None.
+      // This mirrors the existing streak-expiry reset pattern in App.tsx.
+      onUpdate?.(i, { streak: Math.max(0, h.streak - 1), lastChecked: undefined });
+    } else {
+      onUpdate?.(i, { streak: h.streak + 1, lastChecked: todayStr });
+    }
   };
 
   if (editing) {
@@ -212,12 +219,12 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
                   {milestone}
                 </span>
               )}
-              {/* Daily check-in button */}
+              {/* Daily check-in button — click to check, click again to undo */}
               <button
                 onClick={() => checkHabit(i)}
-                title={doneToday ? "오늘 완료됨" : "오늘 완료 체크"}
+                title={doneToday ? "오늘 완료됨 — 클릭하여 취소" : "오늘 완료 체크"}
                 style={{
-                  background: "transparent", border: "none", cursor: doneToday ? "default" : "pointer",
+                  background: "transparent", border: "none", cursor: "pointer",
                   color: doneToday ? colors.statusActive : colors.textPhantom,
                   fontSize: fontSizes.xs, padding: "0 2px", lineHeight: 1,
                   transition: "color 0.2s",
