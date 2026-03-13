@@ -1,4 +1,12 @@
 tasks:
+  process-issues:
+    description: "GitHub 이슈 자동 처리"
+    script: tools/run-process-issues.sh
+    interval: 1h
+    concurrency: 1
+    macos:
+      label: com.boolbit.process-issues
+
   autonomous-dev:
     description: "우주선 기장 대시보드 자율 개발 — 편집가능성·테마·뽀모도로·인용구 개선"
     script: tools/run-autonomous-dev.ps1
