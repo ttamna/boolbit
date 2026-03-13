@@ -1,5 +1,5 @@
 // ABOUTME: ProjectCard component - displays a single project with progress bar and metrics
-// ABOUTME: Status cycles active→in-progress→paused→done; done projects show violet dot + dimmed name
+// ABOUTME: Status cycles active→in-progress→paused→done; done=violet+dimmed; isFocus=★ amber priority marker
 
 import { useState, CSSProperties } from "react";
 import type { Project, GitHubData } from "../types";
@@ -184,6 +184,21 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
               fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
             }}
           >+</button>
+          {/* Focus marker: hidden for done projects since they are no longer active work */}
+          {project.status !== "done" && (
+            <button
+              onClick={() => onUpdate?.({ isFocus: project.isFocus ? undefined : true })}
+              title={project.isFocus ? "집중 해제" : "오늘의 집중 프로젝트로 표시"}
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: project.isFocus ? colors.statusProgress : colors.textPhantom,
+                fontSize: fontSizes.xs, padding: "0 2px", lineHeight: 1,
+                transition: "color 0.2s",
+              }}
+            >
+              {project.isFocus ? "★" : "☆"}
+            </button>
+          )}
           {onDelete && (
             <button
               onClick={onDelete}

@@ -25,6 +25,7 @@ export interface Project {
   githubData?: GitHubData;
   deadline?: string;      // YYYY-MM-DD, project target completion date
   notes?: string;         // freeform project notes: context, blockers, next steps
+  isFocus?: boolean;      // marks project as today's focus/priority; absent = not focused
 }
 
 export interface Habit {
