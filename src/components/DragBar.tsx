@@ -1,4 +1,4 @@
-// ABOUTME: DragBar component - top handle with window drag region, preset position buttons, pin toggle
+// ABOUTME: DragBar component - top handle with window drag region, preset position buttons, pin toggle, opacity ±5% buttons
 // ABOUTME: Preset buttons snap the widget flush to screen work area corners; pin keeps window always-on-top
 
 import { CSSProperties, useState } from "react";
@@ -33,9 +33,10 @@ interface DragBarProps {
   onToggleSettings: () => void;
   currentTheme: ThemeKey;
   pinned?: boolean;
+  opacity?: number;
 }
 
-export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSettings, currentTheme, pinned = false }: DragBarProps) {
+export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSettings, currentTheme, pinned = false, opacity = 0.75 }: DragBarProps) {
   const [moving, setMoving] = useState(false);
 
   const cycleTheme = () => {
@@ -96,6 +97,30 @@ export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSetti
     }}>
       <div style={{ ...mono, fontSize: fontSizes.micro, color: colors.textLabel, letterSpacing: 2 }}>VISION</div>
       <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        {/* Opacity ±5% buttons: hover-only */}
+        <div style={{ display: "flex", gap: 2, opacity: hovered ? 1 : 0, transition: "opacity 0.3s ease", alignItems: "center" }}>
+          {([-0.05, 0.05] as const).map(delta => (
+            <button
+              key={delta}
+              onClick={e => { e.stopPropagation(); onSettingsChange({ opacity: Math.min(1.0, Math.max(0.20, Math.round((opacity + delta) * 100) / 100)) }); }}
+              title={delta < 0 ? `투명도 -5% (현재 ${Math.round(opacity * 100)}%)` : `투명도 +5% (현재 ${Math.round(opacity * 100)}%)`}
+              style={{
+                width: 14, height: 14,
+                borderRadius: 3,
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: colors.textGhost,
+                fontSize: 9,
+                cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                padding: 0,
+                lineHeight: 1,
+              }}
+            >
+              {delta < 0 ? "−" : "+"}
+            </button>
+          ))}
+        </div>
         {/* Preset buttons: hover-only */}
         <div style={{ display: "flex", gap: 4, opacity: hovered ? 1 : 0, transition: "opacity 0.3s ease" }}>
           {PRESETS.map(preset => (

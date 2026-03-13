@@ -333,6 +333,7 @@ export default function App() {
         onToggleSettings={() => setSettingsOpen(o => !o)}
         currentTheme={settings.theme}
         pinned={settings.pinned ?? false}
+        opacity={settings.opacity}
       />
 
       {/* ── Content ── */}
