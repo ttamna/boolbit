@@ -8,6 +8,7 @@ import { fonts, fontSizes, colors, radius } from "../theme";
 type Phase = "focus" | "break";
 
 const DEFAULT_DURATION: Record<Phase, number> = { focus: 25, break: 5 };
+const PRESETS: Record<Phase, number[]> = { focus: [15, 25, 45], break: [5, 10, 15] };
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
 
@@ -46,8 +47,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const [autoStart, setAutoStart] = useState(initialAutoStart);
   // runKey: increment to force a new interval when autoStart transitions phases (running stays true)
   const [runKey, setRunKey] = useState(0);
-  const [editingPhase, setEditingPhase] = useState<Phase | null>(null);
-  const [editValue, setEditValue] = useState("");
+  const [customMode, setCustomMode] = useState<Phase | null>(null);
+  const [customValue, setCustomValue] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Mirror mutable values in refs so setInterval callback always sees latest without stale closure
   const durationsRef = useRef(durations);
@@ -123,82 +124,23 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     setRunning(false);
     setPhase(p);
     setRemaining(durations[p] * 60);
-    setEditingPhase(null); // clear any in-progress edit when switching phase
+    setCustomMode(null);
   };
 
-  const startEdit = (p: Phase, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const applyDuration = (p: Phase, mins: number) => {
     if (running) return;
-    setEditingPhase(p);
-    setEditValue(String(durations[p]));
-  };
-
-  const commitEdit = () => {
-    if (editingPhase === null) return;
-    const parsed = parseInt(editValue, 10);
-    // Use original value on empty/non-numeric; clamp 1-99 for valid input (including 0)
-    const mins = Math.max(1, Math.min(99, isNaN(parsed) ? durations[editingPhase] : parsed));
-    const next = { ...durations, [editingPhase]: mins };
+    const next = { ...durations, [p]: mins };
     setDurations(next);
     onDurationsChange?.(next);
-    if (editingPhase === phase && !running) {
-      setRemaining(mins * 60);
-    }
-    setEditingPhase(null);
+    if (p === phase) setRemaining(mins * 60);
+    setCustomMode(null);
   };
 
-  const phaseLabel = (p: Phase) => {
-    const label = p === "focus" ? "집중" : "휴식";
-    if (editingPhase === p) {
-      return (
-        <span onClick={e => e.stopPropagation()}>
-          {label}{" "}
-          <input
-            type="number"
-            value={editValue}
-            min={1}
-            max={99}
-            onChange={e => setEditValue(e.target.value)}
-            onBlur={commitEdit}
-            onKeyDown={e => {
-              if (e.key === "Enter") commitEdit();
-              if (e.key === "Escape") setEditingPhase(null);
-            }}
-            autoFocus
-            style={{
-              width: 28,
-              background: "transparent",
-              border: "none",
-              borderBottom: `1px solid currentColor`,
-              color: "inherit",
-              fontSize: "inherit",
-              fontFamily: fonts.mono,
-              textAlign: "center",
-              outline: "none",
-              padding: 0,
-            }}
-          />
-          분
-        </span>
-      );
-    }
-    return (
-      <span>
-        {label}{" "}
-        <span
-          onClick={e => startEdit(p, e)}
-          title={running ? undefined : "클릭하여 시간 변경"}
-          style={{
-            cursor: running ? "default" : "text",
-            borderBottom: running ? "none" : `1px dashed currentColor`,
-            opacity: running ? 1 : 0.8,
-          }}
-        >
-          {durations[p]}
-        </span>
-        분
-      </span>
-    );
+  const commitCustom = () => {
+    if (customMode === null) return;
+    const parsed = parseInt(customValue, 10);
+    const mins = Math.max(1, Math.min(99, isNaN(parsed) ? durations[customMode] : parsed));
+    applyDuration(customMode, mins);
   };
 
   const minutes = Math.floor(remaining / 60);
@@ -238,7 +180,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
       {open && (
         <div style={{ paddingBottom: 14 }}>
           {/* Phase tabs */}
-          <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
             {(["focus", "break"] as Phase[]).map(p => (
               <button
                 key={p}
@@ -251,9 +193,68 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
                   fontSize: fontSizes.xs, cursor: "pointer",
                 }}
               >
-                {phaseLabel(p)}
+                {p === "focus" ? "집중" : "휴식"} {durations[p]}분
               </button>
             ))}
+          </div>
+
+          {/* Duration presets */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+            {PRESETS[phase].map(mins => (
+              <button
+                key={mins}
+                onClick={() => applyDuration(phase, mins)}
+                disabled={running}
+                style={{
+                  flex: 1, padding: "3px 0", borderRadius: radius.chip,
+                  background: durations[phase] === mins && customMode === null ? `${accent}22` : "transparent",
+                  border: `1px solid ${durations[phase] === mins && customMode === null ? accent + "55" : colors.borderFaint}`,
+                  color: durations[phase] === mins && customMode === null ? accent : colors.textPhantom,
+                  fontSize: fontSizes.mini, cursor: running ? "default" : "pointer",
+                  opacity: running ? 0.5 : 1,
+                }}
+              >
+                {mins}분
+              </button>
+            ))}
+            {customMode === phase ? (
+              <input
+                type="number"
+                value={customValue}
+                min={1}
+                max={99}
+                onChange={e => setCustomValue(e.target.value)}
+                onBlur={commitCustom}
+                onKeyDown={e => {
+                  if (e.key === "Enter") commitCustom();
+                  if (e.key === "Escape") setCustomMode(null);
+                }}
+                autoFocus
+                style={{
+                  flex: 1, padding: "3px 4px", borderRadius: radius.chip,
+                  background: "transparent",
+                  border: `1px solid ${accent}55`,
+                  color: accent, fontSize: fontSizes.mini,
+                  fontFamily: fonts.mono, textAlign: "center",
+                  outline: "none", minWidth: 0,
+                }}
+              />
+            ) : (
+              <button
+                onClick={() => { if (running) return; setCustomMode(phase); setCustomValue(String(durations[phase])); }}
+                disabled={running}
+                style={{
+                  flex: 1, padding: "3px 0", borderRadius: radius.chip,
+                  background: "transparent",
+                  border: `1px solid ${colors.borderFaint}`,
+                  color: colors.textPhantom,
+                  fontSize: fontSizes.mini, cursor: running ? "default" : "pointer",
+                  opacity: running ? 0.5 : 1,
+                }}
+              >
+                직접
+              </button>
+            )}
           </div>
 
           {/* Timer display */}
