@@ -74,4 +74,5 @@ export interface WidgetSettings {
   clockFormat?: '12h' | '24h';         // defaults to '24h' when absent
   githubPat?: string;                   // Personal Access Token, stored locally
   githubRefreshInterval?: number;       // minutes, defaults to 10
+  pinned?: boolean;                     // window always-on-top; absent/false = not pinned
 }

@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS: WidgetSettings = {
   opacity: 1.0,
   theme: "void",
   clockFormat: "24h",
+  pinned: false,
 };
 
 export function useSettings() {

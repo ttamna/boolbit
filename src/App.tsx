@@ -4,7 +4,8 @@
 import { useState, useEffect, useCallback, useRef, CSSProperties } from "react";
 import type { WidgetData, Habit, Project, SectionKey, GitHubData } from "./types";
 import { colors, fonts, fontSizes, radius, shadows, THEMES, PROJECT_STATUS_COLORS } from "./theme";
-import { invoke } from "./lib/tauri";
+import { invoke, isTauri } from "./lib/tauri";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettings } from "./hooks/useSettings";
 import { useWindowSync } from "./hooks/useWindowSync";
 import { useWindowResize } from "./hooks/useWindowResize";
@@ -80,6 +81,13 @@ export default function App() {
     onPositionSave: (x, y) => updateSettings({ position: { x, y } }),
   });
   useWindowResize(containerRef);
+
+  // Restore always-on-top once after settings load
+  useEffect(() => {
+    if (!settingsLoaded || !isTauri()) return;
+    getCurrentWindow().setAlwaysOnTop(settings.pinned ?? false).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsLoaded]); // intentionally runs once — DragBar togglePin handles live changes
 
   useEffect(() => {
     (async () => {
@@ -312,6 +320,7 @@ export default function App() {
         settingsOpen={settingsOpen}
         onToggleSettings={() => setSettingsOpen(o => !o)}
         currentTheme={settings.theme}
+        pinned={settings.pinned ?? false}
       />
 
       {/* ── Content ── */}

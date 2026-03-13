@@ -1,5 +1,5 @@
-// ABOUTME: DragBar component - top handle with window drag region and preset position buttons
-// ABOUTME: Preset buttons snap the widget flush to screen work area corners (taskbar/dock aware)
+// ABOUTME: DragBar component - top handle with window drag region, preset position buttons, pin toggle
+// ABOUTME: Preset buttons snap the widget flush to screen work area corners; pin keeps window always-on-top
 
 import { CSSProperties, useState } from "react";
 import { getCurrentWindow, currentMonitor, PhysicalPosition } from "@tauri-apps/api/window";
@@ -32,15 +32,26 @@ interface DragBarProps {
   settingsOpen: boolean;
   onToggleSettings: () => void;
   currentTheme: ThemeKey;
+  pinned?: boolean;
 }
 
-export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSettings, currentTheme }: DragBarProps) {
+export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSettings, currentTheme, pinned = false }: DragBarProps) {
   const [moving, setMoving] = useState(false);
 
   const cycleTheme = () => {
     const i = THEME_ORDER.indexOf(currentTheme);
     const next = THEME_ORDER[(i + 1) % THEME_ORDER.length];
     onSettingsChange({ theme: next });
+  };
+
+  const togglePin = async () => {
+    const next = !pinned;
+    try {
+      await getCurrentWindow().setAlwaysOnTop(next);
+      onSettingsChange({ pinned: next });
+    } catch {
+      // setAlwaysOnTop failed — window state unchanged, settings not updated
+    }
   };
 
   const theme = THEMES[currentTheme] ?? THEMES.void;
@@ -123,6 +134,23 @@ export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSetti
             transition: "opacity 0.3s ease, border-color 0.25s, box-shadow 0.25s",
           }}
         />
+        {/* Pin button: ▲ = always-on-top toggle; accent = pinned, ghost = unpinned */}
+        <button
+          onClick={e => { e.stopPropagation(); togglePin(); }}
+          title={pinned ? "항상 위 켜짐 — 클릭하여 끄기" : "항상 위 꺼짐 — 클릭하여 켜기"}
+          style={{
+            width: 16, height: 16, borderRadius: 3,
+            background: pinned ? `${theme.accent}22` : "rgba(255,255,255,0.06)",
+            border: `1px solid ${pinned ? theme.accent + "66" : "rgba(255,255,255,0.1)"}`,
+            color: pinned ? theme.accent : colors.textGhost,
+            fontSize: 9, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+            opacity: hovered ? 1 : (pinned ? 0.7 : 0.4),
+            transition: "opacity 0.3s ease, border-color 0.2s, background 0.2s, color 0.2s",
+          }}
+        >
+          ▲
+        </button>
         {/* Settings button: always visible */}
         <button
           onClick={e => { e.stopPropagation(); onToggleSettings(); }}
