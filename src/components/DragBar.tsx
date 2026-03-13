@@ -3,7 +3,7 @@
 
 import { CSSProperties, useState } from "react";
 import { getCurrentWindow, currentMonitor, PhysicalPosition } from "@tauri-apps/api/window";
-import { fonts, fontSizes, colors } from "../theme";
+import { fonts, fontSizes, colors, THEMES, ThemeKey } from "../theme";
 import type { WidgetSettings } from "../types";
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
@@ -23,15 +23,27 @@ const PRESETS: Preset[] = [
   { label: "◢", getPos: (w, fw,  fh)  => ({ x: w.x + w.width - fw, y: w.y + w.height - fh }) },
 ];
 
+// Theme cycle order — follows THEMES declaration order
+const THEME_ORDER = Object.keys(THEMES) as ThemeKey[];
+
 interface DragBarProps {
   hovered: boolean;
   onSettingsChange: (patch: Partial<WidgetSettings>) => void;
   settingsOpen: boolean;
   onToggleSettings: () => void;
+  currentTheme: ThemeKey;
 }
 
-export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSettings }: DragBarProps) {
+export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSettings, currentTheme }: DragBarProps) {
   const [moving, setMoving] = useState(false);
+
+  const cycleTheme = () => {
+    const i = THEME_ORDER.indexOf(currentTheme);
+    const next = THEME_ORDER[(i + 1) % THEME_ORDER.length];
+    onSettingsChange({ theme: next });
+  };
+
+  const theme = THEMES[currentTheme] ?? THEMES.void;
 
   const applyPreset = async (preset: Preset) => {
     if (moving) return;
@@ -97,6 +109,20 @@ export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSetti
             </button>
           ))}
         </div>
+        {/* Theme cycle button: colored dot showing current theme, click to cycle */}
+        <button
+          onClick={e => { e.stopPropagation(); cycleTheme(); }}
+          title={`테마: ${theme.name} (클릭하여 전환)`}
+          style={{
+            width: 12, height: 12, borderRadius: "50%",
+            background: `rgb(${theme.bgRgb})`,
+            border: `2px solid ${theme.accent}`,
+            cursor: "pointer", padding: 0,
+            boxShadow: `0 0 5px ${theme.accent}80`,
+            opacity: hovered ? 1 : 0.5,
+            transition: "opacity 0.3s ease, border-color 0.25s, box-shadow 0.25s",
+          }}
+        />
         {/* Settings button: always visible */}
         <button
           onClick={e => { e.stopPropagation(); onToggleSettings(); }}

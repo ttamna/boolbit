@@ -202,6 +202,7 @@ export default function App() {
         onSettingsChange={updateSettings}
         settingsOpen={settingsOpen}
         onToggleSettings={() => setSettingsOpen(o => !o)}
+        currentTheme={settings.theme}
       />
 
       {/* ── Content ── */}
