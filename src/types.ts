@@ -26,6 +26,7 @@ export interface Project {
 }
 
 export interface Habit {
+  id?: string;          // stable identity for React keys
   name: string;
   streak: number;
   icon: string;

@@ -26,10 +26,10 @@ const DEFAULT_DATA: WidgetData = {
     { id: 3, name: "CLMS", status: "in-progress", goal: "Figma 문서 시스템 완성", progress: 60, metric: "스크린", metric_value: "24", metric_target: "40" },
   ],
   habits: [
-    { name: "푸시업", streak: 12, icon: "💪" },
-    { name: "풀업", streak: 8, icon: "🏋️" },
-    { name: "폰 사용↓", streak: 5, icon: "📵" },
-    { name: "포모도로", streak: 3, icon: "🍅" },
+    { id: crypto.randomUUID(), name: "푸시업", streak: 12, icon: "💪" },
+    { id: crypto.randomUUID(), name: "풀업", streak: 8, icon: "🏋️" },
+    { id: crypto.randomUUID(), name: "폰 사용↓", streak: 5, icon: "📵" },
+    { id: crypto.randomUUID(), name: "포모도로", streak: 3, icon: "🍅" },
   ],
   quotes: [
     "Design so it cannot fail fatally, then execute.",
@@ -91,16 +91,21 @@ export default function App() {
           const yesterdayStr = yesterday.toLocaleDateString("sv"); // YYYY-MM-DD local
           const savedHabits = saved.habits ?? [];
           let hadExpired = false;
+          let needsIdMigration = false;
           const reset = savedHabits.map(h => {
-            if (h.lastChecked && h.lastChecked < yesterdayStr) {
+            // Assign stable UUID to habits saved before the id field was introduced
+            const withId = h.id ? h : { ...h, id: crypto.randomUUID() };
+            if (!h.id) needsIdMigration = true;
+            if (withId.lastChecked && withId.lastChecked < yesterdayStr) {
               hadExpired = true;
-              return { ...h, streak: 0, lastChecked: undefined };
+              return { ...withId, streak: 0, lastChecked: undefined };
             }
-            return h;
+            return withId;
           });
-          const resolvedData = hadExpired ? { ...saved, habits: reset } : saved;
+          const needsSave = hadExpired || needsIdMigration;
+          const resolvedData = needsSave ? { ...saved, habits: reset } : saved;
           setData(resolvedData);
-          if (hadExpired) await invoke("save_data", { data: resolvedData });
+          if (needsSave) await invoke("save_data", { data: resolvedData });
         }
       } finally {
         setTimeout(() => setLoaded(true), 100);

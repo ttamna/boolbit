@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today (toggles streak +1/-1); edit mode enables add/delete
+// ABOUTME: Click ✓ to check/uncheck today (toggles streak +1/-1); edit mode enables add/delete/reorder
 
 import { useState, useEffect, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -8,6 +8,13 @@ import { InlineEdit } from "./InlineEdit";
 import { useEditMode } from "../hooks/useEditMode";
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
+
+// Reorder button style — disabled state uses textLabel, enabled uses textSubtle
+const moveBtnStyle = (disabled: boolean): CSSProperties => ({
+  background: "transparent", border: "none", cursor: disabled ? "default" : "pointer",
+  color: disabled ? colors.textLabel : colors.textSubtle,
+  fontSize: fontSizes.mini, padding: "1px 2px", lineHeight: 1,
+});
 
 const getToday = () => new Date().toLocaleDateString("sv"); // YYYY-MM-DD local date
 
@@ -57,13 +64,21 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
   const addHabit = () => {
     const trimmed = newName.trim();
     if (!trimmed) return;
-    onHabitsChange?.([...habits, { name: trimmed, streak: 0, icon: newIcon || "⭐" }]);
+    onHabitsChange?.([...habits, { id: crypto.randomUUID(), name: trimmed, streak: 0, icon: newIcon || "⭐" }]);
     setNewName("");
     setNewIcon("⭐");
   };
 
   const patchHabit = (i: number, patch: Partial<Habit>) =>
     onHabitsChange?.(habits.map((h, j) => j === i ? { ...h, ...patch } : h));
+
+  const moveHabit = (from: number, dir: -1 | 1) => {
+    const to = from + dir;
+    if (to < 0 || to >= habits.length) return;
+    const next = [...habits];
+    [next[from], next[to]] = [next[to], next[from]];
+    onHabitsChange?.(next);
+  };
 
   const checkHabit = (i: number) => {
     const h = habits[i];
@@ -85,59 +100,65 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
           const milestone = getMilestone(h.streak);
           const upcoming = getUpcomingMilestone(h.streak);
           return (
-          <div key={h.icon + h.name} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <InlineEdit
-              value={h.icon}
-              onSave={icon => patchHabit(i, { icon })}
-              style={{ fontSize: fontSizes.lg }}
-              inputStyle={{ fontSize: fontSizes.lg, width: 36, textAlign: "center" }}
-            />
-            <span style={{ flex: 1, minWidth: 0, fontSize: fontSizes.sm, color: colors.textLow }}>
+          <div key={h.id ?? `h-${i}`} style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
+              <button onClick={() => moveHabit(i, -1)} disabled={i === 0} title="위로 이동" style={moveBtnStyle(i === 0)}>↑</button>
+              <button onClick={() => moveHabit(i, 1)} disabled={i === habits.length - 1} title="아래로 이동" style={moveBtnStyle(i === habits.length - 1)}>↓</button>
+            </div>
+            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
               <InlineEdit
-                value={h.name}
-                onSave={name => patchHabit(i, { name })}
-                style={{ color: colors.textLow }}
+                value={h.icon}
+                onSave={icon => patchHabit(i, { icon })}
+                style={{ fontSize: fontSizes.lg }}
+                inputStyle={{ fontSize: fontSizes.lg, width: 36, textAlign: "center" }}
               />
-            </span>
-            <span style={{ ...mono, display: "flex", alignItems: "baseline", gap: 2 }}>
-              <InlineEdit
-                value={String(h.streak)}
-                onSave={v => {
-                  const n = parseInt(v, 10);
-                  if (!isNaN(n) && n >= 0) patchHabit(i, { streak: n });
-                }}
+              <span style={{ flex: 1, minWidth: 0, fontSize: fontSizes.sm, color: colors.textLow }}>
+                <InlineEdit
+                  value={h.name}
+                  onSave={name => patchHabit(i, { name })}
+                  style={{ color: colors.textLow }}
+                />
+              </span>
+              <span style={{ ...mono, display: "flex", alignItems: "baseline", gap: 2 }}>
+                <InlineEdit
+                  value={String(h.streak)}
+                  onSave={v => {
+                    const n = parseInt(v, 10);
+                    if (!isNaN(n) && n >= 0) patchHabit(i, { streak: n });
+                  }}
+                  style={{
+                    fontSize: fontSizes.base, fontWeight: 700,
+                    color: h.streak >= 10 ? (accent ?? colors.statusActive) : h.streak >= 5 ? colors.statusProgress : colors.textMid,
+                  }}
+                  inputStyle={{ ...mono, fontSize: fontSizes.base, width: 36, textAlign: "right" }}
+                />
+                <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
+              </span>
+              {milestone ? (
+                <span
+                  title={h.streak >= 100 ? "💎 100일 달성!" : h.streak >= 30 ? "⭐ 30일 달성!" : "🔥 7일 달성!"}
+                  style={{ fontSize: fontSizes.mini, lineHeight: 1 }}
+                >
+                  {milestone}
+                </span>
+              ) : upcoming ? (
+                <span
+                  title={`${upcoming.days}일 더 하면 ${upcoming.badge} 달성!`}
+                  style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom }}
+                >
+                  +{upcoming.days}{upcoming.badge}
+                </span>
+              ) : null}
+              <button
+                onClick={() => onHabitsChange?.(habits.filter((_, j) => j !== i))}
                 style={{
-                  fontSize: fontSizes.base, fontWeight: 700,
-                  color: h.streak >= 10 ? (accent ?? colors.statusActive) : h.streak >= 5 ? colors.statusProgress : colors.textMid,
+                  background: "transparent", border: "none", cursor: "pointer",
+                  color: colors.textSubtle, fontSize: fontSizes.xs, padding: "0 2px", lineHeight: 1,
                 }}
-                inputStyle={{ ...mono, fontSize: fontSizes.base, width: 36, textAlign: "right" }}
-              />
-              <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
-            </span>
-            {milestone ? (
-              <span
-                title={h.streak >= 100 ? "💎 100일 달성!" : h.streak >= 30 ? "⭐ 30일 달성!" : "🔥 7일 달성!"}
-                style={{ fontSize: fontSizes.mini, lineHeight: 1 }}
               >
-                {milestone}
-              </span>
-            ) : upcoming ? (
-              <span
-                title={`${upcoming.days}일 더 하면 ${upcoming.badge} 달성!`}
-                style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom }}
-              >
-                +{upcoming.days}{upcoming.badge}
-              </span>
-            ) : null}
-            <button
-              onClick={() => onHabitsChange?.(habits.filter((_, j) => j !== i))}
-              style={{
-                background: "transparent", border: "none", cursor: "pointer",
-                color: colors.textSubtle, fontSize: fontSizes.xs, padding: "0 2px", lineHeight: 1,
-              }}
-            >
-              ✕
-            </button>
+                ✕
+              </button>
+            </div>
           </div>
           );
         })}
@@ -207,7 +228,7 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
           const upcoming = getUpcomingMilestone(h.streak);
           return (
             <div
-              key={h.icon + h.name}
+              key={h.id ?? `h-${i}`}
               style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}
             >
               <InlineEdit
