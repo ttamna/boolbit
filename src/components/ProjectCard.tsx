@@ -221,13 +221,14 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
         />
       </div>
       {/* Notes — freeform memo: context, blockers, next steps; ✕ clears when set */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 14, marginTop: 2 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 6, paddingLeft: 14, marginTop: 2 }}>
         <InlineEdit
           value={project.notes ?? ""}
           placeholder="+ 메모"
-          onSave={v => onUpdate?.({ notes: v || undefined })}
-          style={{ fontSize: fontSizes.mini, color: project.notes ? colors.textSubtle : colors.textPhantom }}
-          inputStyle={{ fontSize: fontSizes.mini, width: 160 }}
+          onSave={v => onUpdate?.({ notes: v || undefined })} // empty string clears notes
+          style={{ fontSize: fontSizes.mini, color: project.notes ? colors.textSubtle : colors.textPhantom, flex: 1 }}
+          inputStyle={{ fontSize: fontSizes.mini }}
+          multiline
         />
         {project.notes && (
           <button

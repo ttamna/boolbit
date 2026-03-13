@@ -251,13 +251,14 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
               </button>
             </div>
             {/* Motivation note — inline editable; ✕ clears when set */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 26 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 6, paddingLeft: 26 }}>
               <InlineEdit
                 value={h.notes ?? ""}
                 placeholder="+ 이유"
-                onSave={v => patchHabit(i, { notes: v || undefined })}
-                style={{ fontSize: fontSizes.mini, color: h.notes ? colors.textSubtle : colors.textPhantom }}
-                inputStyle={{ fontSize: fontSizes.mini, width: 140 }}
+                onSave={v => patchHabit(i, { notes: v || undefined })} // empty string clears notes
+                style={{ fontSize: fontSizes.mini, color: h.notes ? colors.textSubtle : colors.textPhantom, flex: 1 }}
+                inputStyle={{ fontSize: fontSizes.mini }}
+                multiline
               />
               {h.notes && (
                 <button
@@ -442,13 +443,14 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                 </div>
               )}
               {/* Motivation note — inline editable; ✕ clears when set */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 26, marginTop: 1 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 6, paddingLeft: 26, marginTop: 1 }}>
                 <InlineEdit
                   value={h.notes ?? ""}
                   placeholder="+ 이유"
-                  onSave={v => onUpdate?.(i, { notes: v || undefined })}
-                  style={{ fontSize: fontSizes.mini, color: h.notes ? colors.textSubtle : colors.textPhantom }}
-                  inputStyle={{ fontSize: fontSizes.mini, width: 140 }}
+                  onSave={v => onUpdate?.(i, { notes: v || undefined })} // empty string clears notes
+                  style={{ fontSize: fontSizes.mini, color: h.notes ? colors.textSubtle : colors.textPhantom, flex: 1 }}
+                  inputStyle={{ fontSize: fontSizes.mini }}
+                  multiline
                 />
                 {h.notes && (
                   <button
