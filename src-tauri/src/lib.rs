@@ -62,6 +62,8 @@ pub struct Project {
     pub pomodoro_sessions: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    #[serde(rename = "lastFocusDate", default, skip_serializing_if = "Option::is_none")]
+    pub last_focus_date: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -200,6 +202,7 @@ fn default_data() -> WidgetData {
                 is_focus: None,
                 pomodoro_sessions: None,
                 url: None,
+                last_focus_date: None,
             },
             Project {
                 id: 2,
@@ -217,6 +220,7 @@ fn default_data() -> WidgetData {
                 is_focus: None,
                 pomodoro_sessions: None,
                 url: None,
+                last_focus_date: None,
             },
             Project {
                 id: 3,
@@ -234,6 +238,7 @@ fn default_data() -> WidgetData {
                 is_focus: None,
                 pomodoro_sessions: None,
                 url: None,
+                last_focus_date: None,
             },
         ],
         habits: vec![
@@ -377,6 +382,16 @@ fn load_data() -> WidgetData {
         project.url = project.url.as_deref()
             .map(str::trim)
             .filter(|s| !s.is_empty())
+            .map(String::from);
+        // last_focus_date: must be strict YYYY-MM-DD format; any other value → None
+        project.last_focus_date = project.last_focus_date.as_deref()
+            .filter(|s| {
+                let b = s.as_bytes();
+                s.len() == 10
+                    && b.iter().all(|&x| x.is_ascii_digit() || x == b'-')
+                    && b[4] == b'-'
+                    && b[7] == b'-'
+            })
             .map(String::from);
     }
     data

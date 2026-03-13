@@ -28,6 +28,7 @@ export interface Project {
   isFocus?: boolean;      // marks project as today's focus/priority; absent = not focused
   pomodoroSessions?: number; // lifetime focus sessions completed while this project was ★; absent = 0
   url?: string;             // external project link (prod URL, docs, etc.); absent = not set
+  lastFocusDate?: string;   // YYYY-MM-DD date of last completed pomodoro focus session; absent = never focused
 }
 
 export interface Habit {

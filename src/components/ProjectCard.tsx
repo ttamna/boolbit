@@ -58,6 +58,18 @@ function deadlineRelative(dateStr: string): string {
   return `${-days}d 초과`;
 }
 
+// Returns days elapsed since lastFocusDate relative to local midnight; null if today or invalid.
+// Used to show "⊖ Nd" stale-focus indicator on project cards.
+function lastFocusDaysAgo(dateStr: string | undefined): number | null {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const ts = new Date(dateStr + "T00:00:00").getTime();
+  if (isNaN(ts)) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.floor((today.getTime() - ts) / 86400000);
+  return days > 0 ? days : null; // null if today (no stale indicator needed)
+}
+
 // Returns urgency color: red if today or overdue (days ≤ 0), yellow if ≤7 days, dim otherwise.
 function deadlineColor(dateStr: string): string {
   const days = deadlineDays(dateStr);
@@ -107,6 +119,8 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
 
   // url: true when saved URL starts with a recognized scheme; controls ⇱ open behavior
   const urlSchemeValid = !!(project.url && (project.url.startsWith("https://") || project.url.startsWith("http://")));
+  // staleDays: days since last pomodoro focus session; null if focused today, never, or invalid
+  const staleDays = lastFocusDaysAgo(project.lastFocusDate);
 
   const [repoStatus, setRepoStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [repoMsg, setRepoMsg] = useState("");
@@ -194,6 +208,17 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
               style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, padding: "0 2px", lineHeight: 1 }}
             >
               🍅{project.pomodoroSessions}
+            </span>
+          )}
+          {/* Last focus stale indicator: visible when lastFocusDate was set on a prior day.
+              Intentionally shown on all non-done projects (not just ★ focus) so the user can
+              see how recently each project received attention — portfolio staleness at a glance. */}
+          {project.status !== "done" && staleDays !== null && (
+            <span
+              title={`마지막 집중: ${staleDays}일 전 (${project.lastFocusDate ?? ""})`}
+              style={{ ...mono, fontSize: fontSizes.mini, color: colors.textLabel, padding: "0 2px", lineHeight: 1 }}
+            >
+              ⊖{staleDays}d
             </span>
           )}
           {/* Focus marker: hidden for done projects since they are no longer active work */}

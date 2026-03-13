@@ -298,7 +298,7 @@ export default function App() {
     const focusIdx = data.projects.findIndex(p => p.isFocus);
     const updatedProjects = focusIdx >= 0
       ? data.projects.map((p, i) =>
-          i === focusIdx ? { ...p, pomodoroSessions: (p.pomodoroSessions ?? 0) + 1 } : p
+          i === focusIdx ? { ...p, pomodoroSessions: (p.pomodoroSessions ?? 0) + 1, lastFocusDate: today } : p
         )
       : data.projects;
     persist({ ...data, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects });
