@@ -13,15 +13,15 @@ export const colors = {
   // Text hierarchy (descending opacity)
   textPrimary: "rgba(255,255,255,0.95)",
   textHigh: "rgba(255,255,255,0.88)",
-  textMid: "rgba(255,255,255,0.5)",
-  textLow: "rgba(255,255,255,0.45)",
-  textMuted: "rgba(255,255,255,0.4)",
-  textFaint: "rgba(255,255,255,0.35)",
-  textDim: "rgba(255,255,255,0.3)",
-  textSubtle: "rgba(255,255,255,0.25)",
-  textGhost: "rgba(255,255,255,0.2)",
-  textPhantom: "rgba(255,255,255,0.15)",
-  textLabel: "rgba(255,255,255,0.12)",
+  textMid: "rgba(255,255,255,0.55)",
+  textLow: "rgba(255,255,255,0.50)",
+  textMuted: "rgba(255,255,255,0.45)",
+  textFaint: "rgba(255,255,255,0.40)",
+  textDim: "rgba(255,255,255,0.36)",
+  textSubtle: "rgba(255,255,255,0.32)",
+  textGhost: "rgba(255,255,255,0.28)",
+  textPhantom: "rgba(255,255,255,0.25)",
+  textLabel: "rgba(255,255,255,0.20)",
 
   // Surfaces
   surfaceFaint: "rgba(255,255,255,0.04)",
@@ -43,7 +43,7 @@ export const fontSizes = {
   clockSec: 32, // Clock seconds
   lg: 14,       // Project names, habit icons
   base: 13,     // Dates, general text
-  sm: 12,       // Goals, habits, quotes
+  sm: 13,       // Goals, habits, quotes
   xs: 11,       // Progress %, metrics
   label: 10,    // Section labels
   mini: 9,      // Footer, chips

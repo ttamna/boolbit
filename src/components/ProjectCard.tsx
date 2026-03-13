@@ -152,7 +152,7 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
           value={project.githubRepo ?? ""}
           placeholder="owner/repo"
           onSave={handleRepoSave}
-          style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom }}
+          style={{ ...mono, fontSize: fontSizes.mini, color: colors.textDim }}
           inputStyle={{ ...mono, fontSize: fontSizes.mini, width: 160 }}
         />
         {repoMsg && (
@@ -176,14 +176,14 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
             title={project.githubRepo ? `GitHub: ${project.githubRepo} 열기` : undefined}
             style={{ display: "flex", gap: 6, alignItems: "center", cursor: project.githubRepo ? "pointer" : undefined }}
           >
-            <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textSubtle }}>
+            <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textDim }}>
               {relativeTime(project.githubData.lastCommitAt)}
             </span>
             {project.githubData.lastCommitMsg && (
               <span
                 title={project.githubData.lastCommitMsg}
                 style={{
-                  fontSize: fontSizes.mini, color: colors.textPhantom,
+                  fontSize: fontSizes.mini, color: colors.textDim,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                   maxWidth: 140, minWidth: 0,
                 }}
@@ -192,12 +192,12 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
               </span>
             )}
             {project.githubData.openIssues > 0 && (
-              <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textSubtle }}>
+              <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textDim }}>
                 {project.githubData.openIssues} issue{project.githubData.openIssues !== 1 ? "s" : ""}
               </span>
             )}
             {project.githubData.openPrs > 0 && (
-              <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textSubtle }}>
+              <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textDim }}>
                 {project.githubData.openPrs} PR{project.githubData.openPrs !== 1 ? "s" : ""}
               </span>
             )}

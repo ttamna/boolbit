@@ -15,8 +15,8 @@ export function SectionLabel({ children, collapsed = false, onToggle, accent }: 
     <div
       onClick={onToggle}
       style={{
-        fontSize: fontSizes.label, fontWeight: 600,
-        color: accent ? `${accent}99` : colors.textGhost,
+        fontSize: fontSizes.xs, fontWeight: 700,
+        color: accent ? `${accent}cc` : colors.textDim,
         textTransform: "uppercase", letterSpacing: 3, marginBottom: collapsed ? 0 : 10, marginTop: 20,
         display: "flex", alignItems: "center", gap: 6,
         cursor: onToggle ? "pointer" : "default",

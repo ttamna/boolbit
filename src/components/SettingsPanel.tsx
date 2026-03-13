@@ -38,7 +38,7 @@ const row: CSSProperties = {
 
 const label: CSSProperties = {
   fontSize: fontSizes.xs,
-  color: colors.textSubtle,
+  color: colors.textDim,
   flexShrink: 0,
 };
 
