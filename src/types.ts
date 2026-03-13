@@ -37,6 +37,7 @@ export interface Habit {
   targetStreak?: number;   // personal goal in days; absent/0 = no target set
   bestStreak?: number;     // highest streak ever achieved; auto-updated on check-in; absent = no record
   checkHistory?: string[]; // sorted YYYY-MM-DD check-in dates (today included), capped at 14 entries
+  notes?: string;          // motivational context or reason for maintaining this habit
 }
 
 export type SectionKey = "projects" | "streaks" | "direction" | "pomodoro";

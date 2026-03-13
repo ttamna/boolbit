@@ -137,12 +137,13 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
           const milestone = getMilestone(h.streak);
           const upcoming = getUpcomingMilestone(h.streak);
           return (
-          <div key={h.id ?? `h-${i}`} style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
-            <div style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
+          <div key={h.id ?? `h-${i}`} style={{ display: "flex", alignItems: "flex-start", gap: 4, marginBottom: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", flexShrink: 0, paddingTop: 1 }}>
               <button onClick={() => moveHabit(i, -1)} disabled={i === 0} title="위로 이동" style={moveBtnStyle(i === 0)}>↑</button>
               <button onClick={() => moveHabit(i, 1)} disabled={i === habits.length - 1} title="아래로 이동" style={moveBtnStyle(i === habits.length - 1)}>↓</button>
             </div>
-            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <InlineEdit
                 value={h.icon}
                 onSave={icon => patchHabit(i, { icon })}
@@ -248,6 +249,24 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
               >
                 ✕
               </button>
+            </div>
+            {/* Motivation note — inline editable; ✕ clears when set */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 26 }}>
+              <InlineEdit
+                value={h.notes ?? ""}
+                placeholder="+ 이유"
+                onSave={v => patchHabit(i, { notes: v || undefined })}
+                style={{ fontSize: fontSizes.mini, color: h.notes ? colors.textSubtle : colors.textPhantom }}
+                inputStyle={{ fontSize: fontSizes.mini, width: 140 }}
+              />
+              {h.notes && (
+                <button
+                  onClick={() => patchHabit(i, { notes: undefined })}
+                  title="메모 삭제"
+                  style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textPhantom, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}
+                >✕</button>
+              )}
+            </div>
             </div>
           </div>
           );
@@ -422,6 +441,23 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                   })}
                 </div>
               )}
+              {/* Motivation note — inline editable; ✕ clears when set */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 26, marginTop: 1 }}>
+                <InlineEdit
+                  value={h.notes ?? ""}
+                  placeholder="+ 이유"
+                  onSave={v => onUpdate?.(i, { notes: v || undefined })}
+                  style={{ fontSize: fontSizes.mini, color: h.notes ? colors.textSubtle : colors.textPhantom }}
+                  inputStyle={{ fontSize: fontSizes.mini, width: 140 }}
+                />
+                {h.notes && (
+                  <button
+                    onClick={() => onUpdate?.(i, { notes: undefined })}
+                    title="메모 삭제"
+                    style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textPhantom, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}
+                  >✕</button>
+                )}
+              </div>
             </div>
           );
         })}

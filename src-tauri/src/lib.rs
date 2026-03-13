@@ -75,6 +75,8 @@ pub struct Habit {
     pub best_streak: Option<u32>,
     #[serde(rename = "checkHistory", default, skip_serializing_if = "Option::is_none")]
     pub check_history: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -210,10 +212,10 @@ fn default_data() -> WidgetData {
             },
         ],
         habits: vec![
-            Habit { id: None, name: "푸시업".into(), streak: 0, icon: "💪".into(), last_checked: None, target_streak: None, best_streak: None, check_history: None },
-            Habit { id: None, name: "풀업".into(), streak: 0, icon: "🏋️".into(), last_checked: None, target_streak: None, best_streak: None, check_history: None },
-            Habit { id: None, name: "폰 사용↓".into(), streak: 0, icon: "📵".into(), last_checked: None, target_streak: None, best_streak: None, check_history: None },
-            Habit { id: None, name: "포모도로".into(), streak: 0, icon: "🍅".into(), last_checked: None, target_streak: None, best_streak: None, check_history: None },
+            Habit { id: None, name: "푸시업".into(), streak: 0, icon: "💪".into(), last_checked: None, target_streak: None, best_streak: None, check_history: None, notes: None },
+            Habit { id: None, name: "풀업".into(), streak: 0, icon: "🏋️".into(), last_checked: None, target_streak: None, best_streak: None, check_history: None, notes: None },
+            Habit { id: None, name: "폰 사용↓".into(), streak: 0, icon: "📵".into(), last_checked: None, target_streak: None, best_streak: None, check_history: None, notes: None },
+            Habit { id: None, name: "포모도로".into(), streak: 0, icon: "🍅".into(), last_checked: None, target_streak: None, best_streak: None, check_history: None, notes: None },
         ],
         quotes: vec![
             "Design so it cannot fail fatally, then execute.".into(),
@@ -291,6 +293,9 @@ fn load_data() -> WidgetData {
             if history.is_empty() {
                 habit.check_history = None;
             }
+        }
+        if habit.notes.as_deref() == Some("") {
+            habit.notes = None;
         }
     }
     // Sanitize project fields: remove empty strings; normalize is_focus(false) → absent
