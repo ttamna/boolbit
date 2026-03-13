@@ -69,3 +69,10 @@ export const THEMES = {
 } as const;
 
 export type ThemeKey = keyof typeof THEMES;
+
+// Project status → accent color map (single source of truth for status color logic)
+export const PROJECT_STATUS_COLORS: Record<"active" | "in-progress" | "paused", string> = {
+  active: colors.statusActive,
+  "in-progress": colors.statusProgress,
+  paused: colors.statusPaused,
+};

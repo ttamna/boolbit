@@ -3,7 +3,7 @@
 
 import { useState, CSSProperties } from "react";
 import type { Project, GitHubData } from "../types";
-import { fonts, fontSizes, colors, radius } from "../theme";
+import { fonts, fontSizes, colors, radius, PROJECT_STATUS_COLORS } from "../theme";
 import { InlineEdit } from "./InlineEdit";
 import { verifyRepo, fetchRepoData } from "../lib/github";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -44,13 +44,7 @@ function openGitHubUrl(repo: string | undefined, path = "") {
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
 
-const STATUS_COLORS: Record<string, string> = {
-  active: colors.statusActive,
-  "in-progress": colors.statusProgress,
-  paused: colors.statusPaused,
-};
-
-const STATUS_CYCLE: Record<string, Project["status"]> = {
+const STATUS_CYCLE: Record<Project["status"], Project["status"]> = {
   active: "in-progress",
   "in-progress": "paused",
   paused: "active",
@@ -76,7 +70,8 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardProps) {
-  const color = STATUS_COLORS[project.status] || colors.statusActive;
+  // Neutral fallback for unknown status values from deserialized JSON
+  const color = PROJECT_STATUS_COLORS[project.status] ?? colors.textDim;
 
   const [repoStatus, setRepoStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [repoMsg, setRepoMsg] = useState("");
