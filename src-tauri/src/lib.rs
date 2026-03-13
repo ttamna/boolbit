@@ -58,6 +58,8 @@ pub struct Project {
     pub notes: Option<String>,
     #[serde(rename = "isFocus", default, skip_serializing_if = "Option::is_none")]
     pub is_focus: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -179,6 +181,7 @@ fn default_data() -> WidgetData {
                 deadline: None,
                 notes: None,
                 is_focus: None,
+                url: None,
             },
             Project {
                 id: 2,
@@ -194,6 +197,7 @@ fn default_data() -> WidgetData {
                 deadline: None,
                 notes: None,
                 is_focus: None,
+                url: None,
             },
             Project {
                 id: 3,
@@ -209,6 +213,7 @@ fn default_data() -> WidgetData {
                 deadline: None,
                 notes: None,
                 is_focus: None,
+                url: None,
             },
         ],
         habits: vec![
@@ -305,6 +310,9 @@ fn load_data() -> WidgetData {
         }
         if project.notes.as_deref() == Some("") {
             project.notes = None;
+        }
+        if project.url.as_deref() == Some("") {
+            project.url = None;
         }
         // is_focus: false is equivalent to absent (absent = not focused)
         if project.is_focus == Some(false) {

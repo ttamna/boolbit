@@ -243,6 +243,48 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
           </button>
         )}
       </div>
+      {/* URL — external link (website, docs, design); ⇱ opens in browser when set */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 14, marginTop: 2 }}>
+        <InlineEdit
+          value={project.url ?? ""}
+          placeholder="+ URL"
+          onSave={v => onUpdate?.({ url: v.trim() || undefined })}
+          style={{ ...mono, fontSize: fontSizes.mini, color: project.url ? colors.textSubtle : colors.textPhantom, flex: 1 }}
+          inputStyle={{ ...mono, fontSize: fontSizes.mini }}
+        />
+        {project.url && (
+          <>
+            {(() => {
+              const isValidUrl = /^https?:\/\//i.test(project.url);
+              return (
+                <button
+                  onClick={() => { if (isValidUrl) openUrl(project.url!); }}
+                  disabled={!isValidUrl}
+                  title={isValidUrl ? `열기: ${project.url}` : "http:// 또는 https:// 로 시작해야 합니다"}
+                  style={{
+                    background: "transparent", border: "none",
+                    cursor: isValidUrl ? "pointer" : "default",
+                    color: isValidUrl ? colors.textPhantom : colors.textLabel,
+                    fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
+                  }}
+                >
+                  ⇱
+                </button>
+              );
+            })()}
+            <button
+              onClick={() => onUpdate?.({ url: undefined })}
+              title="URL 삭제"
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: colors.textPhantom, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+          </>
+        )}
+      </div>
       {/* Deadline — inline editable; faint placeholder when unset; urgency color when set */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 14, marginTop: 2 }}>
         {project.deadline ? (
