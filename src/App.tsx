@@ -1,7 +1,7 @@
 // ABOUTME: Vision Widget root component - composes all widget sections
-// ABOUTME: Handles data loading/saving and inline patch updates for projects/habits/quotes
+// ABOUTME: Handles data loading/saving, inline patch updates, and section reorder via sectionOrder field
 
-import { useState, useEffect, useCallback, useRef, CSSProperties } from "react";
+import { useState, useEffect, useCallback, useRef, CSSProperties, Fragment } from "react";
 import type { WidgetData, Habit, Project, SectionKey, GitHubData } from "./types";
 import { colors, fonts, fontSizes, radius, shadows, THEMES, PROJECT_STATUS_COLORS } from "./theme";
 import { invoke, isTauri } from "./lib/tauri";
@@ -43,6 +43,8 @@ const DEFAULT_DATA: WidgetData = {
   // Pomodoro panel starts collapsed by default to keep the widget compact
   collapsedSections: ["pomodoro"],
 };
+
+const DEFAULT_SECTION_ORDER: SectionKey[] = ["projects", "streaks", "pomodoro", "direction"];
 
 // ─── Styles ─────────────────────────────────────────────
 const s = {
@@ -268,6 +270,16 @@ export default function App() {
     persist({ ...data, collapsedSections: next });
   }, [data, persist]);
 
+  const moveSection = useCallback((section: SectionKey, dir: -1 | 1) => {
+    const order = data.sectionOrder ?? DEFAULT_SECTION_ORDER;
+    const i = order.indexOf(section);
+    const j = i + dir;
+    if (j < 0 || j >= order.length) return;
+    const next = [...order];
+    [next[i], next[j]] = [next[j], next[i]];
+    persist({ ...data, sectionOrder: next });
+  }, [data, persist]);
+
   // Derived: today's completed focus session count, reset to 0 when date changes
   const pomodoroSessionsToday =
     data.pomodoroSessionsDate === new Date().toLocaleDateString("sv")
@@ -331,45 +343,59 @@ export default function App() {
           onToggleFormat={() => updateSettings({ clockFormat: settings.clockFormat === "12h" ? "24h" : "12h" })}
         />
 
-        <SectionLabel accent={themeAccent} collapsed={collapsed.includes("projects")} onToggle={() => toggleSection("projects")} badge={projectsBadge}>Projects</SectionLabel>
-        {!collapsed.includes("projects") && (
-          <ProjectList
-            projects={data.projects}
-            onUpdate={updateProject}
-            onProjectsChange={updateProjects}
-            pat={settings.githubPat}
-            onRefreshAll={refreshAllProjects}
-          />
-        )}
-
-        <SectionLabel accent={themeAccent} collapsed={collapsed.includes("streaks")} onToggle={() => toggleSection("streaks")} badge={habitsBadge}>Streaks</SectionLabel>
-        {!collapsed.includes("streaks") && (
-          <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} accent={themeAccent} />
-        )}
-
-        {loaded && (
-          <PomodoroTimer
-            initialDurations={data.pomodoroDurations}
-            onDurationsChange={updatePomodoroDurations}
-            initialAutoStart={data.pomodoroAutoStart}
-            onAutoStartChange={updatePomodoroAutoStart}
-            sessionsToday={pomodoroSessionsToday}
-            onSessionComplete={handlePomodoroSession}
-            initialOpen={!collapsed.includes("pomodoro")}
-            onToggleOpen={() => toggleSection("pomodoro")}
-            sessionGoal={data.pomodoroSessionGoal}
-            onSessionGoalChange={updatePomodoroSessionGoal}
-            longBreakInterval={data.pomodoroLongBreakInterval}
-            onLongBreakIntervalChange={updatePomodoroLongBreakInterval}
-            initialNotify={data.pomodoroNotify}
-            onNotifyChange={updatePomodoroNotify}
-          />
-        )}
-
-        <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")}>Direction</SectionLabel>
-        {!collapsed.includes("direction") && (
-          <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} rotationInterval={data.quoteInterval} onIntervalChange={updateQuoteInterval} />
-        )}
+        {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {
+          const up = idx > 0 ? () => moveSection(key, -1) : undefined;
+          const dn = idx < order.length - 1 ? () => moveSection(key, 1) : undefined;
+          if (key === "projects") return (
+            <Fragment key="projects">
+              <SectionLabel accent={themeAccent} collapsed={collapsed.includes("projects")} onToggle={() => toggleSection("projects")} badge={projectsBadge} onMoveUp={up} onMoveDown={dn}>Projects</SectionLabel>
+              {!collapsed.includes("projects") && (
+                <ProjectList projects={data.projects} onUpdate={updateProject} onProjectsChange={updateProjects} pat={settings.githubPat} onRefreshAll={refreshAllProjects} />
+              )}
+            </Fragment>
+          );
+          if (key === "streaks") return (
+            <Fragment key="streaks">
+              <SectionLabel accent={themeAccent} collapsed={collapsed.includes("streaks")} onToggle={() => toggleSection("streaks")} badge={habitsBadge} onMoveUp={up} onMoveDown={dn}>Streaks</SectionLabel>
+              {!collapsed.includes("streaks") && (
+                <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} accent={themeAccent} />
+              )}
+            </Fragment>
+          );
+          if (key === "pomodoro") return (
+            <Fragment key="pomodoro">
+              {loaded && (
+                <PomodoroTimer
+                  initialDurations={data.pomodoroDurations}
+                  onDurationsChange={updatePomodoroDurations}
+                  initialAutoStart={data.pomodoroAutoStart}
+                  onAutoStartChange={updatePomodoroAutoStart}
+                  sessionsToday={pomodoroSessionsToday}
+                  onSessionComplete={handlePomodoroSession}
+                  initialOpen={!collapsed.includes("pomodoro")}
+                  onToggleOpen={() => toggleSection("pomodoro")}
+                  sessionGoal={data.pomodoroSessionGoal}
+                  onSessionGoalChange={updatePomodoroSessionGoal}
+                  longBreakInterval={data.pomodoroLongBreakInterval}
+                  onLongBreakIntervalChange={updatePomodoroLongBreakInterval}
+                  initialNotify={data.pomodoroNotify}
+                  onNotifyChange={updatePomodoroNotify}
+                  onMoveUp={up}
+                  onMoveDown={dn}
+                />
+              )}
+            </Fragment>
+          );
+          if (key === "direction") return (
+            <Fragment key="direction">
+              <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")} onMoveUp={up} onMoveDown={dn}>Direction</SectionLabel>
+              {!collapsed.includes("direction") && (
+                <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} rotationInterval={data.quoteInterval} onIntervalChange={updateQuoteInterval} />
+              )}
+            </Fragment>
+          );
+          return null;
+        })}
 
         {/* Footer */}
         <div style={{

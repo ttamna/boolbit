@@ -1,5 +1,5 @@
 // ABOUTME: PomodoroTimer component - configurable focus/break timer with desktop notification
-// ABOUTME: Durations, auto-start, notify toggle, daily session goal, and long-break interval are editable inline and persisted via callbacks
+// ABOUTME: Durations, auto-start, notify toggle, daily session goal, long-break interval, and section reorder are inline-configurable
 
 import { useState, useEffect, useRef, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
@@ -56,10 +56,13 @@ interface PomodoroTimerProps {
   onLongBreakIntervalChange?: (n: number) => void; // persist interval
   initialNotify?: boolean;             // persisted notify preference; absent/true = enabled
   onNotifyChange?: (v: boolean) => void; // persist toggle
+  onMoveUp?: () => void;   // reorder: move this section one step earlier
+  onMoveDown?: () => void; // reorder: move this section one step later
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange }: PomodoroTimerProps) {
+export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, onMoveUp, onMoveDown }: PomodoroTimerProps) {
   const [open, setOpen] = useState(initialOpen);
+  const [headerHovered, setHeaderHovered] = useState(false);
   const [phase, setPhase] = useState<Phase>("focus");
   const [durations, setDurations] = useState<Record<Phase, number>>({
     ...DEFAULT_DURATION,
@@ -251,6 +254,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     <div style={{ borderTop: `1px solid ${colors.borderFaint}`, marginTop: 4 }}>
       {/* Toggle row */}
       <div
+        onMouseEnter={() => setHeaderHovered(true)}
+        onMouseLeave={() => setHeaderHovered(false)}
         onClick={() => { setOpen(o => !o); onToggleOpen?.(); }}
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0 6px", cursor: "pointer" }}
       >
@@ -258,6 +263,22 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           Pomodoro
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Reorder buttons: hover-only, stop propagation to avoid toggling open/close */}
+          {(onMoveUp || onMoveDown) && (
+            <div
+              style={{ display: "flex", gap: 1, opacity: headerHovered ? 1 : 0, transition: "opacity 0.2s" }}
+              onClick={e => e.stopPropagation()}
+            >
+              <button
+                onClick={onMoveUp} disabled={!onMoveUp} title="섹션 위로 이동"
+                style={{ background: "transparent", border: "none", cursor: onMoveUp ? "pointer" : "default", color: onMoveUp ? colors.textSubtle : colors.textLabel, fontSize: fontSizes.mini, padding: "0 1px", lineHeight: 1, opacity: onMoveUp ? 1 : 0.3 }}
+              >↑</button>
+              <button
+                onClick={onMoveDown} disabled={!onMoveDown} title="섹션 아래로 이동"
+                style={{ background: "transparent", border: "none", cursor: onMoveDown ? "pointer" : "default", color: onMoveDown ? colors.textSubtle : colors.textLabel, fontSize: fontSizes.mini, padding: "0 1px", lineHeight: 1, opacity: onMoveDown ? 1 : 0.3 }}
+              >↓</button>
+            </div>
+          )}
           {(sessionsToday > 0 || sessionGoal != null) && (
             <span style={{ fontSize: fontSizes.mini, color: goalReached ? colors.statusActive : colors.textSubtle }}>
               🍅 {sessionCountStr}{sessionsToday > 0 ? ` · ${todayTimeStr}` : ""}

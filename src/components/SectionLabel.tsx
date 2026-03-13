@@ -1,6 +1,7 @@
 // ABOUTME: SectionLabel component - uppercase category divider between widget sections
-// ABOUTME: Supports optional collapse/expand toggle via chevron when onToggle is provided
+// ABOUTME: Supports optional collapse/expand toggle via chevron and optional ↑↓ reorder buttons
 
+import { useState } from "react";
 import { fontSizes, colors } from "../theme";
 
 interface SectionLabelProps {
@@ -9,11 +10,25 @@ interface SectionLabelProps {
   onToggle?: () => void;
   accent?: string;
   badge?: string; // optional summary shown after label, e.g. "3/4"
+  onMoveUp?: () => void;   // reorder: move this section one step earlier
+  onMoveDown?: () => void; // reorder: move this section one step later
 }
 
-export function SectionLabel({ children, collapsed = false, onToggle, accent, badge }: SectionLabelProps) {
+export function SectionLabel({ children, collapsed = false, onToggle, accent, badge, onMoveUp, onMoveDown }: SectionLabelProps) {
+  const [hovered, setHovered] = useState(false);
+  const showMoveButtons = hovered && (onMoveUp || onMoveDown);
+  const moveBtnStyle = (enabled: boolean) => ({
+    background: "transparent", border: "none",
+    cursor: enabled ? "pointer" : "default",
+    color: enabled ? (accent ? `${accent}88` : colors.textSubtle) : colors.textLabel,
+    fontSize: fontSizes.mini, padding: "0 1px", lineHeight: 1,
+    opacity: enabled ? 1 : 0.3,
+  });
+
   return (
     <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onClick={onToggle}
       style={{
         fontSize: fontSizes.xs, fontWeight: 700,
@@ -45,6 +60,20 @@ export function SectionLabel({ children, collapsed = false, onToggle, accent, ba
         }}>
           ▾
         </span>
+      )}
+      {/* Reorder buttons: hover-only, push to right edge to avoid overlap with collapse chevron */}
+      {(onMoveUp || onMoveDown) && (
+        <div
+          style={{
+            marginLeft: "auto", display: "flex", gap: 1,
+            opacity: showMoveButtons ? 1 : 0,
+            transition: "opacity 0.2s",
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button onClick={onMoveUp} disabled={!onMoveUp} title="섹션 위로 이동" style={moveBtnStyle(!!onMoveUp)}>↑</button>
+          <button onClick={onMoveDown} disabled={!onMoveDown} title="섹션 아래로 이동" style={moveBtnStyle(!!onMoveDown)}>↓</button>
+        </div>
       )}
     </div>
   );

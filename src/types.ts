@@ -53,6 +53,7 @@ export interface WidgetData {
   pomodoroLongBreakInterval?: number; // focus sessions per long-break cycle, default 4
   pomodoroNotify?: boolean;           // desktop notification on phase end; absent/true = enabled
   collapsedSections?: SectionKey[];  // section names currently collapsed
+  sectionOrder?: SectionKey[];       // display order of sections; absent = default order
   quoteInterval?: number;            // auto-rotation interval in seconds (default 8)
 }
 

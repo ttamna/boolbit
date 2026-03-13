@@ -118,6 +118,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "pomodoroNotify")]
     pub pomodoro_notify: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "sectionOrder")]
+    pub section_order: Option<Vec<String>>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -227,6 +230,7 @@ fn default_data() -> WidgetData {
         quote_interval: None,
         pomodoro_long_break_interval: None,
         pomodoro_notify: None,
+        section_order: None,
     }
 }
 
@@ -246,6 +250,18 @@ fn load_data() -> WidgetData {
         sections.retain(|s| VALID_SECTIONS.contains(&s.as_str()));
         if sections.is_empty() {
             data.collapsed_sections = None;
+        }
+    }
+    // Sanitize section_order: must contain all 4 valid sections exactly once; any other value is discarded
+    if let Some(ref order) = data.section_order {
+        let all_valid = VALID_SECTIONS.iter().all(|s| order.iter().any(|o| o == s));
+        let no_duplicates = {
+            let mut seen = std::collections::HashSet::new();
+            order.iter().all(|o| seen.insert(o.as_str()))
+        };
+        let no_unknown = order.iter().all(|o| VALID_SECTIONS.contains(&o.as_str()));
+        if !all_valid || !no_duplicates || !no_unknown {
+            data.section_order = None;
         }
     }
     // Sanitize pomodoro_session_goal: 0 is not a valid goal (0 means "clear" in the UI)
