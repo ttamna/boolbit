@@ -149,6 +149,13 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const accent = phase === "focus" ? colors.statusActive : colors.statusProgress;
   // Timer was started (or resumed) but is currently stopped mid-countdown
   const isPaused = !running && remaining < durations[phase] * 60;
+  // Total focus time today using current duration as approximation (accurate when duration hasn't changed today)
+  const totalFocusMins = sessionsToday * durations.focus;
+  const todayTimeStr = totalFocusMins >= 60
+    ? totalFocusMins % 60 === 0
+      ? `${Math.floor(totalFocusMins / 60)}h`
+      : `${Math.floor(totalFocusMins / 60)}h ${totalFocusMins % 60}m`
+    : `${totalFocusMins}m`;
 
   return (
     <div style={{ borderTop: `1px solid ${colors.borderFaint}`, marginTop: 4 }}>
@@ -163,7 +170,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {sessionsToday > 0 && (
             <span style={{ fontSize: fontSizes.mini, color: colors.textSubtle }}>
-              🍅 ×{sessionsToday}
+              🍅 ×{sessionsToday} · {todayTimeStr}
             </span>
           )}
           <span style={{ ...mono, fontSize: fontSizes.xs, color: accent }}>
