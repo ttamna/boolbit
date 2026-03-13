@@ -43,6 +43,7 @@ export interface WidgetData {
   pomodoroSessionsDate?: string; // YYYY-MM-DD, date of the last counted session
   pomodoroSessions?: number;     // focus sessions completed on pomodoroSessionsDate
   pomodoroAutoStart?: boolean;   // auto-start next phase when current phase ends
+  pomodoroSessionGoal?: number;  // optional daily focus session target
   collapsedSections?: SectionKey[];  // section names currently collapsed
 }
 

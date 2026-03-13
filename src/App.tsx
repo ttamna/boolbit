@@ -159,6 +159,10 @@ export default function App() {
     persist({ ...data, pomodoroAutoStart });
   }, [data, persist]);
 
+  const updatePomodoroSessionGoal = useCallback((pomodoroSessionGoal: number | undefined) => {
+    persist({ ...data, pomodoroSessionGoal });
+  }, [data, persist]);
+
   const handlePomodoroSession = useCallback(() => {
     const today = new Date().toLocaleDateString("sv"); // YYYY-MM-DD local date (sv = Swedish = ISO format)
     const count = data.pomodoroSessionsDate === today ? (data.pomodoroSessions ?? 0) + 1 : 1;
@@ -240,6 +244,8 @@ export default function App() {
             onSessionComplete={handlePomodoroSession}
             initialOpen={!collapsed.includes("pomodoro")}
             onToggleOpen={() => toggleSection("pomodoro")}
+            sessionGoal={data.pomodoroSessionGoal}
+            onSessionGoalChange={updatePomodoroSessionGoal}
           />
         )}
 

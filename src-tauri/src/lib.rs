@@ -90,6 +90,9 @@ pub struct WidgetData {
     #[serde(rename = "pomodoroAutoStart")]
     pub pomodoro_auto_start: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "pomodoroSessionGoal")]
+    pub pomodoro_session_goal: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "collapsedSections")]
     pub collapsed_sections: Option<Vec<String>>,
 }
@@ -187,6 +190,7 @@ fn default_data() -> WidgetData {
         pomodoro_sessions_date: None,
         pomodoro_sessions: None,
         pomodoro_auto_start: None,
+        pomodoro_session_goal: None,
         collapsed_sections: None,
     }
 }
@@ -202,12 +206,16 @@ fn load_data() -> WidgetData {
             d
         }
     };
-    // Sanitize collapsed_sections: reject unknown section keys (mirrors VALID_THEMES pattern)
+    // Sanitize collapsed_sections: reject unknown section keys to prevent stale values persisting
     if let Some(ref mut sections) = data.collapsed_sections {
         sections.retain(|s| VALID_SECTIONS.contains(&s.as_str()));
         if sections.is_empty() {
             data.collapsed_sections = None;
         }
+    }
+    // Sanitize pomodoro_session_goal: 0 is not a valid goal (0 means "clear" in the UI)
+    if data.pomodoro_session_goal == Some(0) {
+        data.pomodoro_session_goal = None;
     }
     data
 }

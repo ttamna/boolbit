@@ -1,5 +1,5 @@
 // ABOUTME: PomodoroTimer component - configurable focus/break timer with desktop notification
-// ABOUTME: Durations are editable inline and persisted via onDurationsChange callback
+// ABOUTME: Durations, auto-start, and daily session goal are editable inline and persisted via callbacks
 
 import { useState, useEffect, useRef, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
@@ -36,9 +36,11 @@ interface PomodoroTimerProps {
   onAutoStartChange?: (v: boolean) => void; // persist toggle
   initialOpen?: boolean;               // persisted open/closed state
   onToggleOpen?: () => void;           // notify parent to persist toggle
+  sessionGoal?: number;                // optional daily focus session target
+  onSessionGoalChange?: (goal: number | undefined) => void; // persist goal (undefined = clear)
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen }: PomodoroTimerProps) {
+export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange }: PomodoroTimerProps) {
   const [open, setOpen] = useState(initialOpen);
   const [phase, setPhase] = useState<Phase>("focus");
   const [durations, setDurations] = useState<Record<Phase, number>>(initialDurations ?? DEFAULT_DURATION);
@@ -49,6 +51,11 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const [runKey, setRunKey] = useState(0);
   const [customMode, setCustomMode] = useState<Phase | null>(null);
   const [customValue, setCustomValue] = useState("");
+  // goalEdit: true while the user is typing a new goal; goalDraft holds the input text
+  // goalEditRef: sync shadow of goalEdit — used in commitGoal to guard against blur-after-Escape
+  const [goalEdit, setGoalEdit] = useState(false);
+  const goalEditRef = useRef(false);
+  const [goalDraft, setGoalDraft] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Mirror mutable values in refs so setInterval callback always sees latest without stale closure
   const durationsRef = useRef(durations);
@@ -143,6 +150,18 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     applyDuration(customMode, mins);
   };
 
+  const commitGoal = () => {
+    // Guard: blur fires after Escape on some platforms — use ref (not state) because
+    // React state reads inside event handlers reflect the previous render snapshot.
+    if (!goalEditRef.current) return;
+    goalEditRef.current = false;
+    const parsed = parseInt(goalDraft, 10);
+    // 0 or invalid input clears the goal; otherwise clamp to 1–99
+    const goal = !isNaN(parsed) && parsed > 0 ? Math.min(99, parsed) : undefined;
+    onSessionGoalChange?.(goal);
+    setGoalEdit(false);
+  };
+
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
   const progress = 1 - remaining / (durations[phase] * 60);
@@ -156,6 +175,11 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
       ? `${Math.floor(totalFocusMins / 60)}h`
       : `${Math.floor(totalFocusMins / 60)}h ${totalFocusMins % 60}m`
     : `${totalFocusMins}m`;
+  // Session count badge: "×3/8" with goal, "✓8" when goal reached, "×3" without goal
+  const goalReached = sessionGoal != null && sessionsToday >= sessionGoal;
+  const sessionCountStr = sessionGoal != null
+    ? goalReached ? `✓${sessionsToday}` : `×${sessionsToday}/${sessionGoal}`
+    : `×${sessionsToday}`;
 
   return (
     <div style={{ borderTop: `1px solid ${colors.borderFaint}`, marginTop: 4 }}>
@@ -168,9 +192,9 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           Pomodoro
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {sessionsToday > 0 && (
-            <span style={{ fontSize: fontSizes.mini, color: colors.textSubtle }}>
-              🍅 ×{sessionsToday} · {todayTimeStr}
+          {(sessionsToday > 0 || sessionGoal != null) && (
+            <span style={{ fontSize: fontSizes.mini, color: goalReached ? colors.statusActive : colors.textSubtle }}>
+              🍅 {sessionCountStr}{sessionsToday > 0 ? ` · ${todayTimeStr}` : ""}
             </span>
           )}
           <span style={{ ...mono, fontSize: fontSizes.xs, color: accent }}>
@@ -277,6 +301,48 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               width: `${progress * 100}%`, height: "100%",
               background: accent, borderRadius: 1, transition: "width 1s linear",
             }} />
+          </div>
+
+          {/* Daily goal row */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontSize: fontSizes.xs, color: colors.textSubtle }}>일 목표</span>
+            {goalEdit ? (
+              <input
+                type="number"
+                value={goalDraft}
+                min={0}
+                max={99}
+                onChange={e => setGoalDraft(e.target.value)}
+                onBlur={commitGoal}
+                onKeyDown={e => {
+                  if (e.key === "Enter") commitGoal();
+                  if (e.key === "Escape") { goalEditRef.current = false; setGoalEdit(false); }
+                }}
+                autoFocus
+                placeholder="0=해제"
+                style={{
+                  width: 60, padding: "2px 6px", borderRadius: radius.chip,
+                  background: "transparent",
+                  border: `1px solid ${accent}55`,
+                  color: accent, fontSize: fontSizes.xs,
+                  fontFamily: fonts.mono, textAlign: "center",
+                  outline: "none",
+                }}
+              />
+            ) : (
+              <button
+                onClick={() => { goalEditRef.current = true; setGoalEdit(true); setGoalDraft(sessionGoal != null ? String(sessionGoal) : ""); }}
+                title="일일 집중 목표 세션 수 설정 (0 입력 시 해제)"
+                style={{
+                  background: "transparent", border: "none",
+                  cursor: "pointer", padding: "2px 0",
+                  color: sessionGoal != null ? (goalReached ? colors.statusActive : accent) : colors.textPhantom,
+                  fontSize: fontSizes.xs, fontFamily: fonts.mono,
+                }}
+              >
+                {sessionGoal != null ? `${sessionsToday}/${sessionGoal}세션` : "—"}
+              </button>
+            )}
           </div>
 
           {/* Controls */}
