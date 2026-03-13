@@ -64,10 +64,13 @@ export const shadows = {
 
 // Color themes — each defines the background RGB and accent colors
 export const THEMES = {
-  void:   { name: "Void",   bgRgb: "10, 10, 14",  accent: "#4ADE80" },
-  nebula: { name: "Nebula", bgRgb: "6, 8, 28",    accent: "#38BDF8" },
-  forest: { name: "Forest", bgRgb: "6, 18, 10",   accent: "#86EFAC" },
-  ember:  { name: "Ember",  bgRgb: "24, 10, 6",   accent: "#FB923C" },
+  void:     { name: "Void",     bgRgb: "10, 10, 14",  accent: "#4ADE80" },
+  nebula:   { name: "Nebula",   bgRgb: "6, 8, 28",    accent: "#38BDF8" },
+  forest:   { name: "Forest",   bgRgb: "6, 18, 10",   accent: "#86EFAC" },
+  ember:    { name: "Ember",    bgRgb: "24, 10, 6",   accent: "#FB923C" },
+  midnight: { name: "Midnight", bgRgb: "8, 6, 22",    accent: "#818CF8" },
+  aurora:   { name: "Aurora",   bgRgb: "6, 20, 20",   accent: "#2DD4BF" },
+  rose:     { name: "Rose",     bgRgb: "22, 6, 14",   accent: "#F472B6" },
 } as const;
 
 export type ThemeKey = keyof typeof THEMES;
