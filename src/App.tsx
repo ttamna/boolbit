@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef, CSSProperties } from "react";
 import type { WidgetData, Habit, Project, SectionKey } from "./types";
-import { colors, fonts, fontSizes, radius, shadows, THEMES } from "./theme";
+import { colors, fonts, fontSizes, radius, shadows, THEMES, PROJECT_STATUS_COLORS } from "./theme";
 import { invoke } from "./lib/tauri";
 import { useSettings } from "./hooks/useSettings";
 import { useWindowSync } from "./hooks/useWindowSync";
@@ -193,6 +193,12 @@ export default function App() {
   const habitsDoneToday = habitsArr.filter(h => h.lastChecked === new Date().toLocaleDateString("sv")).length;
   const habitsBadge = habitsArr.length > 0 ? `${habitsDoneToday}/${habitsArr.length}` : undefined;
 
+  // Derived: non-paused project count for Projects section badge.
+  // "active" and "in-progress" are both considered running; "paused" is excluded.
+  const projectsArr = data.projects ?? [];
+  const nonPausedCount = projectsArr.filter(p => p.status !== "paused").length;
+  const projectsBadge = projectsArr.length > 0 ? `${nonPausedCount}/${projectsArr.length}` : undefined;
+
   return (
     <div
       ref={containerRef}
@@ -223,7 +229,7 @@ export default function App() {
           onToggleFormat={() => updateSettings({ clockFormat: settings.clockFormat === "12h" ? "24h" : "12h" })}
         />
 
-        <SectionLabel accent={themeAccent} collapsed={collapsed.includes("projects")} onToggle={() => toggleSection("projects")}>Projects</SectionLabel>
+        <SectionLabel accent={themeAccent} collapsed={collapsed.includes("projects")} onToggle={() => toggleSection("projects")} badge={projectsBadge}>Projects</SectionLabel>
         {!collapsed.includes("projects") && (
           <ProjectList
             projects={data.projects}
@@ -268,16 +274,21 @@ export default function App() {
             Vision Widget v0.1
           </span>
           <div style={{ display: "flex", gap: 6 }}>
-            {data.projects.map(p => (
-              <div key={p.id} style={{
-                width: 20, height: 20, borderRadius: radius.chip,
-                background: colors.surfaceFaint,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                ...s.mono, fontSize: fontSizes.mini, color: colors.textSubtle, fontWeight: 600,
-              }}>
-                {p.name[0]}
-              </div>
-            ))}
+            {projectsArr.map(p => {
+              // Neutral fallback for unknown status values from deserialized JSON
+              const sc = PROJECT_STATUS_COLORS[p.status] ?? colors.textDim;
+              return (
+                <div key={p.id} title={`${p.name} · ${p.status}`} style={{
+                  width: 20, height: 20, borderRadius: radius.chip,
+                  background: `${sc}22`,
+                  border: `1px solid ${sc}44`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  ...s.mono, fontSize: fontSizes.mini, color: sc, fontWeight: 600,
+                }}>
+                  {p.name[0]}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
