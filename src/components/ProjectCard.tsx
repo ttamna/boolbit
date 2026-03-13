@@ -5,7 +5,7 @@ import { useState, CSSProperties } from "react";
 import type { Project, GitHubData } from "../types";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import { InlineEdit } from "./InlineEdit";
-import { verifyRepo } from "../lib/github";
+import { verifyRepo, fetchRepoData } from "../lib/github";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 function relativeTime(isoDate: string): string {
@@ -74,9 +74,26 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
 
   const [repoStatus, setRepoStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [repoMsg, setRepoMsg] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState("");
+
+  const handleRefresh = async () => {
+    if (!pat || !project.githubRepo || !onUpdate || refreshing) return;
+    setRefreshing(true);
+    setRefreshMsg("");
+    try {
+      const githubData = await fetchRepoData(pat, project.githubRepo);
+      onUpdate({ githubData });
+    } catch {
+      setRefreshMsg("실패");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleRepoSave = async (repo: string) => {
     onUpdate?.({ githubRepo: repo || undefined });
+    setRefreshMsg(""); // clear any stale refresh error
     if (!repo) { setRepoStatus('idle'); setRepoMsg(""); return; }
     if (!pat) { setRepoStatus('idle'); setRepoMsg("PAT 필요"); return; }
     setRepoStatus('testing');
@@ -178,6 +195,30 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
           }}>
             {repoMsg}
           </span>
+        )}
+        {/* Manual refresh — visible when PAT + repo are configured; hidden only while verifying */}
+        {pat && project.githubRepo && repoStatus !== 'testing' && (
+          <>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="GitHub 데이터 새로고침"
+              style={{
+                background: "transparent", border: "none",
+                cursor: refreshing ? "default" : "pointer",
+                color: refreshing ? colors.textLabel : colors.textPhantom,
+                fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
+                transition: "color 0.2s",
+              }}
+            >
+              ↺
+            </button>
+            {refreshMsg && (
+              <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.statusPaused }}>
+                {refreshMsg}
+              </span>
+            )}
+          </>
         )}
         {!repoMsg && project.githubData && (
           <div
