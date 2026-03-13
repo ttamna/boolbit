@@ -8,9 +8,10 @@ interface SectionLabelProps {
   collapsed?: boolean;
   onToggle?: () => void;
   accent?: string;
+  badge?: string; // optional summary shown after label, e.g. "3/4"
 }
 
-export function SectionLabel({ children, collapsed = false, onToggle, accent }: SectionLabelProps) {
+export function SectionLabel({ children, collapsed = false, onToggle, accent, badge }: SectionLabelProps) {
   return (
     <div
       onClick={onToggle}
@@ -24,6 +25,15 @@ export function SectionLabel({ children, collapsed = false, onToggle, accent }: 
       }}
     >
       {children}
+      {badge && (
+        <span style={{
+          fontSize: fontSizes.mini, fontWeight: 400,
+          color: accent ? `${accent}66` : colors.textPhantom,
+          letterSpacing: 0, textTransform: "none",
+        }}>
+          {badge}
+        </span>
+      )}
       {onToggle && (
         <span style={{
           fontSize: fontSizes.mini,

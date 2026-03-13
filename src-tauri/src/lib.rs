@@ -172,10 +172,10 @@ fn default_data() -> WidgetData {
             },
         ],
         habits: vec![
-            Habit { name: "푸시업".into(), streak: 0, icon: "💪".into(), last_checked: None },
-            Habit { name: "풀업".into(), streak: 0, icon: "🏋️".into(), last_checked: None },
-            Habit { name: "폰 사용↓".into(), streak: 0, icon: "📵".into(), last_checked: None },
-            Habit { name: "포모도로".into(), streak: 0, icon: "🍅".into(), last_checked: None },
+            Habit { id: None, name: "푸시업".into(), streak: 0, icon: "💪".into(), last_checked: None },
+            Habit { id: None, name: "풀업".into(), streak: 0, icon: "🏋️".into(), last_checked: None },
+            Habit { id: None, name: "폰 사용↓".into(), streak: 0, icon: "📵".into(), last_checked: None },
+            Habit { id: None, name: "포모도로".into(), streak: 0, icon: "🍅".into(), last_checked: None },
         ],
         quotes: vec![
             "Design so it cannot fail fatally, then execute.".into(),

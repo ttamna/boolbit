@@ -183,6 +183,12 @@ export default function App() {
   const theme = THEMES[settings.theme] ?? THEMES.void;
   const themeAccent = theme.accent;
 
+  // Derived: habits done today — same render-time date pattern as pomodoroSessionsToday above.
+  // Brief (<1 min) badge/button mismatch at midnight is acceptable; matching existing project pattern.
+  const habitsArr = data.habits ?? [];
+  const habitsDoneToday = habitsArr.filter(h => h.lastChecked === new Date().toLocaleDateString("sv")).length;
+  const habitsBadge = habitsArr.length > 0 ? `${habitsDoneToday}/${habitsArr.length}` : undefined;
+
   return (
     <div
       ref={containerRef}
@@ -219,7 +225,7 @@ export default function App() {
           />
         )}
 
-        <SectionLabel accent={themeAccent} collapsed={collapsed.includes("streaks")} onToggle={() => toggleSection("streaks")}>Streaks</SectionLabel>
+        <SectionLabel accent={themeAccent} collapsed={collapsed.includes("streaks")} onToggle={() => toggleSection("streaks")} badge={habitsBadge}>Streaks</SectionLabel>
         {!collapsed.includes("streaks") && (
           <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} accent={themeAccent} />
         )}
