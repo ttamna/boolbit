@@ -58,11 +58,12 @@ interface PomodoroTimerProps {
   initialNotify?: boolean;             // persisted notify preference; absent/true = enabled
   onNotifyChange?: (v: boolean) => void; // persist toggle
   sessionHistory?: PomodoroDay[];      // rolling 14-day daily session counts for the 7-day heatmap
+  focusProject?: string;   // name of the ★-marked project; shown in header during focus sessions
   onMoveUp?: () => void;   // reorder: move this section one step earlier
   onMoveDown?: () => void; // reorder: move this section one step later
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, sessionHistory, onMoveUp, onMoveDown }: PomodoroTimerProps) {
+export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, sessionHistory, focusProject, onMoveUp, onMoveDown }: PomodoroTimerProps) {
   const [open, setOpen] = useState(initialOpen);
   const [headerHovered, setHeaderHovered] = useState(false);
   // todayStr: refreshed every minute to catch midnight rollover (same pattern as HabitStreak)
@@ -313,6 +314,17 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           </span>
         </div>
       </div>
+      {/* Focus project — shown below header row during active focus sessions, even when collapsed,
+          so the user can see the active project context without expanding the panel.
+          Separate row keeps the header right-side content uncluttered. */}
+      {running && phase === "focus" && focusProject && (
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 2, paddingBottom: 4 }}>
+          <span style={{ fontSize: fontSizes.mini, color: colors.textGhost, flexShrink: 0 }}>→</span>
+          <span style={{ fontSize: fontSizes.mini, color: colors.textGhost, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>
+            {focusProject}
+          </span>
+        </div>
+      )}
 
       {/* 7-day session heatmap — shown whenever there is any history; right-aligned to match session badge */}
       {last7Days && sessionHistory && sessionHistory.length > 0 && (

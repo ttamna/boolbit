@@ -411,6 +411,7 @@ export default function App() {
                   initialNotify={data.pomodoroNotify}
                   onNotifyChange={updatePomodoroNotify}
                   sessionHistory={data.pomodoroHistory}
+                  focusProject={data.projects.find(p => p.isFocus)?.name}
                   onMoveUp={up}
                   onMoveDown={dn}
                 />
