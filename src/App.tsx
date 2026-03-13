@@ -2,7 +2,7 @@
 // ABOUTME: Handles data loading/saving, inline patch updates, and section reorder via sectionOrder field
 
 import { useState, useEffect, useCallback, useRef, CSSProperties, Fragment } from "react";
-import type { WidgetData, Habit, Project, SectionKey, GitHubData } from "./types";
+import type { WidgetData, Habit, Project, SectionKey, GitHubData, PomodoroDay } from "./types";
 import { colors, fonts, fontSizes, radius, shadows, THEMES, PROJECT_STATUS_COLORS } from "./theme";
 import { invoke, isTauri } from "./lib/tauri";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -259,7 +259,13 @@ export default function App() {
   const handlePomodoroSession = useCallback(() => {
     const today = new Date().toLocaleDateString("sv"); // YYYY-MM-DD local date (sv = Swedish = ISO format)
     const count = data.pomodoroSessionsDate === today ? (data.pomodoroSessions ?? 0) + 1 : 1;
-    persist({ ...data, pomodoroSessionsDate: today, pomodoroSessions: count });
+    // Upsert today's count into rolling history: remove old entry for today, append updated, sort, cap at 14.
+    // Sorted YYYY-MM-DD strings compare lexicographically = chronologically, matching checkHistory pattern.
+    const history: PomodoroDay[] = data.pomodoroHistory ?? [];
+    const newHistory = [...history.filter(d => d.date !== today), { date: today, count }]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-14);
+    persist({ ...data, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory });
   }, [data, persist]);
 
   const toggleSection = useCallback((section: SectionKey) => {
@@ -404,6 +410,7 @@ export default function App() {
                   onLongBreakIntervalChange={updatePomodoroLongBreakInterval}
                   initialNotify={data.pomodoroNotify}
                   onNotifyChange={updatePomodoroNotify}
+                  sessionHistory={data.pomodoroHistory}
                   onMoveUp={up}
                   onMoveDown={dn}
                 />

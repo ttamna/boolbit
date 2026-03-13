@@ -42,6 +42,11 @@ export interface Habit {
 
 export type SectionKey = "projects" | "streaks" | "direction" | "pomodoro";
 
+export interface PomodoroDay {
+  date: string;  // YYYY-MM-DD
+  count: number; // focus sessions completed on this day
+}
+
 export interface WidgetData {
   projects: Project[];
   habits: Habit[];
@@ -53,6 +58,7 @@ export interface WidgetData {
   pomodoroSessionGoal?: number;  // optional daily focus session target
   pomodoroLongBreakInterval?: number; // focus sessions per long-break cycle, default 4
   pomodoroNotify?: boolean;           // desktop notification on phase end; absent/true = enabled
+  pomodoroHistory?: PomodoroDay[];    // rolling 14-day daily session counts for the 7-day heatmap
   collapsedSections?: SectionKey[];  // section names currently collapsed
   sectionOrder?: SectionKey[];       // display order of sections; absent = default order
   quoteInterval?: number;            // auto-rotation interval in seconds (default 8)

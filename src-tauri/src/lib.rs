@@ -80,6 +80,12 @@ pub struct Habit {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PomodoroDay {
+    pub date: String,
+    pub count: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PomodoroDurations {
     pub focus: u32,
     #[serde(rename = "break")]
@@ -120,6 +126,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "pomodoroNotify")]
     pub pomodoro_notify: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "pomodoroHistory")]
+    pub pomodoro_history: Option<Vec<PomodoroDay>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "sectionOrder")]
     pub section_order: Option<Vec<String>>,
@@ -232,6 +241,7 @@ fn default_data() -> WidgetData {
         quote_interval: None,
         pomodoro_long_break_interval: None,
         pomodoro_notify: None,
+        pomodoro_history: None,
         section_order: None,
     }
 }
@@ -269,6 +279,19 @@ fn load_data() -> WidgetData {
     // Sanitize pomodoro_session_goal: 0 is not a valid goal (0 means "clear" in the UI)
     if data.pomodoro_session_goal == Some(0) {
         data.pomodoro_session_goal = None;
+    }
+    // Sanitize pomodoro_history: drop zero-count, dedup by date (keep most-recent count), cap at 14
+    // Sort descending so dedup_by_key retains the first (newest) entry per date.
+    // Re-sort ascending for consistent chronological storage.
+    if let Some(ref mut history) = data.pomodoro_history {
+        history.retain(|d| d.count > 0);
+        history.sort_by(|a, b| b.date.cmp(&a.date));
+        history.dedup_by_key(|d| d.date.clone());
+        history.truncate(14);
+        history.sort_by(|a, b| a.date.cmp(&b.date));
+        if history.is_empty() {
+            data.pomodoro_history = None;
+        }
     }
     // Sanitize pomodoro_long_break_interval: values < 2 would trigger long break every session
     if data.pomodoro_long_break_interval.map(|n| n < 2).unwrap_or(false) {

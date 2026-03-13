@@ -1,9 +1,10 @@
 // ABOUTME: PomodoroTimer component - configurable focus/break timer with desktop notification
 // ABOUTME: Durations, auto-start, notify toggle, daily session goal, long-break interval, and section reorder are inline-configurable
 
-import { useState, useEffect, useRef, CSSProperties } from "react";
+import { useState, useEffect, useRef, useMemo, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { fonts, fontSizes, colors, radius } from "../theme";
+import type { PomodoroDay } from "../types";
 
 type Phase = "focus" | "break" | "longBreak";
 
@@ -56,13 +57,20 @@ interface PomodoroTimerProps {
   onLongBreakIntervalChange?: (n: number) => void; // persist interval
   initialNotify?: boolean;             // persisted notify preference; absent/true = enabled
   onNotifyChange?: (v: boolean) => void; // persist toggle
+  sessionHistory?: PomodoroDay[];      // rolling 14-day daily session counts for the 7-day heatmap
   onMoveUp?: () => void;   // reorder: move this section one step earlier
   onMoveDown?: () => void; // reorder: move this section one step later
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, onMoveUp, onMoveDown }: PomodoroTimerProps) {
+export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, sessionHistory, onMoveUp, onMoveDown }: PomodoroTimerProps) {
   const [open, setOpen] = useState(initialOpen);
   const [headerHovered, setHeaderHovered] = useState(false);
+  // todayStr: refreshed every minute to catch midnight rollover (same pattern as HabitStreak)
+  const [todayStr, setTodayStr] = useState(() => new Date().toLocaleDateString("sv"));
+  useEffect(() => {
+    const id = setInterval(() => setTodayStr(new Date().toLocaleDateString("sv")), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const [phase, setPhase] = useState<Phase>("focus");
   const [durations, setDurations] = useState<Record<Phase, number>>({
     ...DEFAULT_DURATION,
@@ -227,6 +235,18 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   };
 
   const accent = phaseAccent(phase);
+
+  // Last 7 days (oldest to newest) derived from todayStr — recomputed when history changes or at midnight.
+  const last7Days = useMemo(() => {
+    if (!sessionHistory) return null;
+    const base = new Date(todayStr + "T00:00:00");
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(base);
+      d.setDate(d.getDate() - (6 - i));
+      return d.toLocaleDateString("sv");
+    });
+  }, [sessionHistory, todayStr]);
+
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
   const progress = 1 - remaining / (durations[phase] * 60);
@@ -293,6 +313,35 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           </span>
         </div>
       </div>
+
+      {/* 7-day session heatmap — shown whenever there is any history; right-aligned to match session badge */}
+      {last7Days && sessionHistory && sessionHistory.length > 0 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 2, paddingBottom: 6 }}>
+          {last7Days.map((day, di) => {
+            const entry = sessionHistory.find(h => h.date === day);
+            const count = entry?.count ?? 0;
+            const daysAgo = 6 - di;
+            const label = daysAgo === 0
+              ? `오늘 ${count}회`
+              : daysAgo === 1
+              ? `어제 ${count}회`
+              : `${daysAgo}일 전 ${count}회`;
+            // 4-level intensity: empty → dim → medium → bright based on session count
+            const opacity = count === 0 ? 0.25 : count <= 2 ? 0.45 : count <= 4 ? 0.70 : 0.95;
+            return (
+              <div
+                key={day}
+                title={label}
+                style={{
+                  width: 3, height: 3, borderRadius: "50%", flexShrink: 0,
+                  background: count > 0 ? colors.statusActive : colors.borderSubtle,
+                  opacity,
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
 
       {/* Expanded panel */}
       {open && (
