@@ -137,6 +137,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "todayIntention")]
     pub today_intention: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "todayIntentionDate")]
+    pub today_intention_date: Option<String>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -252,6 +255,7 @@ fn default_data() -> WidgetData {
         pomodoro_history: None,
         section_order: None,
         today_intention: None,
+        today_intention_date: None,
     }
 }
 
@@ -330,9 +334,23 @@ fn load_data() -> WidgetData {
             habit.notes = None;
         }
     }
-    // Sanitize today_intention: empty string is equivalent to absent
+    // Sanitize today_intention and today_intention_date: empty string is equivalent to absent
     if data.today_intention.as_deref() == Some("") {
         data.today_intention = None;
+    }
+    // Sanitize today_intention_date: must be YYYY-MM-DD format (length 10, digit/dash chars, hyphens at positions 4 and 7)
+    match &data.today_intention_date {
+        Some(d) => {
+            let bytes = d.as_bytes();
+            let valid = d.len() == 10
+                && bytes.iter().all(|&b| b.is_ascii_digit() || b == b'-')
+                && bytes[4] == b'-'
+                && bytes[7] == b'-';
+            if !valid {
+                data.today_intention_date = None;
+            }
+        }
+        None => {}
     }
     // Sanitize project fields: remove empty strings; normalize is_focus(false) → absent
     for project in &mut data.projects {

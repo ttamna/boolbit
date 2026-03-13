@@ -97,10 +97,12 @@ export default function App() {
       try {
         const saved = await invoke<WidgetData>("load_data");
         if (saved) {
-          // Reset streaks for habits checked before yesterday (user missed at least one full day)
-          const yesterday = new Date();
+          const now = new Date();
+          const todayStr = now.toLocaleDateString("sv"); // YYYY-MM-DD local
+          const yesterday = new Date(now);
           yesterday.setDate(yesterday.getDate() - 1);
-          const yesterdayStr = yesterday.toLocaleDateString("sv"); // YYYY-MM-DD local
+          const yesterdayStr = yesterday.toLocaleDateString("sv");
+          // Reset streaks for habits checked before yesterday (user missed at least one full day)
           const savedHabits = saved.habits ?? [];
           let hadExpired = false;
           let needsIdMigration = false;
@@ -114,8 +116,16 @@ export default function App() {
             }
             return withId;
           });
-          const needsSave = hadExpired || needsIdMigration;
-          const resolvedData = needsSave ? { ...saved, habits: reset } : saved;
+          // Clear today's intention when the app loads and the date has advanced past the day it was set.
+          // Requires todayIntentionDate to be present; old data without this field is left as-is
+          // (date unknown — clearing would be destructive for intentions set on the same day as the update).
+          const intentionStale = !!(saved.todayIntention && saved.todayIntentionDate && saved.todayIntentionDate < todayStr);
+          const needsSave = hadExpired || needsIdMigration || intentionStale;
+          const resolvedData = needsSave ? {
+            ...saved,
+            habits: reset,
+            ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined } : {}),
+          } : saved;
           setData(resolvedData);
           if (needsSave) await invoke("save_data", { data: resolvedData });
         }
@@ -171,14 +181,18 @@ export default function App() {
   );
 
   // Resets streaks for habits whose lastChecked has fallen behind yesterday.
+  // Also clears todayIntention when the date advances past the day it was set.
   // Runs every minute so a long-running widget corrects expiry without requiring restart.
   useEffect(() => {
     if (!loaded) return;
     const id = setInterval(async () => {
-      const yesterday = new Date();
+      const now = new Date();
+      const todayStr = now.toLocaleDateString("sv");
+      const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toLocaleDateString("sv");
-      const habits = dataRef.current.habits ?? [];
+      const current = dataRef.current;
+      const habits = current.habits ?? [];
       let hadExpired = false;
       const reset = habits.map(h => {
         if (h.lastChecked && h.lastChecked < yesterdayStr) {
@@ -187,8 +201,15 @@ export default function App() {
         }
         return h;
       });
-      if (!hadExpired) return;
-      await persist({ ...dataRef.current, habits: reset });
+      // Clear today's intention when the date has advanced past the day it was set.
+      // Same backward-compat rule as initial load: requires todayIntentionDate to be present.
+      const intentionStale = !!(current.todayIntention && current.todayIntentionDate && current.todayIntentionDate < todayStr);
+      if (!hadExpired && !intentionStale) return;
+      await persist({
+        ...current,
+        habits: reset,
+        ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined } : {}),
+      });
     }, 60_000);
     return () => clearInterval(id);
   }, [loaded, persist]);
@@ -210,7 +231,10 @@ export default function App() {
   }, [data, persist]);
 
   const updateIntention = useCallback((todayIntention: string) => {
-    persist({ ...data, todayIntention: todayIntention !== "" ? todayIntention : undefined });
+    const intention = todayIntention !== "" ? todayIntention : undefined;
+    // Track the date when the intention was last set so midnight reset can clear stale values
+    const todayIntentionDate = intention ? new Date().toLocaleDateString("sv") : undefined;
+    persist({ ...data, todayIntention: intention, todayIntentionDate });
   }, [data, persist]);
 
   const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number; longBreak: number }) => {
@@ -353,6 +377,15 @@ export default function App() {
       ].filter(Boolean).join(" · ")
     : undefined;
 
+  // Derived: Direction badge — shows intention status + quote count for quick overview when collapsed
+  const directionBadge = (() => {
+    const parts: string[] = [];
+    if (data.todayIntention) parts.push("✓");
+    const quotesArr = data.quotes ?? [];
+    if (quotesArr.length > 0) parts.push(`${quotesArr.length}q`);
+    return parts.length > 0 ? parts.join(" · ") : undefined;
+  })();
+
   return (
     <div
       ref={containerRef}
@@ -432,7 +465,7 @@ export default function App() {
           );
           if (key === "direction") return (
             <Fragment key="direction">
-              <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")} onMoveUp={up} onMoveDown={dn}>Direction</SectionLabel>
+              <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")} badge={directionBadge} onMoveUp={up} onMoveDown={dn}>Direction</SectionLabel>
               {!collapsed.includes("direction") && (
                 <>
                   {/* Today's intention — a one-line focus phrase set by the user; ✕ clears when set */}

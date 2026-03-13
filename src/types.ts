@@ -64,6 +64,7 @@ export interface WidgetData {
   sectionOrder?: SectionKey[];       // display order of sections; absent = default order
   quoteInterval?: number;            // auto-rotation interval in seconds (default 8)
   todayIntention?: string;           // one-line daily intention set by user; absent = not set
+  todayIntentionDate?: string;       // YYYY-MM-DD when todayIntention was last set; absent = not tracked
 }
 
 export interface WindowPosition {
