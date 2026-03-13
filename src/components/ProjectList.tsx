@@ -1,5 +1,5 @@
 // ABOUTME: ProjectList component - renders project list with add/delete/reorder in edit mode
-// ABOUTME: onRefreshAll enables batch GitHub refresh; done projects are collapsible; ↕ auto-sort by focus+urgency in view mode
+// ABOUTME: onRefreshAll enables batch GitHub refresh; paused+done projects are collapsible; ↕ auto-sort by focus+urgency in view mode
 
 import { useState, type CSSProperties } from "react";
 import type { Project } from "../types";
@@ -18,12 +18,14 @@ interface ProjectListProps {
 export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefreshAll }: ProjectListProps) {
   const [newName, setNewName] = useState("");
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [showPaused, setShowPaused] = useState(false);
   const [showDone, setShowDone] = useState(false);
   // ESC also resets the new-project draft
   const { editing, openEditing, closeEditing } = useEditMode(() => setNewName(""));
 
-  // Sort active projects: ★ focus first → deadline urgency (soonest first, no deadline last).
+  // Sort non-done projects: ★ focus first → deadline urgency (soonest first, no deadline last).
   // Done projects are excluded from sorting and kept at the end of the array unchanged.
+  // Paused projects sort alongside active/in-progress — view-level filters handle visual grouping.
   // Uses stable sort so equal-priority items stay in their current manual order.
   const handleSort = () => {
     const d = new Date(); d.setHours(0, 0, 0, 0);
@@ -142,12 +144,30 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
     );
   }
 
-  const activeProjects = projects.filter(p => p.status !== "done");
+  const runningProjects = projects.filter(p => p.status !== "done" && p.status !== "paused");
+  const pausedProjects = projects.filter(p => p.status === "paused");
   const doneProjects = projects.filter(p => p.status === "done");
 
   return (
     <div>
-      {activeProjects.map(p => (
+      {runningProjects.map(p => (
+        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} />
+      ))}
+      {/* Paused projects: collapsed by default, expand via toggle */}
+      {pausedProjects.length > 0 && (
+        <button
+          onClick={() => setShowPaused(v => !v)}
+          title={showPaused ? "일시정지 프로젝트 접기" : "일시정지 프로젝트 펼치기"}
+          style={{
+            background: "transparent", border: "none", cursor: "pointer",
+            color: colors.textPhantom, fontSize: fontSizes.mini,
+            padding: "4px 0", lineHeight: 1, display: "block",
+          }}
+        >
+          일시정지 ({pausedProjects.length}) {showPaused ? "▾" : "▸"}
+        </button>
+      )}
+      {showPaused && pausedProjects.map(p => (
         <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} />
       ))}
       {/* Done projects: collapsed by default, expand via toggle */}
@@ -168,8 +188,8 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
         <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} />
       ))}
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, marginTop: 4 }}>
-        {/* Sort: visible when there are 2+ active projects to sort */}
-        {activeProjects.length >= 2 && (
+        {/* Sort: visible when there are 2+ non-done projects (running + paused) to sort */}
+        {(runningProjects.length + pausedProjects.length) >= 2 && (
           <button
             onClick={handleSort}
             title="★ 집중 우선 → 마감일 긴박도순 정렬"
