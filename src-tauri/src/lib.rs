@@ -246,6 +246,7 @@ fn save_settings(settings: WidgetSettings) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![load_data, save_data, load_settings, save_settings])
         .setup(|app| {
             use tauri::Manager;

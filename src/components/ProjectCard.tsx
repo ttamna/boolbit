@@ -6,6 +6,7 @@ import type { Project, GitHubData } from "../types";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import { InlineEdit } from "./InlineEdit";
 import { verifyRepo } from "../lib/github";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 function relativeTime(isoDate: string): string {
   const diff = Date.now() - new Date(isoDate).getTime();
@@ -166,10 +167,30 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
           </span>
         )}
         {!repoMsg && project.githubData && (
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <div
+            onClick={() => {
+              if (project.githubRepo && /^[\w.-]+\/[\w.-]+$/.test(project.githubRepo)) {
+                openUrl(`https://github.com/${project.githubRepo}`);
+              }
+            }}
+            title={project.githubRepo ? `GitHub: ${project.githubRepo} 열기` : undefined}
+            style={{ display: "flex", gap: 6, alignItems: "center", cursor: project.githubRepo ? "pointer" : undefined }}
+          >
             <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textSubtle }}>
               {relativeTime(project.githubData.lastCommitAt)}
             </span>
+            {project.githubData.lastCommitMsg && (
+              <span
+                title={project.githubData.lastCommitMsg}
+                style={{
+                  fontSize: fontSizes.mini, color: colors.textPhantom,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  maxWidth: 140, minWidth: 0,
+                }}
+              >
+                {project.githubData.lastCommitMsg}
+              </span>
+            )}
             {project.githubData.openIssues > 0 && (
               <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textSubtle }}>
                 {project.githubData.openIssues} issue{project.githubData.openIssues !== 1 ? "s" : ""}
@@ -180,7 +201,7 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
                 {project.githubData.openPrs} PR{project.githubData.openPrs !== 1 ? "s" : ""}
               </span>
             )}
-            {project.githubData.ciStatus !== null && (
+            {project.githubData.ciStatus != null && project.githubData.ciStatus in CI_COLOR && (
               <span
                 title={`CI: ${project.githubData.ciStatus}`}
                 style={{
