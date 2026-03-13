@@ -1,18 +1,32 @@
 // ABOUTME: PomodoroTimer component - configurable focus/break timer with desktop notification
-// ABOUTME: Durations, auto-start, and daily session goal are editable inline and persisted via callbacks
+// ABOUTME: Durations, auto-start, daily session goal, and long-break interval are editable inline and persisted via callbacks
 
 import { useState, useEffect, useRef, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { fonts, fontSizes, colors, radius } from "../theme";
 
-type Phase = "focus" | "break";
+type Phase = "focus" | "break" | "longBreak";
 
-const DEFAULT_DURATION: Record<Phase, number> = { focus: 25, break: 5 };
-const PRESETS: Record<Phase, number[]> = { focus: [15, 25, 45], break: [5, 10, 15] };
+const DEFAULT_DURATION: Record<Phase, number> = { focus: 25, break: 5, longBreak: 15 };
+const PRESETS: Record<Phase, number[]> = { focus: [15, 25, 45], break: [5, 10, 15], longBreak: [10, 15, 20] };
+const LONG_BREAK_INTERVAL_PRESETS = [2, 3, 4, 6] as const;
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
 
 function pad(n: number) { return String(n).padStart(2, "0"); }
+
+// Accent color per phase: green for focus, yellow for short break, sky-blue for long break
+function phaseAccent(p: Phase): string {
+  if (p === "focus") return colors.statusActive;
+  if (p === "break") return colors.statusProgress;
+  return colors.statusLongBreak;
+}
+
+function phaseLabel(p: Phase): string {
+  if (p === "focus") return "집중";
+  if (p === "break") return "휴식";
+  return "긴 휴식";
+}
 
 async function notify(title: string, body: string) {
   try {
@@ -28,8 +42,8 @@ async function notify(title: string, body: string) {
 }
 
 interface PomodoroTimerProps {
-  initialDurations?: { focus: number; break: number };
-  onDurationsChange?: (d: { focus: number; break: number }) => void;
+  initialDurations?: { focus: number; break: number; longBreak?: number };
+  onDurationsChange?: (d: { focus: number; break: number; longBreak: number }) => void;
   sessionsToday?: number;              // completed focus sessions today, from persisted data
   onSessionComplete?: () => void;      // called when a focus phase finishes
   initialAutoStart?: boolean;          // persisted auto-start preference
@@ -38,12 +52,18 @@ interface PomodoroTimerProps {
   onToggleOpen?: () => void;           // notify parent to persist toggle
   sessionGoal?: number;                // optional daily focus session target
   onSessionGoalChange?: (goal: number | undefined) => void; // persist goal (undefined = clear)
+  longBreakInterval?: number;          // focus sessions per long-break cycle, default 4
+  onLongBreakIntervalChange?: (n: number) => void; // persist interval
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange }: PomodoroTimerProps) {
+export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange }: PomodoroTimerProps) {
   const [open, setOpen] = useState(initialOpen);
   const [phase, setPhase] = useState<Phase>("focus");
-  const [durations, setDurations] = useState<Record<Phase, number>>(initialDurations ?? DEFAULT_DURATION);
+  const [durations, setDurations] = useState<Record<Phase, number>>({
+    ...DEFAULT_DURATION,
+    ...(initialDurations ?? {}),
+    longBreak: initialDurations?.longBreak ?? DEFAULT_DURATION.longBreak,
+  });
   const [remaining, setRemaining] = useState((initialDurations?.focus ?? DEFAULT_DURATION.focus) * 60);
   const [running, setRunning] = useState(false);
   const [autoStart, setAutoStart] = useState(initialAutoStart);
@@ -68,6 +88,11 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   autoStartRef.current = autoStart;
   const onSessionCompleteRef = useRef(onSessionComplete);
   onSessionCompleteRef.current = onSessionComplete;
+  // cycleCount: focus sessions completed in the current long-break cycle (resets to 0 at app start and after long break)
+  const cycleCountRef = useRef(0);
+  const effectiveLongBreakInterval = longBreakInterval ?? 4;
+  const longBreakIntervalRef = useRef(effectiveLongBreakInterval);
+  longBreakIntervalRef.current = effectiveLongBreakInterval;
 
   useEffect(() => {
     if (!running) {
@@ -86,13 +111,26 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
         clearInterval(intervalRef.current!);
         intervalRef.current = null;
         const currentPhase = phaseRef.current;
-        const next: Phase = currentPhase === "focus" ? "break" : "focus";
-        const breakMins = durationsRef.current.break;
-        const msg = currentPhase === "focus"
-          ? `🍅 포모도로 완료! ${breakMins}분 휴식하세요.`
-          : "💪 휴식 종료! 다시 집중할 시간.";
-        notify("Vision Widget", msg);
-        if (currentPhase === "focus") onSessionCompleteRef.current?.();
+        let next: Phase;
+        if (currentPhase === "focus") {
+          onSessionCompleteRef.current?.();
+          const newCount = cycleCountRef.current + 1;
+          if (newCount >= longBreakIntervalRef.current) {
+            next = "longBreak";
+            cycleCountRef.current = 0;
+            notify("Vision Widget", `🍅 ${longBreakIntervalRef.current}회 완료! ${durationsRef.current.longBreak}분 긴 휴식하세요.`);
+          } else {
+            next = "break";
+            cycleCountRef.current = newCount;
+            notify("Vision Widget", `🍅 포모도로 완료! ${durationsRef.current.break}분 휴식하세요.`);
+          }
+        } else {
+          next = "focus";
+          const msg = currentPhase === "longBreak"
+            ? "💪 긴 휴식 종료! 새 사이클을 시작하세요."
+            : "💪 휴식 종료! 다시 집중할 시간.";
+          notify("Vision Widget", msg);
+        }
         setPhase(next);
         setRemaining(durationsRef.current[next] * 60);
         if (autoStartRef.current) {
@@ -114,12 +152,24 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   };
 
   // Skip to next phase immediately — does NOT count as a completed session,
-  // and does NOT send a notification (user triggered, no feedback needed).
+  // but DOES advance the long-break cycle count (user is "done" with the current focus).
   // autoStart respected: if running+autoStart, next phase auto-starts; otherwise stops.
   const skipPhase = () => {
-    const next: Phase = phase === "focus" ? "break" : "focus";
+    let next: Phase;
+    if (phase === "focus") {
+      const newCount = cycleCountRef.current + 1;
+      if (newCount >= longBreakIntervalRef.current) {
+        next = "longBreak";
+        cycleCountRef.current = 0;
+      } else {
+        next = "break";
+        cycleCountRef.current = newCount;
+      }
+    } else {
+      next = "focus";
+    }
     setPhase(next);
-    setRemaining(durations[next] * 60);
+    setRemaining(durationsRef.current[next] * 60);
     if (running && autoStart) {
       setRunKey(k => k + 1);
     } else {
@@ -132,6 +182,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     setPhase(p);
     setRemaining(durations[p] * 60);
     setCustomMode(null);
+    // Reset cycle count when manually navigating phases to avoid unexpected long break
+    cycleCountRef.current = 0;
   };
 
   const applyDuration = (p: Phase, mins: number) => {
@@ -162,10 +214,10 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     setGoalEdit(false);
   };
 
+  const accent = phaseAccent(phase);
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
   const progress = 1 - remaining / (durations[phase] * 60);
-  const accent = phase === "focus" ? colors.statusActive : colors.statusProgress;
   // Timer was started (or resumed) but is currently stopped mid-countdown
   const isPaused = !running && remaining < durations[phase] * 60;
   // Total focus time today using current duration as approximation (accurate when duration hasn't changed today)
@@ -180,6 +232,11 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const sessionCountStr = sessionGoal != null
     ? goalReached ? `✓${sessionsToday}` : `×${sessionsToday}/${sessionGoal}`
     : `×${sessionsToday}`;
+
+  // Determine what the next phase will be when skip is pressed (for tooltip)
+  const skipNextPhase: Phase = phase === "focus"
+    ? (cycleCountRef.current + 1 >= effectiveLongBreakInterval ? "longBreak" : "break")
+    : "focus";
 
   return (
     <div style={{ borderTop: `1px solid ${colors.borderFaint}`, marginTop: 4 }}>
@@ -199,7 +256,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           )}
           <span style={{ ...mono, fontSize: fontSizes.xs, color: accent }}>
             {running
-              ? `${phase === "focus" ? "집중" : "휴식"} ${pad(minutes)}:${pad(seconds)}`
+              ? `${phaseLabel(phase)} ${pad(minutes)}:${pad(seconds)}`
               : isPaused
               ? `⏸ ${pad(minutes)}:${pad(seconds)}`
               : "▶"}
@@ -212,21 +269,24 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
         <div style={{ paddingBottom: 14 }}>
           {/* Phase tabs */}
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-            {(["focus", "break"] as Phase[]).map(p => (
-              <button
-                key={p}
-                onClick={() => switchPhase(p)}
-                style={{
-                  flex: 1, padding: "4px 0", borderRadius: radius.bar,
-                  background: phase === p ? `${accent}22` : "transparent",
-                  border: `1px solid ${phase === p ? accent + "44" : colors.borderFaint}`,
-                  color: phase === p ? accent : colors.textSubtle,
-                  fontSize: fontSizes.xs, cursor: "pointer",
-                }}
-              >
-                {p === "focus" ? "집중" : "휴식"} {durations[p]}분
-              </button>
-            ))}
+            {(["focus", "break", "longBreak"] as Phase[]).map(p => {
+              const tabAccent = phaseAccent(p);
+              return (
+                <button
+                  key={p}
+                  onClick={() => switchPhase(p)}
+                  style={{
+                    flex: 1, padding: "4px 0", borderRadius: radius.bar,
+                    background: phase === p ? `${tabAccent}22` : "transparent",
+                    border: `1px solid ${phase === p ? tabAccent + "44" : colors.borderFaint}`,
+                    color: phase === p ? tabAccent : colors.textSubtle,
+                    fontSize: fontSizes.xs, cursor: "pointer",
+                  }}
+                >
+                  {phaseLabel(p)} {durations[p]}분
+                </button>
+              );
+            })}
           </div>
 
           {/* Duration presets */}
@@ -304,7 +364,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           </div>
 
           {/* Daily goal row */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontSize: fontSizes.xs, color: colors.textSubtle }}>일 목표</span>
             {goalEdit ? (
               <input
@@ -345,6 +405,32 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
             )}
           </div>
 
+          {/* Long break interval row */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontSize: fontSizes.xs, color: colors.textSubtle }}>긴 휴식 주기</span>
+            <div style={{ display: "flex", gap: 4 }}>
+              {LONG_BREAK_INTERVAL_PRESETS.map(n => {
+                const active = effectiveLongBreakInterval === n;
+                return (
+                  <button
+                    key={n}
+                    onClick={() => onLongBreakIntervalChange?.(n)}
+                    style={{
+                      fontSize: fontSizes.xs, padding: "2px 6px", borderRadius: radius.chip,
+                      background: "transparent",
+                      border: `1px solid ${active ? colors.statusLongBreak + "88" : colors.borderFaint}`,
+                      color: active ? colors.statusLongBreak : colors.textPhantom,
+                      cursor: "pointer", fontWeight: active ? 600 : 400,
+                      fontFamily: fonts.mono,
+                    }}
+                  >
+                    {n}회
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Controls */}
           <div style={{ display: "flex", gap: 8 }}>
             <button
@@ -372,7 +458,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
             </button>
             <button
               onClick={skipPhase}
-              title={`다음 단계로 건너뛰기 (${phase === "focus" ? "집중 → 휴식" : "휴식 → 집중"})`}
+              title={`다음 단계로 건너뛰기 (${phaseLabel(phase)} → ${phaseLabel(skipNextPhase)})`}
               style={{
                 padding: "6px 10px", borderRadius: radius.chip,
                 background: "transparent",

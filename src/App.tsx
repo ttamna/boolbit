@@ -155,7 +155,7 @@ export default function App() {
     persist({ ...data, quoteInterval });
   }, [data, persist]);
 
-  const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number }) => {
+  const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number; longBreak: number }) => {
     persist({ ...data, pomodoroDurations });
   }, [data, persist]);
 
@@ -165,6 +165,10 @@ export default function App() {
 
   const updatePomodoroSessionGoal = useCallback((pomodoroSessionGoal: number | undefined) => {
     persist({ ...data, pomodoroSessionGoal });
+  }, [data, persist]);
+
+  const updatePomodoroLongBreakInterval = useCallback((pomodoroLongBreakInterval: number) => {
+    persist({ ...data, pomodoroLongBreakInterval });
   }, [data, persist]);
 
   const handlePomodoroSession = useCallback(() => {
@@ -260,6 +264,8 @@ export default function App() {
             onToggleOpen={() => toggleSection("pomodoro")}
             sessionGoal={data.pomodoroSessionGoal}
             onSessionGoalChange={updatePomodoroSessionGoal}
+            longBreakInterval={data.pomodoroLongBreakInterval}
+            onLongBreakIntervalChange={updatePomodoroLongBreakInterval}
           />
         )}
 

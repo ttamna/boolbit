@@ -72,6 +72,8 @@ pub struct PomodoroDurations {
     pub focus: u32,
     #[serde(rename = "break")]
     pub break_mins: u32,
+    #[serde(rename = "longBreak", default, skip_serializing_if = "Option::is_none")]
+    pub long_break: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -100,6 +102,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "quoteInterval")]
     pub quote_interval: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "pomodoroLongBreakInterval")]
+    pub pomodoro_long_break_interval: Option<u32>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -201,6 +206,7 @@ fn default_data() -> WidgetData {
         pomodoro_session_goal: None,
         collapsed_sections: None,
         quote_interval: None,
+        pomodoro_long_break_interval: None,
     }
 }
 
@@ -225,6 +231,10 @@ fn load_data() -> WidgetData {
     // Sanitize pomodoro_session_goal: 0 is not a valid goal (0 means "clear" in the UI)
     if data.pomodoro_session_goal == Some(0) {
         data.pomodoro_session_goal = None;
+    }
+    // Sanitize pomodoro_long_break_interval: values < 2 would trigger long break every session
+    if data.pomodoro_long_break_interval.map(|n| n < 2).unwrap_or(false) {
+        data.pomodoro_long_break_interval = None;
     }
     // Sanitize project deadlines: remove empty strings that could arrive from partial saves
     for project in &mut data.projects {

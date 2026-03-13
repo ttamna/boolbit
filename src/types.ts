@@ -40,11 +40,12 @@ export interface WidgetData {
   projects: Project[];
   habits: Habit[];
   quotes: string[];
-  pomodoroDurations?: { focus: number; break: number };
+  pomodoroDurations?: { focus: number; break: number; longBreak?: number };
   pomodoroSessionsDate?: string; // YYYY-MM-DD, date of the last counted session
   pomodoroSessions?: number;     // focus sessions completed on pomodoroSessionsDate
   pomodoroAutoStart?: boolean;   // auto-start next phase when current phase ends
   pomodoroSessionGoal?: number;  // optional daily focus session target
+  pomodoroLongBreakInterval?: number; // focus sessions per long-break cycle, default 4
   collapsedSections?: SectionKey[];  // section names currently collapsed
   quoteInterval?: number;            // auto-rotation interval in seconds (default 8)
 }

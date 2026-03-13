@@ -31,6 +31,7 @@ export const colors = {
   statusActive: "#4ADE80",
   statusProgress: "#FBBF24",
   statusPaused: "#F87171",
+  statusLongBreak: "#7DD3FC",  // long-break phase in pomodoro (sky blue)
 } as const;
 
 export const fonts = {
