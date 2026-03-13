@@ -1,5 +1,5 @@
 // ABOUTME: DragBar component - top handle with window drag region and preset position buttons
-// ABOUTME: Preset buttons snap the widget to screen corners using Tauri window API
+// ABOUTME: Preset buttons snap the widget flush to screen work area corners (taskbar/dock aware)
 
 import { CSSProperties, useState } from "react";
 import { getCurrentWindow, currentMonitor, PhysicalPosition } from "@tauri-apps/api/window";
@@ -8,19 +8,19 @@ import type { WidgetSettings } from "../types";
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
 
-// Margin from screen edges (px)
-const EDGE_MARGIN = 20;
+interface WorkBounds { x: number; y: number; width: number; height: number }
 
 interface Preset {
   label: string;
-  getPos: (monitor: { x: number; y: number; width: number; height: number }, w: number, h: number) => { x: number; y: number };
+  // w: work area bounds in logical px (physical÷sf, taskbar/dock excluded); fw/fh: widget logical size
+  getPos: (w: WorkBounds, fw: number, fh: number) => { x: number; y: number };
 }
 
 const PRESETS: Preset[] = [
-  { label: "◤", getPos: (m, _w, _h) => ({ x: m.x + EDGE_MARGIN, y: m.y + EDGE_MARGIN }) },
-  { label: "◥", getPos: (m, w, _h) => ({ x: m.x + m.width - w - EDGE_MARGIN, y: m.y + EDGE_MARGIN }) },
-  { label: "◣", getPos: (m, _w, h) => ({ x: m.x + EDGE_MARGIN, y: m.y + m.height - h - EDGE_MARGIN }) },
-  { label: "◢", getPos: (m, w, h) => ({ x: m.x + m.width - w - EDGE_MARGIN, y: m.y + m.height - h - EDGE_MARGIN }) },
+  { label: "◤", getPos: (w, _fw, _fh) => ({ x: w.x,               y: w.y }) },
+  { label: "◥", getPos: (w, fw,  _fh) => ({ x: w.x + w.width - fw, y: w.y }) },
+  { label: "◣", getPos: (w, _fw, fh)  => ({ x: w.x,               y: w.y + w.height - fh }) },
+  { label: "◢", getPos: (w, fw,  fh)  => ({ x: w.x + w.width - fw, y: w.y + w.height - fh }) },
 ];
 
 interface DragBarProps {
@@ -42,20 +42,17 @@ export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSetti
       if (!monitor) return;
 
       const sf = monitor.scaleFactor;
-      // Use actual window size (not stale settings.size)
       const winPhys = await win.outerSize();
 
-      // All values in logical pixels for consistent calculation
-      const { x, y } = preset.getPos(
-        {
-          x: monitor.position.x / sf,
-          y: monitor.position.y / sf,
-          width: monitor.size.width / sf,
-          height: monitor.size.height / sf,
-        },
-        winPhys.width / sf,
-        winPhys.height / sf,
-      );
+      // monitor.workArea excludes OS taskbar/dock — flush snap without extra margin
+      const work: WorkBounds = {
+        x:      monitor.workArea.position.x / sf,
+        y:      monitor.workArea.position.y / sf,
+        width:  monitor.workArea.size.width  / sf,
+        height: monitor.workArea.size.height / sf,
+      };
+
+      const { x, y } = preset.getPos(work, winPhys.width / sf, winPhys.height / sf);
 
       const xPhys = Math.round(x * sf);
       const yPhys = Math.round(y * sf);
