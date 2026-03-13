@@ -1,5 +1,5 @@
 // ABOUTME: ProjectCard component - displays a single project with progress bar and metrics
-// ABOUTME: Supports inline editing of all fields: name, goal, notes, deadline, progress, metric, metric_value, metric_target, status, githubRepo
+// ABOUTME: Supports inline editing of all fields; progress has −/+5% quick-adjust buttons beside the InlineEdit
 
 import { useState, CSSProperties } from "react";
 import type { Project, GitHubData } from "../types";
@@ -153,7 +153,17 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
             style={{ fontSize: fontSizes.lg, fontWeight: 600, color: colors.textHigh, letterSpacing: 0.3 }}
           />
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <button
+            onClick={() => onUpdate?.({ progress: Math.max(0, project.progress - 5) })}
+            disabled={project.progress <= 0}
+            title="진행률 −5%"
+            style={{
+              background: "transparent", border: "none", cursor: project.progress > 0 ? "pointer" : "default",
+              color: project.progress > 0 ? colors.textSubtle : colors.textLabel,
+              fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
+            }}
+          >−</button>
           <InlineEdit
             value={String(project.progress)}
             onSave={v => {
@@ -163,6 +173,16 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
             style={{ ...mono, fontSize: fontSizes.xs, color: colors.textDim }}
             inputStyle={{ ...mono, fontSize: fontSizes.xs, width: 40, textAlign: "right" }}
           />
+          <button
+            onClick={() => onUpdate?.({ progress: Math.min(100, project.progress + 5) })}
+            disabled={project.progress >= 100}
+            title="진행률 +5%"
+            style={{
+              background: "transparent", border: "none", cursor: project.progress < 100 ? "pointer" : "default",
+              color: project.progress < 100 ? colors.textSubtle : colors.textLabel,
+              fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
+            }}
+          >+</button>
           {onDelete && (
             <button
               onClick={onDelete}
