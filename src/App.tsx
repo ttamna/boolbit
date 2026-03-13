@@ -299,6 +299,7 @@ export default function App() {
   // Derived: running project count + average progress for Projects section badge.
   // "active" and "in-progress" are running; "paused" is stalled; "done" is excluded from tracking.
   // Badge format: "2/3 · 45%" — running count / non-done count, avg progress of running projects.
+  // When projects have a deadline ≤ today (overdue or due today), appends " · ⚠N" for urgency.
   const projectsArr = data.projects ?? [];
   const nonDoneProjects = projectsArr.filter(p => p.status !== "done");
   const runningProjects = nonDoneProjects.filter(p => p.status === "active" || p.status === "in-progress");
@@ -306,10 +307,22 @@ export default function App() {
   const avgProgress = runningCount > 0
     ? Math.round(runningProjects.reduce((s, p) => s + p.progress, 0) / runningCount)
     : null;
+  // Count non-done projects with a deadline today or overdue (days <= 0).
+  // Uses local midnight so DST days count as 0, consistent with ProjectCard deadlineDays().
+  const localMidnight = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+  const overdueCount = nonDoneProjects.filter(p => {
+    if (!p.deadline || !/^\d{4}-\d{2}-\d{2}$/.test(p.deadline)) return false;
+    const ts = new Date(p.deadline + "T00:00:00").getTime();
+    if (isNaN(ts)) return false;
+    return Math.floor((ts - localMidnight) / 86400000) <= 0;
+  }).length;
   const projectsBadge = nonDoneProjects.length > 0
-    ? avgProgress !== null
-      ? `${runningCount}/${nonDoneProjects.length} · ${avgProgress}%`
-      : `${runningCount}/${nonDoneProjects.length}`
+    ? [
+        avgProgress !== null
+          ? `${runningCount}/${nonDoneProjects.length} · ${avgProgress}%`
+          : `${runningCount}/${nonDoneProjects.length}`,
+        overdueCount > 0 ? `⚠${overdueCount}` : null,
+      ].filter(Boolean).join(" · ")
     : undefined;
 
   return (
