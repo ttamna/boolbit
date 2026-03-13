@@ -60,6 +60,8 @@ pub struct Project {
     pub is_focus: Option<bool>,
     #[serde(rename = "pomodoroSessions", default, skip_serializing_if = "Option::is_none")]
     pub pomodoro_sessions: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -197,6 +199,7 @@ fn default_data() -> WidgetData {
                 notes: None,
                 is_focus: None,
                 pomodoro_sessions: None,
+                url: None,
             },
             Project {
                 id: 2,
@@ -213,6 +216,7 @@ fn default_data() -> WidgetData {
                 notes: None,
                 is_focus: None,
                 pomodoro_sessions: None,
+                url: None,
             },
             Project {
                 id: 3,
@@ -229,6 +233,7 @@ fn default_data() -> WidgetData {
                 notes: None,
                 is_focus: None,
                 pomodoro_sessions: None,
+                url: None,
             },
         ],
         habits: vec![
@@ -368,6 +373,11 @@ fn load_data() -> WidgetData {
         if let Some(n) = project.pomodoro_sessions {
             project.pomodoro_sessions = Some(n.min(10000));
         }
+        // url: trim whitespace; empty after trim → None
+        project.url = project.url.as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from);
     }
     data
 }

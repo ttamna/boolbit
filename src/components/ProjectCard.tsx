@@ -105,6 +105,9 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
   // Neutral fallback for unknown status values from deserialized JSON
   const color = PROJECT_STATUS_COLORS[project.status] ?? colors.textDim;
 
+  // url: true when saved URL starts with a recognized scheme; controls ⇱ open behavior
+  const urlSchemeValid = !!(project.url && (project.url.startsWith("https://") || project.url.startsWith("http://")));
+
   const [repoStatus, setRepoStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [repoMsg, setRepoMsg] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -252,6 +255,40 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
           </button>
         )}
       </div>
+      {/* External URL — quick link to project live site, docs, or production; ✕ clears when set */}
+      <div style={{ display: "flex", alignItems: "center", gap: 4, paddingLeft: 14, marginTop: 2 }}>
+        <InlineEdit
+          value={project.url ?? ""}
+          placeholder="+ 링크"
+          onSave={v => onUpdate?.({ url: v || undefined })}
+          style={{ ...mono, fontSize: fontSizes.mini, color: project.url ? colors.textSubtle : colors.textPhantom }}
+          inputStyle={{ ...mono, fontSize: fontSizes.mini, width: 180 }}
+        />
+        {project.url && (
+          <>
+            <button
+              onClick={() => { const u = project.url; if (u && urlSchemeValid) openUrl(u); }}
+              title={urlSchemeValid ? `${project.url} 열기` : "유효하지 않은 URL (http:// 또는 https:// 필요)"}
+              style={{
+                background: "transparent", border: "none",
+                cursor: urlSchemeValid ? "pointer" : "default",
+                color: urlSchemeValid ? colors.textSubtle : colors.textPhantom,
+                opacity: urlSchemeValid ? 1 : 0.4,
+                fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
+              }}
+            >⇱</button>
+            <button
+              onClick={() => onUpdate?.({ url: undefined })}
+              title="링크 삭제"
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: colors.textPhantom, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
+              }}
+            >✕</button>
+          </>
+        )}
+      </div>
+
       {/* Deadline — inline editable; faint placeholder when unset; urgency color when set */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 14, marginTop: 2 }}>
         {project.deadline ? (

@@ -27,6 +27,7 @@ export interface Project {
   notes?: string;         // freeform project notes: context, blockers, next steps
   isFocus?: boolean;      // marks project as today's focus/priority; absent = not focused
   pomodoroSessions?: number; // lifetime focus sessions completed while this project was ★; absent = 0
+  url?: string;             // external project link (prod URL, docs, etc.); absent = not set
 }
 
 export interface Habit {
