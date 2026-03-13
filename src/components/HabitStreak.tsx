@@ -11,6 +11,14 @@ const mono: CSSProperties = { fontFamily: fonts.mono };
 
 const getToday = () => new Date().toLocaleDateString("sv"); // YYYY-MM-DD local date
 
+// Returns milestone badge emoji for notable streak lengths; null otherwise
+function getMilestone(streak: number): string | null {
+  if (streak >= 100) return "💎";
+  if (streak >= 30)  return "⭐";
+  if (streak >= 7)   return "🔥";
+  return null;
+}
+
 interface HabitStreakProps {
   habits: Habit[];
   onUpdate?: (i: number, patch: Partial<Habit>) => void;
@@ -48,7 +56,9 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
   if (editing) {
     return (
       <div style={{ borderLeft: `2px solid ${colors.borderAccent}`, paddingLeft: 12 }}>
-        {habits.map((h, i) => (
+        {habits.map((h, i) => {
+          const milestone = getMilestone(h.streak);
+          return (
           <div key={h.icon + h.name} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <InlineEdit
               value={h.icon}
@@ -78,6 +88,14 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
               />
               <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
             </span>
+            {milestone && (
+              <span
+                title={h.streak >= 100 ? "💎 100일 달성!" : h.streak >= 30 ? "⭐ 30일 달성!" : "🔥 7일 달성!"}
+                style={{ fontSize: fontSizes.mini, lineHeight: 1 }}
+              >
+                {milestone}
+              </span>
+            )}
             <button
               onClick={() => onHabitsChange?.(habits.filter((_, j) => j !== i))}
               style={{
@@ -88,7 +106,8 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
               ✕
             </button>
           </div>
-        ))}
+          );
+        })}
 
         {/* Add new habit */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
@@ -151,6 +170,7 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
         {habits.map((h, i) => {
           const doneToday = h.lastChecked === todayStr;
+          const milestone = getMilestone(h.streak);
           return (
             <div
               key={h.icon + h.name}
@@ -184,6 +204,14 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
                 />
                 <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
               </span>
+              {milestone && (
+                <span
+                  title={h.streak >= 100 ? "💎 100일 달성!" : h.streak >= 30 ? "⭐ 30일 달성!" : "🔥 7일 달성!"}
+                  style={{ fontSize: fontSizes.mini, lineHeight: 1 }}
+                >
+                  {milestone}
+                </span>
+              )}
               {/* Daily check-in button */}
               <button
                 onClick={() => checkHabit(i)}
