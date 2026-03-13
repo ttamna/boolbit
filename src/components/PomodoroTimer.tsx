@@ -105,6 +105,20 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     setRemaining(durations[phase] * 60);
   };
 
+  // Skip to next phase immediately — does NOT count as a completed session,
+  // and does NOT send a notification (user triggered, no feedback needed).
+  // autoStart respected: if running+autoStart, next phase auto-starts; otherwise stops.
+  const skipPhase = () => {
+    const next: Phase = phase === "focus" ? "break" : "focus";
+    setPhase(next);
+    setRemaining(durations[next] * 60);
+    if (running && autoStart) {
+      setRunKey(k => k + 1);
+    } else {
+      setRunning(false);
+    }
+  };
+
   const switchPhase = (p: Phase) => {
     setRunning(false);
     setPhase(p);
@@ -272,6 +286,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
             </button>
             <button
               onClick={reset}
+              title="현재 단계 처음으로"
               style={{
                 padding: "6px 12px", borderRadius: radius.chip,
                 background: "transparent",
@@ -280,6 +295,18 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               }}
             >
               ↺
+            </button>
+            <button
+              onClick={skipPhase}
+              title={`다음 단계로 건너뛰기 (${phase === "focus" ? "집중 → 휴식" : "휴식 → 집중"})`}
+              style={{
+                padding: "6px 10px", borderRadius: radius.chip,
+                background: "transparent",
+                border: `1px solid ${colors.borderFaint}`,
+                color: colors.textSubtle, fontSize: fontSizes.sm, cursor: "pointer",
+              }}
+            >
+              ⏭
             </button>
             {/* Auto-start toggle: when on, next phase starts automatically */}
             <button
