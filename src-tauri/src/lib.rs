@@ -54,6 +54,8 @@ pub struct Project {
     pub github_data: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deadline: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -159,6 +161,7 @@ fn default_data() -> WidgetData {
                 github_repo: None,
                 github_data: None,
                 deadline: None,
+                notes: None,
             },
             Project {
                 id: 2,
@@ -172,6 +175,7 @@ fn default_data() -> WidgetData {
                 github_repo: None,
                 github_data: None,
                 deadline: None,
+                notes: None,
             },
             Project {
                 id: 3,
@@ -185,6 +189,7 @@ fn default_data() -> WidgetData {
                 github_repo: None,
                 github_data: None,
                 deadline: None,
+                notes: None,
             },
         ],
         habits: vec![
@@ -236,10 +241,13 @@ fn load_data() -> WidgetData {
     if data.pomodoro_long_break_interval.map(|n| n < 2).unwrap_or(false) {
         data.pomodoro_long_break_interval = None;
     }
-    // Sanitize project deadlines: remove empty strings that could arrive from partial saves
+    // Sanitize project deadlines and notes: remove empty strings that could arrive from partial saves
     for project in &mut data.projects {
         if project.deadline.as_deref() == Some("") {
             project.deadline = None;
+        }
+        if project.notes.as_deref() == Some("") {
+            project.notes = None;
         }
     }
     data

@@ -1,5 +1,5 @@
 // ABOUTME: ProjectCard component - displays a single project with progress bar and metrics
-// ABOUTME: Supports inline editing of all fields: name, goal, deadline, progress, metric, metric_value, metric_target, status, githubRepo
+// ABOUTME: Supports inline editing of all fields: name, goal, notes, deadline, progress, metric, metric_value, metric_target, status, githubRepo
 
 import { useState, CSSProperties } from "react";
 import type { Project, GitHubData } from "../types";
@@ -183,6 +183,28 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
           onSave={goal => onUpdate?.({ goal })}
           style={{ color: colors.textMuted }}
         />
+      </div>
+      {/* Notes — freeform memo: context, blockers, next steps; ✕ clears when set */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 14, marginTop: 2 }}>
+        <InlineEdit
+          value={project.notes ?? ""}
+          placeholder="+ 메모"
+          onSave={v => onUpdate?.({ notes: v || undefined })}
+          style={{ fontSize: fontSizes.mini, color: project.notes ? colors.textSubtle : colors.textPhantom }}
+          inputStyle={{ fontSize: fontSizes.mini, width: 160 }}
+        />
+        {project.notes && (
+          <button
+            onClick={() => onUpdate?.({ notes: undefined })}
+            title="메모 삭제"
+            style={{
+              background: "transparent", border: "none", cursor: "pointer",
+              color: colors.textPhantom, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
+        )}
       </div>
       {/* Deadline — inline editable; faint placeholder when unset; urgency color when set */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 14, marginTop: 2 }}>

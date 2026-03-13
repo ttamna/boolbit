@@ -24,6 +24,7 @@ export interface Project {
   githubRepo?: string;    // "owner/repo"
   githubData?: GitHubData;
   deadline?: string;      // YYYY-MM-DD, project target completion date
+  notes?: string;         // freeform project notes: context, blockers, next steps
 }
 
 export interface Habit {
