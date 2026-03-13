@@ -1,5 +1,5 @@
 // ABOUTME: ProjectList component - renders project list with add/delete/reorder in edit mode
-// ABOUTME: onRefreshAll prop enables one-click batch GitHub refresh for all linked projects
+// ABOUTME: onRefreshAll enables batch GitHub refresh; done projects are collapsible in view mode
 
 import { useState, type CSSProperties } from "react";
 import type { Project } from "../types";
@@ -18,6 +18,7 @@ interface ProjectListProps {
 export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefreshAll }: ProjectListProps) {
   const [newName, setNewName] = useState("");
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [showDone, setShowDone] = useState(false);
   // ESC also resets the new-project draft
   const { editing, openEditing, closeEditing } = useEditMode(() => setNewName(""));
 
@@ -120,9 +121,29 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
     );
   }
 
+  const activeProjects = projects.filter(p => p.status !== "done");
+  const doneProjects = projects.filter(p => p.status === "done");
+
   return (
     <div>
-      {projects.map(p => (
+      {activeProjects.map(p => (
+        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} />
+      ))}
+      {/* Done projects: collapsed by default, expand via toggle */}
+      {doneProjects.length > 0 && (
+        <button
+          onClick={() => setShowDone(v => !v)}
+          title={showDone ? "완료 프로젝트 접기" : "완료 프로젝트 펼치기"}
+          style={{
+            background: "transparent", border: "none", cursor: "pointer",
+            color: colors.textPhantom, fontSize: fontSizes.mini,
+            padding: "4px 0", lineHeight: 1, display: "block",
+          }}
+        >
+          완료 ({doneProjects.length}) {showDone ? "▾" : "▸"}
+        </button>
+      )}
+      {showDone && doneProjects.map(p => (
         <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} />
       ))}
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, marginTop: 4 }}>
