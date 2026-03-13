@@ -11,9 +11,10 @@ interface ProjectListProps {
   projects: Project[];
   onUpdate: (id: number, patch: Partial<Project>) => void;
   onProjectsChange: (projects: Project[]) => void;
+  pat?: string;
 }
 
-export function ProjectList({ projects, onUpdate, onProjectsChange }: ProjectListProps) {
+export function ProjectList({ projects, onUpdate, onProjectsChange, pat }: ProjectListProps) {
   const [newName, setNewName] = useState("");
   // ESC also resets the new-project draft
   const { editing, openEditing, closeEditing } = useEditMode(() => setNewName(""));
@@ -45,6 +46,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange }: ProjectLis
             project={p}
             onUpdate={patch => onUpdate(p.id, patch)}
             onDelete={() => onProjectsChange(projects.filter(x => x.id !== p.id))}
+            pat={pat}
           />
         ))}
         {/* Add new project */}
@@ -91,7 +93,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange }: ProjectLis
   return (
     <div>
       {projects.map(p => (
-        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} />
+        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} />
       ))}
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
         <button

@@ -6,11 +6,12 @@ import { useState, useRef, useEffect, CSSProperties } from "react";
 interface InlineEditProps {
   value: string;
   onSave: (value: string) => void;
+  placeholder?: string;
   style?: CSSProperties;
   inputStyle?: CSSProperties;
 }
 
-export function InlineEdit({ value, onSave, style, inputStyle }: InlineEditProps) {
+export function InlineEdit({ value, onSave, placeholder, style, inputStyle }: InlineEditProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -41,6 +42,7 @@ export function InlineEdit({ value, onSave, style, inputStyle }: InlineEditProps
       <input
         ref={inputRef}
         value={draft}
+        placeholder={placeholder}
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => {
@@ -48,10 +50,10 @@ export function InlineEdit({ value, onSave, style, inputStyle }: InlineEditProps
           if (e.key === "Escape") { e.stopPropagation(); cancel(); }
         }}
         style={{
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.15)",
+          background: "rgba(255,255,255,0.12)",
+          border: "1px solid rgba(255,255,255,0.35)",
           borderRadius: 4,
-          color: "inherit",
+          color: "rgba(255,255,255,0.88)",
           font: "inherit",
           outline: "none",
           padding: "1px 4px",
@@ -62,13 +64,19 @@ export function InlineEdit({ value, onSave, style, inputStyle }: InlineEditProps
     );
   }
 
+  const isEmpty = value === "";
   return (
     <span
       onClick={() => setEditing(true)}
       title="클릭하여 편집"
-      style={{ cursor: "text", ...style }}
+      style={{
+        cursor: "text",
+        ...style,
+        // Placeholder overrides parent color to ensure visibility
+        ...(isEmpty && placeholder ? { color: "rgba(255,255,255,0.3)" } : {}),
+      }}
     >
-      {value}
+      {isEmpty && placeholder ? placeholder : value}
     </span>
   );
 }

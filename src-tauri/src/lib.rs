@@ -27,6 +27,10 @@ pub struct WidgetSettings {
     pub theme: String,
     #[serde(default = "default_clock_format")]
     pub clock_format: String, // "24h" or "12h"
+    #[serde(rename = "githubPat", default, skip_serializing_if = "Option::is_none")]
+    pub github_pat: Option<String>,
+    #[serde(rename = "githubRefreshInterval", default, skip_serializing_if = "Option::is_none")]
+    pub github_refresh_interval: Option<u32>,
 }
 
 const VALID_THEMES: &[&str] = &["void", "nebula", "forest", "ember"];
@@ -44,6 +48,10 @@ pub struct Project {
     pub metric: String,
     pub metric_value: String,
     pub metric_target: String,
+    #[serde(rename = "githubRepo", default, skip_serializing_if = "Option::is_none")]
+    pub github_repo: Option<String>,
+    #[serde(rename = "githubData", default, skip_serializing_if = "Option::is_none")]
+    pub github_data: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -103,6 +111,8 @@ fn default_settings() -> WidgetSettings {
         opacity: 1.0,
         theme: "void".to_string(),
         clock_format: "24h".to_string(),
+        github_pat: None,
+        github_refresh_interval: None,
     }
 }
 
@@ -131,6 +141,8 @@ fn default_data() -> WidgetData {
                 metric: "월간 방문자".into(),
                 metric_value: "42".into(),
                 metric_target: "100".into(),
+                github_repo: None,
+                github_data: None,
             },
             Project {
                 id: 2,
@@ -141,6 +153,8 @@ fn default_data() -> WidgetData {
                 metric: "월 수익".into(),
                 metric_value: "₩0".into(),
                 metric_target: "₩300K".into(),
+                github_repo: None,
+                github_data: None,
             },
             Project {
                 id: 3,
@@ -151,6 +165,8 @@ fn default_data() -> WidgetData {
                 metric: "스크린".into(),
                 metric_value: "24".into(),
                 metric_target: "40".into(),
+                github_repo: None,
+                github_data: None,
             },
         ],
         habits: vec![

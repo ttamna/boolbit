@@ -1,10 +1,26 @@
 // ABOUTME: ProjectCard component - displays a single project with progress bar and metrics
-// ABOUTME: Supports inline editing of all fields: name, goal, progress, metric, metric_value, metric_target, status
+// ABOUTME: Supports inline editing of all fields: name, goal, progress, metric, metric_value, metric_target, status, githubRepo
 
-import { CSSProperties } from "react";
-import type { Project } from "../types";
+import { useState, CSSProperties } from "react";
+import type { Project, GitHubData } from "../types";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import { InlineEdit } from "./InlineEdit";
+import { verifyRepo } from "../lib/github";
+
+function relativeTime(isoDate: string): string {
+  const diff = Date.now() - new Date(isoDate).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+const CI_COLOR: Record<NonNullable<GitHubData["ciStatus"]>, string> = {
+  success: "#4ade80",
+  failure: "#f87171",
+  pending: "#facc15",
+};
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
 
@@ -36,10 +52,25 @@ interface ProjectCardProps {
   project: Project;
   onUpdate?: (patch: Partial<Project>) => void;
   onDelete?: () => void;
+  pat?: string;
 }
 
-export function ProjectCard({ project, onUpdate, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardProps) {
   const color = STATUS_COLORS[project.status] || colors.statusActive;
+
+  const [repoStatus, setRepoStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
+  const [repoMsg, setRepoMsg] = useState("");
+
+  const handleRepoSave = async (repo: string) => {
+    onUpdate?.({ githubRepo: repo || undefined });
+    if (!repo) { setRepoStatus('idle'); setRepoMsg(""); return; }
+    if (!pat) { setRepoStatus('idle'); setRepoMsg("PAT 필요"); return; }
+    setRepoStatus('testing');
+    setRepoMsg("확인 중...");
+    const result = await verifyRepo(pat, repo);
+    setRepoStatus(result.ok ? 'ok' : 'error');
+    setRepoMsg(result.msg);
+  };
 
   return (
     <div style={{ padding: "12px 0", borderBottom: `1px solid ${colors.borderFaint}` }}>
@@ -112,6 +143,57 @@ export function ProjectCard({ project, onUpdate, onDelete }: ProjectCardProps) {
             style={{ color: colors.textMid }}
           />
         </span>
+      </div>
+
+      {/* GitHub repo link + data badges */}
+      <div style={{ paddingLeft: 14, marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <InlineEdit
+          value={project.githubRepo ?? ""}
+          placeholder="owner/repo"
+          onSave={handleRepoSave}
+          style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom }}
+          inputStyle={{ ...mono, fontSize: fontSizes.mini, width: 160 }}
+        />
+        {repoMsg && (
+          <span style={{
+            ...mono, fontSize: fontSizes.mini,
+            color: repoStatus === 'ok' ? colors.statusActive :
+                   repoStatus === 'error' ? colors.statusPaused :
+                   colors.textDim,
+            whiteSpace: "nowrap",
+          }}>
+            {repoMsg}
+          </span>
+        )}
+        {!repoMsg && project.githubData && (
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textSubtle }}>
+              {relativeTime(project.githubData.lastCommitAt)}
+            </span>
+            {project.githubData.openIssues > 0 && (
+              <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textSubtle }}>
+                {project.githubData.openIssues} issue{project.githubData.openIssues !== 1 ? "s" : ""}
+              </span>
+            )}
+            {project.githubData.openPrs > 0 && (
+              <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textSubtle }}>
+                {project.githubData.openPrs} PR{project.githubData.openPrs !== 1 ? "s" : ""}
+              </span>
+            )}
+            {project.githubData.ciStatus !== null && (
+              <span
+                title={`CI: ${project.githubData.ciStatus}`}
+                style={{
+                  display: "inline-block",
+                  width: 6, height: 6,
+                  borderRadius: "50%",
+                  background: CI_COLOR[project.githubData.ciStatus],
+                  boxShadow: `0 0 4px ${CI_COLOR[project.githubData.ciStatus]}88`,
+                }}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

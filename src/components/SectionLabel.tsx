@@ -7,14 +7,16 @@ interface SectionLabelProps {
   children: string;
   collapsed?: boolean;
   onToggle?: () => void;
+  accent?: string;
 }
 
-export function SectionLabel({ children, collapsed = false, onToggle }: SectionLabelProps) {
+export function SectionLabel({ children, collapsed = false, onToggle, accent }: SectionLabelProps) {
   return (
     <div
       onClick={onToggle}
       style={{
-        fontSize: fontSizes.label, fontWeight: 600, color: colors.textGhost,
+        fontSize: fontSizes.label, fontWeight: 600,
+        color: accent ? `${accent}99` : colors.textGhost,
         textTransform: "uppercase", letterSpacing: 3, marginBottom: collapsed ? 0 : 10, marginTop: 20,
         display: "flex", alignItems: "center", gap: 6,
         cursor: onToggle ? "pointer" : "default",
@@ -24,7 +26,9 @@ export function SectionLabel({ children, collapsed = false, onToggle }: SectionL
       {children}
       {onToggle && (
         <span style={{
-          fontSize: fontSizes.mini, opacity: 0.6,
+          fontSize: fontSizes.mini,
+          color: accent ? `${accent}66` : undefined,
+          opacity: accent ? 1 : 0.6,
           transition: "transform 0.2s",
           display: "inline-block",
           transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",

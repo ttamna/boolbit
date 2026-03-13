@@ -3,6 +3,15 @@
 
 import type { ThemeKey } from "./theme";
 
+export interface GitHubData {
+  lastCommitAt: string;   // ISO date
+  lastCommitMsg: string;
+  openIssues: number;
+  openPrs: number;
+  ciStatus: 'success' | 'failure' | 'pending' | null;
+  fetchedAt: string;      // ISO date
+}
+
 export interface Project {
   id: number;
   name: string;
@@ -12,6 +21,8 @@ export interface Project {
   metric: string;
   metric_value: string;
   metric_target: string;
+  githubRepo?: string;    // "owner/repo"
+  githubData?: GitHubData;
 }
 
 export interface Habit {
@@ -49,5 +60,7 @@ export interface WidgetSettings {
   size: WindowSize;
   opacity: number; // 0.0 ~ 1.0
   theme: ThemeKey;
-  clockFormat?: '12h' | '24h'; // defaults to '24h' when absent
+  clockFormat?: '12h' | '24h';         // defaults to '24h' when absent
+  githubPat?: string;                   // Personal Access Token, stored locally
+  githubRefreshInterval?: number;       // minutes, defaults to 10
 }

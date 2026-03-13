@@ -8,6 +8,7 @@ import { invoke } from "./lib/tauri";
 import { useSettings } from "./hooks/useSettings";
 import { useWindowSync } from "./hooks/useWindowSync";
 import { useWindowResize } from "./hooks/useWindowResize";
+import { useGitHubSync } from "./hooks/useGitHubSync";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -129,6 +130,13 @@ export default function App() {
     persist(next);
   }, [data, persist]);
 
+  useGitHubSync(
+    data.projects,
+    settings.githubPat,
+    settings.githubRefreshInterval ?? 10,
+    updateProject,
+  );
+
   const updateHabits = useCallback((habits: Habit[]) => {
     persist({ ...data, habits });
   }, [data, persist]);
@@ -170,6 +178,7 @@ export default function App() {
       : 0;
 
   const collapsed = data.collapsedSections ?? [];
+  const themeAccent = THEMES[settings.theme].accent;
 
   return (
     <div
@@ -196,16 +205,17 @@ export default function App() {
       <div style={s.content}>
         <Clock use12h={settings.clockFormat === "12h"} />
 
-        <SectionLabel collapsed={collapsed.includes("projects")} onToggle={() => toggleSection("projects")}>Projects</SectionLabel>
+        <SectionLabel accent={themeAccent} collapsed={collapsed.includes("projects")} onToggle={() => toggleSection("projects")}>Projects</SectionLabel>
         {!collapsed.includes("projects") && (
           <ProjectList
             projects={data.projects}
             onUpdate={updateProject}
             onProjectsChange={updateProjects}
+            pat={settings.githubPat}
           />
         )}
 
-        <SectionLabel collapsed={collapsed.includes("streaks")} onToggle={() => toggleSection("streaks")}>Streaks</SectionLabel>
+        <SectionLabel accent={themeAccent} collapsed={collapsed.includes("streaks")} onToggle={() => toggleSection("streaks")}>Streaks</SectionLabel>
         {!collapsed.includes("streaks") && (
           <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} />
         )}
@@ -223,7 +233,7 @@ export default function App() {
           />
         )}
 
-        <SectionLabel collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")}>Direction</SectionLabel>
+        <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")}>Direction</SectionLabel>
         {!collapsed.includes("direction") && (
           <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} />
         )}
