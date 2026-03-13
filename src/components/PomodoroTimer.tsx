@@ -191,6 +191,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const seconds = remaining % 60;
   const progress = 1 - remaining / (durations[phase] * 60);
   const accent = phase === "focus" ? colors.statusActive : colors.statusProgress;
+  // Timer was started (or resumed) but is currently stopped mid-countdown
+  const isPaused = !running && remaining < durations[phase] * 60;
 
   return (
     <div style={{ borderTop: `1px solid ${colors.borderFaint}`, marginTop: 4 }}>
@@ -209,7 +211,11 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
             </span>
           )}
           <span style={{ ...mono, fontSize: fontSizes.xs, color: accent }}>
-            {running ? `${pad(minutes)}:${pad(seconds)}` : "▶"}
+            {running
+              ? `${phase === "focus" ? "집중" : "휴식"} ${pad(minutes)}:${pad(seconds)}`
+              : isPaused
+              ? `⏸ ${pad(minutes)}:${pad(seconds)}`
+              : "▶"}
           </span>
         </div>
       </div>
