@@ -32,7 +32,8 @@ export interface Habit {
   name: string;
   streak: number;
   icon: string;
-  lastChecked?: string; // ISO date string (YYYY-MM-DD), set when habit is checked today
+  lastChecked?: string;    // ISO date string (YYYY-MM-DD), set when habit is checked today
+  targetStreak?: number;   // personal goal in days; absent/0 = no target set
 }
 
 export type SectionKey = "projects" | "streaks" | "direction" | "pomodoro";

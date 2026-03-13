@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today (toggles streak +1/-1); edit mode enables add/delete/reorder
+// ABOUTME: Click ✓ to check/uncheck today; edit mode enables add/delete/reorder/targetStreak goal setting
 
 import { useState, useEffect, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -132,6 +132,34 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                   }}
                   inputStyle={{ ...mono, fontSize: fontSizes.base, width: 36, textAlign: "right" }}
                 />
+                {/* targetStreak: "+목표" button to set (default 30d); "/N ✕" when set.
+                    InlineEdit does not call onSave for empty input, so clearing uses ✕ button —
+                    same contract as lastChecked: undefined (JSON.stringify omits undefined, Rust gets None). */}
+                {(h.targetStreak ?? 0) > 0 ? (
+                  <>
+                    <span style={{ fontSize: fontSizes.mini, color: colors.textPhantom }}>/</span>
+                    <InlineEdit
+                      value={String(h.targetStreak)}
+                      onSave={v => {
+                        const n = parseInt(v, 10);
+                        if (!isNaN(n) && n > 0) patchHabit(i, { targetStreak: n });
+                      }}
+                      style={{ fontSize: fontSizes.mini, color: colors.textPhantom }}
+                      inputStyle={{ ...mono, fontSize: fontSizes.mini, width: 28, textAlign: "right" }}
+                    />
+                    <button
+                      onClick={() => patchHabit(i, { targetStreak: undefined })}
+                      title="목표 해제"
+                      style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textPhantom, fontSize: fontSizes.mini, padding: "0 1px", lineHeight: 1 }}
+                    >✕</button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => patchHabit(i, { targetStreak: 30 })}
+                    title="목표 스트릭 설정 (30일로 시작)"
+                    style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textPhantom, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, opacity: 0.5 }}
+                  >+목표</button>
+                )}
                 <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
               </span>
               {milestone ? (
@@ -257,6 +285,10 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                   }}
                   inputStyle={{ ...mono, fontSize: fontSizes.base, width: 36, textAlign: "right" }}
                 />
+                {/* Show "/target" when a goal is set; lib.rs sanitizes 0→None so (??0)>0 is safe */}
+                {(h.targetStreak ?? 0) > 0 ? (
+                  <span style={{ fontSize: fontSizes.mini, color: colors.textPhantom }}>/{h.targetStreak}</span>
+                ) : null}
                 <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
               </span>
               {milestone ? (
