@@ -1,5 +1,5 @@
 // ABOUTME: QuoteRotator component - cycles through motivational quotes with fade transition
-// ABOUTME: Supports inline add, edit, delete, and reorder (↑↓) of quotes; manual prev/next navigation via ‹/› buttons
+// ABOUTME: Supports inline add, edit, delete, reorder (↑↓), rotation interval (5/8/15/30s), and prev/next navigation via ‹/› buttons
 
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import { fontSizes, colors } from "../theme";
@@ -19,17 +19,27 @@ const moveBtnStyle = (disabled: boolean): CSSProperties => ({
   fontSize: fontSizes.mini, padding: "1px 2px", lineHeight: 1,
 });
 
+const INTERVAL_PRESETS = [5, 8, 15, 30] as const;
+const DEFAULT_INTERVAL = 8; // seconds
+
 interface QuoteRotatorProps {
   quotes: string[];
   onUpdate: (quotes: string[]) => void;
+  rotationInterval?: number;          // auto-rotation interval in seconds (default 8)
+  onIntervalChange?: (secs: number) => void;
 }
 
-export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
+export function QuoteRotator({ quotes, onUpdate, rotationInterval, onIntervalChange }: QuoteRotatorProps) {
   const [idx, setIdx] = useState(0);
   const [opacity, setOpacity] = useState(1);
   const [newDraft, setNewDraft] = useState("");
   // timerKey: increment to restart the auto-rotation interval after manual navigation
   const [timerKey, setTimerKey] = useState(0);
+  // customIntervalMode: true while user is typing a custom interval value
+  const [customIntervalMode, setCustomIntervalMode] = useState(false);
+  const [customIntervalValue, setCustomIntervalValue] = useState("");
+  // escapedIntervalRef: true when Escape was pressed — prevents blur from committing the cancelled value
+  const escapedIntervalRef = useRef(false);
   // editKeysRef: stable React keys per quote during edit mode — prevents InlineEdit state loss on reorder
   const editKeysRef = useRef<string[]>([]);
 
@@ -58,28 +68,41 @@ export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
   // Assign stable UUIDs per quote on edit entry so reorder doesn't remount InlineEdits
   const openEditingWithKeys = () => {
     editKeysRef.current = quotes.map(() => crypto.randomUUID());
+    setCustomIntervalMode(false);
     cancelPendingFades();
     openEditing();
   };
 
+  const commitCustomInterval = () => {
+    // Guard: keydown (Escape) sets escapedIntervalRef before React schedules re-render,
+    // so blur fires while escapedIntervalRef is true — skip commit to honour cancellation.
+    if (escapedIntervalRef.current) { escapedIntervalRef.current = false; return; }
+    const parsed = parseInt(customIntervalValue, 10);
+    const secs = Math.max(1, Math.min(3600, isNaN(parsed) ? (rotationInterval ?? DEFAULT_INTERVAL) : parsed));
+    onIntervalChange?.(secs);
+    setCustomIntervalMode(false);
+  };
+
+  const intervalMs = (rotationInterval ?? DEFAULT_INTERVAL) * 1000;
+
   useEffect(() => {
     if (editing || quotes.length === 0) return;
-    const interval = setInterval(() => {
+    const id = setInterval(() => {
       setOpacity(0);
       autoFadeTimeoutRef.current = setTimeout(() => {
         setIdx(prev => (prev + 1) % quotesLengthRef.current);
         setOpacity(1);
         autoFadeTimeoutRef.current = null;
       }, 600);
-    }, 8000);
+    }, intervalMs);
     return () => {
-      clearInterval(interval);
+      clearInterval(id);
       if (autoFadeTimeoutRef.current) {
         clearTimeout(autoFadeTimeoutRef.current);
         autoFadeTimeoutRef.current = null;
       }
     };
-  }, [quotes.length, editing, timerKey]);
+  }, [quotes.length, editing, timerKey, intervalMs]);
 
   const navigate = (dir: 1 | -1) => {
     if (quotes.length <= 1) return;
@@ -153,6 +176,69 @@ export function QuoteRotator({ quotes, onUpdate }: QuoteRotatorProps) {
             </button>
           </div>
         ))}
+
+        {/* Rotation interval presets */}
+        {onIntervalChange && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+            <span style={{ fontSize: fontSizes.mini, color: colors.textPhantom, flexShrink: 0 }}>전환</span>
+            {INTERVAL_PRESETS.map(s => {
+              const active = !customIntervalMode && (rotationInterval ?? DEFAULT_INTERVAL) === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => { onIntervalChange(s); setCustomIntervalMode(false); }}
+                  style={{
+                    padding: "1px 5px", borderRadius: 3,
+                    background: "transparent",
+                    border: `1px solid ${active ? colors.borderAccent : colors.borderFaint}`,
+                    color: active ? colors.textDim : colors.textPhantom,
+                    fontSize: fontSizes.mini, cursor: "pointer",
+                    fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  {s}s
+                </button>
+              );
+            })}
+            {customIntervalMode ? (
+              <input
+                type="number"
+                value={customIntervalValue}
+                min={1}
+                max={3600}
+                onChange={e => setCustomIntervalValue(e.target.value)}
+                onBlur={commitCustomInterval}
+                onKeyDown={e => {
+                  if (e.key === "Enter") commitCustomInterval();
+                  if (e.key === "Escape") { escapedIntervalRef.current = true; setCustomIntervalMode(false); }
+                }}
+                autoFocus
+                style={{
+                  width: 44, padding: "1px 4px", borderRadius: 3,
+                  background: "transparent",
+                  border: `1px solid ${colors.borderAccent}`,
+                  color: colors.textDim,
+                  fontSize: fontSizes.mini,
+                  fontFamily: "inherit", textAlign: "center",
+                  outline: "none",
+                }}
+              />
+            ) : (
+              <button
+                onClick={() => { setCustomIntervalMode(true); setCustomIntervalValue(String(rotationInterval ?? DEFAULT_INTERVAL)); }}
+                style={{
+                  padding: "1px 5px", borderRadius: 3,
+                  background: "transparent",
+                  border: `1px solid ${colors.borderFaint}`,
+                  color: colors.textPhantom,
+                  fontSize: fontSizes.mini, cursor: "pointer",
+                }}
+              >
+                직접
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Add new quote */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>

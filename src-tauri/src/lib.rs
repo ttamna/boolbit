@@ -97,6 +97,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "collapsedSections")]
     pub collapsed_sections: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "quoteInterval")]
+    pub quote_interval: Option<u32>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -197,6 +200,7 @@ fn default_data() -> WidgetData {
         pomodoro_auto_start: None,
         pomodoro_session_goal: None,
         collapsed_sections: None,
+        quote_interval: None,
     }
 }
 

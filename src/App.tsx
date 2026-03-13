@@ -151,6 +151,10 @@ export default function App() {
     persist({ ...data, quotes });
   }, [data, persist]);
 
+  const updateQuoteInterval = useCallback((quoteInterval: number) => {
+    persist({ ...data, quoteInterval });
+  }, [data, persist]);
+
   const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number }) => {
     persist({ ...data, pomodoroDurations });
   }, [data, persist]);
@@ -257,7 +261,7 @@ export default function App() {
 
         <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")}>Direction</SectionLabel>
         {!collapsed.includes("direction") && (
-          <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} />
+          <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} rotationInterval={data.quoteInterval} onIntervalChange={updateQuoteInterval} />
         )}
 
         {/* Footer */}

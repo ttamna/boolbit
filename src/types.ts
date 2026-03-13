@@ -46,6 +46,7 @@ export interface WidgetData {
   pomodoroAutoStart?: boolean;   // auto-start next phase when current phase ends
   pomodoroSessionGoal?: number;  // optional daily focus session target
   collapsedSections?: SectionKey[];  // section names currently collapsed
+  quoteInterval?: number;            // auto-rotation interval in seconds (default 8)
 }
 
 export interface WindowPosition {
