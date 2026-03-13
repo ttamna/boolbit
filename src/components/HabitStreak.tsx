@@ -40,9 +40,10 @@ interface HabitStreakProps {
   habits: Habit[];
   onUpdate?: (i: number, patch: Partial<Habit>) => void;
   onHabitsChange?: (habits: Habit[]) => void;
+  accent?: string;
 }
 
-export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakProps) {
+export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitStreakProps) {
   const [newIcon, setNewIcon] = useState("⭐");
   const [newName, setNewName] = useState("");
   const { editing, openEditing, closeEditing } = useEditMode();
@@ -107,7 +108,7 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
                 }}
                 style={{
                   fontSize: fontSizes.base, fontWeight: 700,
-                  color: h.streak >= 10 ? colors.statusActive : h.streak >= 5 ? colors.statusProgress : colors.textMid,
+                  color: h.streak >= 10 ? (accent ?? colors.statusActive) : h.streak >= 5 ? colors.statusProgress : colors.textMid,
                 }}
                 inputStyle={{ ...mono, fontSize: fontSizes.base, width: 36, textAlign: "right" }}
               />
@@ -231,7 +232,7 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
                   }}
                   style={{
                     fontSize: fontSizes.base, fontWeight: 700,
-                    color: h.streak >= 10 ? colors.statusActive : h.streak >= 5 ? colors.statusProgress : colors.textMid,
+                    color: h.streak >= 10 ? (accent ?? colors.statusActive) : h.streak >= 5 ? colors.statusProgress : colors.textMid,
                   }}
                   inputStyle={{ ...mono, fontSize: fontSizes.base, width: 36, textAlign: "right" }}
                 />
@@ -258,7 +259,7 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
                 title={doneToday ? "오늘 완료됨 — 클릭하여 취소" : "오늘 완료 체크"}
                 style={{
                   background: "transparent", border: "none", cursor: "pointer",
-                  color: doneToday ? colors.statusActive : colors.textPhantom,
+                  color: doneToday ? (accent ?? colors.statusActive) : colors.textPhantom,
                   fontSize: fontSizes.xs, padding: "0 2px", lineHeight: 1,
                   transition: "color 0.2s",
                 }}

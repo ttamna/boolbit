@@ -175,14 +175,15 @@ export default function App() {
       : 0;
 
   const collapsed = data.collapsedSections ?? [];
-  const themeAccent = THEMES[settings.theme].accent;
+  const theme = THEMES[settings.theme] ?? THEMES.void;
+  const themeAccent = theme.accent;
 
   return (
     <div
       ref={containerRef}
       style={{
         ...s.container,
-        background: `rgba(${THEMES[settings.theme].bgRgb}, ${settings.opacity})`,
+        background: `rgba(${theme.bgRgb}, ${settings.opacity})`,
         opacity: loaded ? 1 : 0,
         transform: loaded ? "translateY(0)" : "translateY(12px)",
         transition: "opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1)",
@@ -200,7 +201,7 @@ export default function App() {
 
       {/* ── Content ── */}
       <div style={s.content}>
-        <Clock use12h={settings.clockFormat === "12h"} />
+        <Clock use12h={settings.clockFormat === "12h"} accent={themeAccent} />
 
         <SectionLabel accent={themeAccent} collapsed={collapsed.includes("projects")} onToggle={() => toggleSection("projects")}>Projects</SectionLabel>
         {!collapsed.includes("projects") && (
@@ -214,7 +215,7 @@ export default function App() {
 
         <SectionLabel accent={themeAccent} collapsed={collapsed.includes("streaks")} onToggle={() => toggleSection("streaks")}>Streaks</SectionLabel>
         {!collapsed.includes("streaks") && (
-          <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} />
+          <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} accent={themeAccent} />
         )}
 
         {loaded && (

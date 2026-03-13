@@ -8,9 +8,10 @@ const mono = { fontFamily: fonts.mono };
 
 interface ClockProps {
   use12h?: boolean;
+  accent?: string;
 }
 
-export function Clock({ use12h = false }: ClockProps) {
+export function Clock({ use12h = false, accent }: ClockProps) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -58,7 +59,7 @@ export function Clock({ use12h = false }: ClockProps) {
         <div style={{
           height: "100%",
           width: `${dayFraction * 100}%`,
-          background: colors.textSubtle,
+          background: accent ?? colors.textSubtle,
           borderRadius: radius.bar,
           transition: "width 1s linear",
         }} />
