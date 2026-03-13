@@ -1,7 +1,7 @@
-// ABOUTME: ProjectList component - renders project list with add/delete in edit mode
-// ABOUTME: Encapsulates editing state, mirrors HabitStreak/QuoteRotator CRUD pattern
+// ABOUTME: ProjectList component - renders project list with add/delete/reorder in edit mode
+// ABOUTME: Encapsulates editing state for project list CRUD operations
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import type { Project } from "../types";
 import { fontSizes, colors, radius } from "../theme";
 import { ProjectCard } from "./ProjectCard";
@@ -18,6 +18,14 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat }: Proje
   const [newName, setNewName] = useState("");
   // ESC also resets the new-project draft
   const { editing, openEditing, closeEditing } = useEditMode(() => setNewName(""));
+
+  const moveProject = (from: number, dir: -1 | 1) => {
+    const to = from + dir;
+    if (to < 0 || to >= projects.length) return;
+    const next = [...projects];
+    [next[from], next[to]] = [next[to], next[from]];
+    onProjectsChange(next);
+  };
 
   const addProject = () => {
     const trimmed = newName.trim();
@@ -37,17 +45,31 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat }: Proje
     setNewName("");
   };
 
+  const moveBtnStyle = (disabled: boolean): CSSProperties => ({
+    background: "transparent", border: "none", cursor: disabled ? "default" : "pointer",
+    color: disabled ? colors.textLabel : colors.textSubtle,
+    fontSize: fontSizes.mini, padding: "1px 2px", lineHeight: 1,
+  });
+
   if (editing) {
     return (
       <div style={{ borderLeft: `2px solid ${colors.borderAccent}`, paddingLeft: 12 }}>
-        {projects.map(p => (
-          <ProjectCard
-            key={p.id}
-            project={p}
-            onUpdate={patch => onUpdate(p.id, patch)}
-            onDelete={() => onProjectsChange(projects.filter(x => x.id !== p.id))}
-            pat={pat}
-          />
+        {projects.map((p, i) => (
+          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {/* Reorder buttons — vertically centered within the card */}
+            <div style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
+              <button onClick={() => moveProject(i, -1)} disabled={i === 0} title="위로 이동" style={moveBtnStyle(i === 0)}>↑</button>
+              <button onClick={() => moveProject(i, 1)} disabled={i === projects.length - 1} title="아래로 이동" style={moveBtnStyle(i === projects.length - 1)}>↓</button>
+            </div>
+            <div style={{ flex: 1 }}>
+              <ProjectCard
+                project={p}
+                onUpdate={patch => onUpdate(p.id, patch)}
+                onDelete={() => onProjectsChange(projects.filter(x => x.id !== p.id))}
+                pat={pat}
+              />
+            </div>
+          </div>
         ))}
         {/* Add new project */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 0" }}>
