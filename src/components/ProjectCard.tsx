@@ -36,6 +36,12 @@ const CI_COLOR: Record<NonNullable<GitHubData["ciStatus"]>, string> = {
   pending: "#facc15",
 };
 
+// Opens a GitHub URL path under the given repo; no-op if repo is absent or malformed
+function openGitHubUrl(repo: string | undefined, path = "") {
+  if (repo && /^[\w.-]+\/[\w.-]+$/.test(repo))
+    openUrl(`https://github.com/${repo}${path}`);
+}
+
 const mono: CSSProperties = { fontFamily: fonts.mono };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -222,11 +228,7 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
         )}
         {!repoMsg && project.githubData && (
           <div
-            onClick={() => {
-              if (project.githubRepo && /^[\w.-]+\/[\w.-]+$/.test(project.githubRepo)) {
-                openUrl(`https://github.com/${project.githubRepo}`);
-              }
-            }}
+            onClick={() => openGitHubUrl(project.githubRepo)}
             title={project.githubRepo ? `GitHub: ${project.githubRepo} 열기` : undefined}
             style={{ display: "flex", gap: 6, alignItems: "center", cursor: project.githubRepo ? "pointer" : undefined }}
           >
@@ -234,12 +236,20 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
               {relativeTime(project.githubData.lastCommitAt)}
             </span>
             {project.githubData.openIssues > 0 && (
-              <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textDim }}>
+              <span
+                onClick={e => { e.stopPropagation(); openGitHubUrl(project.githubRepo, "/issues"); }}
+                title={`오픈 이슈 ${project.githubData.openIssues}개 — GitHub Issues 열기`}
+                style={{ ...mono, fontSize: fontSizes.mini, color: colors.textDim, cursor: project.githubRepo ? "pointer" : undefined }}
+              >
                 {project.githubData.openIssues} issue{project.githubData.openIssues !== 1 ? "s" : ""}
               </span>
             )}
             {project.githubData.openPrs > 0 && (
-              <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textDim }}>
+              <span
+                onClick={e => { e.stopPropagation(); openGitHubUrl(project.githubRepo, "/pulls"); }}
+                title={`오픈 PR ${project.githubData.openPrs}개 — GitHub Pull Requests 열기`}
+                style={{ ...mono, fontSize: fontSizes.mini, color: colors.textDim, cursor: project.githubRepo ? "pointer" : undefined }}
+              >
                 {project.githubData.openPrs} PR{project.githubData.openPrs !== 1 ? "s" : ""}
               </span>
             )}
