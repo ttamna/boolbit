@@ -9,12 +9,25 @@ import { verifyRepo } from "../lib/github";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 function relativeTime(isoDate: string): string {
-  const diff = Date.now() - new Date(isoDate).getTime();
+  const ts = new Date(isoDate).getTime();
+  if (isNaN(ts)) return "—";
+  const diff = Math.max(0, Date.now() - ts);
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
+}
+
+// Returns a color token based on how stale the last commit is.
+// Uses statusPaused for >7 days, statusProgress for 2-7 days, textDim otherwise.
+function staleColor(isoDate: string): string {
+  const ts = new Date(isoDate).getTime();
+  if (isNaN(ts)) return colors.textDim;
+  const days = Math.max(0, (Date.now() - ts) / 86400000);
+  if (days > 7) return colors.statusPaused;
+  if (days > 2) return colors.statusProgress;
+  return colors.textDim;
 }
 
 const CI_COLOR: Record<NonNullable<GitHubData["ciStatus"]>, string> = {
@@ -176,21 +189,9 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
             title={project.githubRepo ? `GitHub: ${project.githubRepo} 열기` : undefined}
             style={{ display: "flex", gap: 6, alignItems: "center", cursor: project.githubRepo ? "pointer" : undefined }}
           >
-            <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textDim }}>
+            <span style={{ ...mono, fontSize: fontSizes.mini, color: staleColor(project.githubData.lastCommitAt) }}>
               {relativeTime(project.githubData.lastCommitAt)}
             </span>
-            {project.githubData.lastCommitMsg && (
-              <span
-                title={project.githubData.lastCommitMsg}
-                style={{
-                  fontSize: fontSizes.mini, color: colors.textDim,
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  maxWidth: 140, minWidth: 0,
-                }}
-              >
-                {project.githubData.lastCommitMsg}
-              </span>
-            )}
             {project.githubData.openIssues > 0 && (
               <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textDim }}>
                 {project.githubData.openIssues} issue{project.githubData.openIssues !== 1 ? "s" : ""}
