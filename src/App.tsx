@@ -2,13 +2,14 @@
 // ABOUTME: Handles data loading/saving and inline patch updates for projects/habits/quotes
 
 import { useState, useEffect, useCallback, useRef, CSSProperties } from "react";
-import type { WidgetData, Habit, Project, SectionKey } from "./types";
+import type { WidgetData, Habit, Project, SectionKey, GitHubData } from "./types";
 import { colors, fonts, fontSizes, radius, shadows, THEMES, PROJECT_STATUS_COLORS } from "./theme";
 import { invoke } from "./lib/tauri";
 import { useSettings } from "./hooks/useSettings";
 import { useWindowSync } from "./hooks/useWindowSync";
 import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
+import { fetchRepoData } from "./lib/github";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -136,11 +137,26 @@ export default function App() {
     persist(next);
   }, [data, persist]);
 
+  // Atomic batch update for GitHub polling — applies all results in one persist
+  // to avoid the stale-closure overwrite race when multiple projects complete in parallel.
+  const batchUpdateProjects = useCallback((updates: Array<{ id: number; patch: Partial<Project> }>) => {
+    if (updates.length === 0) return;
+    const snapshot = dataRef.current;
+    const next = {
+      ...snapshot,
+      projects: snapshot.projects.map(p => {
+        const hit = updates.find(u => u.id === p.id);
+        return hit ? { ...p, ...hit.patch } : p;
+      }),
+    };
+    persist(next);
+  }, [persist]);
+
   useGitHubSync(
     data.projects,
     settings.githubPat,
     settings.githubRefreshInterval ?? 10,
-    updateProject,
+    batchUpdateProjects,
   );
 
   // Resets streaks for habits whose lastChecked has fallen behind yesterday.
@@ -197,6 +213,33 @@ export default function App() {
   const updatePomodoroLongBreakInterval = useCallback((pomodoroLongBreakInterval: number) => {
     persist({ ...data, pomodoroLongBreakInterval });
   }, [data, persist]);
+
+  // Batch-refresh GitHub data for all projects that have a repo set.
+  // Fetches all repos in parallel, then applies results atomically to avoid
+  // parallel-persist races (each updateProject call would overwrite the others).
+  const refreshAllProjects = useCallback(async () => {
+    if (!settings.githubPat) return;
+    const targets = dataRef.current.projects.filter(p => p.githubRepo);
+    const fetched: Array<{ id: number; githubData: GitHubData }> = [];
+    await Promise.allSettled(
+      targets.map(async p => {
+        try {
+          const githubData = await fetchRepoData(settings.githubPat!, p.githubRepo!);
+          fetched.push({ id: p.id, githubData });
+        } catch {
+          // silent skip — bad repo, network error, rate limit
+        }
+      })
+    );
+    if (fetched.length === 0) return;
+    // Read the latest snapshot after all fetches complete to apply results atomically
+    const snapshot = dataRef.current;
+    const updatedProjects = snapshot.projects.map(p => {
+      const hit = fetched.find(f => f.id === p.id);
+      return hit ? { ...p, githubData: hit.githubData } : p;
+    });
+    persist({ ...snapshot, projects: updatedProjects });
+  }, [settings.githubPat, persist]);
 
   const handlePomodoroSession = useCallback(() => {
     const today = new Date().toLocaleDateString("sv"); // YYYY-MM-DD local date (sv = Swedish = ISO format)
@@ -271,6 +314,7 @@ export default function App() {
             onUpdate={updateProject}
             onProjectsChange={updateProjects}
             pat={settings.githubPat}
+            onRefreshAll={refreshAllProjects}
           />
         )}
 

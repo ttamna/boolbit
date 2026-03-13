@@ -9,17 +9,18 @@ export function useGitHubSync(
   projects: Project[],
   pat: string | undefined,
   intervalMin: number,
-  onUpdate: (id: number, patch: Partial<Project>) => void,
+  // Batch callback — receives all successful updates at once to allow atomic persist
+  onBatchUpdate: (updates: Array<{ id: number; patch: Partial<Project> }>) => void,
 ) {
   // Refs keep the interval callback current without recreating the interval
   const projectsRef = useRef(projects);
-  const onUpdateRef = useRef(onUpdate);
+  const onBatchUpdateRef = useRef(onBatchUpdate);
   // Track whether we've done the first sync for the current PAT to avoid
   // re-firing immediately when only the interval changes
   const hasSyncedRef = useRef(false);
 
   useEffect(() => { projectsRef.current = projects; }, [projects]);
-  useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+  useEffect(() => { onBatchUpdateRef.current = onBatchUpdate; }, [onBatchUpdate]);
 
   useEffect(() => {
     if (!pat) {
@@ -29,16 +30,19 @@ export function useGitHubSync(
 
     const sync = async () => {
       const targets = projectsRef.current.filter(p => p.githubRepo);
+      const updates: Array<{ id: number; patch: Partial<Project> }> = [];
       await Promise.allSettled(
         targets.map(async (p) => {
           try {
             const githubData = await fetchRepoData(pat, p.githubRepo!);
-            onUpdateRef.current(p.id, { githubData });
+            updates.push({ id: p.id, patch: { githubData } });
           } catch {
             // Silent skip — bad repo, network error, rate limit, etc.
           }
         })
       );
+      // Call once with all results so the caller can apply them atomically
+      if (updates.length > 0) onBatchUpdateRef.current(updates);
     };
 
     // Only fire immediately on mount or when PAT changes, not on interval changes

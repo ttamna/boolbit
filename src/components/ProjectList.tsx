@@ -1,5 +1,5 @@
 // ABOUTME: ProjectList component - renders project list with add/delete/reorder in edit mode
-// ABOUTME: Encapsulates editing state for project list CRUD operations
+// ABOUTME: onRefreshAll prop enables one-click batch GitHub refresh for all linked projects
 
 import { useState, type CSSProperties } from "react";
 import type { Project } from "../types";
@@ -12,12 +12,20 @@ interface ProjectListProps {
   onUpdate: (id: number, patch: Partial<Project>) => void;
   onProjectsChange: (projects: Project[]) => void;
   pat?: string;
+  onRefreshAll?: () => Promise<void>;   // batch-refresh all projects with a GitHub repo set
 }
 
-export function ProjectList({ projects, onUpdate, onProjectsChange, pat }: ProjectListProps) {
+export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefreshAll }: ProjectListProps) {
   const [newName, setNewName] = useState("");
+  const [refreshingAll, setRefreshingAll] = useState(false);
   // ESC also resets the new-project draft
   const { editing, openEditing, closeEditing } = useEditMode(() => setNewName(""));
+
+  const handleRefreshAll = async () => {
+    if (!onRefreshAll || refreshingAll) return;
+    setRefreshingAll(true);
+    try { await onRefreshAll(); } finally { setRefreshingAll(false); }
+  };
 
   const moveProject = (from: number, dir: -1 | 1) => {
     const to = from + dir;
@@ -117,7 +125,24 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat }: Proje
       {projects.map(p => (
         <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} />
       ))}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, marginTop: 4 }}>
+        {/* Refresh all: visible when PAT + at least one project has a GitHub repo */}
+        {onRefreshAll && pat && projects.some(p => p.githubRepo) && (
+          <button
+            onClick={handleRefreshAll}
+            disabled={refreshingAll}
+            title="모든 GitHub 데이터 새로고침"
+            style={{
+              background: "transparent", border: "none",
+              cursor: refreshingAll ? "default" : "pointer",
+              color: refreshingAll ? colors.textLabel : colors.textPhantom,
+              fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
+              transition: "color 0.2s",
+            }}
+          >
+            ↺
+          </button>
+        )}
         <button
           onClick={openEditing}
           title="프로젝트 추가/삭제"
