@@ -34,6 +34,7 @@ export interface Habit {
   icon: string;
   lastChecked?: string;    // ISO date string (YYYY-MM-DD), set when habit is checked today
   targetStreak?: number;   // personal goal in days; absent/0 = no target set
+  bestStreak?: number;     // highest streak ever achieved; auto-updated on check-in; absent = no record
   checkHistory?: string[]; // sorted YYYY-MM-DD check-in dates (today included), capped at 14 entries
 }
 

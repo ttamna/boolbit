@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today; edit mode enables add/delete/reorder/targetStreak goal setting; 7-day dot heatmap shows check-in history
+// ABOUTME: Click ✓ to check/uncheck today; edit mode enables add/delete/reorder/targetStreak/bestStreak; 7-day dot heatmap shows check-in history
 
 import { useState, useEffect, useMemo, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -98,6 +98,7 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
     if (h.lastChecked === todayStr) {
       // Undo today's check-in: decrement streak, clear lastChecked, remove today from history.
       // Use undefined (not []) so JSON.stringify omits the field — Rust serde(default) yields None.
+      // bestStreak is not decremented on undo — it records the all-time high.
       const filtered = history.filter(d => d !== todayStr);
       onUpdate?.(i, {
         streak: Math.max(0, h.streak - 1),
@@ -108,7 +109,16 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
       // Check in: add today, deduplicate, sort (YYYY-MM-DD is lexicographic = chronological),
       // cap at 14 most-recent days to prevent unbounded growth.
       const newHistory = [...new Set([...history, todayStr])].sort().slice(-14);
-      onUpdate?.(i, { streak: h.streak + 1, lastChecked: todayStr, checkHistory: newHistory });
+      const newStreak = h.streak + 1;
+      const prevBest = h.bestStreak ?? 0;
+      // Note: streak is incremented unconditionally (pre-existing design — no consecutive-day check).
+      // bestStreak inherits this assumption and tracks the max value seen via check-in.
+      const patch: Partial<Habit> = {
+        streak: newStreak, lastChecked: todayStr, checkHistory: newHistory,
+      };
+      // Only update bestStreak when the new streak surpasses the previous best
+      if (newStreak > prevBest) patch.bestStreak = newStreak;
+      onUpdate?.(i, patch);
     }
   };
 
@@ -143,7 +153,11 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                   value={String(h.streak)}
                   onSave={v => {
                     const n = parseInt(v, 10);
-                    if (!isNaN(n) && n >= 0) patchHabit(i, { streak: n });
+                    if (!isNaN(n) && n >= 0) {
+                      const patch: Partial<Habit> = { streak: n };
+                      if (n > (h.bestStreak ?? 0)) patch.bestStreak = n;
+                      patchHabit(i, patch);
+                    }
                   }}
                   style={{
                     fontSize: fontSizes.base, fontWeight: 700,
@@ -179,6 +193,27 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                     style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textPhantom, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, opacity: 0.5 }}
                   >+목표</button>
                 )}
+                {/* bestStreak: editable personal best; ✕ clears; auto-set by checkHabit */}
+                {(h.bestStreak ?? 0) > 0 ? (
+                  <>
+                    <span style={{ fontSize: fontSizes.mini, color: colors.textPhantom, opacity: 0.6 }}>↑</span>
+                    <InlineEdit
+                      value={String(h.bestStreak)}
+                      onSave={v => {
+                        const n = parseInt(v, 10);
+                        // bestStreak must be ≥ current streak to stay semantically valid
+                        if (!isNaN(n) && n > 0 && n >= h.streak) patchHabit(i, { bestStreak: n });
+                      }}
+                      style={{ fontSize: fontSizes.mini, color: colors.textPhantom, opacity: 0.6 }}
+                      inputStyle={{ ...mono, fontSize: fontSizes.mini, width: 28, textAlign: "right" }}
+                    />
+                    <button
+                      onClick={() => patchHabit(i, { bestStreak: undefined })}
+                      title="최장 기록 초기화"
+                      style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textPhantom, fontSize: fontSizes.mini, padding: "0 1px", lineHeight: 1, opacity: 0.6 }}
+                    >✕</button>
+                  </>
+                ) : null}
                 <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
               </span>
               {milestone ? (
@@ -295,7 +330,11 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                     value={String(h.streak)}
                     onSave={v => {
                       const n = parseInt(v, 10);
-                      if (!isNaN(n) && n >= 0) onUpdate?.(i, { streak: n });
+                      if (!isNaN(n) && n >= 0) {
+                        const patch: Partial<Habit> = { streak: n };
+                        if (n > (h.bestStreak ?? 0)) patch.bestStreak = n;
+                        onUpdate?.(i, patch);
+                      }
                     }}
                     style={{
                       fontSize: fontSizes.base, fontWeight: 700,
@@ -308,6 +347,15 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                     <span style={{ fontSize: fontSizes.mini, color: colors.textPhantom }}>/{h.targetStreak}</span>
                   ) : null}
                   <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
+                  {/* Personal best: shown only when current streak is below the all-time high */}
+                  {(h.bestStreak ?? 0) > h.streak && (
+                    <span
+                      title={`최장 기록 ${h.bestStreak}일`}
+                      style={{ fontSize: fontSizes.mini, color: colors.textPhantom, opacity: 0.55 }}
+                    >
+                      ↑{h.bestStreak}
+                    </span>
+                  )}
                 </span>
                 {milestone ? (
                   <span
