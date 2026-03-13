@@ -37,6 +37,8 @@ const DEFAULT_DATA: WidgetData = {
     "완벽보다 실행. 실행보다 피드백.",
     "What do we lose by waiting?",
   ],
+  // Pomodoro panel starts collapsed by default to keep the widget compact
+  collapsedSections: ["pomodoro"],
 };
 
 // ─── Styles ─────────────────────────────────────────────
@@ -216,6 +218,8 @@ export default function App() {
             onAutoStartChange={updatePomodoroAutoStart}
             sessionsToday={pomodoroSessionsToday}
             onSessionComplete={handlePomodoroSession}
+            initialOpen={!collapsed.includes("pomodoro")}
+            onToggleOpen={() => toggleSection("pomodoro")}
           />
         )}
 

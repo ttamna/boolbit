@@ -33,10 +33,12 @@ interface PomodoroTimerProps {
   onSessionComplete?: () => void;      // called when a focus phase finishes
   initialAutoStart?: boolean;          // persisted auto-start preference
   onAutoStartChange?: (v: boolean) => void; // persist toggle
+  initialOpen?: boolean;               // persisted open/closed state
+  onToggleOpen?: () => void;           // notify parent to persist toggle
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange }: PomodoroTimerProps) {
-  const [open, setOpen] = useState(false);
+export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen }: PomodoroTimerProps) {
+  const [open, setOpen] = useState(initialOpen);
   const [phase, setPhase] = useState<Phase>("focus");
   const [durations, setDurations] = useState<Record<Phase, number>>(initialDurations ?? DEFAULT_DURATION);
   const [remaining, setRemaining] = useState((initialDurations?.focus ?? DEFAULT_DURATION.focus) * 60);
@@ -194,7 +196,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     <div style={{ borderTop: `1px solid ${colors.borderFaint}`, marginTop: 4 }}>
       {/* Toggle row */}
       <div
-        onClick={() => setOpen(o => !o)}
+        onClick={() => { setOpen(o => !o); onToggleOpen?.(); }}
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0 6px", cursor: "pointer" }}
       >
         <span style={{ fontSize: fontSizes.label, fontWeight: 600, color: colors.textGhost, textTransform: "uppercase", letterSpacing: 3 }}>

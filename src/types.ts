@@ -21,7 +21,7 @@ export interface Habit {
   lastChecked?: string; // ISO date string (YYYY-MM-DD), set when habit is checked today
 }
 
-export type SectionKey = "projects" | "streaks" | "direction";
+export type SectionKey = "projects" | "streaks" | "direction" | "pomodoro";
 
 export interface WidgetData {
   projects: Project[];

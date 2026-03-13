@@ -30,7 +30,7 @@ pub struct WidgetSettings {
 }
 
 const VALID_THEMES: &[&str] = &["void", "nebula", "forest", "ember"];
-const VALID_SECTIONS: &[&str] = &["projects", "streaks", "direction"];
+const VALID_SECTIONS: &[&str] = &["projects", "streaks", "direction", "pomodoro"];
 fn default_theme() -> String { "void".to_string() }
 fn default_clock_format() -> String { "24h".to_string() }
 
