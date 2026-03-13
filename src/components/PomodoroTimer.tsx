@@ -70,6 +70,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   // runKey: increment to force a new interval when autoStart transitions phases (running stays true)
   const [runKey, setRunKey] = useState(0);
   const [customMode, setCustomMode] = useState<Phase | null>(null);
+  const [showPresets, setShowPresets] = useState(false);
   const [customValue, setCustomValue] = useState("");
   // goalEdit: true while the user is typing a new goal; goalDraft holds the input text
   // goalEditRef: sync shadow of goalEdit — used in commitGoal to guard against blur-after-Escape
@@ -182,6 +183,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     setPhase(p);
     setRemaining(durations[p] * 60);
     setCustomMode(null);
+    setShowPresets(false);
     // Reset cycle count when manually navigating phases to avoid unexpected long break
     cycleCountRef.current = 0;
   };
@@ -193,6 +195,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     onDurationsChange?.(next);
     if (p === phase) setRemaining(mins * 60);
     setCustomMode(null);
+    setShowPresets(false);
   };
 
   const commitCustom = () => {
@@ -274,7 +277,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               return (
                 <button
                   key={p}
-                  onClick={() => switchPhase(p)}
+                  onClick={() => p === phase ? setShowPresets(v => !v) : switchPhase(p)}
                   style={{
                     flex: 1, padding: "4px 0", borderRadius: radius.bar,
                     background: phase === p ? `${tabAccent}22` : "transparent",
@@ -289,8 +292,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
             })}
           </div>
 
-          {/* Duration presets */}
-          <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+          {/* Duration presets — visible only when active tab is clicked */}
+          {showPresets && <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
             {PRESETS[phase].map(mins => (
               <button
                 key={mins}
@@ -346,7 +349,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
                 직접
               </button>
             )}
-          </div>
+          </div>}
 
           {/* Timer display */}
           <div style={{ textAlign: "center", marginBottom: 10 }}>
