@@ -1,5 +1,5 @@
 // ABOUTME: ProjectCard component - displays a single project with progress bar and metrics
-// ABOUTME: Supports inline editing of all fields; progress has −/+5% quick-adjust buttons beside the InlineEdit
+// ABOUTME: Status cycles active→in-progress→paused→done; done projects show violet dot + dimmed name
 
 import { useState, CSSProperties } from "react";
 import type { Project, GitHubData } from "../types";
@@ -78,7 +78,8 @@ const mono: CSSProperties = { fontFamily: fonts.mono };
 const STATUS_CYCLE: Record<Project["status"], Project["status"]> = {
   active: "in-progress",
   "in-progress": "paused",
-  paused: "active",
+  paused: "done",
+  done: "active",
 };
 
 function ProgressBar({ value, color }: { value: number; color: string }) {
@@ -144,13 +145,13 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
               const next = STATUS_CYCLE[project.status];
               if (next) onUpdate?.({ status: next });
             }}
-            title="클릭하여 상태 변경 (active → in-progress → paused)"
+            title="클릭하여 상태 변경 (active → in-progress → paused → done → active)"
             style={{ width: 6, height: 6, borderRadius: "50%", background: color, boxShadow: `0 0 8px ${color}66`, cursor: "pointer", flexShrink: 0 }}
           />
           <InlineEdit
             value={project.name}
             onSave={name => onUpdate?.({ name })}
-            style={{ fontSize: fontSizes.lg, fontWeight: 600, color: colors.textHigh, letterSpacing: 0.3 }}
+            style={{ fontSize: fontSizes.lg, fontWeight: 600, color: project.status === "done" ? colors.textMuted : colors.textHigh, letterSpacing: 0.3 }}
           />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>

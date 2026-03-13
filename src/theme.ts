@@ -32,6 +32,7 @@ export const colors = {
   statusProgress: "#FBBF24",
   statusPaused: "#F87171",
   statusLongBreak: "#7DD3FC",  // long-break phase in pomodoro (sky blue)
+  statusDone: "#A78BFA",       // violet — project completed
 } as const;
 
 export const fonts = {
@@ -72,8 +73,9 @@ export const THEMES = {
 export type ThemeKey = keyof typeof THEMES;
 
 // Project status → accent color map (single source of truth for status color logic)
-export const PROJECT_STATUS_COLORS: Record<"active" | "in-progress" | "paused", string> = {
+export const PROJECT_STATUS_COLORS: Record<"active" | "in-progress" | "paused" | "done", string> = {
   active: colors.statusActive,
   "in-progress": colors.statusProgress,
   paused: colors.statusPaused,
+  done: colors.statusDone,
 };

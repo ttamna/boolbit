@@ -15,7 +15,7 @@ export interface GitHubData {
 export interface Project {
   id: number;
   name: string;
-  status: "active" | "in-progress" | "paused";
+  status: "active" | "in-progress" | "paused" | "done";
   goal: string;
   progress: number;
   metric: string;
