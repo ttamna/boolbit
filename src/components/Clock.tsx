@@ -2,7 +2,7 @@
 // ABOUTME: Updates every second via setInterval
 
 import { useState, useEffect } from "react";
-import { fonts, fontSizes, colors } from "../theme";
+import { fonts, fontSizes, colors, radius } from "../theme";
 
 const mono = { fontFamily: fonts.mono };
 
@@ -31,6 +31,13 @@ export function Clock({ use12h = false }: ClockProps) {
     weekday: "long",
   });
 
+  // Day progress: seconds elapsed since midnight / 86400 total seconds.
+  // Clamped to [0,1] to guard against DST transitions (23h or 25h days).
+  const dayFraction = Math.min(1, Math.max(0,
+    (rawHour * 3600 + time.getMinutes() * 60 + time.getSeconds()) / 86400
+  ));
+  const dayPct = Math.round(dayFraction * 100);
+
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ ...mono, fontSize: fontSizes.clock, fontWeight: 200, letterSpacing: 6, color: colors.textPrimary, lineHeight: 1 }}>
@@ -42,6 +49,19 @@ export function Clock({ use12h = false }: ClockProps) {
       </div>
       <div style={{ fontSize: fontSizes.base, color: colors.textFaint, marginTop: 6, fontWeight: 300, letterSpacing: 1 }}>
         {dateStr}
+      </div>
+      {/* Day progress bar — shows how much of today has elapsed */}
+      <div
+        title={`하루의 ${dayPct}% 경과`}
+        style={{ marginTop: 8, height: 2, borderRadius: radius.bar, background: colors.borderSubtle, overflow: "hidden" }}
+      >
+        <div style={{
+          height: "100%",
+          width: `${dayFraction * 100}%`,
+          background: colors.textSubtle,
+          borderRadius: radius.bar,
+          transition: "width 1s linear",
+        }} />
       </div>
     </div>
   );
