@@ -1,3 +1,6 @@
+// ABOUTME: TypeScript type definitions for widget data, settings, and domain models
+// ABOUTME: Shared across components and hooks; mirrors the Rust WidgetData struct in lib.rs
+
 export interface Project {
   id: number;
   name: string;

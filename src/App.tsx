@@ -198,10 +198,10 @@ export default function App() {
           <PomodoroTimer
             initialDurations={data.pomodoroDurations}
             onDurationsChange={updatePomodoroDurations}
-            sessionsToday={pomodoroSessionsToday}
-            onSessionComplete={handlePomodoroSession}
             initialAutoStart={data.pomodoroAutoStart}
             onAutoStartChange={updatePomodoroAutoStart}
+            sessionsToday={pomodoroSessionsToday}
+            onSessionComplete={handlePomodoroSession}
           />
         )}
 

@@ -47,8 +47,6 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const [editingPhase, setEditingPhase] = useState<Phase | null>(null);
   const [editValue, setEditValue] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const autoStartRef = useRef(autoStart);
-  autoStartRef.current = autoStart;
   // Mirror mutable values in refs so setInterval callback always sees latest without stale closure
   const durationsRef = useRef(durations);
   durationsRef.current = durations;
@@ -56,6 +54,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   remainingRef.current = remaining;
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+  const autoStartRef = useRef(autoStart);
+  autoStartRef.current = autoStart;
   const onSessionCompleteRef = useRef(onSessionComplete);
   onSessionCompleteRef.current = onSessionComplete;
 
