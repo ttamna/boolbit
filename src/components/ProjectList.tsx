@@ -1,5 +1,5 @@
 // ABOUTME: ProjectList component - renders project list with add/delete/reorder in edit mode
-// ABOUTME: onRefreshAll enables batch GitHub refresh; done projects are collapsible in view mode
+// ABOUTME: onRefreshAll enables batch GitHub refresh; done projects are collapsible; ↕ auto-sort by focus+urgency in view mode
 
 import { useState, type CSSProperties } from "react";
 import type { Project } from "../types";
@@ -21,6 +21,27 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
   const [showDone, setShowDone] = useState(false);
   // ESC also resets the new-project draft
   const { editing, openEditing, closeEditing } = useEditMode(() => setNewName(""));
+
+  // Sort active projects: ★ focus first → deadline urgency (soonest first, no deadline last).
+  // Done projects are excluded from sorting and kept at the end of the array unchanged.
+  // Uses stable sort so equal-priority items stay in their current manual order.
+  const handleSort = () => {
+    const d = new Date(); d.setHours(0, 0, 0, 0);
+    const todayMidnight = d.getTime();
+    const urgency = (p: Project): number => {
+      if (!p.deadline || !/^\d{4}-\d{2}-\d{2}$/.test(p.deadline)) return Infinity;
+      return Math.floor((new Date(p.deadline + "T00:00:00").getTime() - todayMidnight) / 86400000);
+    };
+    const active = projects.filter(p => p.status !== "done");
+    const done = projects.filter(p => p.status === "done");
+    const sortedActive = [...active].sort((a, b) => {
+      const aFocus = a.isFocus ? 0 : 1;
+      const bFocus = b.isFocus ? 0 : 1;
+      if (aFocus !== bFocus) return aFocus - bFocus;
+      return urgency(a) - urgency(b);
+    });
+    onProjectsChange([...sortedActive, ...done]);
+  };
 
   const handleRefreshAll = async () => {
     if (!onRefreshAll || refreshingAll) return;
@@ -147,6 +168,20 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
         <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} />
       ))}
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, marginTop: 4 }}>
+        {/* Sort: visible when there are 2+ active projects to sort */}
+        {activeProjects.length >= 2 && (
+          <button
+            onClick={handleSort}
+            title="★ 집중 우선 → 마감일 긴박도순 정렬"
+            style={{
+              background: "transparent", border: "none", cursor: "pointer",
+              color: colors.textPhantom, fontSize: fontSizes.mini,
+              padding: "0 2px", lineHeight: 1,
+            }}
+          >
+            ↕
+          </button>
+        )}
         {/* Refresh all: visible when PAT + at least one project has a GitHub repo */}
         {onRefreshAll && pat && projects.some(p => p.githubRepo) && (
           <button
