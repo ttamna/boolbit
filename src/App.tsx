@@ -217,7 +217,11 @@ export default function App() {
 
       {/* ── Content ── */}
       <div style={s.content}>
-        <Clock use12h={settings.clockFormat === "12h"} accent={themeAccent} />
+        <Clock
+          use12h={settings.clockFormat === "12h"}
+          accent={themeAccent}
+          onToggleFormat={() => updateSettings({ clockFormat: settings.clockFormat === "12h" ? "24h" : "12h" })}
+        />
 
         <SectionLabel accent={themeAccent} collapsed={collapsed.includes("projects")} onToggle={() => toggleSection("projects")}>Projects</SectionLabel>
         {!collapsed.includes("projects") && (
