@@ -46,7 +46,7 @@ const DEFAULT_DATA: WidgetData = {
 const s = {
   container: {
     width: "100%",
-    maxHeight: "100vh",
+    // overflow:hidden clips child backgrounds to border-radius corners.
     backdropFilter: "blur(40px)",
     WebkitBackdropFilter: "blur(40px)",
     borderRadius: radius.container,
@@ -58,9 +58,6 @@ const s = {
   } as CSSProperties,
 
   content: {
-    flex: 1,
-    minHeight: 0,
-    overflowY: "auto",
     padding: "0 24px 28px",
   } as CSSProperties,
 
