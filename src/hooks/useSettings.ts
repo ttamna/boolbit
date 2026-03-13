@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS: WidgetSettings = {
   size: { width: 380, height: 700 },
   opacity: 1.0,
   theme: "void",
+  clockFormat: "24h",
 };
 
 export function useSettings() {

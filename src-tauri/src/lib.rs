@@ -1,3 +1,5 @@
+// ABOUTME: Tauri backend for Vision Widget — data/settings persistence via JSON files
+// ABOUTME: Exposes load_data, save_data, load_settings, save_settings commands and tray icon setup
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -21,7 +23,15 @@ pub struct WidgetSettings {
     pub position: WindowPosition,
     pub size: WindowSize,
     pub opacity: f64,
+    #[serde(default = "default_theme")]
+    pub theme: String,
+    #[serde(default = "default_clock_format")]
+    pub clock_format: String, // "24h" or "12h"
 }
+
+const VALID_THEMES: &[&str] = &["void", "nebula", "forest", "ember"];
+fn default_theme() -> String { "void".to_string() }
+fn default_clock_format() -> String { "24h".to_string() }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Project {
@@ -87,6 +97,8 @@ fn default_settings() -> WidgetSettings {
         position: WindowPosition { x: 20, y: 60 },
         size: WindowSize { width: 380, height: 700 },
         opacity: 1.0,
+        theme: "void".to_string(),
+        clock_format: "24h".to_string(),
     }
 }
 
@@ -179,10 +191,19 @@ fn save_data(data: WidgetData) -> Result<(), String> {
 #[tauri::command]
 fn load_settings() -> WidgetSettings {
     let path = get_settings_path();
-    match fs::read_to_string(&path) {
+    let mut s = match fs::read_to_string(&path) {
         Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| default_settings()),
         Err(_) => default_settings(),
+    };
+    // Sanitize theme: reject unknown values that could arrive from corrupted files
+    if !VALID_THEMES.contains(&s.theme.as_str()) {
+        s.theme = default_theme();
     }
+    // Sanitize clock_format: only "24h" or "12h" are valid
+    if s.clock_format != "12h" && s.clock_format != "24h" {
+        s.clock_format = default_clock_format();
+    }
+    s
 }
 
 #[tauri::command]

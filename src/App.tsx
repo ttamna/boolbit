@@ -82,9 +82,29 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const saved = await invoke<WidgetData>("load_data");
-      if (saved) setData(saved);
-      setTimeout(() => setLoaded(true), 100);
+      try {
+        const saved = await invoke<WidgetData>("load_data");
+        if (saved) {
+          // Reset streaks for habits checked before yesterday (user missed at least one full day)
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = yesterday.toLocaleDateString("sv"); // YYYY-MM-DD local
+          const savedHabits = saved.habits ?? [];
+          let hadExpired = false;
+          const reset = savedHabits.map(h => {
+            if (h.lastChecked && h.lastChecked < yesterdayStr) {
+              hadExpired = true;
+              return { ...h, streak: 0, lastChecked: undefined };
+            }
+            return h;
+          });
+          const resolvedData = hadExpired ? { ...saved, habits: reset } : saved;
+          setData(resolvedData);
+          if (hadExpired) await invoke("save_data", { data: resolvedData });
+        }
+      } finally {
+        setTimeout(() => setLoaded(true), 100);
+      }
     })();
   }, []);
 
@@ -162,7 +182,7 @@ export default function App() {
 
       {/* ── Content ── */}
       <div style={s.content}>
-        <Clock />
+        <Clock use12h={settings.clockFormat === "12h"} />
 
         <SectionLabel>Projects</SectionLabel>
         <ProjectList

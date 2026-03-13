@@ -1,10 +1,11 @@
 // ABOUTME: ProjectList component - renders project list with add/delete in edit mode
 // ABOUTME: Encapsulates editing state, mirrors HabitStreak/QuoteRotator CRUD pattern
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { Project } from "../types";
 import { fontSizes, colors, radius } from "../theme";
 import { ProjectCard } from "./ProjectCard";
+import { useEditMode } from "../hooks/useEditMode";
 
 interface ProjectListProps {
   projects: Project[];
@@ -13,8 +14,9 @@ interface ProjectListProps {
 }
 
 export function ProjectList({ projects, onUpdate, onProjectsChange }: ProjectListProps) {
-  const [editing, setEditing] = useState(false);
   const [newName, setNewName] = useState("");
+  // ESC also resets the new-project draft
+  const { editing, openEditing, closeEditing } = useEditMode(() => setNewName(""));
 
   const addProject = () => {
     const trimmed = newName.trim();
@@ -33,15 +35,6 @@ export function ProjectList({ projects, onUpdate, onProjectsChange }: ProjectLis
     onProjectsChange([...projects, newProject]);
     setNewName("");
   };
-
-  useEffect(() => {
-    if (!editing) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { setEditing(false); setNewName(""); }
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [editing]);
 
   if (editing) {
     return (
@@ -81,7 +74,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange }: ProjectLis
           </button>
         </div>
         <button
-          onClick={() => setEditing(false)}
+          onClick={closeEditing}
           style={{
             marginTop: 4, background: "transparent",
             border: `1px solid ${colors.borderFaint}`,
@@ -102,7 +95,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange }: ProjectLis
       ))}
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
         <button
-          onClick={() => setEditing(true)}
+          onClick={openEditing}
           title="프로젝트 추가/삭제"
           style={{
             background: "transparent", border: "none", cursor: "pointer",
