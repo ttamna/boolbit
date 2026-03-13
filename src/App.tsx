@@ -271,11 +271,20 @@ export default function App() {
   const habitsDoneToday = habitsArr.filter(h => h.lastChecked === new Date().toLocaleDateString("sv")).length;
   const habitsBadge = habitsArr.length > 0 ? `${habitsDoneToday}/${habitsArr.length}` : undefined;
 
-  // Derived: non-paused project count for Projects section badge.
+  // Derived: non-paused project count + average progress for Projects section badge.
   // "active" and "in-progress" are both considered running; "paused" is excluded.
+  // Badge format: "2/3 · 45%" — running count, total count, and avg progress of running projects.
   const projectsArr = data.projects ?? [];
-  const nonPausedCount = projectsArr.filter(p => p.status !== "paused").length;
-  const projectsBadge = projectsArr.length > 0 ? `${nonPausedCount}/${projectsArr.length}` : undefined;
+  const nonPausedProjects = projectsArr.filter(p => p.status !== "paused");
+  const nonPausedCount = nonPausedProjects.length;
+  const avgProgress = nonPausedCount > 0
+    ? Math.round(nonPausedProjects.reduce((s, p) => s + p.progress, 0) / nonPausedCount)
+    : null;
+  const projectsBadge = projectsArr.length > 0
+    ? avgProgress !== null
+      ? `${nonPausedCount}/${projectsArr.length} · ${avgProgress}%`
+      : `${nonPausedCount}/${projectsArr.length}`
+    : undefined;
 
   return (
     <div
