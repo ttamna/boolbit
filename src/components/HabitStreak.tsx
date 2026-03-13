@@ -1,7 +1,7 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today; edit mode enables add/delete/reorder/targetStreak goal setting
+// ABOUTME: Click ✓ to check/uncheck today; edit mode enables add/delete/reorder/targetStreak goal setting; 7-day dot heatmap shows check-in history
 
-import { useState, useEffect, CSSProperties } from "react";
+import { useState, useEffect, useMemo, CSSProperties } from "react";
 import type { Habit } from "../types";
 import { fonts, fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
@@ -61,6 +61,18 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
     return () => clearInterval(id);
   }, []);
 
+  // Last 7 days as YYYY-MM-DD strings (oldest → newest), derived from todayStr to stay consistent.
+  // Using todayStr as base (not new Date()) prevents a 1-min mismatch right after midnight
+  // when todayStr is still yesterday but new Date() has already advanced to the new day.
+  const last7Days = useMemo(() => {
+    const base = new Date(todayStr + "T00:00:00"); // local midnight of todayStr
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(base);
+      d.setDate(d.getDate() - (6 - i));
+      return d.toLocaleDateString("sv");
+    });
+  }, [todayStr]);
+
   const addHabit = () => {
     const trimmed = newName.trim();
     if (!trimmed) return;
@@ -82,14 +94,21 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
 
   const checkHabit = (i: number) => {
     const h = habits[i];
+    const history = h.checkHistory ?? [];
     if (h.lastChecked === todayStr) {
-      // Undo today's check-in: decrement streak and clear lastChecked.
-      // `lastChecked: undefined` is intentional — JSON.stringify omits undefined keys,
-      // so Tauri receives no `lastChecked` field, Rust's #[serde(default)] yields None.
-      // This mirrors the existing streak-expiry reset pattern in App.tsx.
-      onUpdate?.(i, { streak: Math.max(0, h.streak - 1), lastChecked: undefined });
+      // Undo today's check-in: decrement streak, clear lastChecked, remove today from history.
+      // Use undefined (not []) so JSON.stringify omits the field — Rust serde(default) yields None.
+      const filtered = history.filter(d => d !== todayStr);
+      onUpdate?.(i, {
+        streak: Math.max(0, h.streak - 1),
+        lastChecked: undefined,
+        checkHistory: filtered.length > 0 ? filtered : undefined,
+      });
     } else {
-      onUpdate?.(i, { streak: h.streak + 1, lastChecked: todayStr });
+      // Check in: add today, deduplicate, sort (YYYY-MM-DD is lexicographic = chronological),
+      // cap at 14 most-recent days to prevent unbounded growth.
+      const newHistory = [...new Set([...history, todayStr])].sort().slice(-14);
+      onUpdate?.(i, { streak: h.streak + 1, lastChecked: todayStr, checkHistory: newHistory });
     }
   };
 
@@ -254,71 +273,92 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
           const doneToday = h.lastChecked === todayStr;
           const milestone = getMilestone(h.streak);
           const upcoming = getUpcomingMilestone(h.streak);
+          const history = h.checkHistory ?? [];
           return (
-            <div
-              key={h.id ?? `h-${i}`}
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}
-            >
-              <InlineEdit
-                value={h.icon}
-                onSave={icon => onUpdate?.(i, { icon })}
-                style={{ fontSize: fontSizes.lg }}
-                inputStyle={{ fontSize: fontSizes.lg, width: 36, textAlign: "center" }}
-              />
-              <span style={{ fontSize: fontSizes.sm, color: colors.textLow, flex: 1, minWidth: 0 }}>
+            <div key={h.id ?? `h-${i}`} style={{ display: "flex", flexDirection: "column", padding: "4px 0" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <InlineEdit
-                  value={h.name}
-                  onSave={name => onUpdate?.(i, { name })}
-                  style={{ color: colors.textLow }}
+                  value={h.icon}
+                  onSave={icon => onUpdate?.(i, { icon })}
+                  style={{ fontSize: fontSizes.lg }}
+                  inputStyle={{ fontSize: fontSizes.lg, width: 36, textAlign: "center" }}
                 />
-              </span>
-              <span style={{ ...mono, display: "flex", alignItems: "baseline", gap: 2 }}>
-                <InlineEdit
-                  value={String(h.streak)}
-                  onSave={v => {
-                    const n = parseInt(v, 10);
-                    if (!isNaN(n) && n >= 0) onUpdate?.(i, { streak: n });
-                  }}
-                  style={{
-                    fontSize: fontSizes.base, fontWeight: 700,
-                    color: h.streak >= 10 ? (accent ?? colors.statusActive) : h.streak >= 5 ? colors.statusProgress : colors.textMid,
-                  }}
-                  inputStyle={{ ...mono, fontSize: fontSizes.base, width: 36, textAlign: "right" }}
-                />
-                {/* Show "/target" when a goal is set; lib.rs sanitizes 0→None so (??0)>0 is safe */}
-                {(h.targetStreak ?? 0) > 0 ? (
-                  <span style={{ fontSize: fontSizes.mini, color: colors.textPhantom }}>/{h.targetStreak}</span>
+                <span style={{ fontSize: fontSizes.sm, color: colors.textLow, flex: 1, minWidth: 0 }}>
+                  <InlineEdit
+                    value={h.name}
+                    onSave={name => onUpdate?.(i, { name })}
+                    style={{ color: colors.textLow }}
+                  />
+                </span>
+                <span style={{ ...mono, display: "flex", alignItems: "baseline", gap: 2 }}>
+                  <InlineEdit
+                    value={String(h.streak)}
+                    onSave={v => {
+                      const n = parseInt(v, 10);
+                      if (!isNaN(n) && n >= 0) onUpdate?.(i, { streak: n });
+                    }}
+                    style={{
+                      fontSize: fontSizes.base, fontWeight: 700,
+                      color: h.streak >= 10 ? (accent ?? colors.statusActive) : h.streak >= 5 ? colors.statusProgress : colors.textMid,
+                    }}
+                    inputStyle={{ ...mono, fontSize: fontSizes.base, width: 36, textAlign: "right" }}
+                  />
+                  {/* Show "/target" when a goal is set; lib.rs sanitizes 0→None so (??0)>0 is safe */}
+                  {(h.targetStreak ?? 0) > 0 ? (
+                    <span style={{ fontSize: fontSizes.mini, color: colors.textPhantom }}>/{h.targetStreak}</span>
+                  ) : null}
+                  <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
+                </span>
+                {milestone ? (
+                  <span
+                    title={h.streak >= 100 ? "💎 100일 달성!" : h.streak >= 30 ? "⭐ 30일 달성!" : "🔥 7일 달성!"}
+                    style={{ fontSize: fontSizes.mini, lineHeight: 1 }}
+                  >
+                    {milestone}
+                  </span>
+                ) : upcoming ? (
+                  <span
+                    title={`${upcoming.days}일 더 하면 ${upcoming.badge} 달성!`}
+                    style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom }}
+                  >
+                    +{upcoming.days}{upcoming.badge}
+                  </span>
                 ) : null}
-                <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
-              </span>
-              {milestone ? (
-                <span
-                  title={h.streak >= 100 ? "💎 100일 달성!" : h.streak >= 30 ? "⭐ 30일 달성!" : "🔥 7일 달성!"}
-                  style={{ fontSize: fontSizes.mini, lineHeight: 1 }}
+                {/* Daily check-in button — click to check, click again to undo */}
+                <button
+                  onClick={() => checkHabit(i)}
+                  title={doneToday ? "오늘 완료됨 — 클릭하여 취소" : "오늘 완료 체크"}
+                  style={{
+                    background: "transparent", border: "none", cursor: "pointer",
+                    color: doneToday ? (accent ?? colors.statusActive) : colors.textPhantom,
+                    fontSize: fontSizes.xs, padding: "0 2px", lineHeight: 1,
+                    transition: "color 0.2s",
+                  }}
                 >
-                  {milestone}
-                </span>
-              ) : upcoming ? (
-                <span
-                  title={`${upcoming.days}일 더 하면 ${upcoming.badge} 달성!`}
-                  style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom }}
-                >
-                  +{upcoming.days}{upcoming.badge}
-                </span>
-              ) : null}
-              {/* Daily check-in button — click to check, click again to undo */}
-              <button
-                onClick={() => checkHabit(i)}
-                title={doneToday ? "오늘 완료됨 — 클릭하여 취소" : "오늘 완료 체크"}
-                style={{
-                  background: "transparent", border: "none", cursor: "pointer",
-                  color: doneToday ? (accent ?? colors.statusActive) : colors.textPhantom,
-                  fontSize: fontSizes.xs, padding: "0 2px", lineHeight: 1,
-                  transition: "color 0.2s",
-                }}
-              >
-                ✓
-              </button>
+                  ✓
+                </button>
+              </div>
+              {/* 7-day check-in dot heatmap — visible once there is any check history */}
+              {history.length > 0 && (
+                <div style={{ display: "flex", gap: 2, paddingLeft: 26, marginTop: 3 }}>
+                  {last7Days.map((day, di) => {
+                    const checked = history.includes(day);
+                    const daysAgo = 6 - di;
+                    const label = daysAgo === 0 ? "오늘" : daysAgo === 1 ? "어제" : `${daysAgo}일 전`;
+                    return (
+                      <div
+                        key={day}
+                        title={label}
+                        style={{
+                          width: 3, height: 3, borderRadius: "50%", flexShrink: 0,
+                          background: checked ? (accent ?? colors.statusActive) : colors.borderSubtle,
+                          opacity: checked ? 0.85 : 0.4,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}

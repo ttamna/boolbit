@@ -69,6 +69,8 @@ pub struct Habit {
     pub last_checked: Option<String>,
     #[serde(rename = "targetStreak", default, skip_serializing_if = "Option::is_none")]
     pub target_streak: Option<u32>,
+    #[serde(rename = "checkHistory", default, skip_serializing_if = "Option::is_none")]
+    pub check_history: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -195,10 +197,10 @@ fn default_data() -> WidgetData {
             },
         ],
         habits: vec![
-            Habit { id: None, name: "푸시업".into(), streak: 0, icon: "💪".into(), last_checked: None, target_streak: None },
-            Habit { id: None, name: "풀업".into(), streak: 0, icon: "🏋️".into(), last_checked: None, target_streak: None },
-            Habit { id: None, name: "폰 사용↓".into(), streak: 0, icon: "📵".into(), last_checked: None, target_streak: None },
-            Habit { id: None, name: "포모도로".into(), streak: 0, icon: "🍅".into(), last_checked: None, target_streak: None },
+            Habit { id: None, name: "푸시업".into(), streak: 0, icon: "💪".into(), last_checked: None, target_streak: None, check_history: None },
+            Habit { id: None, name: "풀업".into(), streak: 0, icon: "🏋️".into(), last_checked: None, target_streak: None, check_history: None },
+            Habit { id: None, name: "폰 사용↓".into(), streak: 0, icon: "📵".into(), last_checked: None, target_streak: None, check_history: None },
+            Habit { id: None, name: "포모도로".into(), streak: 0, icon: "🍅".into(), last_checked: None, target_streak: None, check_history: None },
         ],
         quotes: vec![
             "Design so it cannot fail fatally, then execute.".into(),
@@ -244,9 +246,21 @@ fn load_data() -> WidgetData {
         data.pomodoro_long_break_interval = None;
     }
     // Sanitize habit target_streak: 0 is equivalent to "no target" (same pattern as pomodoro_session_goal)
+    // Sanitize check_history: deduplicate, sort, and cap at 14 entries to prevent unbounded growth
     for habit in &mut data.habits {
         if habit.target_streak == Some(0) {
             habit.target_streak = None;
+        }
+        if let Some(ref mut history) = habit.check_history {
+            history.sort();
+            history.dedup();
+            if history.len() > 14 {
+                let excess = history.len() - 14;
+                history.drain(0..excess);
+            }
+            if history.is_empty() {
+                habit.check_history = None;
+            }
         }
     }
     // Sanitize project deadlines and notes: remove empty strings that could arrive from partial saves
