@@ -19,6 +19,23 @@ function getMilestone(streak: number): string | null {
   return null;
 }
 
+// Returns next unreached milestone if within threshold days away; null otherwise.
+// Note: a non-null result can coexist with a non-null getMilestone result (e.g. streak=27
+// has milestone 🔥 and upcoming ⭐ in 3 days). Callers must decide which to display.
+function getUpcomingMilestone(streak: number, threshold = 3): { days: number; badge: string } | null {
+  if (streak <= 0) return null;
+  const MILESTONES = [
+    { at: 7, badge: "🔥" },
+    { at: 30, badge: "⭐" },
+    { at: 100, badge: "💎" },
+  ];
+  for (const { at, badge } of MILESTONES) {
+    const days = at - streak;
+    if (days > 0 && days <= threshold) return { days, badge };
+  }
+  return null;
+}
+
 interface HabitStreakProps {
   habits: Habit[];
   onUpdate?: (i: number, patch: Partial<Habit>) => void;
@@ -65,6 +82,7 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
       <div style={{ borderLeft: `2px solid ${colors.borderAccent}`, paddingLeft: 12 }}>
         {habits.map((h, i) => {
           const milestone = getMilestone(h.streak);
+          const upcoming = getUpcomingMilestone(h.streak);
           return (
           <div key={h.icon + h.name} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <InlineEdit
@@ -95,14 +113,21 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
               />
               <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
             </span>
-            {milestone && (
+            {milestone ? (
               <span
                 title={h.streak >= 100 ? "💎 100일 달성!" : h.streak >= 30 ? "⭐ 30일 달성!" : "🔥 7일 달성!"}
                 style={{ fontSize: fontSizes.mini, lineHeight: 1 }}
               >
                 {milestone}
               </span>
-            )}
+            ) : upcoming ? (
+              <span
+                title={`${upcoming.days}일 더 하면 ${upcoming.badge} 달성!`}
+                style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom }}
+              >
+                +{upcoming.days}{upcoming.badge}
+              </span>
+            ) : null}
             <button
               onClick={() => onHabitsChange?.(habits.filter((_, j) => j !== i))}
               style={{
@@ -178,6 +203,7 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
         {habits.map((h, i) => {
           const doneToday = h.lastChecked === todayStr;
           const milestone = getMilestone(h.streak);
+          const upcoming = getUpcomingMilestone(h.streak);
           return (
             <div
               key={h.icon + h.name}
@@ -211,14 +237,21 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange }: HabitStreakPro
                 />
                 <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
               </span>
-              {milestone && (
+              {milestone ? (
                 <span
                   title={h.streak >= 100 ? "💎 100일 달성!" : h.streak >= 30 ? "⭐ 30일 달성!" : "🔥 7일 달성!"}
                   style={{ fontSize: fontSizes.mini, lineHeight: 1 }}
                 >
                   {milestone}
                 </span>
-              )}
+              ) : upcoming ? (
+                <span
+                  title={`${upcoming.days}일 더 하면 ${upcoming.badge} 달성!`}
+                  style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom }}
+                >
+                  +{upcoming.days}{upcoming.badge}
+                </span>
+              ) : null}
               {/* Daily check-in button — click to check, click again to undo */}
               <button
                 onClick={() => checkHabit(i)}
