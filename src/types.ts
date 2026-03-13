@@ -43,4 +43,5 @@ export interface WidgetSettings {
   size: WindowSize;
   opacity: number; // 0.0 ~ 1.0
   theme: ThemeKey;
+  clockFormat?: '12h' | '24h'; // defaults to '24h' when absent
 }

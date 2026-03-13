@@ -182,7 +182,7 @@ export default function App() {
 
       {/* ── Content ── */}
       <div style={s.content}>
-        <Clock />
+        <Clock use12h={settings.clockFormat === "12h"} />
 
         <SectionLabel>Projects</SectionLabel>
         <ProjectList

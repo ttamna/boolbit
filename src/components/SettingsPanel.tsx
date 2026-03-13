@@ -79,6 +79,34 @@ export function SettingsPanel({ settings, onUpdate }: SettingsPanelProps) {
           })}
         </div>
       </div>
+
+      <div style={row}>
+        <span style={label}>시계</span>
+        <div style={{ display: "flex", gap: 4 }}>
+          {(["24h", "12h"] as const).map(fmt => {
+            const active = (settings.clockFormat ?? "24h") === fmt;
+            return (
+              <button
+                key={fmt}
+                onClick={() => onUpdate({ clockFormat: fmt })}
+                style={{
+                  fontSize: fontSizes.xs,
+                  padding: "2px 8px",
+                  borderRadius: 4,
+                  background: "transparent",
+                  color: active ? themeAccent : colors.textSubtle,
+                  border: `1px solid ${active ? themeAccent : colors.borderFaint}`,
+                  cursor: "pointer",
+                  fontWeight: active ? 600 : 400,
+                  transition: "border 0.15s, color 0.15s",
+                }}
+              >
+                {fmt}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

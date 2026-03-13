@@ -25,10 +25,13 @@ pub struct WidgetSettings {
     pub opacity: f64,
     #[serde(default = "default_theme")]
     pub theme: String,
+    #[serde(default = "default_clock_format")]
+    pub clock_format: String, // "24h" or "12h"
 }
 
 const VALID_THEMES: &[&str] = &["void", "nebula", "forest", "ember"];
 fn default_theme() -> String { "void".to_string() }
+fn default_clock_format() -> String { "24h".to_string() }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Project {
@@ -95,6 +98,7 @@ fn default_settings() -> WidgetSettings {
         size: WindowSize { width: 380, height: 700 },
         opacity: 1.0,
         theme: "void".to_string(),
+        clock_format: "24h".to_string(),
     }
 }
 
@@ -194,6 +198,10 @@ fn load_settings() -> WidgetSettings {
     // Sanitize theme: reject unknown values that could arrive from corrupted files
     if !VALID_THEMES.contains(&s.theme.as_str()) {
         s.theme = default_theme();
+    }
+    // Sanitize clock_format: only "24h" or "12h" are valid
+    if s.clock_format != "12h" && s.clock_format != "24h" {
+        s.clock_format = default_clock_format();
     }
     s
 }
