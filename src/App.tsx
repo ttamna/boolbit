@@ -290,11 +290,21 @@ export default function App() {
   const theme = THEMES[settings.theme] ?? THEMES.void;
   const themeAccent = theme.accent;
 
-  // Derived: habits done today — same render-time date pattern as pomodoroSessionsToday above.
+  // Derived: habits done today + at-risk count — same render-time date pattern as pomodoroSessionsToday above.
   // Brief (<1 min) badge/button mismatch at midnight is acceptable; matching existing project pattern.
   const habitsArr = data.habits ?? [];
-  const habitsDoneToday = habitsArr.filter(h => h.lastChecked === new Date().toLocaleDateString("sv")).length;
-  const habitsBadge = habitsArr.length > 0 ? `${habitsDoneToday}/${habitsArr.length}` : undefined;
+  const todayHabitsStr = new Date().toLocaleDateString("sv");
+  // Derive yesterday from local-midnight basis (same as HabitStreak.tsx) for DST safety
+  const yesterdayHabitsStr = (() => { const d = new Date(todayHabitsStr + "T00:00:00"); d.setDate(d.getDate() - 1); return d.toLocaleDateString("sv"); })();
+  const habitsDoneToday = habitsArr.filter(h => h.lastChecked === todayHabitsStr).length;
+  // atRisk: streak > 0, last checked yesterday — semantically equivalent to HabitStreak.tsx:338's !doneToday&&streak>0&&lastChecked===yesterday
+  const habitsAtRisk = habitsArr.filter(h => h.streak > 0 && h.lastChecked === yesterdayHabitsStr).length;
+  const habitsBadge = habitsArr.length > 0
+    ? [
+        `${habitsDoneToday}/${habitsArr.length}`,
+        habitsAtRisk > 0 ? `⚠${habitsAtRisk}` : null,
+      ].filter(Boolean).join(" · ")
+    : undefined;
 
   // Derived: running project count + average progress for Projects section badge.
   // "active" and "in-progress" are running; "paused" is stalled; "done" is excluded from tracking.
