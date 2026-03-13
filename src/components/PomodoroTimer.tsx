@@ -1,5 +1,5 @@
 // ABOUTME: PomodoroTimer component - configurable focus/break timer with desktop notification
-// ABOUTME: Durations, auto-start, daily session goal, and long-break interval are editable inline and persisted via callbacks
+// ABOUTME: Durations, auto-start, notify toggle, daily session goal, and long-break interval are editable inline and persisted via callbacks
 
 import { useState, useEffect, useRef, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
@@ -54,9 +54,11 @@ interface PomodoroTimerProps {
   onSessionGoalChange?: (goal: number | undefined) => void; // persist goal (undefined = clear)
   longBreakInterval?: number;          // focus sessions per long-break cycle, default 4
   onLongBreakIntervalChange?: (n: number) => void; // persist interval
+  initialNotify?: boolean;             // persisted notify preference; absent/true = enabled
+  onNotifyChange?: (v: boolean) => void; // persist toggle
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange }: PomodoroTimerProps) {
+export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange }: PomodoroTimerProps) {
   const [open, setOpen] = useState(initialOpen);
   const [phase, setPhase] = useState<Phase>("focus");
   const [durations, setDurations] = useState<Record<Phase, number>>({
@@ -67,6 +69,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const [remaining, setRemaining] = useState((initialDurations?.focus ?? DEFAULT_DURATION.focus) * 60);
   const [running, setRunning] = useState(false);
   const [autoStart, setAutoStart] = useState(initialAutoStart);
+  // notifyEnabled: absent/true means notifications on; false means silenced by user
+  const [notifyEnabled, setNotifyEnabled] = useState(initialNotify !== false);
   // runKey: increment to force a new interval when autoStart transitions phases (running stays true)
   const [runKey, setRunKey] = useState(0);
   const [customMode, setCustomMode] = useState<Phase | null>(null);
@@ -87,6 +91,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   phaseRef.current = phase;
   const autoStartRef = useRef(autoStart);
   autoStartRef.current = autoStart;
+  const notifyRef = useRef(notifyEnabled);
+  notifyRef.current = notifyEnabled;
   const onSessionCompleteRef = useRef(onSessionComplete);
   onSessionCompleteRef.current = onSessionComplete;
   // cycleCount: focus sessions completed in the current long-break cycle (resets to 0 at app start and after long break)
@@ -119,18 +125,18 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           if (newCount >= longBreakIntervalRef.current) {
             next = "longBreak";
             cycleCountRef.current = 0;
-            notify("Vision Widget", `🍅 ${longBreakIntervalRef.current}회 완료! ${durationsRef.current.longBreak}분 긴 휴식하세요.`);
+            if (notifyRef.current) notify("Vision Widget", `🍅 ${longBreakIntervalRef.current}회 완료! ${durationsRef.current.longBreak}분 긴 휴식하세요.`);
           } else {
             next = "break";
             cycleCountRef.current = newCount;
-            notify("Vision Widget", `🍅 포모도로 완료! ${durationsRef.current.break}분 휴식하세요.`);
+            if (notifyRef.current) notify("Vision Widget", `🍅 포모도로 완료! ${durationsRef.current.break}분 휴식하세요.`);
           }
         } else {
           next = "focus";
           const msg = currentPhase === "longBreak"
             ? "💪 긴 휴식 종료! 새 사이클을 시작하세요."
             : "💪 휴식 종료! 다시 집중할 시간.";
-          notify("Vision Widget", msg);
+          if (notifyRef.current) notify("Vision Widget", msg);
         }
         setPhase(next);
         setRemaining(durationsRef.current[next] * 60);
@@ -488,6 +494,24 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               }}
             >
               ∞
+            </button>
+            {/* Notify toggle: bell on = desktop notification on phase end; bell-off = silenced */}
+            <button
+              onClick={() => {
+                const next = !notifyEnabled;
+                setNotifyEnabled(next);
+                onNotifyChange?.(next);
+              }}
+              title={notifyEnabled ? "알림 켜짐 — 클릭하여 끄기" : "알림 꺼짐 — 클릭하여 켜기"}
+              style={{
+                padding: "6px 10px", borderRadius: radius.chip,
+                background: notifyEnabled ? `${accent}22` : "transparent",
+                border: `1px solid ${notifyEnabled ? accent + "44" : colors.borderFaint}`,
+                color: notifyEnabled ? accent : colors.textPhantom,
+                fontSize: fontSizes.sm, cursor: "pointer",
+              }}
+            >
+              {notifyEnabled ? "🔔" : "🔕"}
             </button>
           </div>
         </div>

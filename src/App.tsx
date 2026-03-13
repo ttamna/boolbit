@@ -214,6 +214,11 @@ export default function App() {
     persist({ ...data, pomodoroLongBreakInterval });
   }, [data, persist]);
 
+  const updatePomodoroNotify = useCallback((pomodoroNotify: boolean) => {
+    // Only persist false — absent/undefined means enabled (matches absent=default convention)
+    persist({ ...data, pomodoroNotify: pomodoroNotify ? undefined : false });
+  }, [data, persist]);
+
   // Batch-refresh GitHub data for all projects that have a repo set.
   // Fetches all repos in parallel, then applies results atomically to avoid
   // parallel-persist races (each updateProject call would overwrite the others).
@@ -346,6 +351,8 @@ export default function App() {
             onSessionGoalChange={updatePomodoroSessionGoal}
             longBreakInterval={data.pomodoroLongBreakInterval}
             onLongBreakIntervalChange={updatePomodoroLongBreakInterval}
+            initialNotify={data.pomodoroNotify}
+            onNotifyChange={updatePomodoroNotify}
           />
         )}
 

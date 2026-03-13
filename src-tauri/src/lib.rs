@@ -113,6 +113,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "pomodoroLongBreakInterval")]
     pub pomodoro_long_break_interval: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "pomodoroNotify")]
+    pub pomodoro_notify: Option<bool>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -218,6 +221,7 @@ fn default_data() -> WidgetData {
         collapsed_sections: None,
         quote_interval: None,
         pomodoro_long_break_interval: None,
+        pomodoro_notify: None,
     }
 }
 

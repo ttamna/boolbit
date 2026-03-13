@@ -50,6 +50,7 @@ export interface WidgetData {
   pomodoroAutoStart?: boolean;   // auto-start next phase when current phase ends
   pomodoroSessionGoal?: number;  // optional daily focus session target
   pomodoroLongBreakInterval?: number; // focus sessions per long-break cycle, default 4
+  pomodoroNotify?: boolean;           // desktop notification on phase end; absent/true = enabled
   collapsedSections?: SectionKey[];  // section names currently collapsed
   quoteInterval?: number;            // auto-rotation interval in seconds (default 8)
 }
