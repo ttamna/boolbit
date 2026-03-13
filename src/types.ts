@@ -63,6 +63,7 @@ export interface WidgetData {
   collapsedSections?: SectionKey[];  // section names currently collapsed
   sectionOrder?: SectionKey[];       // display order of sections; absent = default order
   quoteInterval?: number;            // auto-rotation interval in seconds (default 8)
+  todayIntention?: string;           // one-line daily intention set by user; absent = not set
 }
 
 export interface WindowPosition {

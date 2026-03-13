@@ -17,6 +17,7 @@ import { SectionLabel } from "./components/SectionLabel";
 import { ProjectList } from "./components/ProjectList";
 import { HabitStreak } from "./components/HabitStreak";
 import { QuoteRotator } from "./components/QuoteRotator";
+import { InlineEdit } from "./components/InlineEdit";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { PomodoroTimer } from "./components/PomodoroTimer";
 
@@ -206,6 +207,10 @@ export default function App() {
 
   const updateQuoteInterval = useCallback((quoteInterval: number) => {
     persist({ ...data, quoteInterval });
+  }, [data, persist]);
+
+  const updateIntention = useCallback((todayIntention: string) => {
+    persist({ ...data, todayIntention: todayIntention !== "" ? todayIntention : undefined });
   }, [data, persist]);
 
   const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number; longBreak: number }) => {
@@ -429,7 +434,21 @@ export default function App() {
             <Fragment key="direction">
               <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")} onMoveUp={up} onMoveDown={dn}>Direction</SectionLabel>
               {!collapsed.includes("direction") && (
-                <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} rotationInterval={data.quoteInterval} onIntervalChange={updateQuoteInterval} />
+                <>
+                  {/* Today's intention — a one-line focus phrase set by the user; ✕ clears when set */}
+                  <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
+                    <InlineEdit
+                      value={data.todayIntention ?? ""}
+                      onSave={updateIntention}
+                      placeholder="오늘의 의도..."
+                      style={{ flex: 1, fontStyle: "italic", fontSize: fontSizes.sm, ...(data.todayIntention ? { color: colors.textMid } : {}) }}
+                    />
+                    {data.todayIntention && (
+                      <button onClick={() => updateIntention("")} title="의도 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
+                    )}
+                  </div>
+                  <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} rotationInterval={data.quoteInterval} onIntervalChange={updateQuoteInterval} />
+                </>
               )}
             </Fragment>
           );

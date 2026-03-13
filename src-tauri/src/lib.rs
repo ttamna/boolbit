@@ -134,6 +134,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "sectionOrder")]
     pub section_order: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "todayIntention")]
+    pub today_intention: Option<String>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -248,6 +251,7 @@ fn default_data() -> WidgetData {
         pomodoro_notify: None,
         pomodoro_history: None,
         section_order: None,
+        today_intention: None,
     }
 }
 
@@ -325,6 +329,10 @@ fn load_data() -> WidgetData {
         if habit.notes.as_deref() == Some("") {
             habit.notes = None;
         }
+    }
+    // Sanitize today_intention: empty string is equivalent to absent
+    if data.today_intention.as_deref() == Some("") {
+        data.today_intention = None;
     }
     // Sanitize project fields: remove empty strings; normalize is_focus(false) → absent
     for project in &mut data.projects {
