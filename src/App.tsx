@@ -118,6 +118,10 @@ export default function App() {
     await invoke("save_data", { data: next });
   }, []);
 
+  // Mirror current data in a ref so interval callbacks always see the latest state (avoids stale closure)
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
   const updateHabit = useCallback((i: number, patch: Partial<Habit>) => {
     const next = { ...data, habits: data.habits.map((h, idx) =>
       idx === i ? { ...h, ...patch } : h
@@ -138,6 +142,29 @@ export default function App() {
     settings.githubRefreshInterval ?? 10,
     updateProject,
   );
+
+  // Resets streaks for habits whose lastChecked has fallen behind yesterday.
+  // Runs every minute so a long-running widget corrects expiry without requiring restart.
+  useEffect(() => {
+    if (!loaded) return;
+    const id = setInterval(async () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toLocaleDateString("sv");
+      const habits = dataRef.current.habits ?? [];
+      let hadExpired = false;
+      const reset = habits.map(h => {
+        if (h.lastChecked && h.lastChecked < yesterdayStr) {
+          hadExpired = true;
+          return { ...h, streak: 0, lastChecked: undefined };
+        }
+        return h;
+      });
+      if (!hadExpired) return;
+      await persist({ ...dataRef.current, habits: reset });
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [loaded, persist]);
 
   const updateHabits = useCallback((habits: Habit[]) => {
     persist({ ...data, habits });
