@@ -1,6 +1,8 @@
 // ABOUTME: TypeScript type definitions for widget data, settings, and domain models
 // ABOUTME: Shared across components and hooks; mirrors the Rust WidgetData struct in lib.rs
 
+import type { ThemeKey } from "./theme";
+
 export interface Project {
   id: number;
   name: string;
@@ -19,6 +21,8 @@ export interface Habit {
   lastChecked?: string; // ISO date string (YYYY-MM-DD), set when habit is checked today
 }
 
+export type SectionKey = "projects" | "streaks" | "direction";
+
 export interface WidgetData {
   projects: Project[];
   habits: Habit[];
@@ -27,6 +31,7 @@ export interface WidgetData {
   pomodoroSessionsDate?: string; // YYYY-MM-DD, date of the last counted session
   pomodoroSessions?: number;     // focus sessions completed on pomodoroSessionsDate
   pomodoroAutoStart?: boolean;   // auto-start next phase when current phase ends
+  collapsedSections?: SectionKey[];  // section names currently collapsed
 }
 
 export interface WindowPosition {
@@ -38,8 +43,6 @@ export interface WindowSize {
   width: number;
   height: number;
 }
-
-import type { ThemeKey } from "./theme";
 
 export interface WidgetSettings {
   position: WindowPosition;

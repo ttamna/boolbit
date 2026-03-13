@@ -30,6 +30,7 @@ pub struct WidgetSettings {
 }
 
 const VALID_THEMES: &[&str] = &["void", "nebula", "forest", "ember"];
+const VALID_SECTIONS: &[&str] = &["projects", "streaks", "direction"];
 fn default_theme() -> String { "void".to_string() }
 fn default_clock_format() -> String { "24h".to_string() }
 
@@ -78,6 +79,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "pomodoroAutoStart")]
     pub pomodoro_auto_start: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "collapsedSections")]
+    pub collapsed_sections: Option<Vec<String>>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -165,20 +169,29 @@ fn default_data() -> WidgetData {
         pomodoro_sessions_date: None,
         pomodoro_sessions: None,
         pomodoro_auto_start: None,
+        collapsed_sections: None,
     }
 }
 
 #[tauri::command]
 fn load_data() -> WidgetData {
     let path = get_data_path();
-    match fs::read_to_string(&path) {
+    let mut data = match fs::read_to_string(&path) {
         Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| default_data()),
         Err(_) => {
-            let data = default_data();
-            let _ = fs::write(&path, serde_json::to_string_pretty(&data).unwrap());
-            data
+            let d = default_data();
+            let _ = fs::write(&path, serde_json::to_string_pretty(&d).unwrap());
+            d
+        }
+    };
+    // Sanitize collapsed_sections: reject unknown section keys (mirrors VALID_THEMES pattern)
+    if let Some(ref mut sections) = data.collapsed_sections {
+        sections.retain(|s| VALID_SECTIONS.contains(&s.as_str()));
+        if sections.is_empty() {
+            data.collapsed_sections = None;
         }
     }
+    data
 }
 
 #[tauri::command]

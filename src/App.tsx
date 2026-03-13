@@ -2,7 +2,7 @@
 // ABOUTME: Handles data loading/saving and inline patch updates for projects/habits/quotes
 
 import { useState, useEffect, useCallback, useRef, CSSProperties } from "react";
-import type { WidgetData, Habit, Project } from "./types";
+import type { WidgetData, Habit, Project, SectionKey } from "./types";
 import { colors, fonts, fontSizes, radius, shadows, THEMES } from "./theme";
 import { invoke } from "./lib/tauri";
 import { useSettings } from "./hooks/useSettings";
@@ -153,11 +153,21 @@ export default function App() {
     persist({ ...data, pomodoroSessionsDate: today, pomodoroSessions: count });
   }, [data, persist]);
 
+  const toggleSection = useCallback((section: SectionKey) => {
+    const current = data.collapsedSections ?? [];
+    const next = current.includes(section)
+      ? current.filter(s => s !== section)
+      : [...current, section];
+    persist({ ...data, collapsedSections: next });
+  }, [data, persist]);
+
   // Derived: today's completed focus session count, reset to 0 when date changes
   const pomodoroSessionsToday =
     data.pomodoroSessionsDate === new Date().toLocaleDateString("sv")
       ? (data.pomodoroSessions ?? 0)
       : 0;
+
+  const collapsed = data.collapsedSections ?? [];
 
   return (
     <div
@@ -184,15 +194,19 @@ export default function App() {
       <div style={s.content}>
         <Clock use12h={settings.clockFormat === "12h"} />
 
-        <SectionLabel>Projects</SectionLabel>
-        <ProjectList
-          projects={data.projects}
-          onUpdate={updateProject}
-          onProjectsChange={updateProjects}
-        />
+        <SectionLabel collapsed={collapsed.includes("projects")} onToggle={() => toggleSection("projects")}>Projects</SectionLabel>
+        {!collapsed.includes("projects") && (
+          <ProjectList
+            projects={data.projects}
+            onUpdate={updateProject}
+            onProjectsChange={updateProjects}
+          />
+        )}
 
-        <SectionLabel>Streaks</SectionLabel>
-        <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} />
+        <SectionLabel collapsed={collapsed.includes("streaks")} onToggle={() => toggleSection("streaks")}>Streaks</SectionLabel>
+        {!collapsed.includes("streaks") && (
+          <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} />
+        )}
 
         {loaded && (
           <PomodoroTimer
@@ -205,8 +219,10 @@ export default function App() {
           />
         )}
 
-        <SectionLabel>Direction</SectionLabel>
-        <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} />
+        <SectionLabel collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")}>Direction</SectionLabel>
+        {!collapsed.includes("direction") && (
+          <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} />
+        )}
 
         {/* Footer */}
         <div style={{
