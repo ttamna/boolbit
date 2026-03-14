@@ -481,22 +481,22 @@ export default function App() {
   const habitsDoneToday = habitsArr.filter(h => h.lastChecked === todayStr).length;
   // atRisk: streak > 0, last checked yesterday — semantically equivalent to HabitStreak.tsx:338's !doneToday&&streak>0&&lastChecked===yesterday
   const habitsAtRisk = habitsArr.filter(h => h.streak > 0 && h.lastChecked === yesterdayHabitsStr).length;
+  // last7Days: [6daysAgo, ..., yesterday, today] as YYYY-MM-DD strings (oldest→newest, HabitStreak.tsx convention).
+  // Single source shared by habitsWeekRate, weekPomodoroCount, and recentlyDoneCount.
+  // Anchors to todayMidnight for DST safety.
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(todayMidnight);
+    d.setDate(d.getDate() - (6 - i));
+    return d.toLocaleDateString("sv");
+  });
   // habitsWeekRate: average daily habit completion rate (%) over the last 7 days.
-  // Anchors to todayMidnight for DST safety — same pattern as daysLeftInWeek.
-  // Generates oldest→newest to match HabitStreak.tsx's last14Days convention.
   // Returns null when no habit has any check within the last 7 days (avoids misleading 0%).
   const habitsWeekRate = (() => {
     if (habitsArr.length === 0) return null;
-    // Build [6daysAgo, ..., yesterday, today] (oldest→newest), consistent with HabitStreak.tsx last14Days.
-    const last7 = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(todayMidnight);
-      d.setDate(d.getDate() - (6 - i));
-      return d.toLocaleDateString("sv");
-    });
     // Require at least one check within the 7-day window before showing a rate.
-    const anyInWindow = habitsArr.some(h => last7.some(day => h.checkHistory?.includes(day)));
+    const anyInWindow = habitsArr.some(h => last7Days.some(day => h.checkHistory?.includes(day)));
     if (!anyInWindow) return null;
-    const avgRate = last7.reduce((sum, day) => {
+    const avgRate = last7Days.reduce((sum, day) => {
       return sum + habitsArr.filter(h => h.checkHistory?.includes(day)).length / habitsArr.length;
     }, 0) / 7;
     return Math.round(avgRate * 100);
@@ -511,7 +511,7 @@ export default function App() {
 
   // Derived: running project count + average progress for Projects section badge.
   // "active" and "in-progress" are running; "paused" is stalled; "done" is excluded from tracking.
-  // Badge format: "★ <name> · 2/3 · 45% · 🍅N·7d · ⚠N" — focus project name, running/total, avg progress, weekly sessions, overdue.
+  // Badge format: "★ <name> · 2/3 · 45% · 🍅N·7d · ⚠N · ✓N·7d" — focus project name, running/total, avg progress, weekly sessions, overdue, recent completions.
   // When projects have a deadline ≤ today (overdue or due today), appends " · ⚠N" for urgency.
   const projectsArr = data.projects ?? [];
   const nonDoneProjects = projectsArr.filter(p => p.status !== "done");
@@ -521,26 +521,24 @@ export default function App() {
     ? Math.round(runningProjects.reduce((s, p) => s + p.progress, 0) / runningCount)
     : null;
   // Count non-done projects with a deadline today or overdue (days <= 0).
-  // Uses local midnight so DST days count as 0, consistent with ProjectCard deadlineDays().
-  const localMidnight = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+  // Anchors to todayMidnight (same as all other 7-day windows); DST days count as 0 via Math.floor, consistent with ProjectCard deadlineDays().
   const overdueCount = nonDoneProjects.filter(p => {
     if (!p.deadline || !/^\d{4}-\d{2}-\d{2}$/.test(p.deadline)) return false;
     const ts = new Date(p.deadline + "T00:00:00").getTime();
     if (isNaN(ts)) return false;
-    return Math.floor((ts - localMidnight) / 86400000) <= 0;
+    return Math.floor((ts - todayMidnight.getTime()) / 86400000) <= 0;
   }).length;
+  // recentlyDoneCount: projects completed within the last 7 days — weekly completion velocity.
+  // Suppressed in badge when 0 (no completions this week).
+  const recentlyDoneCount = projectsArr.filter(
+    p => p.status === "done" && p.completedDate && last7Days.includes(p.completedDate)
+  ).length;
   // Weekly pomodoro session count: sum of focus sessions in the last 7 days from pomodoroHistory.
-  // Anchors to todayMidnight (DST-safe, consistent with habitsWeekRate pattern).
   // Returns 0 when no history exists; badge suppresses the indicator when 0.
   const weekPomodoroCount = (() => {
     const history = data.pomodoroHistory ?? [];
     if (history.length === 0) return 0;
-    const last7 = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(todayMidnight);
-      d.setDate(d.getDate() - (6 - i));
-      return d.toLocaleDateString("sv");
-    });
-    return history.filter(day => last7.includes(day.date)).reduce((s, day) => s + day.count, 0);
+    return history.filter(day => last7Days.includes(day.date)).reduce((s, day) => s + day.count, 0);
   })();
   // Focus project badge: first word of the focused non-done project name, max 12 chars.
   // Shown as "★ <name>" prefix so the user can see current priority without expanding the section.
@@ -558,6 +556,7 @@ export default function App() {
           : `${runningCount}/${nonDoneProjects.length}`,
         weekPomodoroCount > 0 ? `🍅${weekPomodoroCount}·7d` : null,
         overdueCount > 0 ? `⚠${overdueCount}` : null,
+        recentlyDoneCount > 0 ? `✓${recentlyDoneCount}·7d` : null,
       ].filter(Boolean).join(" · ")
     : undefined;
 
