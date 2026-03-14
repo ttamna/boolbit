@@ -70,6 +70,13 @@ function lastFocusDaysAgo(dateStr: string | undefined): number | null {
   return days > 0 ? days : null; // null if today (no stale indicator needed)
 }
 
+// Returns a YYYY-MM-DD date string for n days from today (local time).
+function dateAfterDays(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toLocaleDateString("sv");
+}
+
 // Returns urgency color: red if today or overdue (days ≤ 0), yellow if ≤7 days, dim otherwise.
 function deadlineColor(dateStr: string): string {
   const days = deadlineDays(dateStr);
@@ -126,6 +133,8 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
   const [repoMsg, setRepoMsg] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState("");
+  // deadlinePickerOpen: true while the quick-set panel (presets + manual input) is visible
+  const [deadlinePickerOpen, setDeadlinePickerOpen] = useState(false);
 
   const handleRefresh = async () => {
     if (!pat || !project.githubRepo || !onUpdate || refreshing) return;
@@ -347,7 +356,7 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
               inputStyle={{ ...mono, fontSize: fontSizes.mini, width: 90 }}
             />
             <button
-              onClick={() => onUpdate?.({ deadline: undefined })}
+              onClick={() => { onUpdate?.({ deadline: undefined }); setDeadlinePickerOpen(false); }}
               title="마감일 삭제"
               style={{
                 background: "transparent", border: "none", cursor: "pointer",
@@ -357,16 +366,47 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
               ✕
             </button>
           </>
+        ) : deadlinePickerOpen ? (
+          // Quick-set panel: preset buttons + manual YYYY-MM-DD input + cancel
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {([7, 14, 30] as const).map(days => {
+              // Compute once per render so onClick and title always show the same date
+              const target = dateAfterDays(days);
+              return (
+                <button
+                  key={days}
+                  onClick={() => { onUpdate?.({ deadline: target }); setDeadlinePickerOpen(false); }}
+                  title={`오늘로부터 ${days}일 뒤: ${target}`}
+                  style={{
+                    ...mono, padding: "1px 5px", borderRadius: 3,
+                    background: "transparent",
+                    border: `1px solid ${colors.borderFaint}`,
+                    color: colors.textPhantom, fontSize: fontSizes.mini, cursor: "pointer",
+                  }}
+                >
+                  +{days === 30 ? "1달" : `${days}일`}
+                </button>
+              );
+            })}
+            <InlineEdit
+              value=""
+              placeholder="YYYY-MM-DD"
+              onSave={v => { if (deadlineDays(v) !== null) { onUpdate?.({ deadline: v }); setDeadlinePickerOpen(false); } }}
+              style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom }}
+              inputStyle={{ ...mono, fontSize: fontSizes.mini, width: 90 }}
+            />
+            <button
+              onClick={() => setDeadlinePickerOpen(false)}
+              title="취소"
+              style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textPhantom, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}
+            >✕</button>
+          </div>
         ) : (
-          <InlineEdit
-            value=""
-            placeholder="+ 마감일"
-            onSave={v => {
-              if (deadlineDays(v) !== null) onUpdate?.({ deadline: v });
-            }}
-            style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom }}
-            inputStyle={{ ...mono, fontSize: fontSizes.mini, width: 90 }}
-          />
+          // Collapsed: single button to open the quick-set panel
+          <button
+            onClick={() => setDeadlinePickerOpen(true)}
+            style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textPhantom, fontSize: fontSizes.mini, padding: "0", lineHeight: 1, opacity: 0.7 }}
+          >+ 마감일</button>
         )}
       </div>
 
