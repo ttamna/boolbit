@@ -802,6 +802,7 @@ export default function App() {
                   todayIntention={data.todayIntentionDone ? undefined : data.todayIntention}
                   onMoveUp={up}
                   onMoveDown={dn}
+                  accent={themeAccent}
                 />
               )}
             </Fragment>

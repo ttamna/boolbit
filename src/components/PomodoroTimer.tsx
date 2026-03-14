@@ -71,9 +71,10 @@ interface PomodoroTimerProps {
   todayIntention?: string; // today's intention text; shown during active focus sessions when not yet accomplished
   onMoveUp?: () => void;   // reorder: move this section one step earlier
   onMoveDown?: () => void; // reorder: move this section one step later
+  accent?: string;         // theme accent color applied to the focus phase; absent = statusActive (green)
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, sessionHistory, lifetimeMins, focusProject, todayIntention, onMoveUp, onMoveDown }: PomodoroTimerProps) {
+export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, sessionHistory, lifetimeMins, focusProject, todayIntention, onMoveUp, onMoveDown, accent }: PomodoroTimerProps) {
   const [open, setOpen] = useState(initialOpen);
   const [headerHovered, setHeaderHovered] = useState(false);
   // todayStr: refreshed every minute to catch midnight rollover (same pattern as HabitStreak)
@@ -263,7 +264,11 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     setGoalEdit(false);
   };
 
-  const accent = phaseAccent(phase);
+  // focusColor: the accent color for focus-phase UI — theme accent when provided, fallback to statusActive (green).
+  // Used for both current-phase-is-focus elements (phaseColor) and always-focus-semantic elements (heatmap, goal badges).
+  const focusColor = accent ?? colors.statusActive;
+  // phaseColor: focus phase uses the theme accent; break phases keep semantic colors for clear phase distinction.
+  const phaseColor = phase === "focus" ? focusColor : phaseAccent(phase);
 
   // Last 14 days (oldest to newest) derived from todayStr — recomputed when history changes or at midnight.
   // pomodoroHistory is capped at 14 entries in lib.rs sanitize; rendering all 14 uses stored data fully.
@@ -348,7 +353,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
             </div>
           )}
           {(sessionsToday > 0 || sessionGoal != null) && (
-            <span style={{ fontSize: fontSizes.mini, color: goalReached ? colors.statusActive : colors.textSubtle }}>
+            <span style={{ fontSize: fontSizes.mini, color: goalReached ? focusColor : colors.textSubtle }}>
               🍅 {sessionCountStr}{sessionsToday > 0 ? ` · ${todayTimeStr}` : ""}
             </span>
           )}
@@ -360,7 +365,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               ∑{formatLifetime(lt)}
             </span>
           )}
-          <span style={{ ...mono, fontSize: fontSizes.xs, color: accent }}>
+          <span style={{ ...mono, fontSize: fontSizes.xs, color: phaseColor }}>
             {running
               ? `${phaseLabel(phase)} ${pad(minutes)}:${pad(seconds)}`
               : isPaused
@@ -414,7 +419,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
                 title={label}
                 style={{
                   width: 3, height: 3, borderRadius: "50%", flexShrink: 0,
-                  background: count > 0 ? colors.statusActive : colors.borderSubtle,
+                  background: count > 0 ? focusColor : colors.borderSubtle,
                   opacity,
                   // Extra left margin at di===7 creates a visual week boundary (prev-7 | cur-7)
                   marginLeft: di === 7 ? 5 : 0,
@@ -438,7 +443,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           {/* Phase tabs */}
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
             {(["focus", "break", "longBreak"] as Phase[]).map(p => {
-              const tabAccent = phaseAccent(p);
+              const tabAccent = p === "focus" ? focusColor : phaseAccent(p);
               return (
                 <button
                   key={p}
@@ -466,9 +471,9 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
                 disabled={running}
                 style={{
                   flex: 1, padding: "3px 0", borderRadius: radius.chip,
-                  background: durations[phase] === mins && customMode === null ? `${accent}22` : "transparent",
-                  border: `1px solid ${durations[phase] === mins && customMode === null ? accent + "55" : colors.borderFaint}`,
-                  color: durations[phase] === mins && customMode === null ? accent : colors.textPhantom,
+                  background: durations[phase] === mins && customMode === null ? `${phaseColor}22` : "transparent",
+                  border: `1px solid ${durations[phase] === mins && customMode === null ? phaseColor + "55" : colors.borderFaint}`,
+                  color: durations[phase] === mins && customMode === null ? phaseColor : colors.textPhantom,
                   fontSize: fontSizes.mini, cursor: running ? "default" : "pointer",
                   opacity: running ? 0.5 : 1,
                 }}
@@ -492,8 +497,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
                 style={{
                   flex: 1, padding: "3px 4px", borderRadius: radius.chip,
                   background: "transparent",
-                  border: `1px solid ${accent}55`,
-                  color: accent, fontSize: fontSizes.mini,
+                  border: `1px solid ${phaseColor}55`,
+                  color: phaseColor, fontSize: fontSizes.mini,
                   fontFamily: fonts.mono, textAlign: "center",
                   outline: "none", minWidth: 0,
                 }}
@@ -518,7 +523,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
 
           {/* Timer display */}
           <div style={{ textAlign: "center", marginBottom: 10 }}>
-            <div style={{ ...mono, fontSize: 40, fontWeight: 200, color: accent, letterSpacing: 4, lineHeight: 1 }}>
+            <div style={{ ...mono, fontSize: 40, fontWeight: 200, color: phaseColor, letterSpacing: 4, lineHeight: 1 }}>
               {pad(minutes)}<span style={{ opacity: 0.4 }}>:</span>{pad(seconds)}
             </div>
           </div>
@@ -527,7 +532,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           <div style={{ width: "100%", height: 2, background: colors.borderSubtle, borderRadius: 1, marginBottom: 12 }}>
             <div style={{
               width: `${progress * 100}%`, height: "100%",
-              background: accent, borderRadius: 1, transition: "width 1s linear",
+              background: phaseColor, borderRadius: 1, transition: "width 1s linear",
             }} />
           </div>
 
@@ -551,8 +556,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
                 style={{
                   width: 60, padding: "2px 6px", borderRadius: radius.chip,
                   background: "transparent",
-                  border: `1px solid ${accent}55`,
-                  color: accent, fontSize: fontSizes.xs,
+                  border: `1px solid ${phaseColor}55`,
+                  color: phaseColor, fontSize: fontSizes.xs,
                   fontFamily: fonts.mono, textAlign: "center",
                   outline: "none",
                 }}
@@ -564,7 +569,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
                 style={{
                   background: "transparent", border: "none",
                   cursor: "pointer", padding: "2px 0",
-                  color: sessionGoal != null ? (goalReached ? colors.statusActive : accent) : colors.textPhantom,
+                  color: sessionGoal != null ? (goalReached ? focusColor : phaseColor) : colors.textPhantom,
                   fontSize: fontSizes.xs, fontFamily: fonts.mono,
                 }}
               >
@@ -605,9 +610,9 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               onClick={() => setRunning(r => !r)}
               style={{
                 flex: 1, padding: "6px 0", borderRadius: radius.chip,
-                background: running ? `${accent}22` : `${accent}33`,
-                border: `1px solid ${accent}44`,
-                color: accent, fontSize: fontSizes.sm, cursor: "pointer", fontWeight: 600,
+                background: running ? `${phaseColor}22` : `${phaseColor}33`,
+                border: `1px solid ${phaseColor}44`,
+                color: phaseColor, fontSize: fontSizes.sm, cursor: "pointer", fontWeight: 600,
               }}
             >
               {running ? "⏸ 일시정지" : "▶ 시작"}
@@ -646,9 +651,9 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               title={autoStart ? "자동 시작 켜짐 — 클릭하여 끄기" : "자동 시작 꺼짐 — 클릭하여 켜기"}
               style={{
                 padding: "6px 10px", borderRadius: radius.chip,
-                background: autoStart ? `${accent}22` : "transparent",
-                border: `1px solid ${autoStart ? accent + "44" : colors.borderFaint}`,
-                color: autoStart ? accent : colors.textPhantom,
+                background: autoStart ? `${phaseColor}22` : "transparent",
+                border: `1px solid ${autoStart ? phaseColor + "44" : colors.borderFaint}`,
+                color: autoStart ? phaseColor : colors.textPhantom,
                 fontSize: fontSizes.sm, cursor: "pointer",
               }}
             >
@@ -664,9 +669,9 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               title={notifyEnabled ? "알림 켜짐 — 클릭하여 끄기" : "알림 꺼짐 — 클릭하여 켜기"}
               style={{
                 padding: "6px 10px", borderRadius: radius.chip,
-                background: notifyEnabled ? `${accent}22` : "transparent",
-                border: `1px solid ${notifyEnabled ? accent + "44" : colors.borderFaint}`,
-                color: notifyEnabled ? accent : colors.textPhantom,
+                background: notifyEnabled ? `${phaseColor}22` : "transparent",
+                border: `1px solid ${notifyEnabled ? phaseColor + "44" : colors.borderFaint}`,
+                color: notifyEnabled ? phaseColor : colors.textPhantom,
                 fontSize: fontSizes.sm, cursor: "pointer",
               }}
             >
