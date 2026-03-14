@@ -13,6 +13,7 @@ import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction } from "./lib/datePeriods";
+import { calcIntentionStreak } from "./lib/intention";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -650,21 +651,12 @@ export default function App() {
   // atRisk: streak > 0, last checked yesterday — semantically equivalent to HabitStreak.tsx:338's !doneToday&&streak>0&&lastChecked===yesterday
   const habitsAtRisk = habitsArr.filter(h => h.streak > 0 && h.lastChecked === yesterdayHabitsStr).length;
   // intentionConsecutiveDays: consecutive days (including today) on which the user has set an intention.
-  // Derived from todayIntention + intentionHistory (rolling 7-day log). Returns 0 when today has no intention.
-  // Max computable = 7 (history cap). Stops at the first gap day to count truly unbroken streaks.
-  const intentionConsecutiveDays = (() => {
-    if (!data.todayIntention) return 0;
-    const history = data.intentionHistory ?? [];
-    let count = 1; // today has an intention
-    for (let back = 1; back <= 6; back++) {
-      const d = new Date(todayMidnight);
-      d.setDate(d.getDate() - back);
-      const dateStr = d.toLocaleDateString("sv");
-      if (history.some(e => e.date === dateStr)) count++;
-      else break;
-    }
-    return count;
-  })();
+  // Pure function extracted to src/lib/intention.ts for testability.
+  const intentionConsecutiveDays = calcIntentionStreak(
+    data.todayIntention,
+    todayStr,
+    data.intentionHistory ?? [],
+  );
   // last7Days: [6daysAgo, ..., yesterday, today] as YYYY-MM-DD strings (oldest→newest, HabitStreak.tsx convention).
   // Single source shared by habitsWeekRate, weekPomodoroCount, and recentlyDoneCount.
   // Anchors to todayMidnight for DST safety.
