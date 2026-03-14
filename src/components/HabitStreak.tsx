@@ -1,7 +1,7 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
 // ABOUTME: Click ✓ to check/uncheck today; amber ✓ = streak at risk; edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend
 
-import { useState, useEffect, useMemo, CSSProperties } from "react";
+import { useState, useEffect, useMemo, useRef, CSSProperties } from "react";
 import type { Habit } from "../types";
 import { fonts, fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
@@ -48,9 +48,10 @@ interface HabitStreakProps {
   onUpdate?: (i: number, patch: Partial<Habit>) => void;
   onHabitsChange?: (habits: Habit[]) => void;
   accent?: string;
+  onMilestoneReached?: (habitName: string, streak: number, badge: string) => void;
 }
 
-export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitStreakProps) {
+export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilestoneReached }: HabitStreakProps) {
   const [newIcon, setNewIcon] = useState("⭐");
   const [newName, setNewName] = useState("");
   const { editing, openEditing, closeEditing } = useEditMode();
@@ -72,6 +73,12 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
       return d.toLocaleDateString("sv");
     });
   }, [todayStr]);
+
+  // Tracks milestone badges already notified today per habit — prevents re-fires on undo+redo.
+  // Key: habitId (stable) or index string; value: Set of badge strings fired today.
+  // Cleared at midnight when todayStr advances so each day starts fresh.
+  const milestoneNotifiedRef = useRef<Map<string, Set<string>>>(new Map());
+  useEffect(() => { milestoneNotifiedRef.current.clear(); }, [todayStr]);
 
   // Yesterday as YYYY-MM-DD — same todayStr base as last14Days to stay consistent around midnight.
   // Explicit derivation avoids fragile dependency on last14Days array length or index.
@@ -127,6 +134,21 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
       // Only update bestStreak when the new streak surpasses the previous best
       if (newStreak > prevBest) patch.bestStreak = newStreak;
       onUpdate?.(i, patch);
+      // Fire milestone notification when the check-in crosses a new milestone boundary.
+      // Guard: only fire when onUpdate is defined (streak is actually being saved).
+      // Dedup: milestoneNotifiedRef prevents re-fires on undo+redo within the same day.
+      if (onUpdate) {
+        const newBadge = getMilestone(newStreak);
+        if (newBadge && newBadge !== getMilestone(h.streak)) {
+          const key = h.id ?? String(i);
+          const notified = milestoneNotifiedRef.current.get(key) ?? new Set<string>();
+          if (!notified.has(newBadge)) {
+            notified.add(newBadge);
+            milestoneNotifiedRef.current.set(key, notified);
+            onMilestoneReached?.(h.name, newStreak, newBadge);
+          }
+        }
+      }
     }
   };
 

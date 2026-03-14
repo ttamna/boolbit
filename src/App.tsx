@@ -306,6 +306,18 @@ export default function App() {
     persist({ ...data, habits });
   }, [data, persist]);
 
+  // Sends a desktop notification when a habit streak crosses a milestone (7, 30, 100 days).
+  // Uses the same permission-request pattern as the deadline notification.
+  // Empty deps: no external state referenced — function is pure aside from async Tauri calls.
+  const handleHabitMilestone = useCallback(async (habitName: string, streak: number, badge: string) => {
+    try {
+      let ok = await isPermissionGranted();
+      if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+      if (!ok) return;
+      sendNotification({ title: "Vision Widget", body: `${badge} ${habitName} ${streak}일 달성!` });
+    } catch { /* not available in browser dev mode */ }
+  }, []);
+
   const updateProjects = useCallback((projects: Project[]) => {
     persist({ ...data, projects });
   }, [data, persist]);
@@ -690,7 +702,7 @@ export default function App() {
             <Fragment key="streaks">
               <SectionLabel accent={themeAccent} collapsed={collapsed.includes("streaks")} onToggle={() => toggleSection("streaks")} badge={habitsBadge} onMoveUp={up} onMoveDown={dn}>Streaks</SectionLabel>
               {!collapsed.includes("streaks") && (
-                <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} accent={themeAccent} />
+                <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} accent={themeAccent} onMilestoneReached={handleHabitMilestone} />
               )}
             </Fragment>
           );
