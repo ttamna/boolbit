@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today; amber ✓ = streak at risk (checked yesterday, not today); edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dot heatmap
+// ABOUTME: Click ✓ to check/uncheck today; amber ✓ = streak at risk; edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend
 
 import { useState, useEffect, useMemo, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -343,8 +343,14 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
           const targetPct = (h.targetStreak ?? 0) > 0 && h.streak > 0
             ? Math.min(100, Math.round(h.streak / h.targetStreak! * 100))
             : undefined;
-          // checkedCount14: number of the last 14 days that were checked; last14Days is always length 14
-          const checkedCount14 = last14Days.filter(day => history.includes(day)).length;
+          // Weekly check counts derived from last14Days (oldest→newest):
+          //   checkedCount7: slice(7)  = indices 7–13 = 6daysAgo→today (current 7-day window)
+          //   prevWeekCount7: slice(0,7) = indices 0–6 = 13daysAgo→7daysAgo (previous 7-day window)
+          // Both slices partition last14Days fully; their sum equals the 14-day total (no separate variable needed).
+          const checkedCount7 = last14Days.slice(7).filter(day => history.includes(day)).length;
+          const prevWeekCount7 = last14Days.slice(0, 7).filter(day => history.includes(day)).length;
+          // weekTrend: ↑ improving, ↓ declining, "" stable — suppressed when equal to avoid noise
+          const weekTrend = checkedCount7 > prevWeekCount7 ? "↑" : checkedCount7 < prevWeekCount7 ? "↓" : "";
           return (
             <div key={h.id ?? `h-${i}`} style={{ display: "flex", flexDirection: "column", padding: "4px 0" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -460,16 +466,18 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                           width: 3, height: 3, borderRadius: "50%", flexShrink: 0,
                           background: checked ? (accent ?? colors.statusActive) : colors.borderSubtle,
                           opacity: checked ? 0.85 : 0.4,
+                          // Extra left margin at di===7 creates a visual week boundary (prev-7 | cur-7)
+                          marginLeft: di === 7 ? 5 : 0,
                         }}
                       />
                     );
                   })}
-                  {/* 14-day completion count: compact N/14 summary so user doesn't have to count dots */}
+                  {/* Weekly completion count — N/7 with trend arrow; tooltip shows both weeks for context */}
                   <span
-                    title={`최근 14일 중 ${checkedCount14}일 체크`}
+                    title={`최근 7일 ${checkedCount7}/7 · 이전 7일 ${prevWeekCount7}/7 · 14일 합계 ${checkedCount7 + prevWeekCount7}일`}
                     style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginLeft: 3, opacity: 0.7 }}
                   >
-                    {checkedCount14}/14
+                    {checkedCount7}/7{weekTrend}
                   </span>
                 </div>
               )}
