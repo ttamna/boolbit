@@ -29,6 +29,14 @@ function phaseLabel(p: Phase): string {
   return "긴 휴식";
 }
 
+// Formats cumulative focus minutes as "Xh Ym" (≥60 min) or "Xm" (<60 min) for the ∑ badge.
+function formatLifetime(mins: number): string {
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
 async function notify(title: string, body: string) {
   try {
     const granted = await isPermissionGranted();
@@ -46,7 +54,7 @@ interface PomodoroTimerProps {
   initialDurations?: { focus: number; break: number; longBreak?: number };
   onDurationsChange?: (d: { focus: number; break: number; longBreak: number }) => void;
   sessionsToday?: number;              // completed focus sessions today, from persisted data
-  onSessionComplete?: () => void;      // called when a focus phase finishes
+  onSessionComplete?: (focusMins: number) => void; // called when a focus phase finishes; receives the duration that was counted
   initialAutoStart?: boolean;          // persisted auto-start preference
   onAutoStartChange?: (v: boolean) => void; // persist toggle
   initialOpen?: boolean;               // persisted open/closed state
@@ -58,12 +66,13 @@ interface PomodoroTimerProps {
   initialNotify?: boolean;             // persisted notify preference; absent/true = enabled
   onNotifyChange?: (v: boolean) => void; // persist toggle
   sessionHistory?: PomodoroDay[];      // rolling 14-day daily session counts for the 14-day heatmap
+  lifetimeMins?: number;               // cumulative focus minutes across all sessions; absent = 0
   focusProject?: string;   // name of the ★-marked project; shown in header during focus sessions
   onMoveUp?: () => void;   // reorder: move this section one step earlier
   onMoveDown?: () => void; // reorder: move this section one step later
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, sessionHistory, focusProject, onMoveUp, onMoveDown }: PomodoroTimerProps) {
+export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, sessionHistory, lifetimeMins, focusProject, onMoveUp, onMoveDown }: PomodoroTimerProps) {
   const [open, setOpen] = useState(initialOpen);
   const [headerHovered, setHeaderHovered] = useState(false);
   // todayStr: refreshed every minute to catch midnight rollover (same pattern as HabitStreak)
@@ -142,7 +151,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
         const currentPhase = phaseRef.current;
         let next: Phase;
         if (currentPhase === "focus") {
-          onSessionCompleteRef.current?.();
+          onSessionCompleteRef.current?.(durationsRef.current.focus);
           const newCount = cycleCountRef.current + 1;
           if (newCount >= longBreakIntervalRef.current) {
             next = "longBreak";
@@ -284,6 +293,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const sessionCountStr = sessionGoal != null
     ? goalReached ? `✓${sessionsToday}` : `×${sessionsToday}/${sessionGoal}`
     : `×${sessionsToday}`;
+  // lt: lifetime minutes — 0 when absent (pre-feature); used for ∑ badge guard and display
+  const lt = lifetimeMins ?? 0;
 
   // Determine what the next phase will be when skip is pressed (for tooltip)
   const skipNextPhase: Phase = phase === "focus"
@@ -336,6 +347,14 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           {(sessionsToday > 0 || sessionGoal != null) && (
             <span style={{ fontSize: fontSizes.mini, color: goalReached ? colors.statusActive : colors.textSubtle }}>
               🍅 {sessionCountStr}{sessionsToday > 0 ? ` · ${todayTimeStr}` : ""}
+            </span>
+          )}
+          {lt > 0 && (
+            <span
+              title={`총 집중 투자: ${formatLifetime(lt)} (${lt}분)`}
+              style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, opacity: 0.7 }}
+            >
+              ∑{formatLifetime(lt)}
             </span>
           )}
           <span style={{ ...mono, fontSize: fontSizes.xs, color: accent }}>

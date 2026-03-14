@@ -404,7 +404,7 @@ export default function App() {
     persist({ ...snapshot, projects: updatedProjects });
   }, [settings.githubPat, persist]);
 
-  const handlePomodoroSession = useCallback(() => {
+  const handlePomodoroSession = useCallback((focusMins: number) => {
     const today = new Date().toLocaleDateString("sv"); // YYYY-MM-DD local date (sv = Swedish = ISO format)
     const count = data.pomodoroSessionsDate === today ? (data.pomodoroSessions ?? 0) + 1 : 1;
     // Upsert today's count into rolling history: remove old entry for today, append updated, sort, cap at 14.
@@ -420,7 +420,7 @@ export default function App() {
           i === focusIdx ? { ...p, pomodoroSessions: (p.pomodoroSessions ?? 0) + 1, lastFocusDate: today } : p
         )
       : data.projects;
-    persist({ ...data, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects });
+    persist({ ...data, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects, pomodoroLifetimeMins: (data.pomodoroLifetimeMins ?? 0) + focusMins });
   }, [data, persist]);
 
   const toggleSection = useCallback((section: SectionKey) => {
@@ -648,6 +648,7 @@ export default function App() {
                   initialNotify={data.pomodoroNotify}
                   onNotifyChange={updatePomodoroNotify}
                   sessionHistory={data.pomodoroHistory}
+                  lifetimeMins={data.pomodoroLifetimeMins}
                   focusProject={data.projects.find(p => p.isFocus)?.name}
                   onMoveUp={up}
                   onMoveDown={dn}

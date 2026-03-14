@@ -85,6 +85,7 @@ export interface WidgetData {
   quarterGoalDate?: string; // "YYYY-Q1"…"YYYY-Q4" when quarterGoal was last set; absent = not tracked
   yearGoal?: string;      // one-line yearly goal; absent = not set
   yearGoalDate?: string;  // "YYYY" when yearGoal was last set; absent = not tracked
+  pomodoroLifetimeMins?: number; // cumulative focus minutes across all sessions; absent = 0 (pre-feature)
 }
 
 export interface WindowPosition {

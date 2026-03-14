@@ -186,6 +186,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "yearGoalDate")]
     pub year_goal_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "pomodoroLifetimeMins")]
+    pub pomodoro_lifetime_mins: Option<u32>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -324,6 +327,7 @@ fn default_data() -> WidgetData {
         quarter_goal_date: None,
         year_goal: None,
         year_goal_date: None,
+        pomodoro_lifetime_mins: None,
     }
 }
 
@@ -377,6 +381,10 @@ fn load_data() -> WidgetData {
     // Sanitize pomodoro_long_break_interval: values < 2 would trigger long break every session
     if data.pomodoro_long_break_interval.map(|n| n < 2).unwrap_or(false) {
         data.pomodoro_long_break_interval = None;
+    }
+    // Sanitize pomodoro_lifetime_mins: 0 means no sessions recorded (consistent with other counters)
+    if data.pomodoro_lifetime_mins == Some(0) {
+        data.pomodoro_lifetime_mins = None;
     }
     // Sanitize habit target_streak and best_streak: 0 is equivalent to "no value" (same as pomodoro_session_goal)
     // Sanitize check_history: deduplicate, sort, and cap at 14 entries to prevent unbounded growth
