@@ -13,10 +13,33 @@ function headers(pat: string) {
   };
 }
 
-function ciStatus(conclusion: string | null): GitHubData["ciStatus"] {
+export function ciStatus(conclusion: string | null): "success" | "failure" | "pending" {
   if (conclusion === null) return "pending";
   if (conclusion === "success") return "success";
   return "failure";
+}
+
+// open_issues_count on GitHub includes PRs — subtract to get pure issue count, clamped at 0
+export function calcOpenIssues(
+  rawCount: number | null | undefined,
+  prCount: number,
+): number {
+  return Math.max(0, (rawCount ?? 0) - prCount);
+}
+
+// Extracts lastCommitAt and lastCommitMsg from the GitHub commits API response.
+// fallbackDate is used when the response is empty or dates are absent, keeping this function pure.
+export function parseLastCommit(
+  commitsJson: unknown,
+  fallbackDate: string,
+): { lastCommitAt: string; lastCommitMsg: string } {
+  const lastCommit = Array.isArray(commitsJson) && commitsJson.length > 0 ? commitsJson[0] : null;
+  const lastCommitAt =
+    lastCommit?.commit?.committer?.date ??
+    lastCommit?.commit?.author?.date ??
+    fallbackDate;
+  const lastCommitMsg = lastCommit?.commit?.message?.split("\n")[0] ?? "";
+  return { lastCommitAt, lastCommitMsg };
 }
 
 export async function verifyRepo(pat: string, repo: string): Promise<{ ok: boolean; msg: string }> {
@@ -49,16 +72,13 @@ export async function fetchRepoData(pat: string, repo: string): Promise<GitHubDa
   const repoJson = await repoRes.json();
   const commitsJson = await commitsRes.json();
 
-  const lastCommit = Array.isArray(commitsJson) && commitsJson.length > 0 ? commitsJson[0] : null;
-  const lastCommitAt = lastCommit?.commit?.committer?.date ?? lastCommit?.commit?.author?.date ?? new Date().toISOString();
-  const lastCommitMsg = lastCommit?.commit?.message?.split("\n")[0] ?? "";
+  const { lastCommitAt, lastCommitMsg } = parseLastCommit(commitsJson, new Date().toISOString());
 
   // Pull requests count
   const pullsJson = pullsRes.ok ? await pullsRes.json() : [];
   const openPrs = Array.isArray(pullsJson) ? pullsJson.length : 0;
 
-  // open_issues_count on GitHub includes PRs — subtract to get pure issue count
-  const openIssues = Math.max(0, (repoJson.open_issues_count ?? 0) - openPrs);
+  const openIssues = calcOpenIssues(repoJson.open_issues_count, openPrs);
 
   // CI status: 404 means Actions not enabled → null
   let ci: GitHubData["ciStatus"] = null;
