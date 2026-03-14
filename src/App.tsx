@@ -599,7 +599,7 @@ export default function App() {
             <Fragment key="projects">
               <SectionLabel accent={themeAccent} collapsed={collapsed.includes("projects")} onToggle={() => toggleSection("projects")} badge={projectsBadge} onMoveUp={up} onMoveDown={dn}>Projects</SectionLabel>
               {!collapsed.includes("projects") && (
-                <ProjectList projects={data.projects} onUpdate={updateProject} onProjectsChange={updateProjects} pat={settings.githubPat} onRefreshAll={refreshAllProjects} />
+                <ProjectList projects={data.projects} onUpdate={updateProject} onProjectsChange={updateProjects} pat={settings.githubPat} onRefreshAll={refreshAllProjects} sessionsToday={pomodoroSessionsToday} sessionGoal={data.pomodoroSessionGoal} />
               )}
             </Fragment>
           );

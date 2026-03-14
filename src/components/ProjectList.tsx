@@ -1,5 +1,5 @@
 // ABOUTME: ProjectList component - renders project list with add/delete/reorder in edit mode
-// ABOUTME: onRefreshAll enables batch GitHub refresh; paused+done projects are collapsible; ↕ auto-sort by focus+urgency in view mode
+// ABOUTME: onRefreshAll enables batch GitHub refresh; paused+done projects are collapsible; ↕ auto-sort by focus+urgency in view mode; sessionsToday/sessionGoal forwarded to ★ focus ProjectCard
 
 import { useState, type CSSProperties } from "react";
 import type { Project } from "../types";
@@ -13,9 +13,11 @@ interface ProjectListProps {
   onProjectsChange: (projects: Project[]) => void;
   pat?: string;
   onRefreshAll?: () => Promise<void>;   // batch-refresh all projects with a GitHub repo set
+  sessionsToday?: number;               // today's pomodoro focus sessions; forwarded to ★ focus card
+  sessionGoal?: number;                 // daily session goal; forwarded to ★ focus card
 }
 
-export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefreshAll }: ProjectListProps) {
+export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefreshAll, sessionsToday, sessionGoal }: ProjectListProps) {
   const [newName, setNewName] = useState("");
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [showPaused, setShowPaused] = useState(false);
@@ -99,6 +101,8 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
                 onUpdate={patch => onUpdate(p.id, patch)}
                 onDelete={() => onProjectsChange(projects.filter(x => x.id !== p.id))}
                 pat={pat}
+                sessionsToday={sessionsToday}
+                sessionGoal={sessionGoal}
               />
             </div>
           </div>
@@ -151,7 +155,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
   return (
     <div>
       {runningProjects.map(p => (
-        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} />
+        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} />
       ))}
       {/* Paused projects: collapsed by default, expand via toggle */}
       {pausedProjects.length > 0 && (
@@ -168,7 +172,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
         </button>
       )}
       {showPaused && pausedProjects.map(p => (
-        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} />
+        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} />
       ))}
       {/* Done projects: collapsed by default, expand via toggle */}
       {doneProjects.length > 0 && (
@@ -185,7 +189,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
         </button>
       )}
       {showDone && doneProjects.map(p => (
-        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} />
+        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} />
       ))}
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, marginTop: 4 }}>
         {/* Sort: visible when there are 2+ non-done projects (running + paused) to sort */}

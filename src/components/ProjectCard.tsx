@@ -1,5 +1,5 @@
 // ABOUTME: ProjectCard component - displays a single project with progress bar and metrics
-// ABOUTME: Status cycles active→in-progress→paused→done; done=violet+dimmed; isFocus=★ amber priority marker
+// ABOUTME: Status cycles active→in-progress→paused→done; done=violet+dimmed; isFocus=★ amber priority marker; sessionsToday shows today's focus progress on ★ project
 
 import { useState, CSSProperties } from "react";
 import type { Project, GitHubData } from "../types";
@@ -118,9 +118,11 @@ interface ProjectCardProps {
   onUpdate?: (patch: Partial<Project>) => void;
   onDelete?: () => void;
   pat?: string;
+  sessionsToday?: number;   // focus sessions completed today (app-global, from pomodoro); shown on isFocus project only
+  sessionGoal?: number;     // daily session goal (from pomodoroSessionGoal); undefined = no goal set
 }
 
-export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardProps) {
+export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, sessionGoal }: ProjectCardProps) {
   // Neutral fallback for unknown status values from deserialized JSON
   const color = PROJECT_STATUS_COLORS[project.status] ?? colors.textDim;
 
@@ -222,6 +224,17 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
               style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, padding: "0 2px", lineHeight: 1 }}
             >
               🍅{project.pomodoroSessions}
+            </span>
+          )}
+          {/* Today's sessions: shown on ★ focus project when at least one session was done today.
+              Goal suffix: /M when daily goal is set and not yet reached; omitted when done or no goal.
+              ↑ arrow mirrors the ⊖ stale indicator — "up today" vs "stale past". */}
+          {project.isFocus && project.status !== "done" && (sessionsToday ?? 0) > 0 && (
+            <span
+              title={`오늘 ${sessionsToday}회 집중${sessionGoal != null && sessionGoal > 0 ? ` (목표 ${sessionGoal}회)` : ""}`}
+              style={{ ...mono, fontSize: fontSizes.mini, color: colors.textMid, padding: "0 2px", lineHeight: 1 }}
+            >
+              🍅{sessionsToday}{sessionGoal != null && sessionGoal > 0 && (sessionsToday ?? 0) < sessionGoal ? `/${sessionGoal}` : ""}↑
             </span>
           )}
           {/* Last focus stale indicator: visible when lastFocusDate was set on a prior day.
