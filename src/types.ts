@@ -54,6 +54,7 @@ export interface PomodoroDay {
 export interface IntentionEntry {
   date: string;  // YYYY-MM-DD
   text: string;  // the intention text for that day
+  done?: boolean; // true when the user marked the intention as accomplished; absent = not done
 }
 
 export interface WidgetData {

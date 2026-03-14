@@ -291,8 +291,12 @@ export default function App() {
     // Append/update today's entry in rolling 7-day history when setting a non-empty intention.
     // When clearing, leave history unchanged so the last set text is preserved for reflection.
     const history: IntentionEntry[] = snapshot.intentionHistory ?? [];
+    // preserve done (single source: todayIntentionDone) when text is unchanged — same contract as below
     const updatedHistory = intention
-      ? [...history.filter(e => e.date !== today), { date: today, text: intention }].slice(-7)
+      ? [...history.filter(e => e.date !== today), {
+          date: today, text: intention,
+          ...(snapshot.todayIntentionDone && intention === snapshot.todayIntention ? { done: true } : {}),
+        }].slice(-7)
       : history.length > 0 ? history : undefined;
     // Clear done when intention is cleared OR when text changes; done is tied to the specific text
     const todayIntentionDone = (intention && intention === snapshot.todayIntention) ? snapshot.todayIntentionDone : undefined;
@@ -301,8 +305,25 @@ export default function App() {
 
   const updateIntentionDone = useCallback((done: boolean) => {
     const snapshot = dataRef.current;
+    const today = new Date().toLocaleDateString("sv");
+    // Persist done state in today's history entry so it survives midnight reset
+    const history = snapshot.intentionHistory ?? [];
+    let updatedHistory: IntentionEntry[];
+    if (history.some(e => e.date === today)) {
+      updatedHistory = history.map(e => e.date === today ? { ...e, done: done || undefined } : e);
+    } else if (done && snapshot.todayIntention) {
+      // today entry absent + done=true: upsert so done survives midnight reset
+      // done=false: skip — no history entry exists, nothing to clear
+      updatedHistory = [...history, { date: today, text: snapshot.todayIntention, done: true }].slice(-7);
+    } else {
+      updatedHistory = history;
+    }
     // Only meaningful when an intention exists; false is stored as absent to keep JSON lean
-    persist({ ...snapshot, todayIntentionDone: done || undefined });
+    persist({
+      ...snapshot,
+      todayIntentionDone: done || undefined,
+      intentionHistory: updatedHistory.length > 0 ? updatedHistory : undefined,
+    });
   }, [persist]);
 
   const updateWeekGoal = useCallback((weekGoal: string) => {
@@ -713,7 +734,8 @@ export default function App() {
                         {pastIntentions.map(e => (
                           <div key={e.date} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 3 }}>
                             <span style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, flexShrink: 0, minWidth: 32 }}>{e.date.slice(5)}</span>
-                            <span style={{ fontSize: fontSizes.xs, color: colors.textLabel, fontStyle: "italic", lineHeight: 1.4 }}>{e.text}</span>
+                            {e.done && <span style={{ fontSize: fontSizes.mini, color: themeAccent, flexShrink: 0, lineHeight: 1.4 }}>✓</span>}
+                            <span style={{ fontSize: fontSizes.xs, color: colors.textLabel, fontStyle: "italic", lineHeight: 1.4, opacity: e.done ? 0.55 : 1 }}>{e.text}</span>
                           </div>
                         ))}
                       </div>
