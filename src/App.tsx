@@ -14,6 +14,7 @@ import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction } from "./lib/datePeriods";
 import { calcIntentionStreak } from "./lib/intention";
+import { calcHabitsWeekRate } from "./lib/habits";
 import { isoWeekStr, quarterStr } from "./lib/goalPeriods";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
@@ -714,17 +715,8 @@ export default function App() {
   const intentionDoneCount7 = intentionLast7.filter(d => d.set && d.done).length;
 
   // habitsWeekRate: average daily habit completion rate (%) over the last 7 days.
-  // Returns null when no habit has any check within the last 7 days (avoids misleading 0%).
-  const habitsWeekRate = (() => {
-    if (habitsArr.length === 0) return null;
-    // Require at least one check within the 7-day window before showing a rate.
-    const anyInWindow = habitsArr.some(h => last7Days.some(day => h.checkHistory?.includes(day)));
-    if (!anyInWindow) return null;
-    const avgRate = last7Days.reduce((sum, day) => {
-      return sum + habitsArr.filter(h => h.checkHistory?.includes(day)).length / habitsArr.length;
-    }, 0) / 7;
-    return Math.round(avgRate * 100);
-  })();
+  // Pure function extracted to src/lib/habits.ts for testability.
+  const habitsWeekRate = calcHabitsWeekRate(habitsArr, last7Days);
   const habitsBadge = habitsArr.length > 0
     ? [
         `${habitsDoneToday}/${habitsArr.length}`,
