@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; ⊖Nd = neglected N days; ★ = at personal best (streak=bestStreak≥7); edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend
+// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; ⊖Nd = neglected N days; ★ = at personal best (streak=bestStreak≥7); edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend; today completion bar shows N/M progress
 
 import { useState, useEffect, useMemo, useRef, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -41,6 +41,15 @@ function getUpcomingMilestone(streak: number, threshold = 3): { days: number; ba
     if (days > 0 && days <= threshold) return { days, badge };
   }
   return null;
+}
+
+// Returns percentage of habits completed today, clamped to [0, 100].
+// Returns null when habits array is empty (guard against division by zero).
+// Exported for unit testing; pure function with no side effects.
+export function habitsTodayPct(habits: Habit[], todayStr: string): number | null {
+  if (habits.length === 0) return null;
+  const done = habits.filter(h => h.lastChecked === todayStr).length;
+  return Math.min(100, Math.round(done / habits.length * 100));
 }
 
 // Returns days since the most recent check-in based on checkHistory (sorted ascending).
@@ -410,6 +419,11 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
     );
   }
 
+  // Pre-compute today completion bar values once — avoids IIFE + non-null assertion in JSX.
+  // todayDoneCount and todayBarPct are derived from the same todayStr used in the habit grid.
+  const todayDoneCount = habits.filter(h => h.lastChecked === todayStr).length;
+  const todayBarPct = habitsTodayPct(habits, todayStr); // null when habits is empty
+
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
@@ -607,6 +621,24 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
           );
         })}
       </div>
+      {/* Today completion bar — ambient 2px strip showing what fraction of habits are done today.
+          Consistent visual language with Clock (day bar), DragBar (year bar), Direction (period bars).
+          Always shown when habits exist (even at 0%) to signal "habits need attention" at day start. */}
+      {todayBarPct !== null && (
+        <div
+          title={`오늘 ${todayDoneCount}/${habits.length} 완료`}
+          style={{ marginTop: 6, height: 2, background: colors.borderSubtle, borderRadius: 1, overflow: "hidden" }}
+        >
+          <div style={{
+            width: `${todayBarPct}%`,
+            height: "100%",
+            background: accent ?? colors.statusActive,
+            borderRadius: 1,
+            opacity: todayBarPct >= 100 ? 0.85 : 0.45,
+            transition: "width 0.4s ease",
+          }} />
+        </div>
+      )}
       {onHabitsChange && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
           {/* "✓ 전체" — only when ≥1 habit is unchecked today; hides when all done to avoid confusion */}

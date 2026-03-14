@@ -1,9 +1,9 @@
 // ABOUTME: Unit tests for HabitStreak pure helper functions and component rendering
-// ABOUTME: Covers habitLastCheckDaysAgo, habit notes visibility, sort button behavior, and personal-best indicator
+// ABOUTME: Covers habitLastCheckDaysAgo, habitsTodayPct, habit notes visibility, sort button behavior, and personal-best indicator
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { habitLastCheckDaysAgo, HabitStreak } from "./HabitStreak";
+import { habitLastCheckDaysAgo, habitsTodayPct, HabitStreak } from "./HabitStreak";
 import type { Habit } from "../types";
 
 describe("habitLastCheckDaysAgo", () => {
@@ -49,6 +49,117 @@ describe("habitLastCheckDaysAgo", () => {
   it("should return null for future lastCheck dates (clock skew or manual edit)", () => {
     // Future date produces negative days; days >= 2 is false, so null is returned safely
     expect(habitLastCheckDaysAgo(["2026-03-20"], TODAY)).toBeNull();
+  });
+});
+
+describe("habitsTodayPct", () => {
+  const TODAY = "2026-03-15";
+
+  it("should return null when habits array is empty", () => {
+    expect(habitsTodayPct([], TODAY)).toBeNull();
+  });
+
+  it("should return 0 when no habits are done today", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 3, icon: "🏃" },
+      { id: "h2", name: "Read", streak: 1, icon: "📚" },
+    ];
+    expect(habitsTodayPct(habits, TODAY)).toBe(0);
+  });
+
+  it("should return 100 when all habits are done today", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 3, icon: "🏃", lastChecked: TODAY },
+      { id: "h2", name: "Read", streak: 1, icon: "📚", lastChecked: TODAY },
+    ];
+    expect(habitsTodayPct(habits, TODAY)).toBe(100);
+  });
+
+  it("should return 50 when half the habits are done today", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 3, icon: "🏃", lastChecked: TODAY },
+      { id: "h2", name: "Read", streak: 1, icon: "📚" },
+    ];
+    expect(habitsTodayPct(habits, TODAY)).toBe(50);
+  });
+
+  it("should round to nearest integer", () => {
+    // 1/3 = 33.33... → 33
+    const habits: Habit[] = [
+      { id: "h1", name: "A", streak: 1, icon: "A", lastChecked: TODAY },
+      { id: "h2", name: "B", streak: 1, icon: "B" },
+      { id: "h3", name: "C", streak: 1, icon: "C" },
+    ];
+    expect(habitsTodayPct(habits, TODAY)).toBe(33);
+  });
+
+  it("should not count habits checked on a different day", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 3, icon: "🏃", lastChecked: "2026-03-14" },
+    ];
+    expect(habitsTodayPct(habits, TODAY)).toBe(0);
+  });
+
+  it("should return 100 for a single habit done today", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 1, icon: "🏃", lastChecked: TODAY },
+    ];
+    expect(habitsTodayPct(habits, TODAY)).toBe(100);
+  });
+});
+
+describe("HabitStreak today completion bar", () => {
+  const TODAY = "2026-03-15";
+
+  // Pin system time (UTC noon) so the component's internal getToday() matches the TODAY fixture.
+  // UTC+12/UTC-12 edge cases are excluded but do not affect the project's target runtime (KST, UTC).
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00Z"));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("should render today completion bar tooltip when at least one habit is checked today", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 3, icon: "🏃", lastChecked: TODAY },
+      { id: "h2", name: "Read", streak: 1, icon: "📚" },
+    ];
+    render(<HabitStreak habits={habits} />);
+    expect(screen.getByTitle("오늘 1/2 완료")).toBeDefined();
+  });
+
+  it("should apply 50% width to bar inner div when half done", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 3, icon: "🏃", lastChecked: TODAY },
+      { id: "h2", name: "Read", streak: 1, icon: "📚" },
+    ];
+    render(<HabitStreak habits={habits} />);
+    const container = screen.getByTitle("오늘 1/2 완료");
+    const innerBar = container.firstElementChild as HTMLElement;
+    expect(innerBar.style.width).toBe("50%");
+  });
+
+  it("should render today completion bar tooltip at 0% when no habits done", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 3, icon: "🏃" },
+    ];
+    render(<HabitStreak habits={habits} />);
+    expect(screen.getByTitle("오늘 0/1 완료")).toBeDefined();
+  });
+
+  it("should apply 0% width to bar inner div when no habits done", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 3, icon: "🏃" },
+    ];
+    render(<HabitStreak habits={habits} />);
+    const container = screen.getByTitle("오늘 0/1 완료");
+    const innerBar = container.firstElementChild as HTMLElement;
+    expect(innerBar.style.width).toBe("0%");
+  });
+
+  it("should not render today completion bar when habits array is empty", () => {
+    render(<HabitStreak habits={[]} />);
+    expect(screen.queryByTitle(/오늘 \d+\/\d+ 완료/)).toBeNull();
   });
 });
 
