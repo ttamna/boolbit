@@ -501,15 +501,27 @@ export default function App() {
             {projectsArr.map(p => {
               // Neutral fallback for unknown status values from deserialized JSON
               const sc = PROJECT_STATUS_COLORS[p.status] ?? colors.textDim;
+              const isFocused = !!p.isFocus;
+              // Done projects can clear a stale focus but cannot be newly focused.
+              const canFocus = p.status !== "done" || isFocused;
               return (
-                <div key={p.id} title={`${p.name} · ${p.status}`} style={{
-                  width: 20, height: 20, borderRadius: radius.chip,
-                  background: `${sc}22`,
-                  border: `1px solid ${sc}44`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  ...s.mono, fontSize: fontSizes.mini, color: sc, fontWeight: 600,
-                }}>
-                  {p.name[0]}
+                <div
+                  key={p.id}
+                  title={isFocused ? `★ ${p.name} (집중 중) — 클릭하여 해제` : canFocus ? `${p.name} · ${p.status} — 클릭하여 집중 표시` : `${p.name} · 완료`}
+                  onClick={canFocus ? () => updateProject(p.id, { isFocus: isFocused ? undefined : true }) : undefined}
+                  style={{
+                    width: 20, height: 20, borderRadius: radius.chip,
+                    background: isFocused ? `${colors.statusProgress}22` : `${sc}22`,
+                    border: `1px solid ${isFocused ? colors.statusProgress + "66" : sc + "44"}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    ...s.mono, fontSize: fontSizes.mini,
+                    color: isFocused ? colors.statusProgress : sc,
+                    fontWeight: 600,
+                    cursor: canFocus ? "pointer" : "default",
+                    transition: "border-color 0.2s, color 0.2s, background 0.2s",
+                  }}
+                >
+                  {isFocused ? "★" : (p.name.trim()[0] ?? "?")}
                 </div>
               );
             })}
