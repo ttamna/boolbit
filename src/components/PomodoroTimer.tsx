@@ -1,5 +1,5 @@
 // ABOUTME: PomodoroTimer component - configurable focus/break timer with desktop notification
-// ABOUTME: Durations, auto-start, notify toggle, daily session goal, long-break interval, and section reorder are inline-configurable
+// ABOUTME: Durations, auto-start, notify toggle, daily session goal, long-break interval, section reorder, and 14-day session heatmap are inline-configurable
 
 import { useState, useEffect, useRef, useMemo, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
@@ -57,7 +57,7 @@ interface PomodoroTimerProps {
   onLongBreakIntervalChange?: (n: number) => void; // persist interval
   initialNotify?: boolean;             // persisted notify preference; absent/true = enabled
   onNotifyChange?: (v: boolean) => void; // persist toggle
-  sessionHistory?: PomodoroDay[];      // rolling 14-day daily session counts for the 7-day heatmap
+  sessionHistory?: PomodoroDay[];      // rolling 14-day daily session counts for the 14-day heatmap
   focusProject?: string;   // name of the ★-marked project; shown in header during focus sessions
   onMoveUp?: () => void;   // reorder: move this section one step earlier
   onMoveDown?: () => void; // reorder: move this section one step later
@@ -237,13 +237,14 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
 
   const accent = phaseAccent(phase);
 
-  // Last 7 days (oldest to newest) derived from todayStr — recomputed when history changes or at midnight.
-  const last7Days = useMemo(() => {
+  // Last 14 days (oldest to newest) derived from todayStr — recomputed when history changes or at midnight.
+  // pomodoroHistory is capped at 14 entries in lib.rs sanitize; rendering all 14 uses stored data fully.
+  const last14Days = useMemo(() => {
     if (!sessionHistory) return null;
     const base = new Date(todayStr + "T00:00:00");
-    return Array.from({ length: 7 }, (_, i) => {
+    return Array.from({ length: 14 }, (_, i) => {
       const d = new Date(base);
-      d.setDate(d.getDate() - (6 - i));
+      d.setDate(d.getDate() - (13 - i));
       return d.toLocaleDateString("sv");
     });
   }, [sessionHistory, todayStr]);
@@ -326,13 +327,13 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
         </div>
       )}
 
-      {/* 7-day session heatmap — shown whenever there is any history; right-aligned to match session badge */}
-      {last7Days && sessionHistory && sessionHistory.length > 0 && (
+      {/* 14-day session heatmap — shown whenever there is any history; right-aligned to match session badge */}
+      {last14Days && sessionHistory && sessionHistory.length > 0 && (
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 2, paddingBottom: 6 }}>
-          {last7Days.map((day, di) => {
+          {last14Days.map((day, di) => {
             const entry = sessionHistory.find(h => h.date === day);
             const count = entry?.count ?? 0;
-            const daysAgo = 6 - di;
+            const daysAgo = 13 - di;
             const label = daysAgo === 0
               ? `오늘 ${count}회`
               : daysAgo === 1
