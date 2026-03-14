@@ -167,6 +167,12 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "monthGoalDate")]
     pub month_goal_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "yearGoal")]
+    pub year_goal: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "yearGoalDate")]
+    pub year_goal_date: Option<String>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -297,6 +303,8 @@ fn default_data() -> WidgetData {
         week_goal_date: None,
         month_goal: None,
         month_goal_date: None,
+        year_goal: None,
+        year_goal_date: None,
     }
 }
 
@@ -481,6 +489,31 @@ fn load_data() -> WidgetData {
     }
     if data.month_goal_date.is_some() && data.month_goal.is_none() {
         data.month_goal_date = None;
+    }
+    // Sanitize year_goal: trim whitespace; empty → None; cap at 200 Unicode chars
+    if let Some(ref mut yg) = data.year_goal {
+        *yg = yg.trim().to_string();
+        if yg.is_empty() {
+            data.year_goal = None;
+            data.year_goal_date = None;
+        } else if yg.chars().count() > 200 {
+            *yg = yg.chars().take(200).collect();
+        }
+    }
+    // Sanitize year_goal_date: must be "YYYY" format (4 digits, e.g. "2026")
+    let year_goal_date_valid = data.year_goal_date.as_deref().map(|d| {
+        d.len() == 4 && d.bytes().all(|b| b.is_ascii_digit())
+    }).unwrap_or(true);
+    if !year_goal_date_valid {
+        data.year_goal = None;
+        data.year_goal_date = None;
+    }
+    // Clear orphan year_goal/year_goal_date when partner field is absent
+    if data.year_goal.is_some() && data.year_goal_date.is_none() {
+        data.year_goal = None;
+    }
+    if data.year_goal_date.is_some() && data.year_goal.is_none() {
+        data.year_goal_date = None;
     }
     // Sanitize project fields: remove empty strings; normalize is_focus(false) → absent
     for project in &mut data.projects {

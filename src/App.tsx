@@ -138,13 +138,17 @@ export default function App() {
           // Clear month goal when the calendar month has advanced past the month it was set
           const currentMonth = todayStr.slice(0, 7); // "YYYY-MM" — reuse todayStr base
           const monthGoalStale = !!(saved.monthGoal && saved.monthGoalDate && saved.monthGoalDate < currentMonth);
-          const needsSave = hadExpired || needsIdMigration || intentionStale || weekGoalStale || monthGoalStale;
+          // Clear year goal when the calendar year has advanced past the year it was set
+          const currentYear = todayStr.slice(0, 4); // "YYYY" — first 4 chars of sv locale date
+          const yearGoalStale = !!(saved.yearGoal && saved.yearGoalDate && saved.yearGoalDate < currentYear);
+          const needsSave = hadExpired || needsIdMigration || intentionStale || weekGoalStale || monthGoalStale || yearGoalStale;
           const resolvedData = needsSave ? {
             ...saved,
             habits: reset,
             ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined } : {}),
             ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined } : {}),
             ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined } : {}),
+            ...(yearGoalStale ? { yearGoal: undefined, yearGoalDate: undefined } : {}),
           } : saved;
           setData(resolvedData);
           if (needsSave) await invoke("save_data", { data: resolvedData });
@@ -232,13 +236,17 @@ export default function App() {
       // Clear month goal when the calendar month has advanced past the month it was set.
       const currentMonth = now.toLocaleDateString("sv").slice(0, 7);
       const monthGoalStale = !!(current.monthGoal && current.monthGoalDate && current.monthGoalDate < currentMonth);
-      if (!hadExpired && !intentionStale && !weekGoalStale && !monthGoalStale) return;
+      // Clear year goal when the calendar year has advanced past the year it was set.
+      const currentYear = now.toLocaleDateString("sv").slice(0, 4);
+      const yearGoalStale = !!(current.yearGoal && current.yearGoalDate && current.yearGoalDate < currentYear);
+      if (!hadExpired && !intentionStale && !weekGoalStale && !monthGoalStale && !yearGoalStale) return;
       await persist({
         ...current,
         habits: reset,
         ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined } : {}),
         ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined } : {}),
         ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined } : {}),
+        ...(yearGoalStale ? { yearGoal: undefined, yearGoalDate: undefined } : {}),
       });
     }, 60_000);
     return () => clearInterval(id);
@@ -286,6 +294,14 @@ export default function App() {
     const monthGoalDate = goal ? new Date().toLocaleDateString("sv").slice(0, 7) : undefined;
     const snapshot = dataRef.current;
     persist({ ...snapshot, monthGoal: goal, monthGoalDate });
+  }, [persist]);
+
+  const updateYearGoal = useCallback((yearGoal: string) => {
+    const goal = yearGoal !== "" ? yearGoal : undefined;
+    // yearGoalDate format: "YYYY" — first 4 chars of the sv locale date string
+    const yearGoalDate = goal ? new Date().toLocaleDateString("sv").slice(0, 4) : undefined;
+    const snapshot = dataRef.current;
+    persist({ ...snapshot, yearGoal: goal, yearGoalDate });
   }, [persist]);
 
   const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number; longBreak: number }) => {
@@ -438,9 +454,10 @@ export default function App() {
       ].filter(Boolean).join(" · ")
     : undefined;
 
-  // Derived: Direction badge — shows week goal + intention status + quote count for quick overview when collapsed
+  // Derived: Direction badge — shows year/month/week goal + intention status + quote count for quick overview when collapsed
   const directionBadge = (() => {
     const parts: string[] = [];
+    if (data.yearGoal) parts.push("Y✓");
     if (data.monthGoal) parts.push("M✓");
     if (data.weekGoal) parts.push("W✓");
     if (data.todayIntention) parts.push("✓");
@@ -539,6 +556,19 @@ export default function App() {
                 <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")} badge={directionBadge} onMoveUp={up} onMoveDown={dn}>Direction</SectionLabel>
                 {!collapsed.includes("direction") && (
                   <>
+                    {/* Year goal — auto-expires when calendar year advances; ✕ clears when set */}
+                    <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.yearGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>Y</span>
+                      <InlineEdit
+                        value={data.yearGoal ?? ""}
+                        onSave={updateYearGoal}
+                        placeholder="올해의 목표..."
+                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.yearGoal ? { color: colors.textSubtle } : {}) }}
+                      />
+                      {data.yearGoal && (
+                        <button onClick={() => updateYearGoal("")} title="연간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
+                      )}
+                    </div>
                     {/* Month goal — auto-expires when calendar month advances; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
                       <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.monthGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>M</span>
