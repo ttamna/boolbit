@@ -169,11 +169,17 @@ pub struct WidgetData {
     #[serde(rename = "weekGoalDate")]
     pub week_goal_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "weekGoalDone")]
+    pub week_goal_done: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "monthGoal")]
     pub month_goal: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "monthGoalDate")]
     pub month_goal_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "monthGoalDone")]
+    pub month_goal_done: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "quarterGoal")]
     pub quarter_goal: Option<String>,
@@ -181,11 +187,17 @@ pub struct WidgetData {
     #[serde(rename = "quarterGoalDate")]
     pub quarter_goal_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "quarterGoalDone")]
+    pub quarter_goal_done: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "yearGoal")]
     pub year_goal: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "yearGoalDate")]
     pub year_goal_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "yearGoalDone")]
+    pub year_goal_done: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "pomodoroLifetimeMins")]
     pub pomodoro_lifetime_mins: Option<u32>,
@@ -321,12 +333,16 @@ fn default_data() -> WidgetData {
         intention_history: None,
         week_goal: None,
         week_goal_date: None,
+        week_goal_done: None,
         month_goal: None,
         month_goal_date: None,
+        month_goal_done: None,
         quarter_goal: None,
         quarter_goal_date: None,
+        quarter_goal_done: None,
         year_goal: None,
         year_goal_date: None,
+        year_goal_done: None,
         pomodoro_lifetime_mins: None,
     }
 }
@@ -487,6 +503,10 @@ fn load_data() -> WidgetData {
     if data.week_goal_date.is_some() && data.week_goal.is_none() {
         data.week_goal_date = None;
     }
+    // Clear week_goal_done if week_goal is absent (done without a goal is meaningless)
+    if data.week_goal.is_none() {
+        data.week_goal_done = None;
+    }
     // Sanitize month_goal: trim whitespace; empty → None; cap at 200 Unicode chars
     if let Some(ref mut mg) = data.month_goal {
         *mg = mg.trim().to_string();
@@ -521,6 +541,10 @@ fn load_data() -> WidgetData {
     if data.month_goal_date.is_some() && data.month_goal.is_none() {
         data.month_goal_date = None;
     }
+    // Clear month_goal_done if month_goal is absent
+    if data.month_goal.is_none() {
+        data.month_goal_done = None;
+    }
     // Sanitize quarter_goal: trim whitespace; empty → None; cap at 200 Unicode chars
     if let Some(ref mut qg) = data.quarter_goal {
         *qg = qg.trim().to_string();
@@ -552,6 +576,10 @@ fn load_data() -> WidgetData {
     if data.quarter_goal_date.is_some() && data.quarter_goal.is_none() {
         data.quarter_goal_date = None;
     }
+    // Clear quarter_goal_done if quarter_goal is absent
+    if data.quarter_goal.is_none() {
+        data.quarter_goal_done = None;
+    }
     // Sanitize year_goal: trim whitespace; empty → None; cap at 200 Unicode chars
     if let Some(ref mut yg) = data.year_goal {
         *yg = yg.trim().to_string();
@@ -576,6 +604,10 @@ fn load_data() -> WidgetData {
     }
     if data.year_goal_date.is_some() && data.year_goal.is_none() {
         data.year_goal_date = None;
+    }
+    // Clear year_goal_done if year_goal is absent
+    if data.year_goal.is_none() {
+        data.year_goal_done = None;
     }
     // Sanitize project fields: remove empty strings; normalize is_focus(false) → absent
     for project in &mut data.projects {

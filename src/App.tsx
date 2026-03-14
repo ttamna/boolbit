@@ -155,10 +155,10 @@ export default function App() {
             ...saved,
             habits: reset,
             ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined, todayIntentionDone: undefined } : {}),
-            ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined } : {}),
-            ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined } : {}),
-            ...(quarterGoalStale ? { quarterGoal: undefined, quarterGoalDate: undefined } : {}),
-            ...(yearGoalStale ? { yearGoal: undefined, yearGoalDate: undefined } : {}),
+            ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined, weekGoalDone: undefined } : {}),
+            ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined, monthGoalDone: undefined } : {}),
+            ...(quarterGoalStale ? { quarterGoal: undefined, quarterGoalDate: undefined, quarterGoalDone: undefined } : {}),
+            ...(yearGoalStale ? { yearGoal: undefined, yearGoalDate: undefined, yearGoalDone: undefined } : {}),
           } : saved;
           setData(resolvedData);
           if (needsSave) await invoke("save_data", { data: resolvedData });
@@ -257,10 +257,10 @@ export default function App() {
         ...current,
         habits: reset,
         ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined, todayIntentionDone: undefined } : {}),
-        ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined } : {}),
-        ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined } : {}),
-        ...(quarterGoalStale ? { quarterGoal: undefined, quarterGoalDate: undefined } : {}),
-        ...(yearGoalStale ? { yearGoal: undefined, yearGoalDate: undefined } : {}),
+        ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined, weekGoalDone: undefined } : {}),
+        ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined, monthGoalDone: undefined } : {}),
+        ...(quarterGoalStale ? { quarterGoal: undefined, quarterGoalDate: undefined, quarterGoalDone: undefined } : {}),
+        ...(yearGoalStale ? { yearGoal: undefined, yearGoalDate: undefined, yearGoalDone: undefined } : {}),
       });
     }, 60_000);
     return () => clearInterval(id);
@@ -329,15 +329,24 @@ export default function App() {
   const updateWeekGoal = useCallback((weekGoal: string) => {
     const goal = weekGoal !== "" ? weekGoal : undefined;
     const weekGoalDate = goal ? isoWeekStr(new Date()) : undefined;
-    persist({ ...data, weekGoal: goal, weekGoalDate });
-  }, [data, persist]);
+    // Clear done when goal text changes — done is tied to the specific goal text
+    persist({ ...dataRef.current, weekGoal: goal, weekGoalDate, weekGoalDone: undefined });
+  }, [persist]);
+
+  const updateWeekGoalDone = useCallback((done: boolean) => {
+    persist({ ...dataRef.current, weekGoalDone: done || undefined });
+  }, [persist]);
 
   const updateMonthGoal = useCallback((monthGoal: string) => {
     const goal = monthGoal !== "" ? monthGoal : undefined;
     // monthGoalDate format: "YYYY-MM" — first 7 chars of the sv locale date string
     const monthGoalDate = goal ? new Date().toLocaleDateString("sv").slice(0, 7) : undefined;
     const snapshot = dataRef.current;
-    persist({ ...snapshot, monthGoal: goal, monthGoalDate });
+    persist({ ...snapshot, monthGoal: goal, monthGoalDate, monthGoalDone: undefined });
+  }, [persist]);
+
+  const updateMonthGoalDone = useCallback((done: boolean) => {
+    persist({ ...dataRef.current, monthGoalDone: done || undefined });
   }, [persist]);
 
   const updateQuarterGoal = useCallback((quarterGoal: string) => {
@@ -345,7 +354,11 @@ export default function App() {
     // quarterGoalDate format: "YYYY-Q1"…"YYYY-Q4" derived from current date
     const quarterGoalDate = goal ? quarterStr(new Date()) : undefined;
     const snapshot = dataRef.current;
-    persist({ ...snapshot, quarterGoal: goal, quarterGoalDate });
+    persist({ ...snapshot, quarterGoal: goal, quarterGoalDate, quarterGoalDone: undefined });
+  }, [persist]);
+
+  const updateQuarterGoalDone = useCallback((done: boolean) => {
+    persist({ ...dataRef.current, quarterGoalDone: done || undefined });
   }, [persist]);
 
   const updateYearGoal = useCallback((yearGoal: string) => {
@@ -353,7 +366,11 @@ export default function App() {
     // yearGoalDate format: "YYYY" — first 4 chars of the sv locale date string
     const yearGoalDate = goal ? new Date().toLocaleDateString("sv").slice(0, 4) : undefined;
     const snapshot = dataRef.current;
-    persist({ ...snapshot, yearGoal: goal, yearGoalDate });
+    persist({ ...snapshot, yearGoal: goal, yearGoalDate, yearGoalDone: undefined });
+  }, [persist]);
+
+  const updateYearGoalDone = useCallback((done: boolean) => {
+    persist({ ...dataRef.current, yearGoalDone: done || undefined });
   }, [persist]);
 
   const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number; longBreak: number }) => {
@@ -564,10 +581,22 @@ export default function App() {
   // Urgency thresholds: append "·Nd" remaining days when the period end is near (year ≤30d, quarter ≤14d, month ≤7d, week ≤3d).
   const directionBadge = (() => {
     const parts: string[] = [];
-    if (data.yearGoal)    parts.push(daysLeftInYear    <= 30 ? `Y✓·${daysLeftInYear}d`    : "Y✓");
-    if (data.quarterGoal) parts.push(daysLeftInQuarter <= 14 ? `Q✓·${daysLeftInQuarter}d` : "Q✓");
-    if (data.monthGoal)   parts.push(daysLeftInMonth   <= 7  ? `M✓·${daysLeftInMonth}d`   : "M✓");
-    if (data.weekGoal)    parts.push(daysLeftInWeek    <= 3  ? `W✓·${daysLeftInWeek}d`    : "W✓");
+    if (data.yearGoal) {
+      const base = data.yearGoalDone ? "Y✓✓" : "Y✓";
+      parts.push(daysLeftInYear <= 30 ? `${base}·${daysLeftInYear}d` : base);
+    }
+    if (data.quarterGoal) {
+      const base = data.quarterGoalDone ? "Q✓✓" : "Q✓";
+      parts.push(daysLeftInQuarter <= 14 ? `${base}·${daysLeftInQuarter}d` : base);
+    }
+    if (data.monthGoal) {
+      const base = data.monthGoalDone ? "M✓✓" : "M✓";
+      parts.push(daysLeftInMonth <= 7 ? `${base}·${daysLeftInMonth}d` : base);
+    }
+    if (data.weekGoal) {
+      const base = data.weekGoalDone ? "W✓✓" : "W✓";
+      parts.push(daysLeftInWeek <= 3 ? `${base}·${daysLeftInWeek}d` : base);
+    }
     if (data.todayIntention) parts.push(data.todayIntentionDone ? "✓✓" : "✓");
     const quotesArr = data.quotes ?? [];
     if (quotesArr.length > 0) parts.push(`${quotesArr.length}q`);
@@ -665,54 +694,66 @@ export default function App() {
                 <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")} badge={directionBadge} onMoveUp={up} onMoveDown={dn}>Direction</SectionLabel>
                 {!collapsed.includes("direction") && (
                   <>
-                    {/* Year goal — auto-expires when calendar year advances; ✕ clears when set */}
+                    {/* Year goal — auto-expires when calendar year advances; ✓ marks done; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
                       <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.yearGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`${daysLeftInYear}일 남음`}>Y<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInYear}d</span></span>
                       <InlineEdit
                         value={data.yearGoal ?? ""}
                         onSave={updateYearGoal}
                         placeholder="올해의 목표..."
-                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.yearGoal ? { color: colors.textSubtle } : {}) }}
+                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.yearGoal ? { color: data.yearGoalDone ? colors.textLabel : colors.textSubtle, textDecoration: data.yearGoalDone ? "line-through" : "none" } : {}) }}
                       />
+                      {data.yearGoal && (
+                        <button onClick={() => updateYearGoalDone(!data.yearGoalDone)} title={data.yearGoalDone ? "달성 취소" : "연간 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.yearGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
+                      )}
                       {data.yearGoal && (
                         <button onClick={() => updateYearGoal("")} title="연간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                       )}
                     </div>
-                    {/* Quarter goal — auto-expires when calendar quarter advances; ✕ clears when set */}
+                    {/* Quarter goal — auto-expires when calendar quarter advances; ✓ marks done; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
                       <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.quarterGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`Q${currentQtr} · ${daysLeftInQuarter}일 남음`}>Q{currentQtr}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInQuarter}d</span></span>
                       <InlineEdit
                         value={data.quarterGoal ?? ""}
                         onSave={updateQuarterGoal}
                         placeholder="이번 분기 목표..."
-                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.quarterGoal ? { color: colors.textSubtle } : {}) }}
+                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.quarterGoal ? { color: data.quarterGoalDone ? colors.textLabel : colors.textSubtle, textDecoration: data.quarterGoalDone ? "line-through" : "none" } : {}) }}
                       />
+                      {data.quarterGoal && (
+                        <button onClick={() => updateQuarterGoalDone(!data.quarterGoalDone)} title={data.quarterGoalDone ? "달성 취소" : "분기 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.quarterGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
+                      )}
                       {data.quarterGoal && (
                         <button onClick={() => updateQuarterGoal("")} title="분기 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                       )}
                     </div>
-                    {/* Month goal — auto-expires when calendar month advances; ✕ clears when set */}
+                    {/* Month goal — auto-expires when calendar month advances; ✓ marks done; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
                       <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.monthGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`M${currentMonth} · ${daysLeftInMonth}일 남음`}>M{currentMonth}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInMonth}d</span></span>
                       <InlineEdit
                         value={data.monthGoal ?? ""}
                         onSave={updateMonthGoal}
                         placeholder="이번 달 목표..."
-                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.monthGoal ? { color: colors.textSubtle } : {}) }}
+                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.monthGoal ? { color: data.monthGoalDone ? colors.textLabel : colors.textSubtle, textDecoration: data.monthGoalDone ? "line-through" : "none" } : {}) }}
                       />
+                      {data.monthGoal && (
+                        <button onClick={() => updateMonthGoalDone(!data.monthGoalDone)} title={data.monthGoalDone ? "달성 취소" : "월간 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.monthGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
+                      )}
                       {data.monthGoal && (
                         <button onClick={() => updateMonthGoal("")} title="월간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                       )}
                     </div>
-                    {/* Week goal — auto-expires when ISO week advances; ✕ clears when set */}
+                    {/* Week goal — auto-expires when ISO week advances; ✓ marks done; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
                       <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.weekGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`W${currentWeek} · ${daysLeftInWeek}일 남음`}>W{currentWeek}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInWeek}d</span></span>
                       <InlineEdit
                         value={data.weekGoal ?? ""}
                         onSave={updateWeekGoal}
                         placeholder="이번 주 목표..."
-                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.weekGoal ? { color: colors.textSubtle } : {}) }}
+                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.weekGoal ? { color: data.weekGoalDone ? colors.textLabel : colors.textSubtle, textDecoration: data.weekGoalDone ? "line-through" : "none" } : {}) }}
                       />
+                      {data.weekGoal && (
+                        <button onClick={() => updateWeekGoalDone(!data.weekGoalDone)} title={data.weekGoalDone ? "달성 취소" : "주간 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.weekGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
+                      )}
                       {data.weekGoal && (
                         <button onClick={() => updateWeekGoal("")} title="주간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                       )}

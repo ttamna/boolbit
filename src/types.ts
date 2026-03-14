@@ -79,12 +79,16 @@ export interface WidgetData {
   intentionHistory?: IntentionEntry[]; // rolling 7-day log of daily intentions; newest last; absent = no history
   weekGoal?: string;      // one-line weekly goal; absent = not set
   weekGoalDate?: string;  // ISO week "YYYY-Www" when weekGoal was last set; absent = not tracked
+  weekGoalDone?: boolean; // true when user marks weekly goal as accomplished; absent/false = not done
   monthGoal?: string;     // one-line monthly goal; absent = not set
   monthGoalDate?: string; // "YYYY-MM" when monthGoal was last set; absent = not tracked
+  monthGoalDone?: boolean; // true when user marks monthly goal as accomplished; absent/false = not done
   quarterGoal?: string;   // one-line quarterly goal; absent = not set
   quarterGoalDate?: string; // "YYYY-Q1"…"YYYY-Q4" when quarterGoal was last set; absent = not tracked
+  quarterGoalDone?: boolean; // true when user marks quarterly goal as accomplished; absent/false = not done
   yearGoal?: string;      // one-line yearly goal; absent = not set
   yearGoalDate?: string;  // "YYYY" when yearGoal was last set; absent = not tracked
+  yearGoalDone?: boolean; // true when user marks yearly goal as accomplished; absent/false = not done
   pomodoroLifetimeMins?: number; // cumulative focus minutes across all sessions; absent = 0 (pre-feature)
 }
 
