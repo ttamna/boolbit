@@ -30,7 +30,8 @@ function phaseLabel(p: Phase): string {
 }
 
 // Formats cumulative focus minutes as "Xh Ym" (≥60 min) or "Xm" (<60 min) for the ∑ badge.
-function formatLifetime(mins: number): string {
+// Exported for unit testing.
+export function formatLifetime(mins: number): string {
   if (mins < 60) return `${mins}m`;
   const h = Math.floor(mins / 60);
   const m = mins % 60;
