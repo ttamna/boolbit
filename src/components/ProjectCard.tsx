@@ -1,5 +1,5 @@
 // ABOUTME: ProjectCard component - displays a single project with progress bar and metrics
-// ABOUTME: Status cycles active→in-progress→paused→done; isFocus=★ amber; +Nd/+Nw/+Nmo age badge from createdDate; sessionsToday shows today's focus progress on ★ project
+// ABOUTME: Status cycles active→in-progress→paused→done; isFocus=★ amber; +Nd/+Nw/+Nmo age badge from createdDate; schedule efficiency (+/-N%) shows progress vs elapsed time when deadline+createdDate are set
 
 import { useState, CSSProperties } from "react";
 import type { Project, GitHubData } from "../types";
@@ -92,6 +92,21 @@ function dateAfterDays(n: number): string {
   return d.toLocaleDateString("sv");
 }
 
+// Returns the percentage of time elapsed from createdDate to deadline, clamped to [0, 100].
+// Both dates use T00:00:00 local-midnight parsing for DST safety (same pattern as deadlineDays).
+// Returns null when either date is absent/invalid or deadline ≤ createdDate (degenerate range).
+// Callers use this to compare against project.progress and derive schedule efficiency (gap = progress - timePct).
+function timeElapsedPct(createdDate: string | undefined, deadline: string | undefined): number | null {
+  if (!createdDate || !deadline) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(createdDate) || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return null;
+  const start = new Date(createdDate + "T00:00:00").getTime();
+  const end = new Date(deadline + "T00:00:00").getTime();
+  if (end <= start) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.min(100, Math.max(0, Math.round((today.getTime() - start) / (end - start) * 100)));
+}
+
 // Returns urgency color: red if today or overdue (days ≤ 0), yellow if ≤7 days, dim otherwise.
 function deadlineColor(dateStr: string): string {
   const days = deadlineDays(dateStr);
@@ -147,6 +162,16 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
   const staleDays = lastFocusDaysAgo(project.lastFocusDate);
   // ageLabel: compact project age since createdDate; null for pre-feature projects
   const ageLabel = projectAgeLabel(project.createdDate);
+  // scheduleGap: schedule efficiency for non-done projects — gap = progress% minus elapsed-time% (integer, rounded).
+  // null when status===done, deadline unset, createdDate absent, degenerate range, or timePct<10 (too early to judge).
+  // timePct<10 guard avoids a jarring red badge that appears when a project is barely started but already "behind".
+  const scheduleGap: { gap: number; timePct: number } | null = project.status !== "done" && !!project.deadline
+    ? (() => {
+        const timePct = timeElapsedPct(project.createdDate, project.deadline);
+        if (timePct === null || timePct < 10) return null;
+        return { gap: Math.round(project.progress - timePct), timePct };
+      })()
+    : null;
 
   const [repoStatus, setRepoStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [repoMsg, setRepoMsg] = useState("");
@@ -386,6 +411,15 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
             >
               {deadlineRelative(project.deadline)}
             </span>
+            {/* Schedule efficiency: +N% = ahead of pace, -N% = behind (computed in scheduleGap above). */}
+            {scheduleGap !== null && (
+              <span
+                title={`진행도 ${project.progress}% · 경과 ${scheduleGap.timePct}% → 일정 ${scheduleGap.gap > 0 ? "앞섬" : scheduleGap.gap < 0 ? "뒤처짐" : "정확히 일치"} ${Math.abs(scheduleGap.gap)}%p`}
+                style={{ ...mono, fontSize: fontSizes.mini, color: scheduleGap.gap >= 5 ? colors.statusActive : scheduleGap.gap >= -10 ? colors.statusProgress : colors.statusPaused, opacity: 0.75 }}
+              >
+                {scheduleGap.gap > 0 ? `+${scheduleGap.gap}` : `${scheduleGap.gap}`}%
+              </span>
+            )}
             <InlineEdit
               value={project.deadline}
               onSave={v => {
