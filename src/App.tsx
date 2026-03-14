@@ -956,7 +956,7 @@ export default function App() {
                         ))}
                       </div>
                     )}
-                    <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} rotationInterval={data.quoteInterval} onIntervalChange={updateQuoteInterval} />
+                    <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} rotationInterval={data.quoteInterval} onIntervalChange={updateQuoteInterval} accent={themeAccent} />
                   </>
                 )}
               </Fragment>

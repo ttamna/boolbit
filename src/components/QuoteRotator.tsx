@@ -27,9 +27,11 @@ interface QuoteRotatorProps {
   onUpdate: (quotes: string[]) => void;
   rotationInterval?: number;          // auto-rotation interval in seconds (default 8)
   onIntervalChange?: (secs: number) => void;
+  accent?: string;
 }
 
-export function QuoteRotator({ quotes, onUpdate, rotationInterval, onIntervalChange }: QuoteRotatorProps) {
+export function QuoteRotator({ quotes, onUpdate, rotationInterval, onIntervalChange, accent }: QuoteRotatorProps) {
+  const borderColor = accent ? `${accent}40` : colors.borderAccent;
   const [idx, setIdx] = useState(0);
   const [opacity, setOpacity] = useState(1);
   const [newDraft, setNewDraft] = useState("");
@@ -146,7 +148,7 @@ export function QuoteRotator({ quotes, onUpdate, rotationInterval, onIntervalCha
 
   if (editing) {
     return (
-      <div style={{ borderLeft: `2px solid ${colors.borderAccent}`, paddingLeft: 12 }}>
+      <div style={{ borderLeft: `2px solid ${borderColor}`, paddingLeft: 12 }}>
         {quotes.map((q, i) => (
           <div key={editKeysRef.current[i] ?? String(i)} style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
             <div style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
@@ -290,7 +292,7 @@ export function QuoteRotator({ quotes, onUpdate, rotationInterval, onIntervalCha
     <div style={{
       fontSize: fontSizes.sm, color: colors.textDim, fontStyle: "italic", lineHeight: 1.6,
       minHeight: 36, display: "flex", alignItems: "center",
-      borderLeft: `2px solid ${colors.borderAccent}`, paddingLeft: 12,
+      borderLeft: `2px solid ${borderColor}`, paddingLeft: 12,
     }}>
       <div style={{ opacity, transition: "opacity 0.6s ease", flex: 1 }}>
         {quotes[safeIdx] ?? "—"}
