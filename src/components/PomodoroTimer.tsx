@@ -74,6 +74,14 @@ interface PomodoroTimerProps {
   accent?: string;         // theme accent color applied to the focus phase; absent = statusActive (green)
 }
 
+// Returns percentage progress toward daily session goal, clamped to [0, 100].
+// Returns null when goal is absent or zero (guards NaN from 0/0 and undefined access).
+// Exported for unit testing; pure function with no side effects.
+export function sessionGoalPct(sessionsToday: number, sessionGoal: number | undefined): number | null {
+  if (sessionGoal == null || sessionGoal <= 0) return null;
+  return Math.min(100, Math.round(sessionsToday / sessionGoal * 100));
+}
+
 export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, sessionHistory, lifetimeMins, focusProject, todayIntention, onMoveUp, onMoveDown, accent }: PomodoroTimerProps) {
   const [open, setOpen] = useState(initialOpen);
   const [headerHovered, setHeaderHovered] = useState(false);
@@ -298,6 +306,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     : `${totalFocusMins}m`;
   // Session count badge: "×3/8" with goal, "✓8" when goal reached, "×3" without goal
   const goalReached = sessionGoal != null && sessionsToday >= sessionGoal;
+  // goalPct: session goal progress percentage; null when no goal set (see sessionGoalPct for edge cases)
+  const goalPct = sessionGoalPct(sessionsToday, sessionGoal);
   const sessionCountStr = sessionGoal != null
     ? goalReached ? `✓${sessionsToday}` : `×${sessionsToday}/${sessionGoal}`
     : `×${sessionsToday}`;
@@ -529,15 +539,15 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           </div>
 
           {/* Progress bar */}
-          <div style={{ width: "100%", height: 2, background: colors.borderSubtle, borderRadius: 1, marginBottom: 12 }}>
+          <div style={{ width: "100%", height: 2, background: colors.borderSubtle, borderRadius: radius.bar, marginBottom: 12 }}>
             <div style={{
               width: `${progress * 100}%`, height: "100%",
-              background: phaseColor, borderRadius: 1, transition: "width 1s linear",
+              background: phaseColor, borderRadius: radius.bar, transition: "width 1s linear",
             }} />
           </div>
 
           {/* Daily goal row */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: goalPct !== null ? 4 : 8 }}>
             <span style={{ fontSize: fontSizes.xs, color: colors.textSubtle }}>일 목표</span>
             {goalEdit ? (
               <input
@@ -577,6 +587,17 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               </button>
             )}
           </div>
+          {/* Daily goal progress bar — 2px ambient strip; consistent with Clock/Direction/HabitStreak progress bars.
+              Shown only when a session goal is set. */}
+          {goalPct !== null && (
+            <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar, marginBottom: 8 }}>
+              <div style={{
+                width: `${goalPct}%`, height: "100%",
+                background: `${focusColor}28`,
+                borderRadius: radius.bar, transition: "width 0.4s ease",
+              }} />
+            </div>
+          )}
 
           {/* Long break interval row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>

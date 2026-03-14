@@ -1,9 +1,9 @@
-// ABOUTME: Tests for PomodoroTimer autoStart phase-transition behavior
-// ABOUTME: focus→break→focus cycle must continue without stopping when autoStart=true
+// ABOUTME: Tests for PomodoroTimer autoStart phase-transition behavior and pure helper functions
+// ABOUTME: focus→break→focus cycle must continue without stopping when autoStart=true; sessionGoalPct edge cases
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
-import { PomodoroTimer } from "./PomodoroTimer";
+import { PomodoroTimer, sessionGoalPct } from "./PomodoroTimer";
 
 // Mock Tauri notification plugin — not available in jsdom
 vi.mock("@tauri-apps/plugin-notification", () => ({
@@ -35,6 +35,36 @@ async function advanceSecs(secs: number) {
     });
   }
 }
+
+describe("sessionGoalPct", () => {
+  it("should return null when sessionGoal is undefined", () => {
+    expect(sessionGoalPct(3, undefined)).toBeNull();
+  });
+
+  it("should return null when sessionGoal is 0", () => {
+    expect(sessionGoalPct(3, 0)).toBeNull();
+  });
+
+  it("should return 0 when sessionsToday is 0", () => {
+    expect(sessionGoalPct(0, 8)).toBe(0);
+  });
+
+  it("should return 38 when 3 of 8 sessions done", () => {
+    expect(sessionGoalPct(3, 8)).toBe(38); // Math.round(3/8*100) = 37.5 → 38
+  });
+
+  it("should return 50 when half done", () => {
+    expect(sessionGoalPct(4, 8)).toBe(50);
+  });
+
+  it("should return 100 when goal is exactly met", () => {
+    expect(sessionGoalPct(8, 8)).toBe(100);
+  });
+
+  it("should clamp to 100 when sessions exceed goal", () => {
+    expect(sessionGoalPct(10, 8)).toBe(100);
+  });
+});
 
 describe("PomodoroTimer autoStart phase transitions", () => {
   beforeEach(() => {
