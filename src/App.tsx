@@ -435,6 +435,15 @@ export default function App() {
 
   const updateWeekGoalDone = useCallback((done: boolean) => {
     persist({ ...dataRef.current, weekGoalDone: done || undefined });
+    // Only notify on the false→true transition; re-check prevents duplicate fires on undo+redo
+    if (done && !dataRef.current.weekGoalDone) (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: "🎉 이번 주 목표 달성!" });
+      } catch { /* Notification not available in browser dev mode */ }
+    })();
   }, [persist]);
 
   const updateMonthGoal = useCallback((monthGoal: string) => {
@@ -447,6 +456,14 @@ export default function App() {
 
   const updateMonthGoalDone = useCallback((done: boolean) => {
     persist({ ...dataRef.current, monthGoalDone: done || undefined });
+    if (done && !dataRef.current.monthGoalDone) (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: "🏆 이번 달 목표 달성!" });
+      } catch { /* Notification not available in browser dev mode */ }
+    })();
   }, [persist]);
 
   const updateQuarterGoal = useCallback((quarterGoal: string) => {
@@ -459,6 +476,14 @@ export default function App() {
 
   const updateQuarterGoalDone = useCallback((done: boolean) => {
     persist({ ...dataRef.current, quarterGoalDone: done || undefined });
+    if (done && !dataRef.current.quarterGoalDone) (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: "🌟 이번 분기 목표 달성!" });
+      } catch { /* Notification not available in browser dev mode */ }
+    })();
   }, [persist]);
 
   const updateYearGoal = useCallback((yearGoal: string) => {
@@ -471,6 +496,14 @@ export default function App() {
 
   const updateYearGoalDone = useCallback((done: boolean) => {
     persist({ ...dataRef.current, yearGoalDone: done || undefined });
+    if (done && !dataRef.current.yearGoalDone) (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: "💎 올해 목표 달성!" });
+      } catch { /* Notification not available in browser dev mode */ }
+    })();
   }, [persist]);
 
   const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number; longBreak: number }) => {
