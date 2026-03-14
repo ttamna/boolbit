@@ -12,6 +12,7 @@ import { useWindowSync } from "./hooks/useWindowSync";
 import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
+import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction } from "./lib/datePeriods";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -582,6 +583,12 @@ export default function App() {
   const daysLeftInMonth   = Math.floor((new Date(todayMidnight.getFullYear(), todayMidnight.getMonth() + 1, 0).getTime() - todayMidnight.getTime()) / 86400000) + 1;
   // Week: ISO week ends Sunday. getDay() on local midnight is consistent with isoWeekStr which uses local date parts.
   const daysLeftInWeek    = todayMidnight.getDay() === 0 ? 1 : 8 - todayMidnight.getDay();
+  // Period elapsed fractions — used for the 2px progress bars in Direction goal rows.
+  // Consistent visual language with Clock day bar and DragBar year bar.
+  const yearElapsedFrac    = periodElapsedFraction(daysLeftInYear,    totalDaysInYear(todayMidnight));
+  const quarterElapsedFrac = periodElapsedFraction(daysLeftInQuarter, totalDaysInQuarter(todayMidnight));
+  const monthElapsedFrac   = periodElapsedFraction(daysLeftInMonth,   totalDaysInMonth(todayMidnight));
+  const weekElapsedFrac    = periodElapsedFraction(daysLeftInWeek, 7);
   const habitsDoneToday = habitsArr.filter(h => h.lastChecked === todayStr).length;
   // atRisk: streak > 0, last checked yesterday — semantically equivalent to HabitStreak.tsx:338's !doneToday&&streak>0&&lastChecked===yesterday
   const habitsAtRisk = habitsArr.filter(h => h.streak > 0 && h.lastChecked === yesterdayHabitsStr).length;
@@ -817,68 +824,88 @@ export default function App() {
                 {!collapsed.includes("direction") && (
                   <>
                     {/* Year goal — auto-expires when calendar year advances; ✓ marks done; ✕ clears when set */}
-                    <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.yearGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`${daysLeftInYear}일 남음`}>Y<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInYear}d</span></span>
-                      <InlineEdit
-                        value={data.yearGoal ?? ""}
-                        onSave={updateYearGoal}
-                        placeholder="올해의 목표..."
-                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.yearGoal ? { color: data.yearGoalDone ? colors.textLabel : colors.textSubtle, textDecoration: data.yearGoalDone ? "line-through" : "none" } : {}) }}
-                      />
-                      {data.yearGoal && (
-                        <button onClick={() => updateYearGoalDone(!data.yearGoalDone)} title={data.yearGoalDone ? "달성 취소" : "연간 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.yearGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
-                      )}
-                      {data.yearGoal && (
-                        <button onClick={() => updateYearGoal("")} title="연간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
-                      )}
+                    <div style={{ padding: "0 14px 8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
+                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.yearGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`${daysLeftInYear}일 남음`}>Y<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInYear}d</span></span>
+                        <InlineEdit
+                          value={data.yearGoal ?? ""}
+                          onSave={updateYearGoal}
+                          placeholder="올해의 목표..."
+                          style={{ flex: 1, fontSize: fontSizes.xs, ...(data.yearGoal ? { color: data.yearGoalDone ? colors.textLabel : colors.textSubtle, textDecoration: data.yearGoalDone ? "line-through" : "none" } : {}) }}
+                        />
+                        {data.yearGoal && (
+                          <button onClick={() => updateYearGoalDone(!data.yearGoalDone)} title={data.yearGoalDone ? "달성 취소" : "연간 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.yearGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
+                        )}
+                        {data.yearGoal && (
+                          <button onClick={() => updateYearGoal("")} title="연간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
+                        )}
+                      </div>
+                      <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar }}>
+                        <div style={{ height: "100%", width: `${Math.round(yearElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
+                      </div>
                     </div>
                     {/* Quarter goal — auto-expires when calendar quarter advances; ✓ marks done; ✕ clears when set */}
-                    <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.quarterGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`Q${currentQtr} · ${daysLeftInQuarter}일 남음`}>Q{currentQtr}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInQuarter}d</span></span>
-                      <InlineEdit
-                        value={data.quarterGoal ?? ""}
-                        onSave={updateQuarterGoal}
-                        placeholder="이번 분기 목표..."
-                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.quarterGoal ? { color: data.quarterGoalDone ? colors.textLabel : colors.textSubtle, textDecoration: data.quarterGoalDone ? "line-through" : "none" } : {}) }}
-                      />
-                      {data.quarterGoal && (
-                        <button onClick={() => updateQuarterGoalDone(!data.quarterGoalDone)} title={data.quarterGoalDone ? "달성 취소" : "분기 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.quarterGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
-                      )}
-                      {data.quarterGoal && (
-                        <button onClick={() => updateQuarterGoal("")} title="분기 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
-                      )}
+                    <div style={{ padding: "0 14px 8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
+                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.quarterGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`Q${currentQtr} · ${daysLeftInQuarter}일 남음`}>Q{currentQtr}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInQuarter}d</span></span>
+                        <InlineEdit
+                          value={data.quarterGoal ?? ""}
+                          onSave={updateQuarterGoal}
+                          placeholder="이번 분기 목표..."
+                          style={{ flex: 1, fontSize: fontSizes.xs, ...(data.quarterGoal ? { color: data.quarterGoalDone ? colors.textLabel : colors.textSubtle, textDecoration: data.quarterGoalDone ? "line-through" : "none" } : {}) }}
+                        />
+                        {data.quarterGoal && (
+                          <button onClick={() => updateQuarterGoalDone(!data.quarterGoalDone)} title={data.quarterGoalDone ? "달성 취소" : "분기 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.quarterGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
+                        )}
+                        {data.quarterGoal && (
+                          <button onClick={() => updateQuarterGoal("")} title="분기 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
+                        )}
+                      </div>
+                      <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar }}>
+                        <div style={{ height: "100%", width: `${Math.round(quarterElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
+                      </div>
                     </div>
                     {/* Month goal — auto-expires when calendar month advances; ✓ marks done; ✕ clears when set */}
-                    <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.monthGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`M${currentMonth} · ${daysLeftInMonth}일 남음`}>M{currentMonth}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInMonth}d</span></span>
-                      <InlineEdit
-                        value={data.monthGoal ?? ""}
-                        onSave={updateMonthGoal}
-                        placeholder="이번 달 목표..."
-                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.monthGoal ? { color: data.monthGoalDone ? colors.textLabel : colors.textSubtle, textDecoration: data.monthGoalDone ? "line-through" : "none" } : {}) }}
-                      />
-                      {data.monthGoal && (
-                        <button onClick={() => updateMonthGoalDone(!data.monthGoalDone)} title={data.monthGoalDone ? "달성 취소" : "월간 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.monthGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
-                      )}
-                      {data.monthGoal && (
-                        <button onClick={() => updateMonthGoal("")} title="월간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
-                      )}
+                    <div style={{ padding: "0 14px 8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
+                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.monthGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`M${currentMonth} · ${daysLeftInMonth}일 남음`}>M{currentMonth}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInMonth}d</span></span>
+                        <InlineEdit
+                          value={data.monthGoal ?? ""}
+                          onSave={updateMonthGoal}
+                          placeholder="이번 달 목표..."
+                          style={{ flex: 1, fontSize: fontSizes.xs, ...(data.monthGoal ? { color: data.monthGoalDone ? colors.textLabel : colors.textSubtle, textDecoration: data.monthGoalDone ? "line-through" : "none" } : {}) }}
+                        />
+                        {data.monthGoal && (
+                          <button onClick={() => updateMonthGoalDone(!data.monthGoalDone)} title={data.monthGoalDone ? "달성 취소" : "월간 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.monthGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
+                        )}
+                        {data.monthGoal && (
+                          <button onClick={() => updateMonthGoal("")} title="월간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
+                        )}
+                      </div>
+                      <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar }}>
+                        <div style={{ height: "100%", width: `${Math.round(monthElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
+                      </div>
                     </div>
                     {/* Week goal — auto-expires when ISO week advances; ✓ marks done; ✕ clears when set */}
-                    <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.weekGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`W${currentWeek} · ${daysLeftInWeek}일 남음`}>W{currentWeek}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInWeek}d</span></span>
-                      <InlineEdit
-                        value={data.weekGoal ?? ""}
-                        onSave={updateWeekGoal}
-                        placeholder="이번 주 목표..."
-                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.weekGoal ? { color: data.weekGoalDone ? colors.textLabel : colors.textSubtle, textDecoration: data.weekGoalDone ? "line-through" : "none" } : {}) }}
-                      />
-                      {data.weekGoal && (
-                        <button onClick={() => updateWeekGoalDone(!data.weekGoalDone)} title={data.weekGoalDone ? "달성 취소" : "주간 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.weekGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
-                      )}
-                      {data.weekGoal && (
-                        <button onClick={() => updateWeekGoal("")} title="주간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
-                      )}
+                    <div style={{ padding: "0 14px 8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
+                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.weekGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`W${currentWeek} · ${daysLeftInWeek}일 남음`}>W{currentWeek}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInWeek}d</span></span>
+                        <InlineEdit
+                          value={data.weekGoal ?? ""}
+                          onSave={updateWeekGoal}
+                          placeholder="이번 주 목표..."
+                          style={{ flex: 1, fontSize: fontSizes.xs, ...(data.weekGoal ? { color: data.weekGoalDone ? colors.textLabel : colors.textSubtle, textDecoration: data.weekGoalDone ? "line-through" : "none" } : {}) }}
+                        />
+                        {data.weekGoal && (
+                          <button onClick={() => updateWeekGoalDone(!data.weekGoalDone)} title={data.weekGoalDone ? "달성 취소" : "주간 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.weekGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
+                        )}
+                        {data.weekGoal && (
+                          <button onClick={() => updateWeekGoal("")} title="주간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
+                        )}
+                      </div>
+                      <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar }}>
+                        <div style={{ height: "100%", width: `${Math.round(weekElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
+                      </div>
                     </div>
                     {/* Today's intention — a one-line focus phrase set by the user; ✓ marks done; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
