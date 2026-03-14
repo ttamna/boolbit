@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend
+// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; ⊖Nd = neglected N days; edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend
 
 import { useState, useEffect, useMemo, useRef, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -41,6 +41,25 @@ function getUpcomingMilestone(streak: number, threshold = 3): { days: number; ba
     if (days > 0 && days <= threshold) return { days, badge };
   }
   return null;
+}
+
+// Returns days since the most recent check-in based on checkHistory (sorted ascending).
+// Returns null when: no history, last check was today (0 days), or last check was yesterday (1 day — atRisk already handles this case).
+// Returns N (≥2) when the habit has been neglected for N days, giving a quick "⊖Nd" indicator.
+// Exported for unit testing; mirrors the pattern of ProjectCard's lastFocusDaysAgo helper.
+export function habitLastCheckDaysAgo(checkHistory: string[] | undefined, today: string): number | null {
+  if (!checkHistory || checkHistory.length === 0) return null;
+  // checkHistory is sorted ascending (YYYY-MM-DD lexicographic = chronological); last entry is most recent
+  const lastCheck = checkHistory[checkHistory.length - 1];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(lastCheck)) return null;
+  const lastTs = new Date(lastCheck + "T00:00:00").getTime();
+  if (isNaN(lastTs)) return null;
+  const todayTs = new Date(today + "T00:00:00").getTime();
+  if (isNaN(todayTs)) return null;
+  const days = Math.floor((todayTs - lastTs) / 86400000);
+  // Suppress for today (0) and yesterday (1) — yesterday is already shown as atRisk amber ✓
+  // Future lastCheck dates (negative days) also return null safely via the days >= 2 check
+  return days >= 2 ? days : null;
 }
 
 interface HabitStreakProps {
@@ -393,6 +412,13 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
           const doneToday = h.lastChecked === todayStr;
           // atRisk: streak > 0, last checked yesterday, not yet today — will reset at midnight
           const atRisk = !doneToday && h.streak > 0 && h.lastChecked === yesterdayStr;
+          // neglectedDays: ⊖Nd badge for habits with streak=0 that have an unfulfilled check history.
+          // Limiting to streak===0 avoids confusion with active streaks (atRisk/doneToday already
+          // handle those states). Note: streak can be 0 via midnight reset (lastChecked=undefined)
+          // or via manual InlineEdit — either way, checkHistory is preserved and may show neglect.
+          const neglectedDays = h.streak === 0 && !doneToday && !atRisk
+            ? habitLastCheckDaysAgo(h.checkHistory, todayStr)
+            : null;
           const milestone = getMilestone(h.streak);
           const upcoming = getUpcomingMilestone(h.streak);
           const history = h.checkHistory ?? [];
@@ -456,6 +482,15 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
                     </span>
                   )}
                 </span>
+                {/* Neglected indicator: ⊖Nd when habit hasn't been checked for N≥2 days */}
+                {neglectedDays !== null && (
+                  <span
+                    title={`마지막 체크인: ${neglectedDays}일 전`}
+                    style={{ ...mono, fontSize: fontSizes.mini, color: colors.statusPaused, opacity: 0.6 }}
+                  >
+                    ⊖{neglectedDays}d
+                  </span>
+                )}
                 {milestone ? (
                   <span
                     title={h.streak >= 100 ? "💎 100일 달성!" : h.streak >= 30 ? "⭐ 30일 달성!" : "🔥 7일 달성!"}
