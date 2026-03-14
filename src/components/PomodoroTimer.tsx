@@ -68,11 +68,12 @@ interface PomodoroTimerProps {
   sessionHistory?: PomodoroDay[];      // rolling 14-day daily session counts for the 14-day heatmap
   lifetimeMins?: number;               // cumulative focus minutes across all sessions; absent = 0
   focusProject?: string;   // name of the ★-marked project; shown in header during focus sessions
+  todayIntention?: string; // today's intention text; shown during active focus sessions when not yet accomplished
   onMoveUp?: () => void;   // reorder: move this section one step earlier
   onMoveDown?: () => void; // reorder: move this section one step later
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, sessionHistory, lifetimeMins, focusProject, onMoveUp, onMoveDown }: PomodoroTimerProps) {
+export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, sessionHistory, lifetimeMins, focusProject, todayIntention, onMoveUp, onMoveDown }: PomodoroTimerProps) {
   const [open, setOpen] = useState(initialOpen);
   const [headerHovered, setHeaderHovered] = useState(false);
   // todayStr: refreshed every minute to catch midnight rollover (same pattern as HabitStreak)
@@ -276,6 +277,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     });
   }, [sessionHistory, todayStr]);
 
+  // intentionText: trimmed non-empty intention to display during focus sessions; undefined when empty/done
+  const intentionText = todayIntention?.trim() || undefined;
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
   const progress = 1 - remaining / (durations[phase] * 60);
@@ -366,15 +369,28 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           </span>
         </div>
       </div>
-      {/* Focus project — shown below header row during active focus sessions, even when collapsed,
-          so the user can see the active project context without expanding the panel.
-          Separate row keeps the header right-side content uncluttered. */}
-      {running && phase === "focus" && focusProject && (
-        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 2, paddingBottom: 4 }}>
-          <span style={{ fontSize: fontSizes.mini, color: colors.textGhost, flexShrink: 0 }}>→</span>
-          <span style={{ fontSize: fontSizes.mini, color: colors.textGhost, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>
-            {focusProject}
-          </span>
+      {/* Focus context row — shown below header during active focus sessions.
+          focusProject (★ project) and todayIntention share one row; no wrap to keep separator
+          from orphaning at line start. overflow:hidden on container + flex:0 1 auto+minWidth:0
+          on text spans enables ellipsis truncation independent of outer layout. */}
+      {running && phase === "focus" && (focusProject || intentionText) && (
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 2, paddingBottom: 4, overflow: "hidden" }}>
+          {focusProject && (
+            <>
+              <span style={{ fontSize: fontSizes.mini, color: colors.textGhost, flexShrink: 0 }}>→</span>
+              <span style={{ fontSize: fontSizes.mini, color: colors.textGhost, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: "0 1 auto", minWidth: 0 }}>
+                {focusProject}
+              </span>
+            </>
+          )}
+          {focusProject && intentionText && (
+            <span style={{ fontSize: fontSizes.mini, color: colors.textLabel, flexShrink: 0 }}>·</span>
+          )}
+          {intentionText && (
+            <span style={{ fontSize: fontSizes.mini, color: colors.textPhantom, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: "0 1 auto", minWidth: 0 }}>
+              {intentionText}
+            </span>
+          )}
         </div>
       )}
 

@@ -726,7 +726,8 @@ export default function App() {
                   onNotifyChange={updatePomodoroNotify}
                   sessionHistory={data.pomodoroHistory}
                   lifetimeMins={data.pomodoroLifetimeMins}
-                  focusProject={data.projects.find(p => p.isFocus)?.name}
+                  focusProject={focusProject?.name || undefined}
+                  todayIntention={data.todayIntentionDone ? undefined : data.todayIntention}
                   onMoveUp={up}
                   onMoveDown={dn}
                 />
