@@ -343,6 +343,8 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
           const targetPct = (h.targetStreak ?? 0) > 0 && h.streak > 0
             ? Math.min(100, Math.round(h.streak / h.targetStreak! * 100))
             : undefined;
+          // checkedCount14: number of the last 14 days that were checked; last14Days is always length 14
+          const checkedCount14 = last14Days.filter(day => history.includes(day)).length;
           return (
             <div key={h.id ?? `h-${i}`} style={{ display: "flex", flexDirection: "column", padding: "4px 0" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -445,7 +447,7 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
               )}
               {/* 14-day check-in dot heatmap — visible once there is any check history */}
               {history.length > 0 && (
-                <div style={{ display: "flex", gap: 2, paddingLeft: 26, marginTop: 3 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 2, paddingLeft: 26, marginTop: 3 }}>
                   {last14Days.map((day, di) => {
                     const checked = history.includes(day);
                     const daysAgo = 13 - di;
@@ -462,6 +464,13 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                       />
                     );
                   })}
+                  {/* 14-day completion count: compact N/14 summary so user doesn't have to count dots */}
+                  <span
+                    title={`최근 14일 중 ${checkedCount14}일 체크`}
+                    style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginLeft: 3, opacity: 0.7 }}
+                  >
+                    {checkedCount14}/14
+                  </span>
                 </div>
               )}
               {/* Motivation note — inline editable; ✕ clears when set */}

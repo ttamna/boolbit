@@ -456,9 +456,30 @@ export default function App() {
   const habitsDoneToday = habitsArr.filter(h => h.lastChecked === todayStr).length;
   // atRisk: streak > 0, last checked yesterday — semantically equivalent to HabitStreak.tsx:338's !doneToday&&streak>0&&lastChecked===yesterday
   const habitsAtRisk = habitsArr.filter(h => h.streak > 0 && h.lastChecked === yesterdayHabitsStr).length;
+  // habitsWeekRate: average daily habit completion rate (%) over the last 7 days.
+  // Anchors to todayMidnight for DST safety — same pattern as daysLeftInWeek.
+  // Generates oldest→newest to match HabitStreak.tsx's last14Days convention.
+  // Returns null when no habit has any check within the last 7 days (avoids misleading 0%).
+  const habitsWeekRate = (() => {
+    if (habitsArr.length === 0) return null;
+    // Build [6daysAgo, ..., yesterday, today] (oldest→newest), consistent with HabitStreak.tsx last14Days.
+    const last7 = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(todayMidnight);
+      d.setDate(d.getDate() - (6 - i));
+      return d.toLocaleDateString("sv");
+    });
+    // Require at least one check within the 7-day window before showing a rate.
+    const anyInWindow = habitsArr.some(h => last7.some(day => h.checkHistory?.includes(day)));
+    if (!anyInWindow) return null;
+    const avgRate = last7.reduce((sum, day) => {
+      return sum + habitsArr.filter(h => h.checkHistory?.includes(day)).length / habitsArr.length;
+    }, 0) / 7;
+    return Math.round(avgRate * 100);
+  })();
   const habitsBadge = habitsArr.length > 0
     ? [
         `${habitsDoneToday}/${habitsArr.length}`,
+        habitsWeekRate !== null ? `7d·${habitsWeekRate}%` : null,
         habitsAtRisk > 0 ? `⚠${habitsAtRisk}` : null,
       ].filter(Boolean).join(" · ")
     : undefined;
