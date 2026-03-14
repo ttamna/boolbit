@@ -19,6 +19,31 @@ export function avgRunningProgressPct(projects: Project[]): number | null {
   return Math.min(100, Math.max(0, Math.round(avg)));
 }
 
+// Sorts projects: isFocus first → deadline urgency (soonest first, no/invalid deadline = last) → done last.
+// Done projects are excluded from sorting and appended at the end in their original relative order.
+// Paused projects sort alongside active/in-progress — view-level filters handle visual grouping.
+// Uses stable sort so equal-priority items preserve their input order.
+// today is injectable for testing; defaults to local midnight of the current day when absent.
+// Exported for unit testing; pure function — does not mutate the input array.
+export function sortProjects(projects: Project[], today?: Date): Project[] {
+  const d = today ? new Date(today) : new Date();
+  d.setHours(0, 0, 0, 0);
+  const todayMidnight = d.getTime();
+  const urgency = (p: Project): number => {
+    if (!p.deadline || !/^\d{4}-\d{2}-\d{2}$/.test(p.deadline)) return Infinity;
+    return Math.floor((new Date(p.deadline + "T00:00:00").getTime() - todayMidnight) / 86400000);
+  };
+  const active = projects.filter(p => p.status !== "done");
+  const done = projects.filter(p => p.status === "done");
+  const sortedActive = [...active].sort((a, b) => {
+    const aFocus = a.isFocus ? 0 : 1;
+    const bFocus = b.isFocus ? 0 : 1;
+    if (aFocus !== bFocus) return aFocus - bFocus;
+    return urgency(a) - urgency(b);
+  });
+  return [...sortedActive, ...done];
+}
+
 interface ProjectListProps {
   projects: Project[];
   onUpdate: (id: number, patch: Partial<Project>) => void;
@@ -51,21 +76,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
   // Paused projects sort alongside active/in-progress — view-level filters handle visual grouping.
   // Uses stable sort so equal-priority items stay in their current manual order.
   const handleSort = () => {
-    const d = new Date(); d.setHours(0, 0, 0, 0);
-    const todayMidnight = d.getTime();
-    const urgency = (p: Project): number => {
-      if (!p.deadline || !/^\d{4}-\d{2}-\d{2}$/.test(p.deadline)) return Infinity;
-      return Math.floor((new Date(p.deadline + "T00:00:00").getTime() - todayMidnight) / 86400000);
-    };
-    const active = projects.filter(p => p.status !== "done");
-    const done = projects.filter(p => p.status === "done");
-    const sortedActive = [...active].sort((a, b) => {
-      const aFocus = a.isFocus ? 0 : 1;
-      const bFocus = b.isFocus ? 0 : 1;
-      if (aFocus !== bFocus) return aFocus - bFocus;
-      return urgency(a) - urgency(b);
-    });
-    onProjectsChange([...sortedActive, ...done]);
+    onProjectsChange(sortProjects(projects));
   };
 
   const handleRefreshAll = async () => {
