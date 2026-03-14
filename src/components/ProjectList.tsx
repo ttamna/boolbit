@@ -1,7 +1,7 @@
 // ABOUTME: ProjectList component - renders project list with add/delete/reorder in edit mode
-// ABOUTME: onRefreshAll enables batch GitHub refresh; paused+done projects are collapsible; ↕ auto-sort by focus+urgency in view mode; sessionsToday/sessionGoal forwarded to ★ focus ProjectCard; completion bar shows done/total ratio
+// ABOUTME: paused+done collapsible; ↕ sort by focus+urgency; ✕ 전체 bulk-clears done (confirm dialog); ↺ batch GitHub refresh
 
-import { useState, type CSSProperties } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import type { Project } from "../types";
 import { fontSizes, colors, radius } from "../theme";
 import { ProjectCard } from "./ProjectCard";
@@ -24,6 +24,14 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
   const [showDone, setShowDone] = useState(false);
   // ESC also resets the new-project draft
   const { editing, openEditing, closeEditing } = useEditMode(() => setNewName(""));
+
+  // Single source for "done" criterion — used in handlers, effect, and view-mode render
+  const doneProjects = projects.filter(p => p.status === "done");
+
+  // Reset showDone when done list empties (e.g. last done project deleted one-by-one in edit mode)
+  useEffect(() => {
+    if (doneProjects.length === 0) setShowDone(false);
+  }, [doneProjects.length]); // primitive dep: only re-runs when count changes
 
   // Sort non-done projects: ★ focus first → deadline urgency (soonest first, no deadline last).
   // Done projects are excluded from sorting and kept at the end of the array unchanged.
@@ -78,6 +86,13 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
     };
     onProjectsChange([...projects, newProject]);
     setNewName("");
+  };
+
+  // Named handler for clarity; window.confirm guards against accidental bulk-delete (no undo)
+  const handleClearDone = () => {
+    if (!window.confirm(`완료 프로젝트 ${doneProjects.length}개를 모두 삭제하시겠습니까?`)) return;
+    onProjectsChange(projects.filter(p => p.status !== "done"));
+    setShowDone(false);
   };
 
   const moveBtnStyle = (disabled: boolean): CSSProperties => ({
@@ -151,7 +166,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
 
   const runningProjects = projects.filter(p => p.status !== "done" && p.status !== "paused");
   const pausedProjects = projects.filter(p => p.status === "paused");
-  const doneProjects = projects.filter(p => p.status === "done");
+  // doneProjects hoisted above if(editing) — single source for the done criterion
   // pct: completion percentage — single source used in both tooltip and bar width
   const pct = projects.length > 0 ? Math.round(doneProjects.length / projects.length * 100) : 0;
 
@@ -162,34 +177,51 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
       ))}
       {/* Paused projects: collapsed by default, expand via toggle */}
       {pausedProjects.length > 0 && (
-        <button
-          onClick={() => setShowPaused(v => !v)}
-          title={showPaused ? "일시정지 프로젝트 접기" : "일시정지 프로젝트 펼치기"}
-          style={{
-            background: "transparent", border: "none", cursor: "pointer",
-            color: colors.textPhantom, fontSize: fontSizes.mini,
-            padding: "4px 0", lineHeight: 1, display: "block",
-          }}
-        >
-          일시정지 ({pausedProjects.length}) {showPaused ? "▾" : "▸"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <button
+            onClick={() => setShowPaused(v => !v)}
+            title={showPaused ? "일시정지 프로젝트 접기" : "일시정지 프로젝트 펼치기"}
+            style={{
+              background: "transparent", border: "none", cursor: "pointer",
+              color: colors.textPhantom, fontSize: fontSizes.mini,
+              padding: "4px 0", lineHeight: 1,
+            }}
+          >
+            일시정지 ({pausedProjects.length}) {showPaused ? "▾" : "▸"}
+          </button>
+        </div>
       )}
       {showPaused && pausedProjects.map(p => (
         <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} />
       ))}
-      {/* Done projects: collapsed by default, expand via toggle */}
+      {/* Done projects: collapsed by default, expand via toggle; ✕ 전체 shown when expanded */}
       {doneProjects.length > 0 && (
-        <button
-          onClick={() => setShowDone(v => !v)}
-          title={showDone ? "완료 프로젝트 접기" : "완료 프로젝트 펼치기"}
-          style={{
-            background: "transparent", border: "none", cursor: "pointer",
-            color: colors.textPhantom, fontSize: fontSizes.mini,
-            padding: "4px 0", lineHeight: 1, display: "block",
-          }}
-        >
-          완료 ({doneProjects.length}) {showDone ? "▾" : "▸"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <button
+            onClick={() => setShowDone(v => !v)}
+            title={showDone ? "완료 프로젝트 접기" : "완료 프로젝트 펼치기"}
+            style={{
+              background: "transparent", border: "none", cursor: "pointer",
+              color: colors.textPhantom, fontSize: fontSizes.mini,
+              padding: "4px 0", lineHeight: 1,
+            }}
+          >
+            완료 ({doneProjects.length}) {showDone ? "▾" : "▸"}
+          </button>
+          {showDone && (
+            <button
+              onClick={handleClearDone}
+              title="완료 프로젝트 전체 삭제"
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: colors.textPhantom, fontSize: fontSizes.mini,
+                padding: "1px 2px", lineHeight: 1,
+              }}
+            >
+              ✕ 전체
+            </button>
+          )}
+        </div>
       )}
       {showDone && doneProjects.map(p => (
         <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} />
