@@ -201,6 +201,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "pomodoroLifetimeMins")]
     pub pomodoro_lifetime_mins: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "habitsAllDoneDate")]
+    pub habits_all_done_date: Option<String>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -344,6 +347,7 @@ fn default_data() -> WidgetData {
         year_goal_date: None,
         year_goal_done: None,
         pomodoro_lifetime_mins: None,
+        habits_all_done_date: None,
     }
 }
 
@@ -661,6 +665,16 @@ fn load_data() -> WidgetData {
             })
             .map(String::from);
     }
+    // Sanitize habits_all_done_date: must be strict YYYY-MM-DD format; any other value → None
+    data.habits_all_done_date = data.habits_all_done_date.as_deref()
+        .filter(|s| {
+            let b = s.as_bytes();
+            s.len() == 10
+                && b.iter().all(|&x| x.is_ascii_digit() || x == b'-')
+                && b[4] == b'-'
+                && b[7] == b'-'
+        })
+        .map(String::from);
     data
 }
 

@@ -318,6 +318,33 @@ export default function App() {
     } catch { /* not available in browser dev mode */ }
   }, []);
 
+  // Sends a desktop notification when all habits are checked in for the day.
+  // habitsAllDoneDate persists the notification date so it fires once per day regardless of
+  // app restarts. The guard `data.habitsAllDoneDate === today` prevents re-firing: persist()
+  // calls setData() as its first statement, scheduling a re-render before the async invoke;
+  // by the next render cycle when this effect re-fires, data.habitsAllDoneDate is today.
+  // habitsAllDoneDate is NOT cleared in the midnight reset interval because it auto-expires:
+  // the date comparison `=== today` naturally fails on the next day without explicit clearing.
+  useEffect(() => {
+    if (!loaded) return;
+    const today = new Date().toLocaleDateString("sv");
+    const habits = data.habits ?? [];
+    if (habits.length === 0) return;
+    if (data.habitsAllDoneDate === today) return; // already notified today
+    const allDone = habits.every(h => h.lastChecked === today);
+    if (!allDone) return;
+    // Mark today as notified and send the celebration notification.
+    persist({ ...dataRef.current, habitsAllDoneDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: `✓ 오늘의 습관 ${habits.length}개 모두 완료!` });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.habits, data.habitsAllDoneDate, loaded, persist]);
+
   const updateProjects = useCallback((projects: Project[]) => {
     persist({ ...data, projects });
   }, [data, persist]);

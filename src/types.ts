@@ -90,6 +90,7 @@ export interface WidgetData {
   yearGoalDate?: string;  // "YYYY" when yearGoal was last set; absent = not tracked
   yearGoalDone?: boolean; // true when user marks yearly goal as accomplished; absent/false = not done
   pomodoroLifetimeMins?: number; // cumulative focus minutes across all sessions; absent = 0 (pre-feature)
+  habitsAllDoneDate?: string;   // YYYY-MM-DD date when the "all habits done today" notification was sent; absent = not sent
 }
 
 export interface WindowPosition {
