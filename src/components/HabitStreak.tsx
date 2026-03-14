@@ -171,6 +171,11 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
     }
   };
 
+  // Sort habits by streak descending (highest streak first) in a single onHabitsChange call.
+  const handleSort = () => {
+    onHabitsChange?.([...habits].sort((a, b) => b.streak - a.streak));
+  };
+
   // Batch check-in: marks all unchecked habits done today in a single onHabitsChange call.
   // Uses onHabitsChange (not per-habit onUpdate) to avoid parallel persist race conditions.
   const checkAll = () => {
@@ -611,17 +616,32 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
               ✓ 전체
             </button>
           ) : <span />}
-          <button
-            onClick={openEditing}
-            title="습관 추가/삭제"
-            style={{
-              background: "transparent", border: "none", cursor: "pointer",
-              color: colors.textPhantom, fontSize: fontSizes.mini,
-              padding: "0 2px", lineHeight: 1,
-            }}
-          >
-            ✏
-          </button>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {habits.length >= 2 && (
+              <button
+                onClick={handleSort}
+                title="스트릭 기준 내림차순 정렬"
+                style={{
+                  background: "transparent", border: "none", cursor: "pointer",
+                  color: colors.textPhantom, fontSize: fontSizes.mini,
+                  padding: "0 2px", lineHeight: 1,
+                }}
+              >
+                ↕
+              </button>
+            )}
+            <button
+              onClick={openEditing}
+              title="습관 추가/삭제"
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: colors.textPhantom, fontSize: fontSizes.mini,
+                padding: "0 2px", lineHeight: 1,
+              }}
+            >
+              ✏
+            </button>
+          </div>
         </div>
       )}
     </div>

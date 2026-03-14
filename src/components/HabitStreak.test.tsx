@@ -1,8 +1,8 @@
 // ABOUTME: Unit tests for HabitStreak pure helper functions and component rendering
-// ABOUTME: Covers habitLastCheckDaysAgo and habit notes visibility in view mode
+// ABOUTME: Covers habitLastCheckDaysAgo, habit notes visibility, and sort button behavior
 
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { habitLastCheckDaysAgo, HabitStreak } from "./HabitStreak";
 import type { Habit } from "../types";
 
@@ -80,5 +80,61 @@ describe("HabitStreak view mode notes display", () => {
     expect(screen.getByText("Note A")).toBeDefined();
     expect(screen.queryByText("Note B")).toBeNull();
     expect(screen.getByText("Note C")).toBeDefined();
+  });
+});
+
+describe("HabitStreak sort button", () => {
+  const makeHabit = (id: string, streak: number): Habit => ({
+    id, name: `Habit ${id}`, streak, icon: "⭐",
+  });
+
+  it("should render ↕ sort button when 2+ habits and onHabitsChange is provided", () => {
+    const habits = [makeHabit("h1", 5), makeHabit("h2", 10)];
+    render(<HabitStreak habits={habits} onHabitsChange={() => {}} />);
+    expect(screen.getByTitle("스트릭 기준 내림차순 정렬")).toBeDefined();
+  });
+
+  it("should not render ↕ button when only 1 habit", () => {
+    render(<HabitStreak habits={[makeHabit("h1", 5)]} onHabitsChange={() => {}} />);
+    expect(screen.queryByTitle("스트릭 기준 내림차순 정렬")).toBeNull();
+  });
+
+  it("should not render ↕ button when onHabitsChange is not provided", () => {
+    const habits = [makeHabit("h1", 5), makeHabit("h2", 10)];
+    render(<HabitStreak habits={habits} />);
+    expect(screen.queryByTitle("스트릭 기준 내림차순 정렬")).toBeNull();
+  });
+
+  it("should call onHabitsChange with habits sorted by streak descending", () => {
+    const habits = [makeHabit("h1", 3), makeHabit("h2", 10), makeHabit("h3", 7)];
+    const onChange = vi.fn();
+    render(<HabitStreak habits={habits} onHabitsChange={onChange} />);
+    fireEvent.click(screen.getByTitle("스트릭 기준 내림차순 정렬"));
+    expect(onChange).toHaveBeenCalledOnce();
+    const sortedArg: Habit[] = onChange.mock.calls[0][0];
+    expect(sortedArg.map(h => h.streak)).toEqual([10, 7, 3]);
+  });
+
+  it("should preserve habit data when sorting", () => {
+    const h1 = { ...makeHabit("h1", 3), notes: "Note A" };
+    const h2 = { ...makeHabit("h2", 10), notes: "Note B" };
+    const onChange = vi.fn();
+    render(<HabitStreak habits={[h1, h2]} onHabitsChange={onChange} />);
+    fireEvent.click(screen.getByTitle("스트릭 기준 내림차순 정렬"));
+    const sortedArg: Habit[] = onChange.mock.calls[0][0];
+    expect(sortedArg[0].id).toBe("h2");
+    expect(sortedArg[0].notes).toBe("Note B");
+    expect(sortedArg[1].id).toBe("h1");
+  });
+
+  it("should preserve relative order of habits with equal streak (stable sort)", () => {
+    // New habits start with streak=0; sort must not reorder equal-streak items relative to each other.
+    // ES2019+ guarantees Array.sort is stable, so equal comparator results preserve input order.
+    const habits = [makeHabit("h1", 0), makeHabit("h2", 0), makeHabit("h3", 0)];
+    const onChange = vi.fn();
+    render(<HabitStreak habits={habits} onHabitsChange={onChange} />);
+    fireEvent.click(screen.getByTitle("스트릭 기준 내림차순 정렬"));
+    const sortedArg: Habit[] = onChange.mock.calls[0][0];
+    expect(sortedArg.map(h => h.id)).toEqual(["h1", "h2", "h3"]);
   });
 });
