@@ -486,6 +486,18 @@ export default function App() {
         )
       : data.projects;
     persist({ ...data, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects, pomodoroLifetimeMins: (data.pomodoroLifetimeMins ?? 0) + focusMins });
+    // Notify when the daily session goal is hit exactly (not on every subsequent session).
+    // Respects pomodoroNotify: absent/true = enabled, false = disabled.
+    if (data.pomodoroSessionGoal !== undefined && data.pomodoroSessionGoal > 0 && count === data.pomodoroSessionGoal && data.pomodoroNotify !== false) {
+      (async () => {
+        try {
+          let ok = await isPermissionGranted();
+          if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+          if (!ok) return;
+          sendNotification({ title: "Vision Widget", body: `🎯 오늘의 집중 목표 ${count}세션 달성!` });
+        } catch { /* not available in browser dev mode */ }
+      })();
+    }
   }, [data, persist]);
 
   const toggleSection = useCallback((section: SectionKey) => {
