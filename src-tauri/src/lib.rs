@@ -104,6 +104,14 @@ pub struct IntentionEntry {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GoalEntry {
+    pub date: String,  // period key: "YYYY-Www" for weekly goals
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub done: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PomodoroDurations {
     pub focus: u32,
     #[serde(rename = "break")]
@@ -204,6 +212,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "habitsAllDoneDate")]
     pub habits_all_done_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "weekGoalHistory")]
+    pub week_goal_history: Option<Vec<GoalEntry>>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -348,6 +359,7 @@ fn default_data() -> WidgetData {
         year_goal_done: None,
         pomodoro_lifetime_mins: None,
         habits_all_done_date: None,
+        week_goal_history: None,
     }
 }
 
@@ -612,6 +624,34 @@ fn load_data() -> WidgetData {
     // Clear year_goal_done if year_goal is absent
     if data.year_goal.is_none() {
         data.year_goal_done = None;
+    }
+    // Sanitize week_goal_history: validate date format ("YYYY-Www", 8 chars), trim text, drop empties,
+    // dedup by date (first text wins — defensive; App ensures no duplicates before saving),
+    // drop oldest entries so only the 8 most-recent remain, sort ascending.
+    if let Some(ref mut history) = data.week_goal_history {
+        history.retain_mut(|e| {
+            e.text = e.text.trim().to_string();
+            let b = e.date.as_bytes();
+            let digits_ok = e.date.len() == 8
+                && b[..4].iter().all(|&x| x.is_ascii_digit())
+                && b[4] == b'-'
+                && b[5] == b'W'
+                && b[6].is_ascii_digit()
+                && b[7].is_ascii_digit();
+            // Week number must be in 01–53
+            let wn = if digits_ok { (b[6] - b'0') as u16 * 10 + (b[7] - b'0') as u16 } else { 0 };
+            let valid_date = digits_ok && wn >= 1 && wn <= 53;
+            valid_date && !e.text.is_empty()
+        });
+        history.sort_by(|a, b| a.date.cmp(&b.date));
+        history.dedup_by_key(|e| e.date.clone()); // consecutive dupes after ascending sort → keeps first text per date
+        if history.len() > 8 {
+            let excess = history.len() - 8;
+            history.drain(0..excess);
+        }
+        if history.is_empty() {
+            data.week_goal_history = None;
+        }
     }
     // Sanitize project fields: remove empty strings; normalize is_focus(false) → absent
     for project in &mut data.projects {

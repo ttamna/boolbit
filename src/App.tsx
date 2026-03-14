@@ -2,7 +2,7 @@
 // ABOUTME: Handles data loading/saving, inline patch updates, and section reorder via sectionOrder field
 
 import { useState, useEffect, useCallback, useRef, CSSProperties, Fragment } from "react";
-import type { WidgetData, Habit, Project, SectionKey, GitHubData, PomodoroDay, IntentionEntry } from "./types";
+import type { WidgetData, Habit, Project, SectionKey, GitHubData, PomodoroDay, IntentionEntry, GoalEntry } from "./types";
 import { colors, fonts, fontSizes, radius, shadows, THEMES, PROJECT_STATUS_COLORS } from "./theme";
 import { invoke, isTauri } from "./lib/tauri";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -97,6 +97,7 @@ export default function App() {
   const [hovered, setHovered] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showWeekGoalHistory, setShowWeekGoalHistory] = useState(false);
   const { settings, updateSettings, loaded: settingsLoaded } = useSettings();
 
   useWindowSync({
@@ -154,9 +155,17 @@ export default function App() {
           const currentYear = todayStr.slice(0, 4); // "YYYY" — first 4 chars of sv locale date
           const yearGoalStale = !!(saved.yearGoal && saved.yearGoalDate && saved.yearGoalDate < currentYear);
           const needsSave = hadExpired || needsIdMigration || intentionStale || weekGoalStale || monthGoalStale || quarterGoalStale || yearGoalStale;
+          // Log-before-clear: append expiring weekly goal to history before clearing
+          const weekGoalHistoryPatch: Partial<WidgetData> = {};
+          if (weekGoalStale && saved.weekGoal && saved.weekGoalDate) {
+            const entry: GoalEntry = { date: saved.weekGoalDate, text: saved.weekGoal, ...(saved.weekGoalDone ? { done: true } : {}) };
+            const prev: GoalEntry[] = saved.weekGoalHistory ?? [];
+            weekGoalHistoryPatch.weekGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-8);
+          }
           const resolvedData = needsSave ? {
             ...saved,
             habits: reset,
+            ...weekGoalHistoryPatch,
             ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined, todayIntentionDone: undefined } : {}),
             ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined, weekGoalDone: undefined } : {}),
             ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined, monthGoalDone: undefined } : {}),
@@ -256,9 +265,17 @@ export default function App() {
       const currentYear = now.toLocaleDateString("sv").slice(0, 4);
       const yearGoalStale = !!(current.yearGoal && current.yearGoalDate && current.yearGoalDate < currentYear);
       if (!hadExpired && !intentionStale && !weekGoalStale && !monthGoalStale && !quarterGoalStale && !yearGoalStale) return;
+      // Log-before-clear: append expiring weekly goal to history before clearing
+      const weekGoalHistoryPatch: Partial<WidgetData> = {};
+      if (weekGoalStale && current.weekGoal && current.weekGoalDate) {
+        const entry: GoalEntry = { date: current.weekGoalDate, text: current.weekGoal, ...(current.weekGoalDone ? { done: true } : {}) };
+        const prev: GoalEntry[] = current.weekGoalHistory ?? [];
+        weekGoalHistoryPatch.weekGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-8);
+      }
       await persist({
         ...current,
         habits: reset,
+        ...weekGoalHistoryPatch,
         ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined, todayIntentionDone: undefined } : {}),
         ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined, weekGoalDone: undefined } : {}),
         ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined, monthGoalDone: undefined } : {}),
@@ -935,7 +952,7 @@ export default function App() {
                         <div style={{ height: "100%", width: `${Math.round(monthElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
                       </div>
                     </div>
-                    {/* Week goal — auto-expires when ISO week advances; ✓ marks done; ✕ clears when set */}
+                    {/* Week goal — auto-expires when ISO week advances; ✓ marks done; ✕ clears when set; ▾ shows past week history */}
                     <div style={{ padding: "0 14px 8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
                         <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.weekGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`W${currentWeek} · ${daysLeftInWeek}일 남음`}>W{currentWeek}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInWeek}d</span></span>
@@ -951,10 +968,32 @@ export default function App() {
                         {data.weekGoal && (
                           <button onClick={() => updateWeekGoal("")} title="주간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                         )}
+                        {/* Toggle past week goal history; only visible when past entries exist */}
+                        {(data.weekGoalHistory ?? []).length > 0 && (
+                          <button
+                            onClick={() => setShowWeekGoalHistory(h => !h)}
+                            title={showWeekGoalHistory ? "주간 목표 이력 숨기기" : "이전 주간 목표 보기"}
+                            style={{ background: "transparent", border: "none", cursor: "pointer", color: showWeekGoalHistory ? colors.textSubtle : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}
+                          >
+                            {showWeekGoalHistory ? "▴" : "▾"}
+                          </button>
+                        )}
                       </div>
                       <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar }}>
                         <div style={{ height: "100%", width: `${Math.round(weekElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
                       </div>
+                      {/* Past week goal history — up to 8 previous weeks, newest first */}
+                      {showWeekGoalHistory && (data.weekGoalHistory ?? []).length > 0 && (
+                        <div style={{ marginTop: 4 }}>
+                          {[...(data.weekGoalHistory ?? [])].reverse().map(e => (
+                            <div key={e.date} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 2 }}>
+                              <span style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, flexShrink: 0, minWidth: 48 }}>{e.date}</span>
+                              {e.done && <span style={{ fontSize: fontSizes.mini, color: themeAccent, flexShrink: 0, lineHeight: 1.4 }}>✓</span>}
+                              <span style={{ fontSize: fontSizes.mini, color: colors.textLabel, lineHeight: 1.4, opacity: e.done ? 0.55 : 1 }}>{e.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     {/* Today's intention — a one-line focus phrase set by the user; ✓ marks done; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
