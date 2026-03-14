@@ -98,6 +98,9 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showWeekGoalHistory, setShowWeekGoalHistory] = useState(false);
+  const [showMonthGoalHistory, setShowMonthGoalHistory] = useState(false);
+  const [showQuarterGoalHistory, setShowQuarterGoalHistory] = useState(false);
+  const [showYearGoalHistory, setShowYearGoalHistory] = useState(false);
   const { settings, updateSettings, loaded: settingsLoaded } = useSettings();
 
   useWindowSync({
@@ -155,17 +158,32 @@ export default function App() {
           const currentYear = todayStr.slice(0, 4); // "YYYY" — first 4 chars of sv locale date
           const yearGoalStale = !!(saved.yearGoal && saved.yearGoalDate && saved.yearGoalDate < currentYear);
           const needsSave = hadExpired || needsIdMigration || intentionStale || weekGoalStale || monthGoalStale || quarterGoalStale || yearGoalStale;
-          // Log-before-clear: append expiring weekly goal to history before clearing
-          const weekGoalHistoryPatch: Partial<WidgetData> = {};
+          // Log-before-clear: append expiring goals to history before clearing
+          const goalHistoryPatch: Partial<WidgetData> = {};
           if (weekGoalStale && saved.weekGoal && saved.weekGoalDate) {
             const entry: GoalEntry = { date: saved.weekGoalDate, text: saved.weekGoal, ...(saved.weekGoalDone ? { done: true } : {}) };
             const prev: GoalEntry[] = saved.weekGoalHistory ?? [];
-            weekGoalHistoryPatch.weekGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-8);
+            goalHistoryPatch.weekGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-8);
+          }
+          if (monthGoalStale && saved.monthGoal && saved.monthGoalDate) {
+            const entry: GoalEntry = { date: saved.monthGoalDate, text: saved.monthGoal, ...(saved.monthGoalDone ? { done: true } : {}) };
+            const prev: GoalEntry[] = saved.monthGoalHistory ?? [];
+            goalHistoryPatch.monthGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-12);
+          }
+          if (quarterGoalStale && saved.quarterGoal && saved.quarterGoalDate) {
+            const entry: GoalEntry = { date: saved.quarterGoalDate, text: saved.quarterGoal, ...(saved.quarterGoalDone ? { done: true } : {}) };
+            const prev: GoalEntry[] = saved.quarterGoalHistory ?? [];
+            goalHistoryPatch.quarterGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-8);
+          }
+          if (yearGoalStale && saved.yearGoal && saved.yearGoalDate) {
+            const entry: GoalEntry = { date: saved.yearGoalDate, text: saved.yearGoal, ...(saved.yearGoalDone ? { done: true } : {}) };
+            const prev: GoalEntry[] = saved.yearGoalHistory ?? [];
+            goalHistoryPatch.yearGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-5);
           }
           const resolvedData = needsSave ? {
             ...saved,
             habits: reset,
-            ...weekGoalHistoryPatch,
+            ...goalHistoryPatch,
             ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined, todayIntentionDone: undefined } : {}),
             ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined, weekGoalDone: undefined } : {}),
             ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined, monthGoalDone: undefined } : {}),
@@ -265,17 +283,32 @@ export default function App() {
       const currentYear = now.toLocaleDateString("sv").slice(0, 4);
       const yearGoalStale = !!(current.yearGoal && current.yearGoalDate && current.yearGoalDate < currentYear);
       if (!hadExpired && !intentionStale && !weekGoalStale && !monthGoalStale && !quarterGoalStale && !yearGoalStale) return;
-      // Log-before-clear: append expiring weekly goal to history before clearing
-      const weekGoalHistoryPatch: Partial<WidgetData> = {};
+      // Log-before-clear: append expiring goals to history before clearing
+      const goalHistoryPatch: Partial<WidgetData> = {};
       if (weekGoalStale && current.weekGoal && current.weekGoalDate) {
         const entry: GoalEntry = { date: current.weekGoalDate, text: current.weekGoal, ...(current.weekGoalDone ? { done: true } : {}) };
         const prev: GoalEntry[] = current.weekGoalHistory ?? [];
-        weekGoalHistoryPatch.weekGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-8);
+        goalHistoryPatch.weekGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-8);
+      }
+      if (monthGoalStale && current.monthGoal && current.monthGoalDate) {
+        const entry: GoalEntry = { date: current.monthGoalDate, text: current.monthGoal, ...(current.monthGoalDone ? { done: true } : {}) };
+        const prev: GoalEntry[] = current.monthGoalHistory ?? [];
+        goalHistoryPatch.monthGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-12);
+      }
+      if (quarterGoalStale && current.quarterGoal && current.quarterGoalDate) {
+        const entry: GoalEntry = { date: current.quarterGoalDate, text: current.quarterGoal, ...(current.quarterGoalDone ? { done: true } : {}) };
+        const prev: GoalEntry[] = current.quarterGoalHistory ?? [];
+        goalHistoryPatch.quarterGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-8);
+      }
+      if (yearGoalStale && current.yearGoal && current.yearGoalDate) {
+        const entry: GoalEntry = { date: current.yearGoalDate, text: current.yearGoal, ...(current.yearGoalDone ? { done: true } : {}) };
+        const prev: GoalEntry[] = current.yearGoalHistory ?? [];
+        goalHistoryPatch.yearGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-5);
       }
       await persist({
         ...current,
         habits: reset,
-        ...weekGoalHistoryPatch,
+        ...goalHistoryPatch,
         ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined, todayIntentionDone: undefined } : {}),
         ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined, weekGoalDone: undefined } : {}),
         ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined, monthGoalDone: undefined } : {}),
@@ -889,7 +922,7 @@ export default function App() {
                 <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")} badge={directionBadge} onMoveUp={up} onMoveDown={dn}>Direction</SectionLabel>
                 {!collapsed.includes("direction") && (
                   <>
-                    {/* Year goal — auto-expires when calendar year advances; ✓ marks done; ✕ clears when set */}
+                    {/* Year goal — auto-expires when calendar year advances; ✓ marks done; ✕ clears when set; ▾ shows past year history */}
                     <div style={{ padding: "0 14px 8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
                         <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.yearGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`${daysLeftInYear}일 남음`}>Y<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInYear}d</span></span>
@@ -905,12 +938,32 @@ export default function App() {
                         {data.yearGoal && (
                           <button onClick={() => updateYearGoal("")} title="연간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                         )}
+                        {(data.yearGoalHistory ?? []).length > 0 && (
+                          <button
+                            onClick={() => setShowYearGoalHistory(h => !h)}
+                            title={showYearGoalHistory ? "연간 목표 이력 숨기기" : "이전 연간 목표 보기"}
+                            style={{ background: "transparent", border: "none", cursor: "pointer", color: showYearGoalHistory ? colors.textSubtle : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}
+                          >
+                            {showYearGoalHistory ? "▴" : "▾"}
+                          </button>
+                        )}
                       </div>
                       <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar }}>
                         <div style={{ height: "100%", width: `${Math.round(yearElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
                       </div>
+                      {showYearGoalHistory && (data.yearGoalHistory ?? []).length > 0 && (
+                        <div style={{ marginTop: 4 }}>
+                          {[...(data.yearGoalHistory ?? [])].reverse().map(e => (
+                            <div key={e.date} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 2 }}>
+                              <span style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, flexShrink: 0, minWidth: 32 }}>{e.date}</span>
+                              {e.done && <span style={{ fontSize: fontSizes.mini, color: themeAccent, flexShrink: 0, lineHeight: 1.4 }}>✓</span>}
+                              <span style={{ fontSize: fontSizes.mini, color: colors.textLabel, lineHeight: 1.4, opacity: e.done ? 0.55 : 1 }}>{e.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {/* Quarter goal — auto-expires when calendar quarter advances; ✓ marks done; ✕ clears when set */}
+                    {/* Quarter goal — auto-expires when calendar quarter advances; ✓ marks done; ✕ clears when set; ▾ shows past quarter history */}
                     <div style={{ padding: "0 14px 8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
                         <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.quarterGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`Q${currentQtr} · ${daysLeftInQuarter}일 남음`}>Q{currentQtr}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInQuarter}d</span></span>
@@ -926,12 +979,32 @@ export default function App() {
                         {data.quarterGoal && (
                           <button onClick={() => updateQuarterGoal("")} title="분기 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                         )}
+                        {(data.quarterGoalHistory ?? []).length > 0 && (
+                          <button
+                            onClick={() => setShowQuarterGoalHistory(h => !h)}
+                            title={showQuarterGoalHistory ? "분기 목표 이력 숨기기" : "이전 분기 목표 보기"}
+                            style={{ background: "transparent", border: "none", cursor: "pointer", color: showQuarterGoalHistory ? colors.textSubtle : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}
+                          >
+                            {showQuarterGoalHistory ? "▴" : "▾"}
+                          </button>
+                        )}
                       </div>
                       <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar }}>
                         <div style={{ height: "100%", width: `${Math.round(quarterElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
                       </div>
+                      {showQuarterGoalHistory && (data.quarterGoalHistory ?? []).length > 0 && (
+                        <div style={{ marginTop: 4 }}>
+                          {[...(data.quarterGoalHistory ?? [])].reverse().map(e => (
+                            <div key={e.date} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 2 }}>
+                              <span style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, flexShrink: 0, minWidth: 48 }}>{e.date}</span>
+                              {e.done && <span style={{ fontSize: fontSizes.mini, color: themeAccent, flexShrink: 0, lineHeight: 1.4 }}>✓</span>}
+                              <span style={{ fontSize: fontSizes.mini, color: colors.textLabel, lineHeight: 1.4, opacity: e.done ? 0.55 : 1 }}>{e.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {/* Month goal — auto-expires when calendar month advances; ✓ marks done; ✕ clears when set */}
+                    {/* Month goal — auto-expires when calendar month advances; ✓ marks done; ✕ clears when set; ▾ shows past month history */}
                     <div style={{ padding: "0 14px 8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
                         <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.monthGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`M${currentMonth} · ${daysLeftInMonth}일 남음`}>M{currentMonth}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInMonth}d</span></span>
@@ -947,10 +1020,30 @@ export default function App() {
                         {data.monthGoal && (
                           <button onClick={() => updateMonthGoal("")} title="월간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                         )}
+                        {(data.monthGoalHistory ?? []).length > 0 && (
+                          <button
+                            onClick={() => setShowMonthGoalHistory(h => !h)}
+                            title={showMonthGoalHistory ? "월간 목표 이력 숨기기" : "이전 월간 목표 보기"}
+                            style={{ background: "transparent", border: "none", cursor: "pointer", color: showMonthGoalHistory ? colors.textSubtle : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}
+                          >
+                            {showMonthGoalHistory ? "▴" : "▾"}
+                          </button>
+                        )}
                       </div>
                       <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar }}>
                         <div style={{ height: "100%", width: `${Math.round(monthElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
                       </div>
+                      {showMonthGoalHistory && (data.monthGoalHistory ?? []).length > 0 && (
+                        <div style={{ marginTop: 4 }}>
+                          {[...(data.monthGoalHistory ?? [])].reverse().map(e => (
+                            <div key={e.date} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 2 }}>
+                              <span style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, flexShrink: 0, minWidth: 44 }}>{e.date}</span>
+                              {e.done && <span style={{ fontSize: fontSizes.mini, color: themeAccent, flexShrink: 0, lineHeight: 1.4 }}>✓</span>}
+                              <span style={{ fontSize: fontSizes.mini, color: colors.textLabel, lineHeight: 1.4, opacity: e.done ? 0.55 : 1 }}>{e.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     {/* Week goal — auto-expires when ISO week advances; ✓ marks done; ✕ clears when set; ▾ shows past week history */}
                     <div style={{ padding: "0 14px 8px" }}>

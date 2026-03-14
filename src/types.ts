@@ -59,7 +59,7 @@ export interface IntentionEntry {
 }
 
 export interface GoalEntry {
-  date: string;  // period key: "YYYY-Www" for weekly goals
+  date: string;  // period key: "YYYY-Www" (weekly), "YYYY-MM" (monthly), "YYYY-Q1"…"YYYY-Q4" (quarterly), "YYYY" (yearly)
   text: string;  // the goal text for that period
   done?: boolean; // true when the user marked the goal as accomplished; absent = not done
 }
@@ -97,7 +97,10 @@ export interface WidgetData {
   yearGoalDone?: boolean; // true when user marks yearly goal as accomplished; absent/false = not done
   pomodoroLifetimeMins?: number; // cumulative focus minutes across all sessions; absent = 0 (pre-feature)
   habitsAllDoneDate?: string;   // YYYY-MM-DD date when the "all habits done today" notification was sent; absent = not sent
-  weekGoalHistory?: GoalEntry[]; // rolling log of past weekly goals; newest last; capped at 8 entries; absent = no history
+  weekGoalHistory?: GoalEntry[];   // rolling log of past weekly goals; newest last; capped at 8 entries; absent = no history
+  monthGoalHistory?: GoalEntry[];  // rolling log of past monthly goals; newest last; capped at 12 entries; absent = no history
+  quarterGoalHistory?: GoalEntry[]; // rolling log of past quarterly goals; newest last; capped at 8 entries; absent = no history
+  yearGoalHistory?: GoalEntry[];   // rolling log of past yearly goals; newest last; capped at 5 entries; absent = no history
 }
 
 export interface WindowPosition {

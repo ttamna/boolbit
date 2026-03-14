@@ -105,7 +105,7 @@ pub struct IntentionEntry {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GoalEntry {
-    pub date: String,  // period key: "YYYY-Www" for weekly goals
+    pub date: String,  // period key: "YYYY-Www" (weekly), "YYYY-MM" (monthly), "YYYY-Q1"…"YYYY-Q4" (quarterly), "YYYY" (yearly)
     pub text: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub done: Option<bool>,
@@ -215,6 +215,15 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "weekGoalHistory")]
     pub week_goal_history: Option<Vec<GoalEntry>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "monthGoalHistory")]
+    pub month_goal_history: Option<Vec<GoalEntry>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "quarterGoalHistory")]
+    pub quarter_goal_history: Option<Vec<GoalEntry>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "yearGoalHistory")]
+    pub year_goal_history: Option<Vec<GoalEntry>>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -360,6 +369,9 @@ fn default_data() -> WidgetData {
         pomodoro_lifetime_mins: None,
         habits_all_done_date: None,
         week_goal_history: None,
+        month_goal_history: None,
+        quarter_goal_history: None,
+        year_goal_history: None,
     }
 }
 
@@ -651,6 +663,71 @@ fn load_data() -> WidgetData {
         }
         if history.is_empty() {
             data.week_goal_history = None;
+        }
+    }
+    // Sanitize month_goal_history: validate date format ("YYYY-MM", 7 chars), trim text, drop empties,
+    // dedup by date, drop oldest so only 12 most-recent remain, sort ascending.
+    if let Some(ref mut history) = data.month_goal_history {
+        history.retain_mut(|e| {
+            e.text = e.text.trim().to_string();
+            let b = e.date.as_bytes();
+            let valid_date = e.date.len() == 7
+                && b[..4].iter().all(|&x| x.is_ascii_digit())
+                && b[4] == b'-'
+                && b[5].is_ascii_digit()
+                && b[6].is_ascii_digit()
+                && { let m = (b[5] - b'0') as u8 * 10 + (b[6] - b'0') as u8; m >= 1 && m <= 12 };
+            valid_date && !e.text.is_empty()
+        });
+        history.sort_by(|a, b| a.date.cmp(&b.date));
+        history.dedup_by_key(|e| e.date.clone());
+        if history.len() > 12 {
+            let excess = history.len() - 12;
+            history.drain(0..excess);
+        }
+        if history.is_empty() {
+            data.month_goal_history = None;
+        }
+    }
+    // Sanitize quarter_goal_history: validate date format ("YYYY-Q1"…"YYYY-Q4", 7 chars), trim text,
+    // drop empties, dedup by date, cap at 8 most-recent, sort ascending.
+    if let Some(ref mut history) = data.quarter_goal_history {
+        history.retain_mut(|e| {
+            e.text = e.text.trim().to_string();
+            let b = e.date.as_bytes();
+            let valid_date = e.date.len() == 7
+                && b[..4].iter().all(|&x| x.is_ascii_digit())
+                && b[4] == b'-'
+                && b[5] == b'Q'
+                && matches!(b[6], b'1'..=b'4');
+            valid_date && !e.text.is_empty()
+        });
+        history.sort_by(|a, b| a.date.cmp(&b.date));
+        history.dedup_by_key(|e| e.date.clone());
+        if history.len() > 8 {
+            let excess = history.len() - 8;
+            history.drain(0..excess);
+        }
+        if history.is_empty() {
+            data.quarter_goal_history = None;
+        }
+    }
+    // Sanitize year_goal_history: validate date format ("YYYY", 4 chars), trim text,
+    // drop empties, dedup by date, cap at 5 most-recent, sort ascending.
+    if let Some(ref mut history) = data.year_goal_history {
+        history.retain_mut(|e| {
+            e.text = e.text.trim().to_string();
+            let valid_date = e.date.len() == 4 && e.date.as_bytes().iter().all(|&x| x.is_ascii_digit());
+            valid_date && !e.text.is_empty()
+        });
+        history.sort_by(|a, b| a.date.cmp(&b.date));
+        history.dedup_by_key(|e| e.date.clone());
+        if history.len() > 5 {
+            let excess = history.len() - 5;
+            history.drain(0..excess);
+        }
+        if history.is_empty() {
+            data.year_goal_history = None;
         }
     }
     // Sanitize project fields: remove empty strings; normalize is_focus(false) → absent
