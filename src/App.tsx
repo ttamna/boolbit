@@ -468,12 +468,16 @@ export default function App() {
   // All calculations anchor to todayMidnight (local midnight of todayStr) — same pattern as yesterdayHabitsStr —
   // to avoid DST/time-of-day distortions that would occur if renderDate (current time) were used as base.
   const todayMidnight = new Date(todayStr + "T00:00:00");
-  // Week: ISO week ends Sunday. getDay() on local midnight is consistent with isoWeekStr which uses local date parts.
-  const daysLeftInWeek = todayMidnight.getDay() === 0 ? 1 : 8 - todayMidnight.getDay();
-  // Month/Quarter: Date(y, m+1, 0) gives local midnight of the last day of month m; both sides are midnight so floor is exact.
-  const daysLeftInMonth = Math.floor((new Date(todayMidnight.getFullYear(), todayMidnight.getMonth() + 1, 0).getTime() - todayMidnight.getTime()) / 86400000) + 1;
+  // Period remaining days — all anchor to todayMidnight (local midnight) for DST safety.
+  // Month/quarter: Date(y, m+1, 0) = last midnight of month m. Year: Date(y+1, 0, 0) = Dec 31 (same trick, different axis).
+  // Declared largest→smallest to match usage order in directionBadge (Y→Q→M→W).
+  // Design: expanded labels always show Nd; collapsed badge uses urgency thresholds (≤30/14/7/3d) for compactness.
+  const daysLeftInYear    = Math.floor((new Date(todayMidnight.getFullYear() + 1, 0, 0).getTime() - todayMidnight.getTime()) / 86400000) + 1;
   const qEndMonth = Math.ceil((todayMidnight.getMonth() + 1) / 3) * 3; // 3, 6, 9, or 12
   const daysLeftInQuarter = Math.floor((new Date(todayMidnight.getFullYear(), qEndMonth, 0).getTime() - todayMidnight.getTime()) / 86400000) + 1;
+  const daysLeftInMonth   = Math.floor((new Date(todayMidnight.getFullYear(), todayMidnight.getMonth() + 1, 0).getTime() - todayMidnight.getTime()) / 86400000) + 1;
+  // Week: ISO week ends Sunday. getDay() on local midnight is consistent with isoWeekStr which uses local date parts.
+  const daysLeftInWeek    = todayMidnight.getDay() === 0 ? 1 : 8 - todayMidnight.getDay();
   const habitsDoneToday = habitsArr.filter(h => h.lastChecked === todayStr).length;
   // atRisk: streak > 0, last checked yesterday — semantically equivalent to HabitStreak.tsx:338's !doneToday&&streak>0&&lastChecked===yesterday
   const habitsAtRisk = habitsArr.filter(h => h.streak > 0 && h.lastChecked === yesterdayHabitsStr).length;
@@ -557,13 +561,14 @@ export default function App() {
       ].filter(Boolean).join(" · ")
     : undefined;
 
-  // Derived: Direction badge — shows year/month/week goal + intention status + quote count for quick overview when collapsed
+  // Derived: Direction badge — shows year/month/week goal + intention status + quote count for quick overview when collapsed.
+  // Urgency thresholds: append "·Nd" remaining days when the period end is near (year ≤30d, quarter ≤14d, month ≤7d, week ≤3d).
   const directionBadge = (() => {
     const parts: string[] = [];
-    if (data.yearGoal) parts.push("Y✓");
-    if (data.quarterGoal) parts.push("Q✓");
-    if (data.monthGoal) parts.push("M✓");
-    if (data.weekGoal) parts.push("W✓");
+    if (data.yearGoal)    parts.push(daysLeftInYear    <= 30 ? `Y✓·${daysLeftInYear}d`    : "Y✓");
+    if (data.quarterGoal) parts.push(daysLeftInQuarter <= 14 ? `Q✓·${daysLeftInQuarter}d` : "Q✓");
+    if (data.monthGoal)   parts.push(daysLeftInMonth   <= 7  ? `M✓·${daysLeftInMonth}d`   : "M✓");
+    if (data.weekGoal)    parts.push(daysLeftInWeek    <= 3  ? `W✓·${daysLeftInWeek}d`    : "W✓");
     if (data.todayIntention) parts.push(data.todayIntentionDone ? "✓✓" : "✓");
     const quotesArr = data.quotes ?? [];
     if (quotesArr.length > 0) parts.push(`${quotesArr.length}q`);
@@ -662,7 +667,7 @@ export default function App() {
                   <>
                     {/* Year goal — auto-expires when calendar year advances; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.yearGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>Y</span>
+                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.yearGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`${daysLeftInYear}일 남음`}>Y<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInYear}d</span></span>
                       <InlineEdit
                         value={data.yearGoal ?? ""}
                         onSave={updateYearGoal}
