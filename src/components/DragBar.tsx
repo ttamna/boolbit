@@ -1,5 +1,5 @@
 // ABOUTME: DragBar component - top handle with window drag region, preset position buttons, pin toggle, opacity ±5% buttons
-// ABOUTME: Preset buttons snap the widget flush to screen work area corners; pin keeps window always-on-top; year progress bar shows temporal position in the calendar year
+// ABOUTME: Preset buttons snap the widget flush to screen work area corners; pin keeps window always-on-top; year progress bar shows temporal position in the calendar year (calcYearProgress exported for unit testing)
 
 import { CSSProperties, useState, Fragment } from "react";
 import { getCurrentWindow, currentMonitor, PhysicalPosition } from "@tauri-apps/api/window";
@@ -28,6 +28,20 @@ const THEME_ORDER = Object.keys(THEMES) as ThemeKey[];
 
 // Width presets in logical pixels: narrow / default / wide
 const WIDTH_PRESETS = [300, 380, 460] as const;
+
+// Returns millisecond-accurate fraction of the calendar year elapsed plus derived day indicators.
+// dayOfYear (1-based) and daysRemaining are derived from pct so bar width and tooltip are always in sync.
+// Handles non-leap (365 days) and leap years (366 days) per the Gregorian calendar rule.
+// Exported for unit testing; accepts `now` as a parameter to enable deterministic tests.
+export function calcYearProgress(now: Date): { pct: number; dayOfYear: number; daysRemaining: number } {
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+  const yearEnd   = new Date(now.getFullYear() + 1, 0, 1);
+  const pct = (now.getTime() - yearStart.getTime()) / (yearEnd.getTime() - yearStart.getTime());
+  const isLeap = now.getFullYear() % 4 === 0 && (now.getFullYear() % 100 !== 0 || now.getFullYear() % 400 === 0);
+  const daysInYear = isLeap ? 366 : 365;
+  const dayOfYear = Math.min(daysInYear, Math.floor(pct * daysInYear) + 1);
+  return { pct, dayOfYear, daysRemaining: Math.max(0, daysInYear - dayOfYear) };
+}
 
 interface DragBarProps {
   hovered: boolean;
@@ -65,20 +79,8 @@ export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSetti
 
   const theme = THEMES[currentTheme] ?? THEMES.void;
 
-  // Year progress: millisecond-accurate fraction of the current calendar year elapsed.
-  // Computed per render (not useMemo) so the bar reflects fresh time on hover — the only updates users see.
-  // dayOfYear and daysRemaining are derived from pct (single source of truth) so bar width and tooltip are always consistent.
-  const { pct: yearPct, dayOfYear, daysRemaining } = (() => {
-    const now = new Date();
-    const yearStart = new Date(now.getFullYear(), 0, 1);
-    const yearEnd   = new Date(now.getFullYear() + 1, 0, 1);
-    const pct = (now.getTime() - yearStart.getTime()) / (yearEnd.getTime() - yearStart.getTime());
-    const isLeap = now.getFullYear() % 4 === 0 && (now.getFullYear() % 100 !== 0 || now.getFullYear() % 400 === 0);
-    const daysInYear = isLeap ? 366 : 365;
-    // Derive from pct to guarantee dayOfYear and bar width are always in sync
-    const dayOfYear = Math.min(daysInYear, Math.floor(pct * daysInYear) + 1);
-    return { pct, dayOfYear, daysRemaining: Math.max(0, daysInYear - dayOfYear) };
-  })();
+  // Year progress: computed per render so the bar reflects fresh time on hover.
+  const { pct: yearPct, dayOfYear, daysRemaining } = calcYearProgress(new Date());
 
   const applyPreset = async (preset: Preset) => {
     if (moving) return;
