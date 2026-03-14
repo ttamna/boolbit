@@ -102,19 +102,29 @@ function dateAfterDays(n: number): string {
   return d.toLocaleDateString("sv");
 }
 
+// Returns a compact human-readable label for a deadline offset in days.
+// Prefers month units (30-day multiples), then weeks (7-day multiples), then raw days.
+// Exported for unit testing — pure function with no side effects.
+export function deadlinePresetLabel(days: number): string {
+  if (days % 30 === 0) return `+${days / 30}달`;
+  if (days % 7 === 0) return `+${days / 7}주`;
+  return `+${days}일`;
+}
+
 // Returns the percentage of time elapsed from createdDate to deadline, clamped to [0, 100].
 // Both dates use T00:00:00 local-midnight parsing for DST safety (same pattern as deadlineDays).
 // Returns null when either date is absent/invalid or deadline ≤ createdDate (degenerate range).
+// today: optional injection for deterministic testing; defaults to local midnight when omitted.
 // Callers use this to compare against project.progress and derive schedule efficiency (gap = progress - timePct).
-function timeElapsedPct(createdDate: string | undefined, deadline: string | undefined): number | null {
+export function timeElapsedPct(createdDate: string | undefined, deadline: string | undefined, today?: Date): number | null {
   if (!createdDate || !deadline) return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(createdDate) || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return null;
   const start = new Date(createdDate + "T00:00:00").getTime();
   const end = new Date(deadline + "T00:00:00").getTime();
   if (end <= start) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.min(100, Math.max(0, Math.round((today.getTime() - start) / (end - start) * 100)));
+  // Normalize to local midnight regardless of how today was constructed (self-defending against sub-day precision).
+  const todayMidnight = (() => { const d = today ? new Date(today) : new Date(); d.setHours(0, 0, 0, 0); return d; })();
+  return Math.min(100, Math.max(0, Math.round((todayMidnight.getTime() - start) / (end - start) * 100)));
 }
 
 // Returns urgency color: red if today or overdue (days ≤ 0), yellow if ≤7 days, dim otherwise.
@@ -463,7 +473,7 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
         ) : deadlinePickerOpen ? (
           // Quick-set panel: preset buttons + manual YYYY-MM-DD input + cancel
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            {([7, 14, 30] as const).map(days => {
+            {([7, 14, 30, 90] as const).map(days => {
               // Compute once per render so onClick and title always show the same date
               const target = dateAfterDays(days);
               return (
@@ -478,7 +488,7 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
                     color: colors.textPhantom, fontSize: fontSizes.mini, cursor: "pointer",
                   }}
                 >
-                  +{days === 30 ? "1달" : `${days}일`}
+                  {deadlinePresetLabel(days)}
                 </button>
               );
             })}

@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for ProjectCard projectAgeLabel helper
-// ABOUTME: Validates age label (active projects, today anchor) and duration label (done projects, completedDate anchor)
+// ABOUTME: Unit tests for ProjectCard projectAgeLabel and timeElapsedPct helpers
+// ABOUTME: Validates age label (active/done projects) and schedule elapsed-time percentage
 
 import { describe, it, expect } from "vitest";
-import { projectAgeLabel } from "./ProjectCard";
+import { projectAgeLabel, timeElapsedPct, deadlinePresetLabel } from "./ProjectCard";
 
 describe("projectAgeLabel", () => {
   it("should return null when dateStr is undefined", () => {
@@ -70,5 +70,80 @@ describe("projectAgeLabel", () => {
 
   it("should return null when asOfDate is an invalid format", () => {
     expect(projectAgeLabel("2025-01-01", "bad-date")).toBeNull();
+  });
+});
+
+describe("timeElapsedPct", () => {
+  // Fixed reference point: project started Jan 1, deadline Mar 2 (60 days).
+  // Tests inject `today` so they are deterministic regardless of when they run.
+  const START = "2025-01-01";
+  const END   = "2025-03-02"; // exactly 60 days after START
+
+  it("should return null when createdDate is undefined", () => {
+    expect(timeElapsedPct(undefined, END, new Date("2025-02-01T00:00:00"))).toBeNull();
+  });
+
+  it("should return null when deadline is undefined", () => {
+    expect(timeElapsedPct(START, undefined, new Date("2025-02-01T00:00:00"))).toBeNull();
+  });
+
+  it("should return null when createdDate is invalid", () => {
+    expect(timeElapsedPct("not-a-date", END, new Date("2025-02-01T00:00:00"))).toBeNull();
+  });
+
+  it("should return null when deadline is invalid", () => {
+    expect(timeElapsedPct(START, "not-a-date", new Date("2025-02-01T00:00:00"))).toBeNull();
+  });
+
+  it("should return null when deadline equals createdDate (degenerate range)", () => {
+    expect(timeElapsedPct("2025-01-01", "2025-01-01", new Date("2025-01-01T00:00:00"))).toBeNull();
+  });
+
+  it("should return null when deadline is before createdDate", () => {
+    expect(timeElapsedPct("2025-06-01", "2025-01-01", new Date("2025-03-01T00:00:00"))).toBeNull();
+  });
+
+  it("should return 0 when today equals createdDate", () => {
+    expect(timeElapsedPct(START, END, new Date("2025-01-01T00:00:00"))).toBe(0);
+  });
+
+  it("should return 50 at the midpoint (30 of 60 days elapsed)", () => {
+    // START=Jan 1, END=Mar 2 (60 days); midpoint=Jan 31 (30 days elapsed)
+    expect(timeElapsedPct(START, END, new Date("2025-01-31T00:00:00"))).toBe(50);
+  });
+
+  it("should return 100 when today equals deadline", () => {
+    expect(timeElapsedPct(START, END, new Date("2025-03-02T00:00:00"))).toBe(100);
+  });
+
+  it("should clamp to 100 when today is past deadline", () => {
+    expect(timeElapsedPct(START, END, new Date("2025-06-01T00:00:00"))).toBe(100);
+  });
+
+  it("should clamp to 0 when today is before createdDate", () => {
+    expect(timeElapsedPct(START, END, new Date("2024-12-01T00:00:00"))).toBe(0);
+  });
+
+  it("should normalize sub-day today to midnight (same result for noon vs midnight)", () => {
+    // Both noon and midnight on the midpoint day should yield 50%
+    expect(timeElapsedPct(START, END, new Date("2025-01-31T12:00:00"))).toBe(50);
+  });
+});
+
+describe("deadlinePresetLabel", () => {
+  it("should return month label for 30-day multiples", () => {
+    expect(deadlinePresetLabel(30)).toBe("+1달");
+    expect(deadlinePresetLabel(90)).toBe("+3달");
+    expect(deadlinePresetLabel(180)).toBe("+6달");
+  });
+
+  it("should return week label for 7-day multiples that are not month multiples", () => {
+    expect(deadlinePresetLabel(7)).toBe("+1주");
+    expect(deadlinePresetLabel(14)).toBe("+2주");
+  });
+
+  it("should return day label for values that are not week or month multiples", () => {
+    expect(deadlinePresetLabel(1)).toBe("+1일");
+    expect(deadlinePresetLabel(10)).toBe("+10일");
   });
 });
