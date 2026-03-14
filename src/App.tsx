@@ -303,8 +303,8 @@ export default function App() {
   }, [loaded]); // only triggers once: loaded transitions false→true once at startup
 
   const updateHabits = useCallback((habits: Habit[]) => {
-    persist({ ...data, habits });
-  }, [data, persist]);
+    persist({ ...dataRef.current, habits });
+  }, [persist]);
 
   // Sends a desktop notification when a habit streak crosses a milestone (7, 30, 100 days).
   // Uses the same permission-request pattern as the deadline notification.

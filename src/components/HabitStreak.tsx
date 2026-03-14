@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today; amber ✓ = streak at risk; edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend
+// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend
 
 import { useState, useEffect, useMemo, useRef, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -150,6 +150,41 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
         }
       }
     }
+  };
+
+  // Batch check-in: marks all unchecked habits done today in a single onHabitsChange call.
+  // Uses onHabitsChange (not per-habit onUpdate) to avoid parallel persist race conditions.
+  const checkAll = () => {
+    if (!onHabitsChange) return;
+    const uncheckedCount = habits.filter(h => h.lastChecked !== todayStr).length;
+    if (uncheckedCount === 0) return;
+    const updatedHabits = habits.map(h => {
+      if (h.lastChecked === todayStr) return h;
+      const history = h.checkHistory ?? [];
+      const newHistory = [...new Set([...history, todayStr])].sort().slice(-14);
+      const newStreak = h.streak + 1;
+      const prevBest = h.bestStreak ?? 0;
+      const patch: Partial<Habit> = { streak: newStreak, lastChecked: todayStr, checkHistory: newHistory };
+      if (newStreak > prevBest) patch.bestStreak = newStreak;
+      return { ...h, ...patch };
+    });
+    onHabitsChange(updatedHabits);
+    // Fire milestone notifications for habits that crossed a new milestone boundary.
+    // Uses (h, idx) for the key to match checkHabit's `h.id ?? String(idx)` pattern exactly.
+    habits.forEach((h, idx) => {
+      if (h.lastChecked === todayStr) return;
+      const newStreak = h.streak + 1;
+      const newBadge = getMilestone(newStreak);
+      if (newBadge && newBadge !== getMilestone(h.streak)) {
+        const key = h.id ?? String(idx);
+        const notified = milestoneNotifiedRef.current.get(key) ?? new Set<string>();
+        if (!notified.has(newBadge)) {
+          notified.add(newBadge);
+          milestoneNotifiedRef.current.set(key, notified);
+          onMilestoneReached?.(h.name, newStreak, newBadge);
+        }
+      }
+    });
   };
 
   if (editing) {
@@ -526,7 +561,21 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
         })}
       </div>
       {onHabitsChange && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+          {/* "✓ 전체" — only when ≥1 habit is unchecked today; hides when all done to avoid confusion */}
+          {habits.some(h => h.lastChecked !== todayStr) ? (
+            <button
+              onClick={checkAll}
+              title={`오늘 미완료 습관 전체 체크인 (${habits.filter(h => h.lastChecked !== todayStr).length}개)`}
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: colors.textPhantom, fontSize: fontSizes.mini,
+                padding: "0 2px", lineHeight: 1,
+              }}
+            >
+              ✓ 전체
+            </button>
+          ) : <span />}
           <button
             onClick={openEditing}
             title="습관 추가/삭제"
