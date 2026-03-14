@@ -1,7 +1,7 @@
 // ABOUTME: DragBar component - top handle with window drag region, preset position buttons, pin toggle, opacity ±5% buttons
-// ABOUTME: Preset buttons snap the widget flush to screen work area corners; pin keeps window always-on-top
+// ABOUTME: Preset buttons snap the widget flush to screen work area corners; pin keeps window always-on-top; year progress bar shows temporal position in the calendar year
 
-import { CSSProperties, useState } from "react";
+import { CSSProperties, useState, Fragment } from "react";
 import { getCurrentWindow, currentMonitor, PhysicalPosition } from "@tauri-apps/api/window";
 import { fonts, fontSizes, colors, THEMES, ThemeKey } from "../theme";
 import type { WidgetSettings } from "../types";
@@ -65,6 +65,21 @@ export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSetti
 
   const theme = THEMES[currentTheme] ?? THEMES.void;
 
+  // Year progress: millisecond-accurate fraction of the current calendar year elapsed.
+  // Computed per render (not useMemo) so the bar reflects fresh time on hover — the only updates users see.
+  // dayOfYear and daysRemaining are derived from pct (single source of truth) so bar width and tooltip are always consistent.
+  const { pct: yearPct, dayOfYear, daysRemaining } = (() => {
+    const now = new Date();
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    const yearEnd   = new Date(now.getFullYear() + 1, 0, 1);
+    const pct = (now.getTime() - yearStart.getTime()) / (yearEnd.getTime() - yearStart.getTime());
+    const isLeap = now.getFullYear() % 4 === 0 && (now.getFullYear() % 100 !== 0 || now.getFullYear() % 400 === 0);
+    const daysInYear = isLeap ? 366 : 365;
+    // Derive from pct to guarantee dayOfYear and bar width are always in sync
+    const dayOfYear = Math.min(daysInYear, Math.floor(pct * daysInYear) + 1);
+    return { pct, dayOfYear, daysRemaining: Math.max(0, daysInYear - dayOfYear) };
+  })();
+
   const applyPreset = async (preset: Preset) => {
     if (moving) return;
     setMoving(true);
@@ -96,6 +111,7 @@ export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSetti
   };
 
   return (
+    <Fragment>
     <div data-tauri-drag-region style={{
       padding: "12px 16px 8px",
       display: "flex",
@@ -233,5 +249,20 @@ export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSetti
         </button>
       </div>
     </div>
+    {/* Year progress bar — ambient 2px strip showing how far through the calendar year we are.
+        Intentionally subtle so it reads as ambient information, not interactive UI chrome. */}
+    <div
+      title={`Day ${dayOfYear} · ${daysRemaining}일 남음 · ${Math.round(yearPct * 100)}%`}
+      style={{ height: 2, background: "rgba(255,255,255,0.05)", cursor: "default" }}
+    >
+      <div style={{
+        width: `${yearPct * 100}%`,
+        height: "100%",
+        background: theme.accent,
+        opacity: 0.35,
+        borderRadius: "0 1px 1px 0",
+      }} />
+    </div>
+    </Fragment>
   );
 }
