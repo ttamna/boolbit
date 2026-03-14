@@ -1,8 +1,10 @@
-// ABOUTME: Unit tests for HabitStreak pure helper functions
-// ABOUTME: Covers habitLastCheckDaysAgo — days elapsed since last check-in from checkHistory
+// ABOUTME: Unit tests for HabitStreak pure helper functions and component rendering
+// ABOUTME: Covers habitLastCheckDaysAgo and habit notes visibility in view mode
 
 import { describe, it, expect } from "vitest";
-import { habitLastCheckDaysAgo } from "./HabitStreak";
+import { render, screen } from "@testing-library/react";
+import { habitLastCheckDaysAgo, HabitStreak } from "./HabitStreak";
+import type { Habit } from "../types";
 
 describe("habitLastCheckDaysAgo", () => {
   const TODAY = "2026-03-14";
@@ -47,5 +49,36 @@ describe("habitLastCheckDaysAgo", () => {
   it("should return null for future lastCheck dates (clock skew or manual edit)", () => {
     // Future date produces negative days; days >= 2 is false, so null is returned safely
     expect(habitLastCheckDaysAgo(["2026-03-20"], TODAY)).toBeNull();
+  });
+});
+
+describe("HabitStreak view mode notes display", () => {
+  const baseHabit: Habit = {
+    id: "h1",
+    name: "Morning run",
+    streak: 3,
+    icon: "🏃",
+  };
+
+  it("should display notes text when habit has notes", () => {
+    const habit = { ...baseHabit, notes: "Keep the momentum going!" };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.getByText("Keep the momentum going!")).toBeDefined();
+  });
+
+  it("should show placeholder text instead of notes when habit has no notes", () => {
+    render(<HabitStreak habits={[baseHabit]} />);
+    // When notes is absent, InlineEdit renders the placeholder "+" 이유" (not actual notes text)
+    expect(screen.getByText("+ 이유")).toBeDefined();
+  });
+
+  it("should display notes for multiple habits independently", () => {
+    const habitA = { ...baseHabit, id: "h1", name: "Run", notes: "Note A" };
+    const habitB = { ...baseHabit, id: "h2", name: "Read", notes: undefined };
+    const habitC = { ...baseHabit, id: "h3", name: "Meditate", notes: "Note C" };
+    render(<HabitStreak habits={[habitA, habitB, habitC]} />);
+    expect(screen.getByText("Note A")).toBeDefined();
+    expect(screen.queryByText("Note B")).toBeNull();
+    expect(screen.getByText("Note C")).toBeDefined();
   });
 });

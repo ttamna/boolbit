@@ -2,7 +2,7 @@
 // ABOUTME: Supports inline add, edit, delete, reorder (↑↓), rotation interval (5/8/15/30s), and prev/next navigation via ‹/› buttons
 
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
-import { fontSizes, colors } from "../theme";
+import { fontSizes, colors, fonts } from "../theme";
 import { InlineEdit } from "./InlineEdit";
 import { useEditMode } from "../hooks/useEditMode";
 
@@ -298,11 +298,16 @@ export function QuoteRotator({ quotes, onUpdate, rotationInterval, onIntervalCha
         {quotes[safeIdx] ?? "—"}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: 6, flexShrink: 0 }}>
+        {/* Nav + position indicator: shown together when multiple quotes exist.
+            N/M provides orientation — useful when navigating a larger collection. */}
         {quotes.length > 1 && (
-          <button onClick={() => navigate(-1)} title="이전 인용구" style={navBtnStyle}>‹</button>
-        )}
-        {quotes.length > 1 && (
-          <button onClick={() => navigate(1)} title="다음 인용구" style={navBtnStyle}>›</button>
+          <>
+            <button onClick={() => navigate(-1)} title="이전 인용구" style={navBtnStyle}>‹</button>
+            <span style={{ fontFamily: fonts.mono, fontSize: fontSizes.mini, color: colors.textPhantom, lineHeight: 1, userSelect: "none" }}>
+              {safeIdx + 1}/{quotes.length}
+            </span>
+            <button onClick={() => navigate(1)} title="다음 인용구" style={navBtnStyle}>›</button>
+          </>
         )}
         <button onClick={openEditingWithKeys} title="인용구 편집" style={navBtnStyle}>✏</button>
       </div>
