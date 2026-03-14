@@ -1,11 +1,23 @@
 // ABOUTME: ProjectList component - renders project list with add/delete/reorder in edit mode
-// ABOUTME: paused+done collapsible; ↕ sort by focus+urgency; ✕ 전체 bulk-clears done (confirm dialog); ↺ batch GitHub refresh
+// ABOUTME: paused+done collapsible; ↕ sort; ✕ 전체 bulk-clear; ↺ GitHub refresh; avgRunningProgressPct ambient bar
 
 import { useState, useEffect, type CSSProperties } from "react";
 import type { Project } from "../types";
 import { fontSizes, colors, radius } from "../theme";
 import { ProjectCard } from "./ProjectCard";
 import { useEditMode } from "../hooks/useEditMode";
+
+// Returns average progress (0–100, rounded) of running projects — mirrors the view's runningProjects
+// filter (not done, not paused) so both reflect the same "running" definition from a single source.
+// Clamps to [0,100] to guard against out-of-range progress values from manual edits or deserialization.
+// Returns null when no running projects exist (guards against division by zero).
+// Exported for unit testing; pure function with no side effects.
+export function avgRunningProgressPct(projects: Project[]): number | null {
+  const running = projects.filter(p => p.status !== "done" && p.status !== "paused");
+  if (running.length === 0) return null;
+  const avg = running.reduce((s, p) => s + p.progress, 0) / running.length;
+  return Math.min(100, Math.max(0, Math.round(avg)));
+}
 
 interface ProjectListProps {
   projects: Project[];
@@ -171,6 +183,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
   // doneProjects hoisted above if(editing) — single source for the done criterion
   // pct: completion percentage — single source used in both tooltip and bar width
   const pct = projects.length > 0 ? Math.round(doneProjects.length / projects.length * 100) : 0;
+  const avgPct = avgRunningProgressPct(projects);
 
   return (
     <div>
@@ -228,6 +241,25 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
       {showDone && doneProjects.map(p => (
         <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} accent={accent} />
       ))}
+      {/* Running project avg-progress bar — ambient 2px strip showing average progress of active+in-progress projects.
+          Consistent visual language with Clock (day bar), DragBar (year bar), Direction (period bars), Habits (completion bar).
+          Hidden when no running projects exist (avgPct === null).
+          At 0%: track is visible but fill is empty — intentional, signals projects exist with no progress yet. */}
+      {avgPct !== null && (
+        <div
+          title={`실행 중 프로젝트 평균 진행률 ${avgPct}%`}
+          style={{ marginTop: 6, height: 2, background: colors.borderSubtle, borderRadius: radius.bar, overflow: "hidden" }}
+        >
+          <div style={{
+            height: "100%",
+            width: `${avgPct}%`,
+            background: accent ?? colors.textSubtle,
+            borderRadius: radius.bar,
+            opacity: 0.4,
+            transition: "width 0.4s ease",
+          }} />
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", marginTop: 4 }}>
         {/* Left: completion stats — visible when at least one project is done; shows done/total mini bar + fraction */}
         {doneProjects.length > 0 && (
