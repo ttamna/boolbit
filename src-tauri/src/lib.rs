@@ -33,7 +33,7 @@ pub struct WidgetSettings {
     pub github_refresh_interval: Option<u32>,
 }
 
-const VALID_THEMES: &[&str] = &["void", "nebula", "forest", "ember"];
+const VALID_THEMES: &[&str] = &["void", "nebula", "forest", "ember", "midnight", "aurora", "rose"];
 const VALID_SECTIONS: &[&str] = &["projects", "streaks", "direction", "pomodoro"];
 fn default_theme() -> String { "void".to_string() }
 fn default_clock_format() -> String { "24h".to_string() }
@@ -92,6 +92,12 @@ pub struct PomodoroDay {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IntentionEntry {
+    pub date: String,
+    pub text: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PomodoroDurations {
     pub focus: u32,
     #[serde(rename = "break")]
@@ -144,6 +150,9 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "todayIntentionDate")]
     pub today_intention_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "intentionHistory")]
+    pub intention_history: Option<Vec<IntentionEntry>>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -266,6 +275,7 @@ fn default_data() -> WidgetData {
         section_order: None,
         today_intention: None,
         today_intention_date: None,
+        intention_history: None,
     }
 }
 
@@ -361,6 +371,29 @@ fn load_data() -> WidgetData {
             }
         }
         None => {}
+    }
+    // Sanitize intention_history: validate dates (YYYY-MM-DD), trim text, drop empties,
+    // dedup by date (first text wins — defensive; App ensures no duplicates before saving),
+    // drop oldest entries so only the 7 most-recent remain, sort ascending.
+    if let Some(ref mut history) = data.intention_history {
+        history.retain_mut(|e| {
+            e.text = e.text.trim().to_string();
+            let b = e.date.as_bytes();
+            let valid_date = e.date.len() == 10
+                && b.iter().all(|&x| x.is_ascii_digit() || x == b'-')
+                && b[4] == b'-'
+                && b[7] == b'-';
+            valid_date && !e.text.is_empty()
+        });
+        history.sort_by(|a, b| a.date.cmp(&b.date));
+        history.dedup_by_key(|e| e.date.clone()); // consecutive dupes after ascending sort → keeps first text per date
+        if history.len() > 7 {
+            let excess = history.len() - 7;
+            history.drain(0..excess); // drop oldest to keep the 7 most-recent entries
+        }
+        if history.is_empty() {
+            data.intention_history = None;
+        }
     }
     // Sanitize project fields: remove empty strings; normalize is_focus(false) → absent
     for project in &mut data.projects {

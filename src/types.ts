@@ -50,6 +50,11 @@ export interface PomodoroDay {
   count: number; // focus sessions completed on this day
 }
 
+export interface IntentionEntry {
+  date: string;  // YYYY-MM-DD
+  text: string;  // the intention text for that day
+}
+
 export interface WidgetData {
   projects: Project[];
   habits: Habit[];
@@ -67,6 +72,7 @@ export interface WidgetData {
   quoteInterval?: number;            // auto-rotation interval in seconds (default 8)
   todayIntention?: string;           // one-line daily intention set by user; absent = not set
   todayIntentionDate?: string;       // YYYY-MM-DD when todayIntention was last set; absent = not tracked
+  intentionHistory?: IntentionEntry[]; // rolling 7-day log of daily intentions; newest last; absent = no history
 }
 
 export interface WindowPosition {

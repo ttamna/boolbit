@@ -2,7 +2,7 @@
 // ABOUTME: Handles data loading/saving, inline patch updates, and section reorder via sectionOrder field
 
 import { useState, useEffect, useCallback, useRef, CSSProperties, Fragment } from "react";
-import type { WidgetData, Habit, Project, SectionKey, GitHubData, PomodoroDay } from "./types";
+import type { WidgetData, Habit, Project, SectionKey, GitHubData, PomodoroDay, IntentionEntry } from "./types";
 import { colors, fonts, fontSizes, radius, shadows, THEMES, PROJECT_STATUS_COLORS } from "./theme";
 import { invoke, isTauri } from "./lib/tauri";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -76,6 +76,7 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const { settings, updateSettings, loaded: settingsLoaded } = useSettings();
 
   useWindowSync({
@@ -233,8 +234,15 @@ export default function App() {
   const updateIntention = useCallback((todayIntention: string) => {
     const intention = todayIntention !== "" ? todayIntention : undefined;
     // Track the date when the intention was last set so midnight reset can clear stale values
-    const todayIntentionDate = intention ? new Date().toLocaleDateString("sv") : undefined;
-    persist({ ...data, todayIntention: intention, todayIntentionDate });
+    const today = new Date().toLocaleDateString("sv");
+    const todayIntentionDate = intention ? today : undefined;
+    // Append/update today's entry in rolling 7-day history when setting a non-empty intention.
+    // When clearing, leave history unchanged so the last set text is preserved for reflection.
+    const history: IntentionEntry[] = data.intentionHistory ?? [];
+    const updatedHistory = intention
+      ? [...history.filter(e => e.date !== today), { date: today, text: intention }].slice(-7)
+      : history.length > 0 ? history : undefined;
+    persist({ ...data, todayIntention: intention, todayIntentionDate, intentionHistory: updatedHistory });
   }, [data, persist]);
 
   const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number; longBreak: number }) => {
@@ -335,10 +343,11 @@ export default function App() {
   // Derived: habits done today + at-risk count — same render-time date pattern as pomodoroSessionsToday above.
   // Brief (<1 min) badge/button mismatch at midnight is acceptable; matching existing project pattern.
   const habitsArr = data.habits ?? [];
-  const todayHabitsStr = new Date().toLocaleDateString("sv");
+  // todayStr: render-time date for Habits and Direction badge derivations (effects capture their own date at invocation time)
+  const todayStr = new Date().toLocaleDateString("sv");
   // Derive yesterday from local-midnight basis (same as HabitStreak.tsx) for DST safety
-  const yesterdayHabitsStr = (() => { const d = new Date(todayHabitsStr + "T00:00:00"); d.setDate(d.getDate() - 1); return d.toLocaleDateString("sv"); })();
-  const habitsDoneToday = habitsArr.filter(h => h.lastChecked === todayHabitsStr).length;
+  const yesterdayHabitsStr = (() => { const d = new Date(todayStr + "T00:00:00"); d.setDate(d.getDate() - 1); return d.toLocaleDateString("sv"); })();
+  const habitsDoneToday = habitsArr.filter(h => h.lastChecked === todayStr).length;
   // atRisk: streak > 0, last checked yesterday — semantically equivalent to HabitStreak.tsx:338's !doneToday&&streak>0&&lastChecked===yesterday
   const habitsAtRisk = habitsArr.filter(h => h.streak > 0 && h.lastChecked === yesterdayHabitsStr).length;
   const habitsBadge = habitsArr.length > 0
@@ -463,28 +472,54 @@ export default function App() {
               )}
             </Fragment>
           );
-          if (key === "direction") return (
-            <Fragment key="direction">
-              <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")} badge={directionBadge} onMoveUp={up} onMoveDown={dn}>Direction</SectionLabel>
-              {!collapsed.includes("direction") && (
-                <>
-                  {/* Today's intention — a one-line focus phrase set by the user; ✕ clears when set */}
-                  <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
-                    <InlineEdit
-                      value={data.todayIntention ?? ""}
-                      onSave={updateIntention}
-                      placeholder="오늘의 의도..."
-                      style={{ flex: 1, fontStyle: "italic", fontSize: fontSizes.sm, ...(data.todayIntention ? { color: colors.textMid } : {}) }}
-                    />
-                    {data.todayIntention && (
-                      <button onClick={() => updateIntention("")} title="의도 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
+          if (key === "direction") {
+            // Past intentions: filter out today, take newest 6, reverse to newest-first.
+            // Computed once and shared between toggle button visibility and history panel.
+            const pastIntentions = (data.intentionHistory ?? []).filter(e => e.date !== todayStr).slice(-6).reverse();
+            return (
+              <Fragment key="direction">
+                <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")} badge={directionBadge} onMoveUp={up} onMoveDown={dn}>Direction</SectionLabel>
+                {!collapsed.includes("direction") && (
+                  <>
+                    {/* Today's intention — a one-line focus phrase set by the user; ✕ clears when set */}
+                    <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
+                      <InlineEdit
+                        value={data.todayIntention ?? ""}
+                        onSave={updateIntention}
+                        placeholder="오늘의 의도..."
+                        style={{ flex: 1, fontStyle: "italic", fontSize: fontSizes.sm, ...(data.todayIntention ? { color: colors.textMid } : {}) }}
+                      />
+                      {data.todayIntention && (
+                        <button onClick={() => updateIntention("")} title="의도 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
+                      )}
+                      {/* Toggle past intention history; only visible when past entries exist */}
+                      {pastIntentions.length > 0 && (
+                        <button
+                          onClick={() => setShowHistory(h => !h)}
+                          title={showHistory ? "이력 숨기기" : "이전 의도 보기"}
+                          style={{ background: "transparent", border: "none", cursor: "pointer", color: showHistory ? colors.textSubtle : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}
+                        >
+                          {showHistory ? "▴" : "▾"}
+                        </button>
+                      )}
+                    </div>
+                    {/* Past intention history — up to 6 previous days, newest first */}
+                    {showHistory && pastIntentions.length > 0 && (
+                      <div style={{ padding: "0 14px 6px" }}>
+                        {pastIntentions.map(e => (
+                          <div key={e.date} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 3 }}>
+                            <span style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, flexShrink: 0, minWidth: 32 }}>{e.date.slice(5)}</span>
+                            <span style={{ fontSize: fontSizes.xs, color: colors.textLabel, fontStyle: "italic", lineHeight: 1.4 }}>{e.text}</span>
+                          </div>
+                        ))}
+                      </div>
                     )}
-                  </div>
-                  <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} rotationInterval={data.quoteInterval} onIntervalChange={updateQuoteInterval} />
-                </>
-              )}
-            </Fragment>
-          );
+                    <QuoteRotator quotes={data.quotes} onUpdate={updateQuotes} rotationInterval={data.quoteInterval} onIntervalChange={updateQuoteInterval} />
+                  </>
+                )}
+              </Fragment>
+            );
+          }
           return null;
         })}
 
