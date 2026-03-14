@@ -4,6 +4,25 @@
 import { useState, useEffect } from "react";
 import { fonts, fontSizes, colors, radius } from "../theme";
 
+// Returns the fraction of the calendar day elapsed (0.0 = midnight, 0.5 = noon, 1.0 = end of day).
+// Clamped to [0, 1] so out-of-range inputs (e.g. negative or > 86400 total seconds) stay bounded.
+// Exported for unit testing; accepts discrete h/m/s values for deterministic tests.
+export function calcDayFraction(hours: number, minutes: number, seconds: number): number {
+  return Math.min(1, Math.max(0, (hours * 3600 + minutes * 60 + seconds) / 86400));
+}
+
+// Returns the display hour string (zero-padded) and AM/PM period for 12h/24h modes.
+// In 12h mode: midnight (0) and noon (12) both display as "12"; period is "AM" or "PM".
+// In 24h mode: period is null.
+// Exported for unit testing.
+export function formatHour(rawHour: number, use12h: boolean): { h: string; period: string | null } {
+  const h = use12h
+    ? ((rawHour % 12) || 12).toString().padStart(2, "0")
+    : rawHour.toString().padStart(2, "0");
+  const period = use12h ? (rawHour >= 12 ? "PM" : "AM") : null;
+  return { h, period };
+}
+
 const mono = { fontFamily: fonts.mono };
 
 interface ClockProps {
@@ -20,10 +39,7 @@ export function Clock({ use12h = false, accent, onToggleFormat }: ClockProps) {
   }, []);
 
   const rawHour = time.getHours();
-  const h = use12h
-    ? ((rawHour % 12) || 12).toString().padStart(2, "0")
-    : rawHour.toString().padStart(2, "0");
-  const period = use12h ? (rawHour >= 12 ? "PM" : "AM") : null;
+  const { h, period } = formatHour(rawHour, use12h);
   const m = time.getMinutes().toString().padStart(2, "0");
   const sec = time.getSeconds().toString().padStart(2, "0");
   const dateStr = time.toLocaleDateString("ko-KR", {
@@ -33,11 +49,7 @@ export function Clock({ use12h = false, accent, onToggleFormat }: ClockProps) {
     weekday: "long",
   });
 
-  // Day progress: seconds elapsed since midnight / 86400 total seconds.
-  // Clamped to [0,1] to guard against DST transitions (23h or 25h days).
-  const dayFraction = Math.min(1, Math.max(0,
-    (rawHour * 3600 + time.getMinutes() * 60 + time.getSeconds()) / 86400
-  ));
+  const dayFraction = calcDayFraction(rawHour, time.getMinutes(), time.getSeconds());
   const dayPct = Math.round(dayFraction * 100);
 
   return (
