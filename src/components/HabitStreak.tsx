@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today; amber ✓ = streak at risk (checked yesterday, not today); edit mode: add/delete/reorder/targetStreak/bestStreak; 7-day dot heatmap
+// ABOUTME: Click ✓ to check/uncheck today; amber ✓ = streak at risk (checked yesterday, not today); edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dot heatmap
 
 import { useState, useEffect, useMemo, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -61,20 +61,20 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
     return () => clearInterval(id);
   }, []);
 
-  // Last 7 days as YYYY-MM-DD strings (oldest → newest), derived from todayStr to stay consistent.
+  // Last 14 days as YYYY-MM-DD strings (oldest → newest), derived from todayStr to stay consistent.
   // Using todayStr as base (not new Date()) prevents a 1-min mismatch right after midnight
   // when todayStr is still yesterday but new Date() has already advanced to the new day.
-  const last7Days = useMemo(() => {
+  const last14Days = useMemo(() => {
     const base = new Date(todayStr + "T00:00:00"); // local midnight of todayStr
-    return Array.from({ length: 7 }, (_, i) => {
+    return Array.from({ length: 14 }, (_, i) => {
       const d = new Date(base);
-      d.setDate(d.getDate() - (6 - i));
+      d.setDate(d.getDate() - (13 - i));
       return d.toLocaleDateString("sv");
     });
   }, [todayStr]);
 
-  // Yesterday as YYYY-MM-DD — same todayStr base as last7Days to stay consistent around midnight.
-  // Explicit derivation avoids fragile dependency on last7Days array length or index.
+  // Yesterday as YYYY-MM-DD — same todayStr base as last14Days to stay consistent around midnight.
+  // Explicit derivation avoids fragile dependency on last14Days array length or index.
   const yesterdayStr = useMemo(() => {
     const d = new Date(todayStr + "T00:00:00");
     d.setDate(d.getDate() - 1);
@@ -443,12 +443,12 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                   </div>
                 </div>
               )}
-              {/* 7-day check-in dot heatmap — visible once there is any check history */}
+              {/* 14-day check-in dot heatmap — visible once there is any check history */}
               {history.length > 0 && (
                 <div style={{ display: "flex", gap: 2, paddingLeft: 26, marginTop: 3 }}>
-                  {last7Days.map((day, di) => {
+                  {last14Days.map((day, di) => {
                     const checked = history.includes(day);
-                    const daysAgo = 6 - di;
+                    const daysAgo = 13 - di;
                     const label = daysAgo === 0 ? "오늘" : daysAgo === 1 ? "어제" : `${daysAgo}일 전`;
                     return (
                       <div
