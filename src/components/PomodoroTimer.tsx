@@ -290,6 +290,20 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     ? (cycleCountRef.current + 1 >= effectiveLongBreakInterval ? "longBreak" : "break")
     : "focus";
 
+  // sessionWeekTrend: memoized prev-7/cur-7 session data with histMap bundled for heatmap render.
+  // Co-located with sessionHistory/last14Days to make dependencies explicit; null when no history.
+  // Sessions per 7-day window are unbounded (unlike habits where max is 7), so counts use "회" not "/7".
+  const sessionWeekTrend = useMemo(() => {
+    if (!last14Days || !sessionHistory || sessionHistory.length === 0) return null;
+    const histMap = new Map(sessionHistory.map(d => [d.date, d.count] as [string, number]));
+    // cur7: slice(7) = last14Days[7..13] = most recent 7 days; prev7: slice(0,7) = prior 7 days
+    const cur7 = last14Days.slice(7).reduce((s, d) => s + (histMap.get(d) ?? 0), 0);
+    const prev7 = last14Days.slice(0, 7).reduce((s, d) => s + (histMap.get(d) ?? 0), 0);
+    // trend: ↑ improving, ↓ declining, "" stable — suppressed when equal to avoid noise
+    const trend = cur7 > prev7 ? "↑" : cur7 < prev7 ? "↓" : "";
+    return { days: last14Days, histMap, cur7, prev7, trend };
+  }, [last14Days]); // last14Days already encodes sessionHistory + todayStr (its own deps)
+
   return (
     <div style={{ borderTop: `1px solid ${colors.borderFaint}`, marginTop: 4 }}>
       {/* Toggle row */}
@@ -345,12 +359,12 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
         </div>
       )}
 
-      {/* 14-day session heatmap — shown whenever there is any history; right-aligned to match session badge */}
-      {last14Days && sessionHistory && sessionHistory.length > 0 && (
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 2, paddingBottom: 6 }}>
-          {last14Days.map((day, di) => {
-            const entry = sessionHistory.find(h => h.date === day);
-            const count = entry?.count ?? 0;
+      {/* 14-day session heatmap — shown whenever there is any history; right-aligned to match session badge.
+          Dots split into prev-7 | cur-7 with a 5px gap at di===7 (mirrors HabitStreak.tsx week-boundary pattern). */}
+      {sessionWeekTrend && (
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 2, paddingBottom: 6 }}>
+          {sessionWeekTrend.days.map((day, di) => {
+            const count = sessionWeekTrend.histMap.get(day) ?? 0;
             const daysAgo = 13 - di;
             const label = daysAgo === 0
               ? `오늘 ${count}회`
@@ -367,10 +381,19 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
                   width: 3, height: 3, borderRadius: "50%", flexShrink: 0,
                   background: count > 0 ? colors.statusActive : colors.borderSubtle,
                   opacity,
+                  // Extra left margin at di===7 creates a visual week boundary (prev-7 | cur-7)
+                  marginLeft: di === 7 ? 5 : 0,
                 }}
               />
             );
           })}
+          {/* Weekly session count — N/7 with trend arrow; tooltip shows both windows + 14-day total */}
+          <span
+            title={`최근 7일 ${sessionWeekTrend.cur7}회 · 이전 7일 ${sessionWeekTrend.prev7}회 · 14일 합계 ${sessionWeekTrend.cur7 + sessionWeekTrend.prev7}회`}
+            style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginLeft: 3, opacity: 0.7 }}
+          >
+            {sessionWeekTrend.cur7}/7{sessionWeekTrend.trend}
+          </span>
         </div>
       )}
 
