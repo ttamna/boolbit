@@ -6,6 +6,7 @@ import type { WidgetData, Habit, Project, SectionKey, GitHubData, PomodoroDay, I
 import { colors, fonts, fontSizes, radius, shadows, THEMES, PROJECT_STATUS_COLORS } from "./theme";
 import { invoke, isTauri } from "./lib/tauri";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { useSettings } from "./hooks/useSettings";
 import { useWindowSync } from "./hooks/useWindowSync";
 import { useWindowResize } from "./hooks/useWindowResize";
@@ -265,6 +266,41 @@ export default function App() {
     }, 60_000);
     return () => clearInterval(id);
   }, [loaded, persist]);
+
+  // Deadline notification — fires once per app startup session when projects with deadline today or overdue exist.
+  // sessionStorage guard prevents Strict Mode double-invoke from sending duplicate notifications;
+  // setItem is synchronous so it's set before the async IIFE starts, making the guard race-free.
+  // Design: [loaded] dependency means this runs once per app launch only — apps running past midnight
+  // will not re-notify until restarted (intentional: notification is a startup alert, not a polling alarm).
+  useEffect(() => {
+    if (!loaded) return;
+    if (sessionStorage.getItem("vw_deadline_notified")) return;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayMs = today.getTime();
+    const urgentWithDays = (dataRef.current.projects ?? []).flatMap(p => {
+      if (p.status === "done" || !p.deadline || !/^\d{4}-\d{2}-\d{2}$/.test(p.deadline)) return [];
+      const ts = new Date(p.deadline + "T00:00:00").getTime();
+      if (isNaN(ts)) return []; // guard against invalid dates that pass the regex (e.g. 2024-02-30)
+      const days = Math.floor((ts - todayMs) / 86400000);
+      return days <= 0 ? [{ name: p.name, days }] : [];
+    });
+    if (urgentWithDays.length === 0) return;
+    sessionStorage.setItem("vw_deadline_notified", "1");
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        const dueToday = urgentWithDays.filter(({ days }) => days === 0).map(({ name }) => name);
+        const overdue  = urgentWithDays.filter(({ days }) => days < 0).map(({ name }) => name);
+        const lines: string[] = [];
+        if (dueToday.length > 0) lines.push(`오늘 마감: ${dueToday.join(", ")}`);
+        if (overdue.length > 0)  lines.push(`기한 초과: ${overdue.join(", ")}`);
+        sendNotification({ title: "Vision Widget", body: lines.join("\n") });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [loaded]); // only triggers once: loaded transitions false→true once at startup
 
   const updateHabits = useCallback((habits: Habit[]) => {
     persist({ ...data, habits });
