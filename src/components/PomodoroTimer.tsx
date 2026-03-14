@@ -85,6 +85,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const [notifyEnabled, setNotifyEnabled] = useState(initialNotify !== false);
   // runKey: increment to force a new interval when autoStart transitions phases (running stays true)
   const [runKey, setRunKey] = useState(0);
+  // freshStart: when true, the new interval should start from full duration (phase just transitioned)
+  const freshStartRef = useRef(false);
   const [customMode, setCustomMode] = useState<Phase | null>(null);
   const [showPresets, setShowPresets] = useState(false);
   const [customValue, setCustomValue] = useState("");
@@ -121,12 +123,20 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     // Compute effective start time from current remaining so pause/resume works correctly.
     // effectiveStart = now - (totalSecs - remaining) * 1000
     // This lets us resume mid-countdown without resetting to the full duration.
+    let active = true; // stale tick 방지 플래그
     const totalSecs = durationsRef.current[phaseRef.current] * 60;
-    const effectiveStart = Date.now() - (totalSecs - remainingRef.current) * 1000;
+    // When phase just transitioned (freshStart), remaining is already reset to totalSecs,
+    // so start from 0 elapsed. Otherwise use remainingRef for pause/resume.
+    const elapsed = freshStartRef.current ? 0 : (totalSecs - remainingRef.current);
+    freshStartRef.current = false;
+    const effectiveStart = Date.now() - elapsed * 1000;
     intervalRef.current = setInterval(() => {
+      if (!active) return; // stale tick은 무시
+
       const newElapsed = Math.floor((Date.now() - effectiveStart) / 1000);
       const newRemaining = Math.max(0, totalSecs - newElapsed);
       if (newRemaining <= 0) {
+        active = false; // 재진입 방지
         clearInterval(intervalRef.current!);
         intervalRef.current = null;
         const currentPhase = phaseRef.current;
@@ -154,6 +164,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
         setRemaining(durationsRef.current[next] * 60);
         if (autoStartRef.current) {
           // Bump runKey so useEffect re-fires with running still true, creating a fresh interval
+          freshStartRef.current = true;
           setRunKey(k => k + 1);
         } else {
           setRunning(false);
@@ -162,7 +173,13 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
         setRemaining(newRemaining);
       }
     }, 1000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    return () => {
+      active = false; // cleanup 시 future ticks 비활성화
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
   }, [running, runKey]);
 
   const reset = () => {
@@ -190,6 +207,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     setPhase(next);
     setRemaining(durationsRef.current[next] * 60);
     if (running && autoStart) {
+      freshStartRef.current = true;
       setRunKey(k => k + 1);
     } else {
       setRunning(false);
