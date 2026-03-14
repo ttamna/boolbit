@@ -386,7 +386,7 @@ export default function App() {
 
   // Derived: running project count + average progress for Projects section badge.
   // "active" and "in-progress" are running; "paused" is stalled; "done" is excluded from tracking.
-  // Badge format: "2/3 · 45%" — running count / non-done count, avg progress of running projects.
+  // Badge format: "★ <name> · 2/3 · 45% · ⚠N" — focus project name (when set on running project), running/total, avg progress, overdue.
   // When projects have a deadline ≤ today (overdue or due today), appends " · ⚠N" for urgency.
   const projectsArr = data.projects ?? [];
   const nonDoneProjects = projectsArr.filter(p => p.status !== "done");
@@ -404,8 +404,17 @@ export default function App() {
     if (isNaN(ts)) return false;
     return Math.floor((ts - localMidnight) / 86400000) <= 0;
   }).length;
+  // Focus project badge: first word of the focused non-done project name, max 12 chars.
+  // Shown as "★ <name>" prefix so the user can see current priority without expanding the section.
+  // "done" projects are excluded to stay within the badge scope (nonDoneProjects): showing a
+  // done project's name while it is not counted in the N/total would be misleading.
+  const focusProject = projectsArr.find(p => p.isFocus && p.status !== "done");
+  const focusBadgeName = focusProject
+    ? (focusProject.name.trim().split(/\s+/)[0].slice(0, 12) || null)
+    : null;
   const projectsBadge = nonDoneProjects.length > 0
     ? [
+        focusBadgeName ? `★ ${focusBadgeName}` : null,
         avgProgress !== null
           ? `${runningCount}/${nonDoneProjects.length} · ${avgProgress}%`
           : `${runningCount}/${nonDoneProjects.length}`,
