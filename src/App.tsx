@@ -546,6 +546,22 @@ export default function App() {
   const habitsDoneToday = habitsArr.filter(h => h.lastChecked === todayStr).length;
   // atRisk: streak > 0, last checked yesterday — semantically equivalent to HabitStreak.tsx:338's !doneToday&&streak>0&&lastChecked===yesterday
   const habitsAtRisk = habitsArr.filter(h => h.streak > 0 && h.lastChecked === yesterdayHabitsStr).length;
+  // intentionConsecutiveDays: consecutive days (including today) on which the user has set an intention.
+  // Derived from todayIntention + intentionHistory (rolling 7-day log). Returns 0 when today has no intention.
+  // Max computable = 7 (history cap). Stops at the first gap day to count truly unbroken streaks.
+  const intentionConsecutiveDays = (() => {
+    if (!data.todayIntention) return 0;
+    const history = data.intentionHistory ?? [];
+    let count = 1; // today has an intention
+    for (let back = 1; back <= 6; back++) {
+      const d = new Date(todayMidnight);
+      d.setDate(d.getDate() - back);
+      const dateStr = d.toLocaleDateString("sv");
+      if (history.some(e => e.date === dateStr)) count++;
+      else break;
+    }
+    return count;
+  })();
   // last7Days: [6daysAgo, ..., yesterday, today] as YYYY-MM-DD strings (oldest→newest, HabitStreak.tsx convention).
   // Single source shared by habitsWeekRate, weekPomodoroCount, and recentlyDoneCount.
   // Anchors to todayMidnight for DST safety.
@@ -645,7 +661,10 @@ export default function App() {
       const base = data.weekGoalDone ? "W✓✓" : "W✓";
       parts.push(daysLeftInWeek <= 3 ? `${base}·${daysLeftInWeek}d` : base);
     }
-    if (data.todayIntention) parts.push(data.todayIntentionDone ? "✓✓" : "✓");
+    if (data.todayIntention) {
+      const base = data.todayIntentionDone ? "✓✓" : "✓";
+      parts.push(intentionConsecutiveDays >= 2 ? `${base}·${intentionConsecutiveDays}🔥` : base);
+    }
     const quotesArr = data.quotes ?? [];
     if (quotesArr.length > 0) parts.push(`${quotesArr.length}q`);
     return parts.length > 0 ? parts.join(" · ") : undefined;
@@ -822,6 +841,10 @@ export default function App() {
                           title={data.todayIntentionDone ? "달성 취소" : "오늘의 의도 달성 완료로 표시"}
                           style={{ background: "transparent", border: "none", cursor: "pointer", color: data.todayIntentionDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}
                         >✓</button>
+                      )}
+                      {/* Consecutive intention streak — shown when ≥2 days in a row to reward consistency */}
+                      {data.todayIntention && intentionConsecutiveDays >= 2 && (
+                        <span title={`${intentionConsecutiveDays}일 연속 의도 설정`} style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, lineHeight: 1 }}>{intentionConsecutiveDays}🔥</span>
                       )}
                       {data.todayIntention && (
                         <button onClick={() => updateIntention("")} title="의도 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
