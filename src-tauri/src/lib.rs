@@ -153,6 +153,9 @@ pub struct WidgetData {
     #[serde(rename = "todayIntentionDate")]
     pub today_intention_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "todayIntentionDone")]
+    pub today_intention_done: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "intentionHistory")]
     pub intention_history: Option<Vec<IntentionEntry>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -304,6 +307,7 @@ fn default_data() -> WidgetData {
         section_order: None,
         today_intention: None,
         today_intention_date: None,
+        today_intention_done: None,
         intention_history: None,
         week_goal: None,
         week_goal_date: None,
@@ -408,6 +412,10 @@ fn load_data() -> WidgetData {
             }
         }
         None => {}
+    }
+    // Sanitize today_intention_done: clear if intention is absent (done without an intention is meaningless)
+    if data.today_intention.is_none() {
+        data.today_intention_done = None;
     }
     // Sanitize intention_history: validate dates (YYYY-MM-DD), trim text, drop empties,
     // dedup by date (first text wins — defensive; App ensures no duplicates before saving),

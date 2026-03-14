@@ -154,7 +154,7 @@ export default function App() {
           const resolvedData = needsSave ? {
             ...saved,
             habits: reset,
-            ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined } : {}),
+            ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined, todayIntentionDone: undefined } : {}),
             ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined } : {}),
             ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined } : {}),
             ...(quarterGoalStale ? { quarterGoal: undefined, quarterGoalDate: undefined } : {}),
@@ -256,7 +256,7 @@ export default function App() {
       await persist({
         ...current,
         habits: reset,
-        ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined } : {}),
+        ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined, todayIntentionDone: undefined } : {}),
         ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined } : {}),
         ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined } : {}),
         ...(quarterGoalStale ? { quarterGoal: undefined, quarterGoalDate: undefined } : {}),
@@ -283,18 +283,27 @@ export default function App() {
   }, [data, persist]);
 
   const updateIntention = useCallback((todayIntention: string) => {
+    const snapshot = dataRef.current;
     const intention = todayIntention !== "" ? todayIntention : undefined;
     // Track the date when the intention was last set so midnight reset can clear stale values
     const today = new Date().toLocaleDateString("sv");
     const todayIntentionDate = intention ? today : undefined;
     // Append/update today's entry in rolling 7-day history when setting a non-empty intention.
     // When clearing, leave history unchanged so the last set text is preserved for reflection.
-    const history: IntentionEntry[] = data.intentionHistory ?? [];
+    const history: IntentionEntry[] = snapshot.intentionHistory ?? [];
     const updatedHistory = intention
       ? [...history.filter(e => e.date !== today), { date: today, text: intention }].slice(-7)
       : history.length > 0 ? history : undefined;
-    persist({ ...data, todayIntention: intention, todayIntentionDate, intentionHistory: updatedHistory });
-  }, [data, persist]);
+    // Clear done when intention is cleared OR when text changes; done is tied to the specific text
+    const todayIntentionDone = (intention && intention === snapshot.todayIntention) ? snapshot.todayIntentionDone : undefined;
+    persist({ ...snapshot, todayIntention: intention, todayIntentionDate, todayIntentionDone, intentionHistory: updatedHistory });
+  }, [persist]);
+
+  const updateIntentionDone = useCallback((done: boolean) => {
+    const snapshot = dataRef.current;
+    // Only meaningful when an intention exists; false is stored as absent to keep JSON lean
+    persist({ ...snapshot, todayIntentionDone: done || undefined });
+  }, [persist]);
 
   const updateWeekGoal = useCallback((weekGoal: string) => {
     const goal = weekGoal !== "" ? weekGoal : undefined;
@@ -499,7 +508,7 @@ export default function App() {
     if (data.quarterGoal) parts.push("Q✓");
     if (data.monthGoal) parts.push("M✓");
     if (data.weekGoal) parts.push("W✓");
-    if (data.todayIntention) parts.push("✓");
+    if (data.todayIntention) parts.push(data.todayIntentionDone ? "✓✓" : "✓");
     const quotesArr = data.quotes ?? [];
     if (quotesArr.length > 0) parts.push(`${quotesArr.length}q`);
     return parts.length > 0 ? parts.join(" · ") : undefined;
@@ -647,14 +656,22 @@ export default function App() {
                         <button onClick={() => updateWeekGoal("")} title="주간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                       )}
                     </div>
-                    {/* Today's intention — a one-line focus phrase set by the user; ✕ clears when set */}
+                    {/* Today's intention — a one-line focus phrase set by the user; ✓ marks done; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
                       <InlineEdit
                         value={data.todayIntention ?? ""}
                         onSave={updateIntention}
                         placeholder="오늘의 의도..."
-                        style={{ flex: 1, fontStyle: "italic", fontSize: fontSizes.sm, ...(data.todayIntention ? { color: colors.textMid } : {}) }}
+                        style={{ flex: 1, fontStyle: "italic", fontSize: fontSizes.sm, ...(data.todayIntention ? { color: data.todayIntentionDone ? colors.textLabel : colors.textMid, textDecoration: data.todayIntentionDone ? "line-through" : "none" } : {}) }}
                       />
+                      {/* Done toggle — only visible when intention is set; accent when done, ghost when pending */}
+                      {data.todayIntention && (
+                        <button
+                          onClick={() => updateIntentionDone(!data.todayIntentionDone)}
+                          title={data.todayIntentionDone ? "달성 취소" : "오늘의 의도 달성 완료로 표시"}
+                          style={{ background: "transparent", border: "none", cursor: "pointer", color: data.todayIntentionDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}
+                        >✓</button>
+                      )}
                       {data.todayIntention && (
                         <button onClick={() => updateIntention("")} title="의도 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                       )}

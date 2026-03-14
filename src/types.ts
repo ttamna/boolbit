@@ -73,6 +73,7 @@ export interface WidgetData {
   quoteInterval?: number;            // auto-rotation interval in seconds (default 8)
   todayIntention?: string;           // one-line daily intention set by user; absent = not set
   todayIntentionDate?: string;       // YYYY-MM-DD when todayIntention was last set; absent = not tracked
+  todayIntentionDone?: boolean;      // true when user marks today's intention as accomplished; absent/false = not done
   intentionHistory?: IntentionEntry[]; // rolling 7-day log of daily intentions; newest last; absent = no history
   weekGoal?: string;      // one-line weekly goal; absent = not set
   weekGoalDate?: string;  // ISO week "YYYY-Www" when weekGoal was last set; absent = not tracked
