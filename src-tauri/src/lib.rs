@@ -168,6 +168,12 @@ pub struct WidgetData {
     #[serde(rename = "monthGoalDate")]
     pub month_goal_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "quarterGoal")]
+    pub quarter_goal: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "quarterGoalDate")]
+    pub quarter_goal_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "yearGoal")]
     pub year_goal: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -303,6 +309,8 @@ fn default_data() -> WidgetData {
         week_goal_date: None,
         month_goal: None,
         month_goal_date: None,
+        quarter_goal: None,
+        quarter_goal_date: None,
         year_goal: None,
         year_goal_date: None,
     }
@@ -489,6 +497,37 @@ fn load_data() -> WidgetData {
     }
     if data.month_goal_date.is_some() && data.month_goal.is_none() {
         data.month_goal_date = None;
+    }
+    // Sanitize quarter_goal: trim whitespace; empty → None; cap at 200 Unicode chars
+    if let Some(ref mut qg) = data.quarter_goal {
+        *qg = qg.trim().to_string();
+        if qg.is_empty() {
+            data.quarter_goal = None;
+            data.quarter_goal_date = None;
+        } else if qg.chars().count() > 200 {
+            *qg = qg.chars().take(200).collect();
+        }
+    }
+    // Sanitize quarter_goal_date: must be "YYYY-Q1"…"YYYY-Q4" format (7 chars)
+    let quarter_goal_date_valid = data.quarter_goal_date.as_deref().map(|d| {
+        let bytes = d.as_bytes();
+        bytes.len() == 7
+            && bytes[..4].iter().all(|&b| b.is_ascii_digit())
+            && bytes[4] == b'-'
+            && bytes[5] == b'Q'
+            && bytes[6] >= b'1'
+            && bytes[6] <= b'4'
+    }).unwrap_or(true);
+    if !quarter_goal_date_valid {
+        data.quarter_goal = None;
+        data.quarter_goal_date = None;
+    }
+    // Clear orphan quarter_goal/quarter_goal_date when partner field is absent
+    if data.quarter_goal.is_some() && data.quarter_goal_date.is_none() {
+        data.quarter_goal = None;
+    }
+    if data.quarter_goal_date.is_some() && data.quarter_goal.is_none() {
+        data.quarter_goal_date = None;
     }
     // Sanitize year_goal: trim whitespace; empty → None; cap at 200 Unicode chars
     if let Some(ref mut yg) = data.year_goal {

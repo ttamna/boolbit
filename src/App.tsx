@@ -80,6 +80,12 @@ function isoWeekStr(date: Date): string {
   return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
 
+// Returns "YYYY-Q1"…"YYYY-Q4" quarter string for the given date.
+function quarterStr(date: Date): string {
+  const q = Math.floor(date.getMonth() / 3) + 1;
+  return `${date.getFullYear()}-Q${q}`;
+}
+
 // ─── App ────────────────────────────────────────────────
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -138,16 +144,20 @@ export default function App() {
           // Clear month goal when the calendar month has advanced past the month it was set
           const currentMonth = todayStr.slice(0, 7); // "YYYY-MM" — reuse todayStr base
           const monthGoalStale = !!(saved.monthGoal && saved.monthGoalDate && saved.monthGoalDate < currentMonth);
+          // Clear quarter goal when the calendar quarter has advanced past the quarter it was set
+          const currentQuarter = quarterStr(now); // "YYYY-Q1"…"YYYY-Q4"
+          const quarterGoalStale = !!(saved.quarterGoal && saved.quarterGoalDate && saved.quarterGoalDate < currentQuarter);
           // Clear year goal when the calendar year has advanced past the year it was set
           const currentYear = todayStr.slice(0, 4); // "YYYY" — first 4 chars of sv locale date
           const yearGoalStale = !!(saved.yearGoal && saved.yearGoalDate && saved.yearGoalDate < currentYear);
-          const needsSave = hadExpired || needsIdMigration || intentionStale || weekGoalStale || monthGoalStale || yearGoalStale;
+          const needsSave = hadExpired || needsIdMigration || intentionStale || weekGoalStale || monthGoalStale || quarterGoalStale || yearGoalStale;
           const resolvedData = needsSave ? {
             ...saved,
             habits: reset,
             ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined } : {}),
             ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined } : {}),
             ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined } : {}),
+            ...(quarterGoalStale ? { quarterGoal: undefined, quarterGoalDate: undefined } : {}),
             ...(yearGoalStale ? { yearGoal: undefined, yearGoalDate: undefined } : {}),
           } : saved;
           setData(resolvedData);
@@ -236,16 +246,20 @@ export default function App() {
       // Clear month goal when the calendar month has advanced past the month it was set.
       const currentMonth = now.toLocaleDateString("sv").slice(0, 7);
       const monthGoalStale = !!(current.monthGoal && current.monthGoalDate && current.monthGoalDate < currentMonth);
+      // Clear quarter goal when the calendar quarter has advanced past the quarter it was set.
+      const currentQuarter = quarterStr(now);
+      const quarterGoalStale = !!(current.quarterGoal && current.quarterGoalDate && current.quarterGoalDate < currentQuarter);
       // Clear year goal when the calendar year has advanced past the year it was set.
       const currentYear = now.toLocaleDateString("sv").slice(0, 4);
       const yearGoalStale = !!(current.yearGoal && current.yearGoalDate && current.yearGoalDate < currentYear);
-      if (!hadExpired && !intentionStale && !weekGoalStale && !monthGoalStale && !yearGoalStale) return;
+      if (!hadExpired && !intentionStale && !weekGoalStale && !monthGoalStale && !quarterGoalStale && !yearGoalStale) return;
       await persist({
         ...current,
         habits: reset,
         ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined } : {}),
         ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined } : {}),
         ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined } : {}),
+        ...(quarterGoalStale ? { quarterGoal: undefined, quarterGoalDate: undefined } : {}),
         ...(yearGoalStale ? { yearGoal: undefined, yearGoalDate: undefined } : {}),
       });
     }, 60_000);
@@ -294,6 +308,14 @@ export default function App() {
     const monthGoalDate = goal ? new Date().toLocaleDateString("sv").slice(0, 7) : undefined;
     const snapshot = dataRef.current;
     persist({ ...snapshot, monthGoal: goal, monthGoalDate });
+  }, [persist]);
+
+  const updateQuarterGoal = useCallback((quarterGoal: string) => {
+    const goal = quarterGoal !== "" ? quarterGoal : undefined;
+    // quarterGoalDate format: "YYYY-Q1"…"YYYY-Q4" derived from current date
+    const quarterGoalDate = goal ? quarterStr(new Date()) : undefined;
+    const snapshot = dataRef.current;
+    persist({ ...snapshot, quarterGoal: goal, quarterGoalDate });
   }, [persist]);
 
   const updateYearGoal = useCallback((yearGoal: string) => {
@@ -458,6 +480,7 @@ export default function App() {
   const directionBadge = (() => {
     const parts: string[] = [];
     if (data.yearGoal) parts.push("Y✓");
+    if (data.quarterGoal) parts.push("Q✓");
     if (data.monthGoal) parts.push("M✓");
     if (data.weekGoal) parts.push("W✓");
     if (data.todayIntention) parts.push("✓");
@@ -567,6 +590,19 @@ export default function App() {
                       />
                       {data.yearGoal && (
                         <button onClick={() => updateYearGoal("")} title="연간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
+                      )}
+                    </div>
+                    {/* Quarter goal — auto-expires when calendar quarter advances; ✕ clears when set */}
+                    <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.quarterGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>Q</span>
+                      <InlineEdit
+                        value={data.quarterGoal ?? ""}
+                        onSave={updateQuarterGoal}
+                        placeholder="이번 분기 목표..."
+                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.quarterGoal ? { color: colors.textSubtle } : {}) }}
+                      />
+                      {data.quarterGoal && (
+                        <button onClick={() => updateQuarterGoal("")} title="분기 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                       )}
                     </div>
                     {/* Month goal — auto-expires when calendar month advances; ✕ clears when set */}

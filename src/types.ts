@@ -78,6 +78,8 @@ export interface WidgetData {
   weekGoalDate?: string;  // ISO week "YYYY-Www" when weekGoal was last set; absent = not tracked
   monthGoal?: string;     // one-line monthly goal; absent = not set
   monthGoalDate?: string; // "YYYY-MM" when monthGoal was last set; absent = not tracked
+  quarterGoal?: string;   // one-line quarterly goal; absent = not set
+  quarterGoalDate?: string; // "YYYY-Q1"…"YYYY-Q4" when quarterGoal was last set; absent = not tracked
   yearGoal?: string;      // one-line yearly goal; absent = not set
   yearGoalDate?: string;  // "YYYY" when yearGoal was last set; absent = not tracked
 }
