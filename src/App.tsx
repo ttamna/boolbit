@@ -507,7 +507,7 @@ export default function App() {
 
   // Derived: running project count + average progress for Projects section badge.
   // "active" and "in-progress" are running; "paused" is stalled; "done" is excluded from tracking.
-  // Badge format: "★ <name> · 2/3 · 45% · ⚠N" — focus project name (when set on running project), running/total, avg progress, overdue.
+  // Badge format: "★ <name> · 2/3 · 45% · 🍅N·7d · ⚠N" — focus project name, running/total, avg progress, weekly sessions, overdue.
   // When projects have a deadline ≤ today (overdue or due today), appends " · ⚠N" for urgency.
   const projectsArr = data.projects ?? [];
   const nonDoneProjects = projectsArr.filter(p => p.status !== "done");
@@ -525,6 +525,19 @@ export default function App() {
     if (isNaN(ts)) return false;
     return Math.floor((ts - localMidnight) / 86400000) <= 0;
   }).length;
+  // Weekly pomodoro session count: sum of focus sessions in the last 7 days from pomodoroHistory.
+  // Anchors to todayMidnight (DST-safe, consistent with habitsWeekRate pattern).
+  // Returns 0 when no history exists; badge suppresses the indicator when 0.
+  const weekPomodoroCount = (() => {
+    const history = data.pomodoroHistory ?? [];
+    if (history.length === 0) return 0;
+    const last7 = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(todayMidnight);
+      d.setDate(d.getDate() - (6 - i));
+      return d.toLocaleDateString("sv");
+    });
+    return history.filter(day => last7.includes(day.date)).reduce((s, day) => s + day.count, 0);
+  })();
   // Focus project badge: first word of the focused non-done project name, max 12 chars.
   // Shown as "★ <name>" prefix so the user can see current priority without expanding the section.
   // "done" projects are excluded to stay within the badge scope (nonDoneProjects): showing a
@@ -539,6 +552,7 @@ export default function App() {
         avgProgress !== null
           ? `${runningCount}/${nonDoneProjects.length} · ${avgProgress}%`
           : `${runningCount}/${nonDoneProjects.length}`,
+        weekPomodoroCount > 0 ? `🍅${weekPomodoroCount}·7d` : null,
         overdueCount > 0 ? `⚠${overdueCount}` : null,
       ].filter(Boolean).join(" · ")
     : undefined;
