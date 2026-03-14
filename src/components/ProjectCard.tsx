@@ -160,9 +160,10 @@ interface ProjectCardProps {
   pat?: string;
   sessionsToday?: number;   // focus sessions completed today (app-global, from pomodoro); shown on isFocus project only
   sessionGoal?: number;     // daily session goal (from pomodoroSessionGoal); undefined = no goal set
+  accent?: string;          // theme accent color; applied to isFocus card left border and ★ button
 }
 
-export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, sessionGoal }: ProjectCardProps) {
+export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, sessionGoal, accent }: ProjectCardProps) {
   // Neutral fallback for unknown status values from deserialized JSON
   const color = PROJECT_STATUS_COLORS[project.status] ?? colors.textDim;
 
@@ -220,7 +221,11 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
   };
 
   return (
-    <div style={{ padding: "12px 0", borderBottom: `1px solid ${colors.borderFaint}` }}>
+    <div style={{
+      padding: "12px 0",
+      borderBottom: `1px solid ${colors.borderFaint}`,
+      borderLeft: project.isFocus && project.status !== "done" ? `2px solid ${accent ? `${accent}40` : `${colors.statusProgress}40`}` : undefined,
+    }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div
@@ -331,7 +336,7 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
               title={project.isFocus ? "집중 해제" : "오늘의 집중 프로젝트로 표시"}
               style={{
                 background: "transparent", border: "none", cursor: "pointer",
-                color: project.isFocus ? colors.statusProgress : colors.textPhantom,
+                color: project.isFocus ? (accent ?? colors.statusProgress) : colors.textPhantom,
                 fontSize: fontSizes.xs, padding: "0 2px", lineHeight: 1,
                 transition: "color 0.2s",
               }}

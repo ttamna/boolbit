@@ -15,9 +15,10 @@ interface ProjectListProps {
   onRefreshAll?: () => Promise<void>;   // batch-refresh all projects with a GitHub repo set
   sessionsToday?: number;               // today's pomodoro focus sessions; forwarded to ★ focus card
   sessionGoal?: number;                 // daily session goal; forwarded to ★ focus card
+  accent?: string;                      // theme accent; forwarded to ProjectCard for isFocus styling
 }
 
-export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefreshAll, sessionsToday, sessionGoal }: ProjectListProps) {
+export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefreshAll, sessionsToday, sessionGoal, accent }: ProjectListProps) {
   const [newName, setNewName] = useState("");
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [showPaused, setShowPaused] = useState(false);
@@ -119,6 +120,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
                 pat={pat}
                 sessionsToday={sessionsToday}
                 sessionGoal={sessionGoal}
+                accent={accent}
               />
             </div>
           </div>
@@ -173,7 +175,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
   return (
     <div>
       {runningProjects.map(p => (
-        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} />
+        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} accent={accent} />
       ))}
       {/* Paused projects: collapsed by default, expand via toggle */}
       {pausedProjects.length > 0 && (
@@ -192,7 +194,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
         </div>
       )}
       {showPaused && pausedProjects.map(p => (
-        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} />
+        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} accent={accent} />
       ))}
       {/* Done projects: collapsed by default, expand via toggle; ✕ 전체 shown when expanded */}
       {doneProjects.length > 0 && (
@@ -224,7 +226,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
         </div>
       )}
       {showDone && doneProjects.map(p => (
-        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} />
+        <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} accent={accent} />
       ))}
       <div style={{ display: "flex", alignItems: "center", marginTop: 4 }}>
         {/* Left: completion stats — visible when at least one project is done; shows done/total mini bar + fraction */}
