@@ -346,6 +346,30 @@ export default function App() {
     })();
   }, [data.habits, data.habitsAllDoneDate, loaded, persist]);
 
+  // At-risk streak notification — fires once per app startup when habits are about to lose their streak.
+  // "At risk" = streak > 0, last checked yesterday (midnight reset will zero the streak if not checked today).
+  // sessionStorage guard prevents re-fire on hot-reload / Strict Mode double-invoke; re-evaluates on restart.
+  useEffect(() => {
+    if (!loaded) return;
+    if (sessionStorage.getItem("vw_atrisk_notified")) return;
+    const todayStr = new Date().toLocaleDateString("sv");
+    const yesterday = new Date(todayStr + "T00:00:00"); yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toLocaleDateString("sv");
+    // lastChecked === yesterdayStr implies streak > 0: initial load resets streak to 0 when lastChecked < yesterdayStr
+    const atRisk = (dataRef.current.habits ?? []).filter(h => h.lastChecked === yesterdayStr);
+    if (atRisk.length === 0) return;
+    sessionStorage.setItem("vw_atrisk_notified", "1");
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        const names = atRisk.map(h => h.name).join(", ");
+        sendNotification({ title: "Vision Widget", body: `⚠ 스트릭 위험 ${atRisk.length}개: ${names}` });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [loaded]); // only triggers once: loaded transitions false→true once at startup
+
   const updateProjects = useCallback((projects: Project[]) => {
     persist({ ...data, projects });
   }, [data, persist]);
