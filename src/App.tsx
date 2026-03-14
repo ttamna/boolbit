@@ -570,6 +570,20 @@ export default function App() {
     d.setDate(d.getDate() - (6 - i));
     return d.toLocaleDateString("sv");
   });
+  // intentionLast7: per-day set/done status for the last 7 days (oldest→newest, same order as last7Days).
+  // Today uses todayIntention/todayIntentionDone; past 6 days come from intentionHistory.
+  // Note: updateIntention intentionally preserves history entries when the user clears today's intention
+  // ("leave history unchanged so the last set text is preserved for reflection"). So `set: !!entry`
+  // signals engagement on that day (user set an intention), not necessarily that one was active at day end.
+  // This aligns with the heatmap's purpose: visualizing daily intention practice, not end-of-day state.
+  const intentionLast7 = last7Days.map(day => {
+    if (day === todayStr) return { date: day, set: !!data.todayIntention, done: data.todayIntentionDone ?? false };
+    const entry = (data.intentionHistory ?? []).find(e => e.date === day);
+    return { date: day, set: !!entry, done: entry?.done ?? false };
+  });
+  const intentionSetCount7 = intentionLast7.filter(d => d.set).length;
+  const intentionDoneCount7 = intentionLast7.filter(d => d.set && d.done).length;
+
   // habitsWeekRate: average daily habit completion rate (%) over the last 7 days.
   // Returns null when no habit has any check within the last 7 days (avoids misleading 0%).
   const habitsWeekRate = (() => {
@@ -860,6 +874,36 @@ export default function App() {
                         </button>
                       )}
                     </div>
+                    {/* 7-day intention completion heatmap — visible once any day in the window has an intention.
+                        Dot legend: accent-filled = set+done; dim = set but not done; ghost = no intention. */}
+                    {intentionSetCount7 > 0 && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "0 14px 4px" }}>
+                        {intentionLast7.map(({ date, set, done }, i) => {
+                          // i=0 → 6daysAgo (relDaysAgo=6), i=6 → today (relDaysAgo=0)
+                          const relDaysAgo = 6 - i;
+                          const label = relDaysAgo === 0 ? "오늘" : relDaysAgo === 1 ? "어제" : `${relDaysAgo}일 전`;
+                          return (
+                            <div
+                              key={date}
+                              title={`${label}${set ? (done ? " · 달성" : " · 설정만") : " · 없음"}`}
+                              style={{
+                                width: 4, height: 4, borderRadius: "50%",
+                                // Three distinct states: accent=done, textPhantom=set-not-done, borderSubtle=ghost
+                                // textPhantom (rgba 0.25) vs borderSubtle (rgba 0.06) at same opacity → ~4× contrast ratio
+                                background: done ? themeAccent : set ? colors.textPhantom : colors.borderSubtle,
+                                opacity: done ? 0.9 : 0.55,
+                              }}
+                            />
+                          );
+                        })}
+                        <span
+                          title={`최근 7일 의도 달성 ${intentionDoneCount7}/${intentionSetCount7}일`}
+                          style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginLeft: 3, opacity: 0.7 }}
+                        >
+                          {intentionDoneCount7}/{intentionSetCount7}✓
+                        </span>
+                      </div>
+                    )}
                     {/* Past intention history — up to 6 previous days, newest first */}
                     {showHistory && pastIntentions.length > 0 && (
                       <div style={{ padding: "0 14px 6px" }}>
