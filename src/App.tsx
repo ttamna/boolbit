@@ -424,10 +424,16 @@ export default function App() {
   // Derived: habits done today + at-risk count — same render-time date pattern as pomodoroSessionsToday above.
   // Brief (<1 min) badge/button mismatch at midnight is acceptable; matching existing project pattern.
   const habitsArr = data.habits ?? [];
-  // todayStr: render-time date for Habits and Direction badge derivations (effects capture their own date at invocation time)
-  const todayStr = new Date().toLocaleDateString("sv");
+  // renderDate: single Date snapshot for all render-time derivations — one instance ensures todayStr and
+  // Q/M/W period labels are always consistent at midnight boundaries (avoids separate new Date() calls drifting).
+  const renderDate = new Date();
+  const todayStr = renderDate.toLocaleDateString("sv");
   // Derive yesterday from local-midnight basis (same as HabitStreak.tsx) for DST safety
   const yesterdayHabitsStr = (() => { const d = new Date(todayStr + "T00:00:00"); d.setDate(d.getDate() - 1); return d.toLocaleDateString("sv"); })();
+  // Current period labels for Direction goal context — derived from renderDate (same snapshot as todayStr)
+  const currentQtr = Math.floor(renderDate.getMonth() / 3) + 1;      // 1–4
+  const currentMonth = renderDate.getMonth() + 1;                     // 1–12
+  const currentWeek = parseInt(isoWeekStr(renderDate).split("-W")[1], 10); // ISO week 1–53
   const habitsDoneToday = habitsArr.filter(h => h.lastChecked === todayStr).length;
   // atRisk: streak > 0, last checked yesterday — semantically equivalent to HabitStreak.tsx:338's !doneToday&&streak>0&&lastChecked===yesterday
   const habitsAtRisk = habitsArr.filter(h => h.streak > 0 && h.lastChecked === yesterdayHabitsStr).length;
@@ -594,7 +600,7 @@ export default function App() {
                     </div>
                     {/* Quarter goal — auto-expires when calendar quarter advances; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.quarterGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>Q</span>
+                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.quarterGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>Q{currentQtr}</span>
                       <InlineEdit
                         value={data.quarterGoal ?? ""}
                         onSave={updateQuarterGoal}
@@ -607,7 +613,7 @@ export default function App() {
                     </div>
                     {/* Month goal — auto-expires when calendar month advances; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.monthGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>M</span>
+                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.monthGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>M{currentMonth}</span>
                       <InlineEdit
                         value={data.monthGoal ?? ""}
                         onSave={updateMonthGoal}
@@ -620,7 +626,7 @@ export default function App() {
                     </div>
                     {/* Week goal — auto-expires when ISO week advances; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.weekGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>W</span>
+                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.weekGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>W{currentWeek}</span>
                       <InlineEdit
                         value={data.weekGoal ?? ""}
                         onSave={updateWeekGoal}
