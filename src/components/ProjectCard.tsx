@@ -1,5 +1,5 @@
 // ABOUTME: ProjectCard component - displays a single project with progress bar and metrics
-// ABOUTME: Status cycles active→in-progress→paused→done; isFocus=★ amber; +Nd/+Nw/+Nmo age badge from createdDate; schedule efficiency (+/-N%) shows progress vs elapsed time when deadline+createdDate are set
+// ABOUTME: Status cycles active→in-progress→paused→done; isFocus=★; +Nd/+Nw/+Nmo age badge (active, createdDate→today); ∑Nd/Nw/Nmo duration badge (done, createdDate→completedDate); schedule efficiency (+/-N%)
 
 import { useState, CSSProperties } from "react";
 import type { Project, GitHubData } from "../types";
@@ -70,16 +70,26 @@ function lastFocusDaysAgo(dateStr: string | undefined): number | null {
   return days > 0 ? days : null; // null if today (no stale indicator needed)
 }
 
-// Returns a compact age label for a project's createdDate: "Nd", "Nw", "Nmo", or null if invalid/absent.
-// Uses local midnight anchor (same DST-safe pattern as lastFocusDaysAgo).
-function projectAgeLabel(dateStr: string | undefined): string | null {
+// Returns a compact age/duration label: "Nd", "Nw", "Nmo", or null if invalid/absent.
+// asOfDate: optional end-point (YYYY-MM-DD) — defaults to today when absent.
+// Used for active projects (today anchor → age) and done projects (completedDate anchor → duration).
+// Exported for unit testing; mirrors the pattern of habitLastCheckDaysAgo in HabitStreak.
+export function projectAgeLabel(dateStr: string | undefined, asOfDate?: string): string | null {
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
   const ts = new Date(dateStr + "T00:00:00").getTime();
   if (isNaN(ts)) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const days = Math.floor((today.getTime() - ts) / 86400000);
-  if (days <= 0) return null; // today or future — no age badge yet (mirrors lastFocusDaysAgo)
+  let end: number;
+  if (asOfDate) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(asOfDate)) return null;
+    end = new Date(asOfDate + "T00:00:00").getTime();
+    if (isNaN(end)) return null;
+  } else {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    end = today.getTime();
+  }
+  const days = Math.floor((end - ts) / 86400000);
+  if (days <= 0) return null; // same day or future — no label yet
   if (days < 7) return `${days}d`;
   if (days < 30) return `${Math.floor(days / 7)}w`;
   return `${Math.floor(days / 30)}mo`;
@@ -160,8 +170,11 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
   const urlSchemeValid = !!(project.url && (project.url.startsWith("https://") || project.url.startsWith("http://")));
   // staleDays: days since last pomodoro focus session; null if focused today, never, or invalid
   const staleDays = lastFocusDaysAgo(project.lastFocusDate);
-  // ageLabel: compact project age since createdDate; null for pre-feature projects
-  const ageLabel = projectAgeLabel(project.createdDate);
+  // isDoneWithDates: true when status=done AND both createdDate AND completedDate are present;
+  // activates ∑ duration badge (createdDate→completedDate) instead of + age badge (createdDate→today).
+  // Same-day completion (days===0) returns null from projectAgeLabel — no badge rendered, which is intentional.
+  const isDoneWithDates = project.status === "done" && !!project.createdDate && !!project.completedDate;
+  const ageLabel = projectAgeLabel(project.createdDate, isDoneWithDates ? project.completedDate : undefined);
   // scheduleGap: schedule efficiency for non-done projects — gap = progress% minus elapsed-time% (integer, rounded).
   // null when status===done, deadline unset, createdDate absent, degenerate range, or timePct<10 (too early to judge).
   // timePct<10 guard avoids a jarring red badge that appears when a project is barely started but already "behind".
@@ -290,13 +303,16 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
               ⊖{staleDays}d
             </span>
           )}
-          {/* Project age: faint "+Nd/+Nw/+Nmo" shown when createdDate is set; absent for pre-feature projects */}
+          {/* Age/duration badge: "+Nd" for active projects (age since createdDate);
+              "∑Nd" for done projects with both dates (duration from creation to completion). */}
           {ageLabel !== null && (
             <span
-              title={`시작일: ${project.createdDate ?? ""}`}
+              title={isDoneWithDates
+                ? `기간: ${project.createdDate} → ${project.completedDate}`
+                : `시작일: ${project.createdDate ?? ""}`}
               style={{ ...mono, fontSize: fontSizes.mini, color: colors.textLabel, padding: "0 2px", lineHeight: 1, opacity: 0.7 }}
             >
-              +{ageLabel}
+              {isDoneWithDates ? "∑" : "+"}{ageLabel}
             </span>
           )}
           {/* Completion date: shown on done projects when recorded; slice(5) gives MM-DD */}
