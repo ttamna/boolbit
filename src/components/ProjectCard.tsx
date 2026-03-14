@@ -160,7 +160,12 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
           <div
             onClick={() => {
               const next = STATUS_CYCLE[project.status];
-              if (next) onUpdate?.({ status: next });
+              if (!next) return;
+              const today = new Date().toLocaleDateString("sv");
+              const patch: Partial<Project> = { status: next };
+              if (next === "done") patch.completedDate = today;
+              else if (project.status === "done") patch.completedDate = undefined;
+              onUpdate?.(patch);
             }}
             title="클릭하여 상태 변경 (active → in-progress → paused → done → active)"
             style={{ width: 6, height: 6, borderRadius: "50%", background: color, boxShadow: `0 0 8px ${color}66`, cursor: "pointer", flexShrink: 0 }}
@@ -219,6 +224,15 @@ export function ProjectCard({ project, onUpdate, onDelete, pat }: ProjectCardPro
               style={{ ...mono, fontSize: fontSizes.mini, color: colors.textLabel, padding: "0 2px", lineHeight: 1 }}
             >
               ⊖{staleDays}d
+            </span>
+          )}
+          {/* Completion date: shown on done projects when recorded; slice(5) gives MM-DD */}
+          {project.status === "done" && project.completedDate && (
+            <span
+              title={`완료: ${project.completedDate}`}
+              style={{ ...mono, fontSize: fontSizes.mini, color: colors.textLabel, padding: "0 2px", lineHeight: 1 }}
+            >
+              ✓{project.completedDate.slice(5)}
             </span>
           )}
           {/* Focus marker: hidden for done projects since they are no longer active work */}

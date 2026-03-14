@@ -146,18 +146,20 @@ export default function App() {
   dataRef.current = data;
 
   const updateHabit = useCallback((i: number, patch: Partial<Habit>) => {
-    const next = { ...data, habits: data.habits.map((h, idx) =>
+    const snapshot = dataRef.current;
+    const next = { ...snapshot, habits: snapshot.habits.map((h, idx) =>
       idx === i ? { ...h, ...patch } : h
     )};
     persist(next);
-  }, [data, persist]);
+  }, [persist]);
 
   const updateProject = useCallback((id: number, patch: Partial<Project>) => {
-    const next = { ...data, projects: data.projects.map(p =>
+    const snapshot = dataRef.current;
+    const next = { ...snapshot, projects: snapshot.projects.map(p =>
       p.id === id ? { ...p, ...patch } : p
     )};
     persist(next);
-  }, [data, persist]);
+  }, [persist]);
 
   // Atomic batch update for GitHub polling — applies all results in one persist
   // to avoid the stale-closure overwrite race when multiple projects complete in parallel.
