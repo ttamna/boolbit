@@ -74,6 +74,7 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
       metric: "지표",
       metric_value: "0",
       metric_target: "100",
+      createdDate: new Date().toLocaleDateString("sv"),
     };
     onProjectsChange([...projects, newProject]);
     setNewName("");

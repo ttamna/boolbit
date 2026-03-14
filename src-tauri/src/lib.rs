@@ -66,6 +66,8 @@ pub struct Project {
     pub last_focus_date: Option<String>,
     #[serde(rename = "completedDate", default, skip_serializing_if = "Option::is_none")]
     pub completed_date: Option<String>,
+    #[serde(rename = "createdDate", default, skip_serializing_if = "Option::is_none")]
+    pub created_date: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -244,6 +246,7 @@ fn default_data() -> WidgetData {
                 url: None,
                 last_focus_date: None,
                 completed_date: None,
+                created_date: None,
             },
             Project {
                 id: 2,
@@ -263,6 +266,7 @@ fn default_data() -> WidgetData {
                 url: None,
                 last_focus_date: None,
                 completed_date: None,
+                created_date: None,
             },
             Project {
                 id: 3,
@@ -282,6 +286,7 @@ fn default_data() -> WidgetData {
                 url: None,
                 last_focus_date: None,
                 completed_date: None,
+                created_date: None,
             },
         ],
         habits: vec![
@@ -597,6 +602,16 @@ fn load_data() -> WidgetData {
             .map(String::from);
         // completed_date: must be strict YYYY-MM-DD format; any other value → None
         project.completed_date = project.completed_date.as_deref()
+            .filter(|s| {
+                let b = s.as_bytes();
+                s.len() == 10
+                    && b.iter().all(|&x| x.is_ascii_digit() || x == b'-')
+                    && b[4] == b'-'
+                    && b[7] == b'-'
+            })
+            .map(String::from);
+        // created_date: must be strict YYYY-MM-DD format; any other value → None
+        project.created_date = project.created_date.as_deref()
             .filter(|s| {
                 let b = s.as_bytes();
                 s.len() == 10

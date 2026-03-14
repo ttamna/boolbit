@@ -1,5 +1,5 @@
 // ABOUTME: ProjectCard component - displays a single project with progress bar and metrics
-// ABOUTME: Status cycles active→in-progress→paused→done; done=violet+dimmed; isFocus=★ amber priority marker; sessionsToday shows today's focus progress on ★ project
+// ABOUTME: Status cycles active→in-progress→paused→done; isFocus=★ amber; +Nd/+Nw/+Nmo age badge from createdDate; sessionsToday shows today's focus progress on ★ project
 
 import { useState, CSSProperties } from "react";
 import type { Project, GitHubData } from "../types";
@@ -70,6 +70,21 @@ function lastFocusDaysAgo(dateStr: string | undefined): number | null {
   return days > 0 ? days : null; // null if today (no stale indicator needed)
 }
 
+// Returns a compact age label for a project's createdDate: "Nd", "Nw", "Nmo", or null if invalid/absent.
+// Uses local midnight anchor (same DST-safe pattern as lastFocusDaysAgo).
+function projectAgeLabel(dateStr: string | undefined): string | null {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const ts = new Date(dateStr + "T00:00:00").getTime();
+  if (isNaN(ts)) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.floor((today.getTime() - ts) / 86400000);
+  if (days <= 0) return null; // today or future — no age badge yet (mirrors lastFocusDaysAgo)
+  if (days < 7) return `${days}d`;
+  if (days < 30) return `${Math.floor(days / 7)}w`;
+  return `${Math.floor(days / 30)}mo`;
+}
+
 // Returns a YYYY-MM-DD date string for n days from today (local time).
 function dateAfterDays(n: number): string {
   const d = new Date();
@@ -130,6 +145,8 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
   const urlSchemeValid = !!(project.url && (project.url.startsWith("https://") || project.url.startsWith("http://")));
   // staleDays: days since last pomodoro focus session; null if focused today, never, or invalid
   const staleDays = lastFocusDaysAgo(project.lastFocusDate);
+  // ageLabel: compact project age since createdDate; null for pre-feature projects
+  const ageLabel = projectAgeLabel(project.createdDate);
 
   const [repoStatus, setRepoStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [repoMsg, setRepoMsg] = useState("");
@@ -246,6 +263,15 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
               style={{ ...mono, fontSize: fontSizes.mini, color: colors.textLabel, padding: "0 2px", lineHeight: 1 }}
             >
               ⊖{staleDays}d
+            </span>
+          )}
+          {/* Project age: faint "+Nd/+Nw/+Nmo" shown when createdDate is set; absent for pre-feature projects */}
+          {ageLabel !== null && (
+            <span
+              title={`시작일: ${project.createdDate ?? ""}`}
+              style={{ ...mono, fontSize: fontSizes.mini, color: colors.textLabel, padding: "0 2px", lineHeight: 1, opacity: 0.7 }}
+            >
+              +{ageLabel}
             </span>
           )}
           {/* Completion date: shown on done projects when recorded; slice(5) gives MM-DD */}

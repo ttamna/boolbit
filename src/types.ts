@@ -30,6 +30,7 @@ export interface Project {
   url?: string;             // external project link (prod URL, docs, etc.); absent = not set
   lastFocusDate?: string;   // YYYY-MM-DD date of last completed pomodoro focus session; absent = never focused
   completedDate?: string;   // YYYY-MM-DD date when project status was last set to "done"; absent = not completed via cycle
+  createdDate?: string;     // YYYY-MM-DD date when the project was first added to the widget; absent = pre-feature
 }
 
 export interface Habit {
