@@ -339,6 +339,10 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
           const milestone = getMilestone(h.streak);
           const upcoming = getUpcomingMilestone(h.streak);
           const history = h.checkHistory ?? [];
+          // targetPct: progress toward targetStreak goal, clamped to 100%; undefined when no goal or streak is 0
+          const targetPct = (h.targetStreak ?? 0) > 0 && h.streak > 0
+            ? Math.min(100, Math.round(h.streak / h.targetStreak! * 100))
+            : undefined;
           return (
             <div key={h.id ?? `h-${i}`} style={{ display: "flex", flexDirection: "column", padding: "4px 0" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -421,6 +425,24 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent }: HabitS
                   ✓
                 </button>
               </div>
+              {/* Target streak progress bar — visualizes streak/targetStreak ratio when goal is set and streak > 0 */}
+              {targetPct !== undefined && (
+                <div
+                  title={`${h.streak}/${h.targetStreak}일 — ${targetPct}%`}
+                  style={{ paddingLeft: 26, paddingRight: 2, marginTop: 4 }}
+                >
+                  <div style={{ height: 2, background: colors.borderSubtle, borderRadius: 1 }}>
+                    <div style={{
+                      width: `${targetPct}%`,
+                      height: "100%",
+                      background: accent ?? colors.statusActive,
+                      borderRadius: 1,
+                      opacity: targetPct >= 100 ? 0.85 : 0.45,
+                      transition: "width 0.4s ease",
+                    }} />
+                  </div>
+                </div>
+              )}
               {/* 7-day check-in dot heatmap — visible once there is any check history */}
               {history.length > 0 && (
                 <div style={{ display: "flex", gap: 2, paddingLeft: 26, marginTop: 3 }}>
