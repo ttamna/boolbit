@@ -1,9 +1,9 @@
 // ABOUTME: Unit tests for HabitStreak pure helper functions and component rendering
-// ABOUTME: Covers habitLastCheckDaysAgo, habitsTodayPct, habit notes visibility, sort button behavior, and personal-best indicator
+// ABOUTME: Covers habitLastCheckDaysAgo, habitsTodayPct, getMilestone, getUpcomingMilestone, habit notes visibility, sort button behavior, and personal-best indicator
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { habitLastCheckDaysAgo, habitsTodayPct, HabitStreak } from "./HabitStreak";
+import { habitLastCheckDaysAgo, habitsTodayPct, getMilestone, getUpcomingMilestone, HabitStreak } from "./HabitStreak";
 import type { Habit } from "../types";
 
 describe("habitLastCheckDaysAgo", () => {
@@ -292,5 +292,119 @@ describe("HabitStreak personal-best indicator", () => {
     const habit: Habit = { id: "h1", name: "Run", streak: 7, icon: "🏃" };
     render(<HabitStreak habits={[habit]} />);
     expect(screen.queryByTitle(/개인 최고 기록.*달성 중!/)).toBeNull();
+  });
+});
+
+describe("getMilestone", () => {
+  it("should return null when streak is 0", () => {
+    expect(getMilestone(0)).toBeNull();
+  });
+
+  it("should return null when streak is negative", () => {
+    expect(getMilestone(-5)).toBeNull();
+  });
+
+  it("should return null when streak is 6 (one short of first milestone)", () => {
+    expect(getMilestone(6)).toBeNull();
+  });
+
+  it("should return 🔥 when streak is exactly 7", () => {
+    expect(getMilestone(7)).toBe("🔥");
+  });
+
+  it("should return 🔥 when streak is between 7 and 29", () => {
+    expect(getMilestone(15)).toBe("🔥");
+    expect(getMilestone(29)).toBe("🔥");
+  });
+
+  it("should return ⭐ when streak is exactly 30", () => {
+    expect(getMilestone(30)).toBe("⭐");
+  });
+
+  it("should return ⭐ when streak is between 30 and 99", () => {
+    expect(getMilestone(50)).toBe("⭐");
+    expect(getMilestone(99)).toBe("⭐");
+  });
+
+  it("should return 💎 when streak is exactly 100", () => {
+    expect(getMilestone(100)).toBe("💎");
+  });
+
+  it("should return 💎 when streak exceeds 100", () => {
+    expect(getMilestone(150)).toBe("💎");
+    expect(getMilestone(365)).toBe("💎");
+  });
+});
+
+describe("getUpcomingMilestone", () => {
+  it("should return null when streak is 0", () => {
+    expect(getUpcomingMilestone(0)).toBeNull();
+  });
+
+  it("should return null when streak is negative", () => {
+    expect(getUpcomingMilestone(-1)).toBeNull();
+  });
+
+  it("should return 🔥 when exactly at threshold distance from 7", () => {
+    // streak=4, threshold=3: days=7-4=3, within threshold
+    expect(getUpcomingMilestone(4, 3)).toEqual({ days: 3, badge: "🔥" });
+  });
+
+  it("should return 🔥 when 1 day away from 7", () => {
+    expect(getUpcomingMilestone(6, 3)).toEqual({ days: 1, badge: "🔥" });
+  });
+
+  it("should return null when one day beyond threshold distance (streak=3, threshold=3)", () => {
+    // streak=3: days=7-3=4, exceeds threshold=3
+    expect(getUpcomingMilestone(3, 3)).toBeNull();
+  });
+
+  it("should return null when streak has just reached 7 (no upcoming below 30 within threshold=3)", () => {
+    // streak=7: at milestone; next=30, days=23 >> 3
+    expect(getUpcomingMilestone(7, 3)).toBeNull();
+  });
+
+  it("should return ⭐ when within threshold of 30", () => {
+    // streak=27: days=30-27=3, within threshold
+    expect(getUpcomingMilestone(27, 3)).toEqual({ days: 3, badge: "⭐" });
+    expect(getUpcomingMilestone(29, 3)).toEqual({ days: 1, badge: "⭐" });
+  });
+
+  it("should return null when streak has just reached 30 (next=100 is far)", () => {
+    expect(getUpcomingMilestone(30, 3)).toBeNull();
+  });
+
+  it("should return 💎 when within threshold of 100", () => {
+    expect(getUpcomingMilestone(97, 3)).toEqual({ days: 3, badge: "💎" });
+    expect(getUpcomingMilestone(99, 3)).toEqual({ days: 1, badge: "💎" });
+  });
+
+  it("should return null when streak has just reached 100 (no further milestones)", () => {
+    expect(getUpcomingMilestone(100, 3)).toBeNull();
+  });
+
+  it("should return null when streak exceeds all milestones", () => {
+    expect(getUpcomingMilestone(200, 3)).toBeNull();
+  });
+
+  it("should return non-null for both getMilestone and getUpcomingMilestone when streak is 27", () => {
+    // streak=27: already at 🔥 (≥7) and ⭐ is 3 days away — callers must decide which to display
+    expect(getMilestone(27)).toBe("🔥");
+    expect(getUpcomingMilestone(27, 3)).toEqual({ days: 3, badge: "⭐" });
+  });
+
+  it("should show milestone emoji and suppress upcoming text when both apply", () => {
+    // streak=27: component renders 🔥 (milestone branch) and suppresses +3⭐ (upcoming suppressed by ternary)
+    const habit: Habit = { id: "h1", name: "Run", streak: 27, icon: "🏃" };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.queryByText("🔥")).not.toBeNull();
+    expect(screen.queryByText("+3⭐")).toBeNull();
+  });
+
+  it("should respect custom threshold: streak=25 is within threshold=5 of 30", () => {
+    // days=30-25=5, within threshold=5
+    expect(getUpcomingMilestone(25, 5)).toEqual({ days: 5, badge: "⭐" });
+    // But NOT within default threshold=3 (days=5 > 3)
+    expect(getUpcomingMilestone(25, 3)).toBeNull();
   });
 });

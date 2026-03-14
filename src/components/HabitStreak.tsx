@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; ⊖Nd = neglected N days; ★ = at personal best (streak=bestStreak≥7); edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend; today completion bar shows N/M progress
+// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; ⊖Nd = neglected N days; ★ = at personal best (streak=bestStreak≥7); edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend; today completion bar shows N/M progress; getMilestone/getUpcomingMilestone exported as pure helpers
 
 import { useState, useEffect, useMemo, useRef, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -18,8 +18,9 @@ const moveBtnStyle = (disabled: boolean): CSSProperties => ({
 
 const getToday = () => new Date().toLocaleDateString("sv"); // YYYY-MM-DD local date
 
-// Returns milestone badge emoji for notable streak lengths; null otherwise
-function getMilestone(streak: number): string | null {
+// Returns milestone badge emoji for notable streak lengths; null otherwise.
+// Exported for unit testing; thresholds: 7🔥 / 30⭐ / 100💎.
+export function getMilestone(streak: number): string | null {
   if (streak >= 100) return "💎";
   if (streak >= 30)  return "⭐";
   if (streak >= 7)   return "🔥";
@@ -29,7 +30,8 @@ function getMilestone(streak: number): string | null {
 // Returns next unreached milestone if within threshold days away; null otherwise.
 // Note: a non-null result can coexist with a non-null getMilestone result (e.g. streak=27
 // has milestone 🔥 and upcoming ⭐ in 3 days). Callers must decide which to display.
-function getUpcomingMilestone(streak: number, threshold = 3): { days: number; badge: string } | null {
+// Exported for unit testing; default threshold=3.
+export function getUpcomingMilestone(streak: number, threshold = 3): { days: number; badge: string } | null {
   if (streak <= 0) return null;
   const MILESTONES = [
     { at: 7, badge: "🔥" },
