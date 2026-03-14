@@ -1,5 +1,5 @@
 // ABOUTME: Unit tests for HabitStreak pure helper functions and component rendering
-// ABOUTME: Covers habitLastCheckDaysAgo, habit notes visibility, and sort button behavior
+// ABOUTME: Covers habitLastCheckDaysAgo, habit notes visibility, sort button behavior, and personal-best indicator
 
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -136,5 +136,50 @@ describe("HabitStreak sort button", () => {
     fireEvent.click(screen.getByTitle("스트릭 기준 내림차순 정렬"));
     const sortedArg: Habit[] = onChange.mock.calls[0][0];
     expect(sortedArg.map(h => h.id)).toEqual(["h1", "h2", "h3"]);
+  });
+});
+
+describe("HabitStreak personal-best indicator", () => {
+  it("should show ★ when streak equals bestStreak and is ≥7", () => {
+    const habit: Habit = { id: "h1", name: "Run", streak: 10, icon: "🏃", bestStreak: 10 };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.getByTitle("개인 최고 기록 10일 달성 중!")).toBeDefined();
+  });
+
+  it("should show ★ at exactly the 7-day threshold", () => {
+    const habit: Habit = { id: "h1", name: "Run", streak: 7, icon: "🏃", bestStreak: 7 };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.getByTitle("개인 최고 기록 7일 달성 중!")).toBeDefined();
+  });
+
+  it("should not show ★ when streak is below bestStreak (shows ↑N instead)", () => {
+    const habit: Habit = { id: "h1", name: "Run", streak: 5, icon: "🏃", bestStreak: 15 };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.queryByTitle(/개인 최고 기록.*달성 중!/)).toBeNull();
+  });
+
+  it("should not show ★ when streak is below the 7-day threshold", () => {
+    const habit: Habit = { id: "h1", name: "Run", streak: 5, icon: "🏃", bestStreak: 5 };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.queryByTitle(/개인 최고 기록.*달성 중!/)).toBeNull();
+  });
+
+  it("should not show ★ when bestStreak is undefined", () => {
+    const habit: Habit = { id: "h1", name: "Run", streak: 10, icon: "🏃" };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.queryByTitle(/개인 최고 기록.*달성 중!/)).toBeNull();
+  });
+
+  it("should not show ★ when streak is 0", () => {
+    const habit: Habit = { id: "h1", name: "Run", streak: 0, icon: "🏃" };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.queryByTitle(/개인 최고 기록.*달성 중!/)).toBeNull();
+  });
+
+  it("should not show ★ when streak ≥7 but bestStreak is undefined (no tracking record)", () => {
+    // streak >= 7 threshold met, but bestStreak was never set — no personal-best record to celebrate
+    const habit: Habit = { id: "h1", name: "Run", streak: 7, icon: "🏃" };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.queryByTitle(/개인 최고 기록.*달성 중!/)).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; ⊖Nd = neglected N days; edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend
+// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; ⊖Nd = neglected N days; ★ = at personal best (streak=bestStreak≥7); edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend
 
 import { useState, useEffect, useMemo, useRef, CSSProperties } from "react";
 import type { Habit } from "../types";
@@ -477,15 +477,22 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
                     <span style={{ fontSize: fontSizes.mini, color: colors.textPhantom }}>/{h.targetStreak}</span>
                   ) : null}
                   <span style={{ fontSize: fontSizes.mini, fontWeight: 400, color: colors.textGhost }}>일</span>
-                  {/* Personal best: shown only when current streak is below the all-time high */}
-                  {(h.bestStreak ?? 0) > h.streak && (
+                  {/* Personal best slot: ↑N when below all-time high; ★ when AT all-time high (≥7) */}
+                  {(h.bestStreak ?? 0) > h.streak ? (
                     <span
                       title={`최장 기록 ${h.bestStreak}일`}
                       style={{ fontSize: fontSizes.mini, color: colors.textPhantom, opacity: 0.55 }}
                     >
                       ↑{h.bestStreak}
                     </span>
-                  )}
+                  ) : h.streak >= 7 && h.bestStreak !== undefined && h.streak === h.bestStreak ? (
+                    <span
+                      title={`개인 최고 기록 ${h.bestStreak}일 달성 중!`}
+                      style={{ fontSize: fontSizes.mini, color: accent ?? colors.statusActive, opacity: 0.55 }}
+                    >
+                      ★
+                    </span>
+                  ) : null}
                 </span>
                 {/* Neglected indicator: ⊖Nd when habit hasn't been checked for N≥2 days */}
                 {neglectedDays !== null && (
