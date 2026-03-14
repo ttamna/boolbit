@@ -135,12 +135,16 @@ export default function App() {
           // Clear week goal when the ISO week has advanced past the week it was set.
           const currentWeek = isoWeekStr(now);
           const weekGoalStale = !!(saved.weekGoal && saved.weekGoalDate && saved.weekGoalDate < currentWeek);
-          const needsSave = hadExpired || needsIdMigration || intentionStale || weekGoalStale;
+          // Clear month goal when the calendar month has advanced past the month it was set
+          const currentMonth = todayStr.slice(0, 7); // "YYYY-MM" — reuse todayStr base
+          const monthGoalStale = !!(saved.monthGoal && saved.monthGoalDate && saved.monthGoalDate < currentMonth);
+          const needsSave = hadExpired || needsIdMigration || intentionStale || weekGoalStale || monthGoalStale;
           const resolvedData = needsSave ? {
             ...saved,
             habits: reset,
             ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined } : {}),
             ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined } : {}),
+            ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined } : {}),
           } : saved;
           setData(resolvedData);
           if (needsSave) await invoke("save_data", { data: resolvedData });
@@ -225,12 +229,16 @@ export default function App() {
       // Clear week goal when the ISO week has advanced past the week it was set.
       const currentWeek = isoWeekStr(now);
       const weekGoalStale = !!(current.weekGoal && current.weekGoalDate && current.weekGoalDate < currentWeek);
-      if (!hadExpired && !intentionStale && !weekGoalStale) return;
+      // Clear month goal when the calendar month has advanced past the month it was set.
+      const currentMonth = now.toLocaleDateString("sv").slice(0, 7);
+      const monthGoalStale = !!(current.monthGoal && current.monthGoalDate && current.monthGoalDate < currentMonth);
+      if (!hadExpired && !intentionStale && !weekGoalStale && !monthGoalStale) return;
       await persist({
         ...current,
         habits: reset,
         ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined } : {}),
         ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined } : {}),
+        ...(monthGoalStale ? { monthGoal: undefined, monthGoalDate: undefined } : {}),
       });
     }, 60_000);
     return () => clearInterval(id);
@@ -271,6 +279,14 @@ export default function App() {
     const weekGoalDate = goal ? isoWeekStr(new Date()) : undefined;
     persist({ ...data, weekGoal: goal, weekGoalDate });
   }, [data, persist]);
+
+  const updateMonthGoal = useCallback((monthGoal: string) => {
+    const goal = monthGoal !== "" ? monthGoal : undefined;
+    // monthGoalDate format: "YYYY-MM" — first 7 chars of the sv locale date string
+    const monthGoalDate = goal ? new Date().toLocaleDateString("sv").slice(0, 7) : undefined;
+    const snapshot = dataRef.current;
+    persist({ ...snapshot, monthGoal: goal, monthGoalDate });
+  }, [persist]);
 
   const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number; longBreak: number }) => {
     persist({ ...data, pomodoroDurations });
@@ -425,6 +441,7 @@ export default function App() {
   // Derived: Direction badge — shows week goal + intention status + quote count for quick overview when collapsed
   const directionBadge = (() => {
     const parts: string[] = [];
+    if (data.monthGoal) parts.push("M✓");
     if (data.weekGoal) parts.push("W✓");
     if (data.todayIntention) parts.push("✓");
     const quotesArr = data.quotes ?? [];
@@ -522,6 +539,19 @@ export default function App() {
                 <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")} badge={directionBadge} onMoveUp={up} onMoveDown={dn}>Direction</SectionLabel>
                 {!collapsed.includes("direction") && (
                   <>
+                    {/* Month goal — auto-expires when calendar month advances; ✕ clears when set */}
+                    <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.monthGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>M</span>
+                      <InlineEdit
+                        value={data.monthGoal ?? ""}
+                        onSave={updateMonthGoal}
+                        placeholder="이번 달 목표..."
+                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.monthGoal ? { color: colors.textSubtle } : {}) }}
+                      />
+                      {data.monthGoal && (
+                        <button onClick={() => updateMonthGoal("")} title="월간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
+                      )}
+                    </div>
                     {/* Week goal — auto-expires when ISO week advances; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
                       <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.weekGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>W</span>

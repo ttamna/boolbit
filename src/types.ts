@@ -76,6 +76,8 @@ export interface WidgetData {
   intentionHistory?: IntentionEntry[]; // rolling 7-day log of daily intentions; newest last; absent = no history
   weekGoal?: string;      // one-line weekly goal; absent = not set
   weekGoalDate?: string;  // ISO week "YYYY-Www" when weekGoal was last set; absent = not tracked
+  monthGoal?: string;     // one-line monthly goal; absent = not set
+  monthGoalDate?: string; // "YYYY-MM" when monthGoal was last set; absent = not tracked
 }
 
 export interface WindowPosition {

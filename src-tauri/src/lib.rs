@@ -161,6 +161,12 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "weekGoalDate")]
     pub week_goal_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "monthGoal")]
+    pub month_goal: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "monthGoalDate")]
+    pub month_goal_date: Option<String>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -289,6 +295,8 @@ fn default_data() -> WidgetData {
         intention_history: None,
         week_goal: None,
         week_goal_date: None,
+        month_goal: None,
+        month_goal_date: None,
     }
 }
 
@@ -439,6 +447,40 @@ fn load_data() -> WidgetData {
     }
     if data.week_goal_date.is_some() && data.week_goal.is_none() {
         data.week_goal_date = None;
+    }
+    // Sanitize month_goal: trim whitespace; empty → None; cap at 200 Unicode chars
+    if let Some(ref mut mg) = data.month_goal {
+        *mg = mg.trim().to_string();
+        if mg.is_empty() {
+            data.month_goal = None;
+            data.month_goal_date = None;
+        } else if mg.chars().count() > 200 {
+            *mg = mg.chars().take(200).collect();
+        }
+    }
+    // Sanitize month_goal_date: must be "YYYY-MM" format (7 chars) with month in 01–12
+    let month_goal_date_valid = data.month_goal_date.as_deref().map(|d| {
+        let bytes = d.as_bytes();
+        if d.len() != 7 { return false; }
+        if !bytes[0..4].iter().all(|&b| b.is_ascii_digit()) { return false; }
+        if bytes[4] != b'-' { return false; }
+        // Month must be 01–12: first digit 0 or 1; if 0 → second 1–9; if 1 → second 0–2
+        let m0 = bytes[5];
+        let m1 = bytes[6];
+        matches!((m0, m1),
+            (b'0', b'1'..=b'9') | (b'1', b'0'..=b'2')
+        )
+    }).unwrap_or(true);
+    if !month_goal_date_valid {
+        data.month_goal = None;
+        data.month_goal_date = None;
+    }
+    // Clear orphan month_goal/month_goal_date when partner field is absent
+    if data.month_goal.is_some() && data.month_goal_date.is_none() {
+        data.month_goal = None;
+    }
+    if data.month_goal_date.is_some() && data.month_goal.is_none() {
+        data.month_goal_date = None;
     }
     // Sanitize project fields: remove empty strings; normalize is_focus(false) → absent
     for project in &mut data.projects {
