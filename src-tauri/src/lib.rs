@@ -155,6 +155,12 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "intentionHistory")]
     pub intention_history: Option<Vec<IntentionEntry>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "weekGoal")]
+    pub week_goal: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "weekGoalDate")]
+    pub week_goal_date: Option<String>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -281,6 +287,8 @@ fn default_data() -> WidgetData {
         today_intention: None,
         today_intention_date: None,
         intention_history: None,
+        week_goal: None,
+        week_goal_date: None,
     }
 }
 
@@ -399,6 +407,38 @@ fn load_data() -> WidgetData {
         if history.is_empty() {
             data.intention_history = None;
         }
+    }
+    // Sanitize week_goal: trim whitespace; empty → None; cap at 200 Unicode chars
+    // chars().take(200) avoids truncate(200) panic on multi-byte chars (Korean etc.)
+    if let Some(ref mut wg) = data.week_goal {
+        *wg = wg.trim().to_string();
+        if wg.is_empty() {
+            data.week_goal = None;
+            data.week_goal_date = None;
+        } else if wg.chars().count() > 200 {
+            *wg = wg.chars().take(200).collect();
+        }
+    }
+    // Sanitize week_goal_date: must be "YYYY-Www" format (8 chars, e.g. "2026-W11")
+    // Extract validity first to avoid borrow conflict when clearing both fields.
+    let week_goal_date_valid = data.week_goal_date.as_deref().map(|d| {
+        let bytes = d.as_bytes();
+        d.len() == 8
+            && bytes[..4].iter().all(|&b| b.is_ascii_digit())
+            && bytes[4] == b'-'
+            && bytes[5] == b'W'
+            && bytes[6..8].iter().all(|&b| b.is_ascii_digit())
+    }).unwrap_or(true); // None is valid (absence is fine)
+    if !week_goal_date_valid {
+        data.week_goal = None;
+        data.week_goal_date = None;
+    }
+    // Clear week_goal if week_goal_date is absent; clear orphan week_goal_date if week_goal is absent
+    if data.week_goal.is_some() && data.week_goal_date.is_none() {
+        data.week_goal = None;
+    }
+    if data.week_goal_date.is_some() && data.week_goal.is_none() {
+        data.week_goal_date = None;
     }
     // Sanitize project fields: remove empty strings; normalize is_focus(false) → absent
     for project in &mut data.projects {

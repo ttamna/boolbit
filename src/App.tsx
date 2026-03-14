@@ -69,6 +69,17 @@ const s = {
   mono: { fontFamily: fonts.mono } as CSSProperties,
 };
 
+// Returns ISO week string "YYYY-Www" for the given date.
+// ISO weeks start on Monday; week number is defined by the Thursday of the week.
+function isoWeekStr(date: Date): string {
+  // Work in UTC to avoid DST distortions: move to Thursday of the ISO week
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); // Thursday
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
+
 // ─── App ────────────────────────────────────────────────
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -121,11 +132,15 @@ export default function App() {
           // Requires todayIntentionDate to be present; old data without this field is left as-is
           // (date unknown — clearing would be destructive for intentions set on the same day as the update).
           const intentionStale = !!(saved.todayIntention && saved.todayIntentionDate && saved.todayIntentionDate < todayStr);
-          const needsSave = hadExpired || needsIdMigration || intentionStale;
+          // Clear week goal when the ISO week has advanced past the week it was set.
+          const currentWeek = isoWeekStr(now);
+          const weekGoalStale = !!(saved.weekGoal && saved.weekGoalDate && saved.weekGoalDate < currentWeek);
+          const needsSave = hadExpired || needsIdMigration || intentionStale || weekGoalStale;
           const resolvedData = needsSave ? {
             ...saved,
             habits: reset,
             ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined } : {}),
+            ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined } : {}),
           } : saved;
           setData(resolvedData);
           if (needsSave) await invoke("save_data", { data: resolvedData });
@@ -207,11 +222,15 @@ export default function App() {
       // Clear today's intention when the date has advanced past the day it was set.
       // Same backward-compat rule as initial load: requires todayIntentionDate to be present.
       const intentionStale = !!(current.todayIntention && current.todayIntentionDate && current.todayIntentionDate < todayStr);
-      if (!hadExpired && !intentionStale) return;
+      // Clear week goal when the ISO week has advanced past the week it was set.
+      const currentWeek = isoWeekStr(now);
+      const weekGoalStale = !!(current.weekGoal && current.weekGoalDate && current.weekGoalDate < currentWeek);
+      if (!hadExpired && !intentionStale && !weekGoalStale) return;
       await persist({
         ...current,
         habits: reset,
         ...(intentionStale ? { todayIntention: undefined, todayIntentionDate: undefined } : {}),
+        ...(weekGoalStale ? { weekGoal: undefined, weekGoalDate: undefined } : {}),
       });
     }, 60_000);
     return () => clearInterval(id);
@@ -245,6 +264,12 @@ export default function App() {
       ? [...history.filter(e => e.date !== today), { date: today, text: intention }].slice(-7)
       : history.length > 0 ? history : undefined;
     persist({ ...data, todayIntention: intention, todayIntentionDate, intentionHistory: updatedHistory });
+  }, [data, persist]);
+
+  const updateWeekGoal = useCallback((weekGoal: string) => {
+    const goal = weekGoal !== "" ? weekGoal : undefined;
+    const weekGoalDate = goal ? isoWeekStr(new Date()) : undefined;
+    persist({ ...data, weekGoal: goal, weekGoalDate });
   }, [data, persist]);
 
   const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number; longBreak: number }) => {
@@ -388,9 +413,10 @@ export default function App() {
       ].filter(Boolean).join(" · ")
     : undefined;
 
-  // Derived: Direction badge — shows intention status + quote count for quick overview when collapsed
+  // Derived: Direction badge — shows week goal + intention status + quote count for quick overview when collapsed
   const directionBadge = (() => {
     const parts: string[] = [];
+    if (data.weekGoal) parts.push("W✓");
     if (data.todayIntention) parts.push("✓");
     const quotesArr = data.quotes ?? [];
     if (quotesArr.length > 0) parts.push(`${quotesArr.length}q`);
@@ -483,6 +509,19 @@ export default function App() {
                 <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")} badge={directionBadge} onMoveUp={up} onMoveDown={dn}>Direction</SectionLabel>
                 {!collapsed.includes("direction") && (
                   <>
+                    {/* Week goal — auto-expires when ISO week advances; ✕ clears when set */}
+                    <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.weekGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }}>W</span>
+                      <InlineEdit
+                        value={data.weekGoal ?? ""}
+                        onSave={updateWeekGoal}
+                        placeholder="이번 주 목표..."
+                        style={{ flex: 1, fontSize: fontSizes.xs, ...(data.weekGoal ? { color: colors.textSubtle } : {}) }}
+                      />
+                      {data.weekGoal && (
+                        <button onClick={() => updateWeekGoal("")} title="주간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
+                      )}
+                    </div>
                     {/* Today's intention — a one-line focus phrase set by the user; ✕ clears when set */}
                     <div style={{ padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 4 }}>
                       <InlineEdit
