@@ -1,5 +1,5 @@
 // ABOUTME: ProjectList component - renders project list with add/delete/reorder in edit mode
-// ABOUTME: onRefreshAll enables batch GitHub refresh; paused+done projects are collapsible; ↕ auto-sort by focus+urgency in view mode; sessionsToday/sessionGoal forwarded to ★ focus ProjectCard
+// ABOUTME: onRefreshAll enables batch GitHub refresh; paused+done projects are collapsible; ↕ auto-sort by focus+urgency in view mode; sessionsToday/sessionGoal forwarded to ★ focus ProjectCard; completion bar shows done/total ratio
 
 import { useState, type CSSProperties } from "react";
 import type { Project } from "../types";
@@ -152,6 +152,8 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
   const runningProjects = projects.filter(p => p.status !== "done" && p.status !== "paused");
   const pausedProjects = projects.filter(p => p.status === "paused");
   const doneProjects = projects.filter(p => p.status === "done");
+  // pct: completion percentage — single source used in both tooltip and bar width
+  const pct = projects.length > 0 ? Math.round(doneProjects.length / projects.length * 100) : 0;
 
   return (
     <div>
@@ -192,49 +194,72 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
       {showDone && doneProjects.map(p => (
         <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} />
       ))}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, marginTop: 4 }}>
-        {/* Sort: visible when there are 2+ non-done projects (running + paused) to sort */}
-        {(runningProjects.length + pausedProjects.length) >= 2 && (
+      <div style={{ display: "flex", alignItems: "center", marginTop: 4 }}>
+        {/* Left: completion stats — visible when at least one project is done; shows done/total mini bar + fraction */}
+        {doneProjects.length > 0 && (
+          <div
+            title={`완료 ${doneProjects.length}개 / 전체 ${projects.length}개 (${pct}%)`}
+            style={{ display: "flex", alignItems: "center", gap: 4 }}
+          >
+            <div style={{ width: 32, height: 2, background: colors.borderSubtle, borderRadius: 1, flexShrink: 0 }}>
+              <div style={{
+                width: `${pct}%`,
+                height: "100%",
+                background: colors.statusDone,
+                borderRadius: 1,
+                opacity: 0.6,
+              }} />
+            </div>
+            <span style={{ fontSize: fontSizes.mini, color: colors.textPhantom }}>
+              {doneProjects.length}/{projects.length}
+            </span>
+          </div>
+        )}
+        {/* Right: action buttons */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+          {/* Sort: visible when there are 2+ non-done projects (running + paused) to sort */}
+          {(runningProjects.length + pausedProjects.length) >= 2 && (
+            <button
+              onClick={handleSort}
+              title="★ 집중 우선 → 마감일 긴박도순 정렬"
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: colors.textPhantom, fontSize: fontSizes.mini,
+                padding: "0 2px", lineHeight: 1,
+              }}
+            >
+              ↕
+            </button>
+          )}
+          {/* Refresh all: visible when PAT + at least one project has a GitHub repo */}
+          {onRefreshAll && pat && projects.some(p => p.githubRepo) && (
+            <button
+              onClick={handleRefreshAll}
+              disabled={refreshingAll}
+              title="모든 GitHub 데이터 새로고침"
+              style={{
+                background: "transparent", border: "none",
+                cursor: refreshingAll ? "default" : "pointer",
+                color: refreshingAll ? colors.textLabel : colors.textPhantom,
+                fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
+                transition: "color 0.2s",
+              }}
+            >
+              ↺
+            </button>
+          )}
           <button
-            onClick={handleSort}
-            title="★ 집중 우선 → 마감일 긴박도순 정렬"
+            onClick={openEditing}
+            title="프로젝트 추가/삭제"
             style={{
               background: "transparent", border: "none", cursor: "pointer",
               color: colors.textPhantom, fontSize: fontSizes.mini,
               padding: "0 2px", lineHeight: 1,
             }}
           >
-            ↕
+            ✏
           </button>
-        )}
-        {/* Refresh all: visible when PAT + at least one project has a GitHub repo */}
-        {onRefreshAll && pat && projects.some(p => p.githubRepo) && (
-          <button
-            onClick={handleRefreshAll}
-            disabled={refreshingAll}
-            title="모든 GitHub 데이터 새로고침"
-            style={{
-              background: "transparent", border: "none",
-              cursor: refreshingAll ? "default" : "pointer",
-              color: refreshingAll ? colors.textLabel : colors.textPhantom,
-              fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
-              transition: "color 0.2s",
-            }}
-          >
-            ↺
-          </button>
-        )}
-        <button
-          onClick={openEditing}
-          title="프로젝트 추가/삭제"
-          style={{
-            background: "transparent", border: "none", cursor: "pointer",
-            color: colors.textPhantom, fontSize: fontSizes.mini,
-            padding: "0 2px", lineHeight: 1,
-          }}
-        >
-          ✏
-        </button>
+        </div>
       </div>
     </div>
   );
