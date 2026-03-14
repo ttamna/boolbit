@@ -98,7 +98,7 @@ export function SettingsPanel({ settings, onUpdate }: SettingsPanelProps) {
 
       <div style={row}>
         <span style={label}>테마</span>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {(Object.keys(THEMES) as ThemeKey[]).map(key => {
             const t = THEMES[key];
             const active = currentTheme === key;
@@ -108,6 +108,7 @@ export function SettingsPanel({ settings, onUpdate }: SettingsPanelProps) {
                 title={t.name}
                 onClick={() => onUpdate({ theme: key })}
                 style={{
+                  position: "relative",
                   width: 18,
                   height: 18,
                   borderRadius: "50%",
@@ -117,12 +118,35 @@ export function SettingsPanel({ settings, onUpdate }: SettingsPanelProps) {
                     : `2px solid rgba(255,255,255,0.15)`,
                   cursor: "pointer",
                   padding: 0,
+                  overflow: "hidden",
                   boxShadow: active ? `0 0 6px ${t.accent}60` : "none",
                   transition: "border 0.15s, box-shadow 0.15s",
                 }}
-              />
+              >
+                {/* Accent dot — always visible so themes are distinguishable without hovering */}
+                <span style={{
+                  position: "absolute",
+                  top: "50%", left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  width: 6, height: 6,
+                  borderRadius: "50%",
+                  background: t.accent,
+                  opacity: active ? 0.95 : 0.55,
+                  transition: "opacity 0.15s",
+                  pointerEvents: "none",
+                }} />
+              </button>
             );
           })}
+          {/* Active theme name — renders next to swatches so the selected theme is labelled without hover */}
+          <span style={{
+            fontSize: fontSizes.mini,
+            color: colors.textMid,
+            letterSpacing: 0.5,
+            userSelect: "none",
+          }}>
+            {THEMES[currentTheme].name}
+          </span>
         </div>
       </div>
 
