@@ -1,8 +1,9 @@
-// ABOUTME: Unit tests for ProjectCard projectAgeLabel and timeElapsedPct helpers
-// ABOUTME: Validates age label (active/done projects) and schedule elapsed-time percentage
+// ABOUTME: Unit tests for ProjectCard projectAgeLabel, timeElapsedPct, deadlinePresetLabel,
+// ABOUTME: and time-dependent helpers: relativeTime, staleColor, deadlineDays, deadlineRelative, lastFocusDaysAgo, deadlineColor
 
-import { describe, it, expect } from "vitest";
-import { projectAgeLabel, timeElapsedPct, deadlinePresetLabel } from "./ProjectCard";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
+import { projectAgeLabel, timeElapsedPct, deadlinePresetLabel, relativeTime, staleColor, deadlineDays, deadlineRelative, lastFocusDaysAgo, deadlineColor } from "./ProjectCard";
+import { colors } from "../theme";
 
 describe("projectAgeLabel", () => {
   it("should return null when dateStr is undefined", () => {
@@ -145,5 +146,176 @@ describe("deadlinePresetLabel", () => {
   it("should return day label for values that are not week or month multiples", () => {
     expect(deadlinePresetLabel(1)).toBe("+1일");
     expect(deadlinePresetLabel(10)).toBe("+10일");
+  });
+});
+
+// Fixed system time for time-dependent helper tests.
+// noon UTC on 2025-06-01 (Sunday) — Z suffix makes this timezone-independent.
+const FIXED_NOW = new Date("2025-06-01T12:00:00Z");
+
+// All 6 time-dependent describes share a single fake-timer scope to avoid
+// stacked vi.useFakeTimers() calls across sequential beforeAll/afterAll pairs.
+describe("time-dependent helpers", () => {
+  beforeAll(() => { vi.useFakeTimers(); vi.setSystemTime(FIXED_NOW); });
+  afterAll(() => { vi.useRealTimers(); });
+
+  describe("relativeTime", () => {
+    it("should return '—' for an invalid ISO string", () => {
+      expect(relativeTime("not-a-date")).toBe("—");
+    });
+
+    it("should return minutes ago when diff < 60 minutes", () => {
+      expect(relativeTime("2025-06-01T11:30:00Z")).toBe("30m ago");
+    });
+
+    it("should return '0m ago' for a timestamp equal to now", () => {
+      expect(relativeTime(FIXED_NOW.toISOString())).toBe("0m ago");
+    });
+
+    it("should return '59m ago' at the minute boundary (just under 1h)", () => {
+      expect(relativeTime("2025-06-01T11:01:00Z")).toBe("59m ago");
+    });
+
+    it("should return hours ago when diff ≥ 60 min and < 24h", () => {
+      expect(relativeTime("2025-06-01T10:00:00Z")).toBe("2h ago");
+    });
+
+    it("should return '23h ago' at the hour boundary (just under 1 day)", () => {
+      expect(relativeTime("2025-05-31T13:00:00Z")).toBe("23h ago");
+    });
+
+    it("should return days ago when diff ≥ 24h", () => {
+      expect(relativeTime("2025-05-31T12:00:00Z")).toBe("1d ago");
+    });
+
+    it("should return '3d ago' for 3 days back", () => {
+      expect(relativeTime("2025-05-29T12:00:00Z")).toBe("3d ago");
+    });
+  });
+
+  describe("staleColor", () => {
+    it("should return textDim for an invalid ISO string", () => {
+      expect(staleColor("invalid")).toBe(colors.textDim);
+    });
+
+    it("should return textDim when commit is 1 day ago (≤ 2 days)", () => {
+      expect(staleColor("2025-05-31T12:00:00Z")).toBe(colors.textDim);
+    });
+
+    it("should return textDim when commit is exactly 2 days ago (boundary: > 2 not met)", () => {
+      expect(staleColor("2025-05-30T12:00:00Z")).toBe(colors.textDim);
+    });
+
+    it("should return statusProgress at 2 days + 1s ago (> 2 boundary met)", () => {
+      expect(staleColor("2025-05-30T11:59:59Z")).toBe(colors.statusProgress);
+    });
+
+    it("should return statusProgress when commit is 3 days ago (> 2 days, ≤ 7 days)", () => {
+      expect(staleColor("2025-05-29T12:00:00Z")).toBe(colors.statusProgress);
+    });
+
+    it("should return statusProgress when commit is exactly 7 days ago (boundary: > 7 not met)", () => {
+      expect(staleColor("2025-05-25T12:00:00Z")).toBe(colors.statusProgress);
+    });
+
+    it("should return statusPaused when commit is 8 days ago (> 7 days)", () => {
+      expect(staleColor("2025-05-24T12:00:00Z")).toBe(colors.statusPaused);
+    });
+  });
+
+  describe("deadlineDays", () => {
+    it("should return null for an empty string", () => {
+      expect(deadlineDays("")).toBeNull();
+    });
+
+    it("should return null for a non-YYYY-MM-DD string", () => {
+      expect(deadlineDays("next week")).toBeNull();
+    });
+
+    it("should return 0 when deadline is today", () => {
+      expect(deadlineDays("2025-06-01")).toBe(0);
+    });
+
+    it("should return 7 when deadline is 7 days in the future", () => {
+      expect(deadlineDays("2025-06-08")).toBe(7);
+    });
+
+    it("should return -1 when deadline was yesterday (1 day overdue)", () => {
+      expect(deadlineDays("2025-05-31")).toBe(-1);
+    });
+
+    it("should return -7 when deadline was 7 days ago", () => {
+      expect(deadlineDays("2025-05-25")).toBe(-7);
+    });
+  });
+
+  describe("deadlineRelative", () => {
+    it("should return '—' for an invalid date string", () => {
+      expect(deadlineRelative("bad")).toBe("—");
+    });
+
+    it("should return '오늘 마감' when deadline is today", () => {
+      expect(deadlineRelative("2025-06-01")).toBe("오늘 마감");
+    });
+
+    it("should return 'D-5' when 5 days remain", () => {
+      expect(deadlineRelative("2025-06-06")).toBe("D-5");
+    });
+
+    it("should return '1d 초과' when 1 day overdue", () => {
+      expect(deadlineRelative("2025-05-31")).toBe("1d 초과");
+    });
+
+    it("should return '7d 초과' when 7 days overdue", () => {
+      expect(deadlineRelative("2025-05-25")).toBe("7d 초과");
+    });
+  });
+
+  describe("lastFocusDaysAgo", () => {
+    it("should return null when dateStr is undefined", () => {
+      expect(lastFocusDaysAgo(undefined)).toBeNull();
+    });
+
+    it("should return null for an invalid date string", () => {
+      expect(lastFocusDaysAgo("not-a-date")).toBeNull();
+    });
+
+    it("should return null when last focus was today (no stale indicator needed)", () => {
+      expect(lastFocusDaysAgo("2025-06-01")).toBeNull();
+    });
+
+    it("should return 1 when last focus was yesterday", () => {
+      expect(lastFocusDaysAgo("2025-05-31")).toBe(1);
+    });
+
+    it("should return 7 when last focus was a week ago", () => {
+      expect(lastFocusDaysAgo("2025-05-25")).toBe(7);
+    });
+  });
+
+  describe("deadlineColor", () => {
+    it("should return textPhantom for an invalid date string", () => {
+      expect(deadlineColor("invalid")).toBe(colors.textPhantom);
+    });
+
+    it("should return statusPaused when deadline is today (days = 0, urgent)", () => {
+      expect(deadlineColor("2025-06-01")).toBe(colors.statusPaused);
+    });
+
+    it("should return statusPaused when deadline is overdue (days < 0)", () => {
+      expect(deadlineColor("2025-05-31")).toBe(colors.statusPaused);
+    });
+
+    it("should return statusProgress when 7 days remain (boundary: ≤ 7)", () => {
+      expect(deadlineColor("2025-06-08")).toBe(colors.statusProgress);
+    });
+
+    it("should return statusProgress when 3 days remain", () => {
+      expect(deadlineColor("2025-06-04")).toBe(colors.statusProgress);
+    });
+
+    it("should return textSubtle when more than 7 days remain", () => {
+      expect(deadlineColor("2025-06-09")).toBe(colors.textSubtle);
+    });
   });
 });

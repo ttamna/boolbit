@@ -8,7 +8,8 @@ import { InlineEdit } from "./InlineEdit";
 import { verifyRepo, fetchRepoData } from "../lib/github";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
-function relativeTime(isoDate: string): string {
+// Exported for unit testing; pure function with respect to injected Date.now() via vi.setSystemTime.
+export function relativeTime(isoDate: string): string {
   const ts = new Date(isoDate).getTime();
   if (isNaN(ts)) return "—";
   const diff = Math.max(0, Date.now() - ts);
@@ -21,7 +22,8 @@ function relativeTime(isoDate: string): string {
 
 // Returns a color token based on how stale the last commit is.
 // Uses statusPaused for >7 days, statusProgress for 2-7 days, textDim otherwise.
-function staleColor(isoDate: string): string {
+// Exported for unit testing; pure function with respect to injected Date.now() via vi.setSystemTime.
+export function staleColor(isoDate: string): string {
   const ts = new Date(isoDate).getTime();
   if (isNaN(ts)) return colors.textDim;
   const days = Math.max(0, (Date.now() - ts) / 86400000);
@@ -40,7 +42,8 @@ const CI_COLOR: Record<NonNullable<GitHubData["ciStatus"]>, string> = {
 // Requires strict YYYY-MM-DD format; returns null for invalid/empty strings.
 // Uses T00:00:00 for local-midnight parsing (avoids UTC off-by-one).
 // Uses Math.floor so DST days (23h) count as 0 remaining, not 1.
-function deadlineDays(dateStr: string): number | null {
+// Exported for unit testing; pure function with respect to injected today via vi.setSystemTime.
+export function deadlineDays(dateStr: string): number | null {
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
   const ts = new Date(dateStr + "T00:00:00").getTime();
   if (isNaN(ts)) return null;
@@ -50,7 +53,8 @@ function deadlineDays(dateStr: string): number | null {
 }
 
 // Returns a relative deadline label: "D-5", "오늘 마감", "5d 초과", or "—" if invalid.
-function deadlineRelative(dateStr: string): string {
+// Exported for unit testing.
+export function deadlineRelative(dateStr: string): string {
   const days = deadlineDays(dateStr);
   if (days === null) return "—";
   if (days === 0) return "오늘 마감";
@@ -60,7 +64,8 @@ function deadlineRelative(dateStr: string): string {
 
 // Returns days elapsed since lastFocusDate relative to local midnight; null if today or invalid.
 // Used to show "⊖ Nd" stale-focus indicator on project cards.
-function lastFocusDaysAgo(dateStr: string | undefined): number | null {
+// Exported for unit testing; pure function with respect to injected today via vi.setSystemTime.
+export function lastFocusDaysAgo(dateStr: string | undefined): number | null {
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
   const ts = new Date(dateStr + "T00:00:00").getTime();
   if (isNaN(ts)) return null;
@@ -128,7 +133,8 @@ export function timeElapsedPct(createdDate: string | undefined, deadline: string
 }
 
 // Returns urgency color: red if today or overdue (days ≤ 0), yellow if ≤7 days, dim otherwise.
-function deadlineColor(dateStr: string): string {
+// Exported for unit testing.
+export function deadlineColor(dateStr: string): string {
   const days = deadlineDays(dateStr);
   if (days === null) return colors.textPhantom;
   if (days <= 0) return colors.statusPaused;
