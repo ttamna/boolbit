@@ -26,6 +26,9 @@ const PRESETS: Preset[] = [
 // Theme cycle order — follows THEMES declaration order
 const THEME_ORDER = Object.keys(THEMES) as ThemeKey[];
 
+// Width presets in logical pixels: narrow / default / wide
+const WIDTH_PRESETS = [300, 380, 460] as const;
+
 interface DragBarProps {
   hovered: boolean;
   onSettingsChange: (patch: Partial<WidgetSettings>) => void;
@@ -34,10 +37,15 @@ interface DragBarProps {
   currentTheme: ThemeKey;
   pinned?: boolean;
   opacity?: number;
+  widgetWidth?: number;
+  onWidthChange?: (w: number) => void;
 }
 
-export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSettings, currentTheme, pinned = false, opacity = 0.75 }: DragBarProps) {
+export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSettings, currentTheme, pinned = false, opacity = 0.75, widgetWidth = 380, onWidthChange }: DragBarProps) {
   const [moving, setMoving] = useState(false);
+  // safeWidthIdx: index of current width in WIDTH_PRESETS; defaults to 1 (middle) for non-preset values
+  const widthIdx = WIDTH_PRESETS.indexOf(widgetWidth as typeof WIDTH_PRESETS[number]);
+  const safeWidthIdx = widthIdx === -1 ? 1 : widthIdx;
 
   const cycleTheme = () => {
     const i = THEME_ORDER.indexOf(currentTheme);
@@ -121,6 +129,37 @@ export function DragBar({ hovered, onSettingsChange, settingsOpen, onToggleSetti
             </button>
           ))}
         </div>
+        {/* Width preset buttons: hover-only; ◂ = narrower, ▸ = wider */}
+        {onWidthChange && (
+          <div style={{ display: "flex", gap: 2, opacity: hovered ? 1 : 0, transition: "opacity 0.3s ease", alignItems: "center" }}>
+            {([[-1, "◂"] as const, [1, "▸"] as const]).map(([dir, label]) => {
+              const targetIdx = safeWidthIdx + dir;
+              const disabled = targetIdx < 0 || targetIdx >= WIDTH_PRESETS.length;
+              return (
+                <button
+                  key={dir}
+                  onClick={e => { e.stopPropagation(); if (!disabled) onWidthChange(WIDTH_PRESETS[targetIdx]); }}
+                  disabled={disabled}
+                  title={disabled ? undefined : `너비 ${WIDTH_PRESETS[targetIdx]}px로 변경`}
+                  style={{
+                    width: 14, height: 14,
+                    borderRadius: 3,
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    color: disabled ? "rgba(255,255,255,0.15)" : colors.textGhost,
+                    fontSize: 9,
+                    cursor: disabled ? "default" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: 0,
+                    lineHeight: 1,
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {/* Preset buttons: hover-only */}
         <div style={{ display: "flex", gap: 4, opacity: hovered ? 1 : 0, transition: "opacity 0.3s ease" }}>
           {PRESETS.map(preset => (

@@ -5,9 +5,7 @@ import { useEffect, RefObject } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { isTauri } from "../lib/tauri";
 
-const WIDGET_WIDTH = 380;
-
-export function useWindowResize(containerRef: RefObject<HTMLElement | null>) {
+export function useWindowResize(containerRef: RefObject<HTMLElement | null>, width = 380) {
   useEffect(() => {
     const el = containerRef.current;
     if (!el || !isTauri()) return;
@@ -18,7 +16,7 @@ export function useWindowResize(containerRef: RefObject<HTMLElement | null>) {
     const applySize = (h: number) => {
       const maxH = window.screen.availHeight;
       const finalH = Math.min(Math.ceil(h), maxH);
-      win.setSize(new LogicalSize(WIDGET_WIDTH, finalH)).catch(() => {
+      win.setSize(new LogicalSize(width, finalH)).catch(() => {
         // Ignore in browser dev mode
       });
     };
@@ -36,9 +34,14 @@ export function useWindowResize(containerRef: RefObject<HTMLElement | null>) {
     });
 
     observer.observe(el);
+    // Apply immediately (without RAF) so width changes take effect without waiting for the next
+    // ResizeObserver callback (which only fires when element height changes, not on width prop change).
+    // Intentionally bypasses the RAF batching used for height updates — width change is user-triggered
+    // and rare, so a single synchronous setSize call here is acceptable.
+    applySize(el.getBoundingClientRect().height);
     return () => {
       observer.disconnect();
       if (pendingRaf !== null) cancelAnimationFrame(pendingRaf);
     };
-  }, [containerRef]);
+  }, [containerRef, width]);
 }

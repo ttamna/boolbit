@@ -95,7 +95,7 @@ export default function App() {
     settingsLoaded,
     onPositionSave: (x, y) => updateSettings({ position: { x, y } }),
   });
-  useWindowResize(containerRef);
+  useWindowResize(containerRef, settings.size.width ?? 380);
 
   // Restore always-on-top once after settings load
   useEffect(() => {
@@ -454,6 +454,10 @@ export default function App() {
         currentTheme={settings.theme}
         pinned={settings.pinned ?? false}
         opacity={settings.opacity}
+        widgetWidth={settings.size.width ?? 380}
+        // settings.size.height is never synced back from useWindowResize (height is content-driven,
+        // not stored in settings), so spreading settings.size here safely retains the default height.
+        onWidthChange={w => updateSettings({ size: { ...settings.size, width: w } })}
       />
 
       {/* ── Content ── */}
