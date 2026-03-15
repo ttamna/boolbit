@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for the Projects section — badge, deadline, age, and staleness logic
+// ABOUTME: Pure helpers for the Projects section — badge, sort, progress, deadline, age, and staleness logic
 // ABOUTME: All functions are side-effect-free; time-dependent ones accept injected dates for testing
 
 import type { Project, PomodoroDay } from "../types";
@@ -221,4 +221,42 @@ export function deadlineColor(dateStr: string): string {
   if (days <= 0) return colors.statusPaused;
   if (days <= 7) return colors.statusProgress;
   return colors.textSubtle;
+}
+
+// Returns average progress (0–100, rounded) of running projects (active + in-progress).
+// Uses the same positive filter as calcProjectsBadge so both reflect the same "running" definition —
+// a single source of truth for this domain concept even as status values expand.
+// Clamps to [0, 100] to guard against out-of-range values from manual edits or deserialization.
+// Returns null when no running projects exist (guards against division by zero).
+// Exported for unit testing; pure function with no side effects.
+export function avgRunningProgressPct(projects: Project[]): number | null {
+  const running = projects.filter(p => p.status === "active" || p.status === "in-progress");
+  if (running.length === 0) return null;
+  const avg = running.reduce((s, p) => s + p.progress, 0) / running.length;
+  return Math.min(100, Math.max(0, Math.round(avg)));
+}
+
+// Sorts projects: isFocus first → deadline urgency (soonest first, no/invalid deadline = last) → done last.
+// Done projects are excluded from sorting and appended at the end in their original relative order.
+// Paused projects sort alongside active/in-progress — view-level filters handle visual grouping.
+// Uses stable sort so equal-priority items preserve their input order.
+// today is injectable for testing; defaults to local midnight of the current day when absent.
+// Exported for unit testing; pure function — does not mutate the input array.
+export function sortProjects(projects: Project[], today?: Date): Project[] {
+  const d = today ? new Date(today) : new Date();
+  d.setHours(0, 0, 0, 0);
+  const todayMidnight = d.getTime();
+  const urgency = (p: Project): number => {
+    if (!p.deadline || !/^\d{4}-\d{2}-\d{2}$/.test(p.deadline)) return Infinity;
+    return Math.floor((new Date(p.deadline + "T00:00:00").getTime() - todayMidnight) / 86400000);
+  };
+  const active = projects.filter(p => p.status !== "done");
+  const done = projects.filter(p => p.status === "done");
+  const sortedActive = [...active].sort((a, b) => {
+    const aFocus = a.isFocus ? 0 : 1;
+    const bFocus = b.isFocus ? 0 : 1;
+    if (aFocus !== bFocus) return aFocus - bFocus;
+    return urgency(a) - urgency(b);
+  });
+  return [...sortedActive, ...done];
 }

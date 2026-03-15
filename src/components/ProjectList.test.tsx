@@ -1,5 +1,5 @@
-// ABOUTME: Unit tests for ProjectList avgRunningProgressPct and sortProjects helpers
-// ABOUTME: Validates average progress calculation and project sort order (isFocus → deadline urgency → done last)
+// ABOUTME: Regression tests for avgRunningProgressPct and sortProjects re-exported from ProjectList
+// ABOUTME: Imports via ProjectList to verify the re-export chain; canonical tests live in lib/projects.test.ts
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { avgRunningProgressPct, sortProjects } from "./ProjectList";

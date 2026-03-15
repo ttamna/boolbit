@@ -1,9 +1,11 @@
 // ABOUTME: Tests for pure functions in lib/projects.ts
-// ABOUTME: Covers calcProjectsBadge and 11 date/deadline/staleness helpers (incl. dateAfterDays, calcScheduleGap)
+// ABOUTME: Covers calcProjectsBadge, avgRunningProgressPct, sortProjects, and 11 date/deadline/staleness helpers (incl. dateAfterDays, calcScheduleGap)
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   calcProjectsBadge,
+  avgRunningProgressPct,
+  sortProjects,
   relativeTime,
   staleColor,
   deadlineDays,
@@ -809,5 +811,242 @@ describe("deadlineColor", () => {
 
   it("should return textSubtle for a far-future deadline", () => {
     expect(deadlineColor("2025-12-31")).toBe(colors.textSubtle);
+  });
+});
+
+// ─── avgRunningProgressPct ───────────────────────────────────────────────────
+
+// Auto-incrementing id helper — unique per describe block; reset in beforeEach.
+let _pct_id = 0;
+function makePctProject(overrides: Partial<Project> = {}): Project {
+  return {
+    id: ++_pct_id,
+    name: "Test",
+    status: "active",
+    goal: "goal",
+    progress: 0,
+    metric: "m",
+    metric_value: "0",
+    metric_target: "100",
+    ...overrides,
+  };
+}
+
+describe("avgRunningProgressPct", () => {
+  beforeEach(() => { _pct_id = 0; });
+
+  it("should return null for empty project array", () => {
+    expect(avgRunningProgressPct([])).toBeNull();
+  });
+
+  it("should return null when all projects are done", () => {
+    const projects = [
+      makePctProject({ status: "done", progress: 80 }),
+      makePctProject({ status: "done", progress: 100 }),
+    ];
+    expect(avgRunningProgressPct(projects)).toBeNull();
+  });
+
+  it("should return null when all projects are paused", () => {
+    expect(avgRunningProgressPct([makePctProject({ status: "paused", progress: 40 })])).toBeNull();
+  });
+
+  it("should return 0 when single active project has 0 progress", () => {
+    expect(avgRunningProgressPct([makePctProject({ status: "active", progress: 0 })])).toBe(0);
+  });
+
+  it("should return 100 when single active project is complete", () => {
+    expect(avgRunningProgressPct([makePctProject({ status: "active", progress: 100 })])).toBe(100);
+  });
+
+  it("should return progress when only in-progress project exists", () => {
+    expect(avgRunningProgressPct([makePctProject({ status: "in-progress", progress: 55 })])).toBe(55);
+  });
+
+  it("should average progress of active and in-progress projects", () => {
+    const projects = [
+      makePctProject({ status: "active", progress: 40 }),
+      makePctProject({ status: "in-progress", progress: 60 }),
+    ];
+    expect(avgRunningProgressPct(projects)).toBe(50);
+  });
+
+  it("should exclude done and paused projects from average", () => {
+    const projects = [
+      makePctProject({ status: "active", progress: 60 }),
+      makePctProject({ status: "done", progress: 100 }),
+      makePctProject({ status: "paused", progress: 20 }),
+    ];
+    expect(avgRunningProgressPct(projects)).toBe(60);
+  });
+
+  it("should round to nearest integer", () => {
+    const projects = [
+      makePctProject({ status: "active", progress: 10 }),
+      makePctProject({ status: "active", progress: 21 }),
+    ];
+    // (10 + 21) / 2 = 15.5 → rounds to 16
+    expect(avgRunningProgressPct(projects)).toBe(16);
+  });
+
+  it("should clamp result to 100 for out-of-range progress values", () => {
+    expect(avgRunningProgressPct([makePctProject({ status: "active", progress: 120 })])).toBe(100);
+  });
+
+  it("should clamp result to 0 for negative progress values", () => {
+    expect(avgRunningProgressPct([makePctProject({ status: "active", progress: -10 })])).toBe(0);
+  });
+});
+
+// ─── sortProjects ────────────────────────────────────────────────────────────
+
+let _sort_id = 0;
+function makeSortProject(overrides: Partial<Project> = {}): Project {
+  return {
+    id: ++_sort_id,
+    name: "Test",
+    status: "active",
+    goal: "goal",
+    progress: 0,
+    metric: "m",
+    metric_value: "0",
+    metric_target: "100",
+    ...overrides,
+  };
+}
+
+describe("sortProjects", () => {
+  // Fixed reference date: 2025-06-01 local midnight.
+  // Numeric constructor guarantees local-time interpretation (avoids ISO implicit-UTC).
+  const REF_DATE = new Date(2025, 5, 1); // 0-indexed month: 5 = June
+
+  beforeEach(() => { _sort_id = 0; });
+
+  it("should return empty array for empty input", () => {
+    expect(sortProjects([], REF_DATE)).toEqual([]);
+  });
+
+  it("should return single project unchanged", () => {
+    const p = makeSortProject({ name: "Only" });
+    expect(sortProjects([p], REF_DATE)).toEqual([p]);
+  });
+
+  it("should place isFocus project before non-focus project", () => {
+    const nonFocus = makeSortProject({ name: "NonFocus" });
+    const focus = makeSortProject({ name: "Focus", isFocus: true });
+    const sorted = sortProjects([nonFocus, focus], REF_DATE);
+    expect(sorted[0].name).toBe("Focus");
+    expect(sorted[1].name).toBe("NonFocus");
+  });
+
+  it("should place done project at the end, after isFocus", () => {
+    const done = makeSortProject({ name: "Done", status: "done" });
+    const focus = makeSortProject({ name: "Focus", isFocus: true });
+    const sorted = sortProjects([done, focus], REF_DATE);
+    expect(sorted[0].name).toBe("Focus");
+    expect(sorted[1].name).toBe("Done");
+  });
+
+  it("should place done project at the end, after regular active", () => {
+    const done = makeSortProject({ name: "Done", status: "done" });
+    const active = makeSortProject({ name: "Active" });
+    const sorted = sortProjects([done, active], REF_DATE);
+    expect(sorted[0].name).toBe("Active");
+    expect(sorted[1].name).toBe("Done");
+  });
+
+  it("should sort active projects by deadline urgency: soonest first", () => {
+    const farProject = makeSortProject({ name: "Far", deadline: "2025-12-01" });
+    const soonProject = makeSortProject({ name: "Soon", deadline: "2025-06-10" });
+    const sorted = sortProjects([farProject, soonProject], REF_DATE);
+    expect(sorted[0].name).toBe("Soon");
+    expect(sorted[1].name).toBe("Far");
+  });
+
+  it("should place projects with no deadline after those with a deadline", () => {
+    const withDeadline = makeSortProject({ name: "HasDeadline", deadline: "2025-07-01" });
+    const noDeadline = makeSortProject({ name: "NoDeadline" });
+    const sorted = sortProjects([noDeadline, withDeadline], REF_DATE);
+    expect(sorted[0].name).toBe("HasDeadline");
+    expect(sorted[1].name).toBe("NoDeadline");
+  });
+
+  it("should place overdue projects before no-deadline projects", () => {
+    const overdue = makeSortProject({ name: "Overdue", deadline: "2025-01-01" });
+    const noDeadline = makeSortProject({ name: "NoDeadline" });
+    const sorted = sortProjects([noDeadline, overdue], REF_DATE);
+    expect(sorted[0].name).toBe("Overdue");
+    expect(sorted[1].name).toBe("NoDeadline");
+  });
+
+  it("should sort within focus group by deadline urgency", () => {
+    const farFocus = makeSortProject({ name: "FarFocus", isFocus: true, deadline: "2025-12-01" });
+    const soonFocus = makeSortProject({ name: "SoonFocus", isFocus: true, deadline: "2025-06-10" });
+    const sorted = sortProjects([farFocus, soonFocus], REF_DATE);
+    expect(sorted[0].name).toBe("SoonFocus");
+    expect(sorted[1].name).toBe("FarFocus");
+  });
+
+  it("should preserve relative order of done projects at the end (stable)", () => {
+    const done1 = makeSortProject({ name: "Done1", status: "done" });
+    const done2 = makeSortProject({ name: "Done2", status: "done" });
+    const active = makeSortProject({ name: "Active" });
+    const sorted = sortProjects([done1, done2, active], REF_DATE);
+    expect(sorted[0].name).toBe("Active");
+    expect(sorted[1].name).toBe("Done1");
+    expect(sorted[2].name).toBe("Done2");
+  });
+
+  it("should preserve relative order of equal-priority projects (stable sort)", () => {
+    // Both non-focus, no deadline → urgency = Infinity for both; input order must be preserved
+    const p1 = makeSortProject({ name: "First" });
+    const p2 = makeSortProject({ name: "Second" });
+    const sorted = sortProjects([p1, p2], REF_DATE);
+    expect(sorted[0].name).toBe("First");
+    expect(sorted[1].name).toBe("Second");
+  });
+
+  it("should treat invalid deadline format as no deadline (Infinity urgency)", () => {
+    const invalid = makeSortProject({ name: "InvalidDeadline", deadline: "not-a-date" });
+    const valid = makeSortProject({ name: "ValidDeadline", deadline: "2025-07-01" });
+    const sorted = sortProjects([invalid, valid], REF_DATE);
+    expect(sorted[0].name).toBe("ValidDeadline");
+    expect(sorted[1].name).toBe("InvalidDeadline");
+  });
+
+  it("should place paused projects before done projects", () => {
+    const paused = makeSortProject({ name: "Paused", status: "paused" });
+    const done = makeSortProject({ name: "Done", status: "done" });
+    const sorted = sortProjects([done, paused], REF_DATE);
+    expect(sorted[0].name).toBe("Paused");
+    expect(sorted[1].name).toBe("Done");
+  });
+
+  it("should not mutate the input array", () => {
+    const projects = [
+      makeSortProject({ name: "B", isFocus: false }),
+      makeSortProject({ name: "A", isFocus: true }),
+    ];
+    sortProjects(projects, REF_DATE);
+    // Input order must be preserved (B at index 0, A at index 1)
+    expect(projects[0].name).toBe("B");
+    expect(projects[1].name).toBe("A");
+  });
+
+  it("should use current date when today parameter is omitted", () => {
+    // Overdue (past) sorts before far-future — verifies the default-date code path
+    const future = makeSortProject({ name: "Future", deadline: "2099-12-31" });
+    const overdue = makeSortProject({ name: "Overdue", deadline: "2000-01-01" });
+    const result = sortProjects([future, overdue]);
+    expect(result[0].name).toBe("Overdue");
+    expect(result[1].name).toBe("Future");
+  });
+
+  it("should place isFocus+overdue before non-focus+imminent deadline (focus beats urgency)", () => {
+    const focusOverdue = makeSortProject({ name: "FocusOverdue", isFocus: true, deadline: "2025-01-01" });
+    const nonFocusImminent = makeSortProject({ name: "NonFocusImminent", deadline: "2025-06-02" });
+    const sorted = sortProjects([nonFocusImminent, focusOverdue], REF_DATE);
+    expect(sorted[0].name).toBe("FocusOverdue");
+    expect(sorted[1].name).toBe("NonFocusImminent");
   });
 });
