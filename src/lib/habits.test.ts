@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, and playHabitCheck pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, and audio feedback
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, and playHabitCheck pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, and audio feedback
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -224,6 +224,48 @@ describe("calcHabitWeekStats", () => {
   });
 });
 
+describe("calcHabitsWeekTrend", () => {
+  it("should return null when curRate is null", () => {
+    expect(calcHabitsWeekTrend(null, 50)).toBeNull();
+  });
+
+  it("should return null when prevRate is null", () => {
+    expect(calcHabitsWeekTrend(50, null)).toBeNull();
+  });
+
+  it("should return null when both rates are null", () => {
+    expect(calcHabitsWeekTrend(null, null)).toBeNull();
+  });
+
+  it("should return ↑ when curRate > prevRate", () => {
+    expect(calcHabitsWeekTrend(80, 70)).toBe("↑");
+  });
+
+  it("should return ↓ when curRate < prevRate", () => {
+    expect(calcHabitsWeekTrend(60, 75)).toBe("↓");
+  });
+
+  it("should return → when curRate equals prevRate", () => {
+    expect(calcHabitsWeekTrend(75, 75)).toBe("→");
+  });
+
+  it("should return → when both rates are 0", () => {
+    expect(calcHabitsWeekTrend(0, 0)).toBe("→");
+  });
+
+  it("should return → when both rates are 100", () => {
+    expect(calcHabitsWeekTrend(100, 100)).toBe("→");
+  });
+
+  it("should return ↑ when curRate is 1 and prevRate is 0", () => {
+    expect(calcHabitsWeekTrend(1, 0)).toBe("↑");
+  });
+
+  it("should return ↓ when curRate is 0 and prevRate is 1", () => {
+    expect(calcHabitsWeekTrend(0, 1)).toBe("↓");
+  });
+});
+
 describe("calcHabitsBadge", () => {
   it("should return undefined when habitCount is 0", () => {
     expect(calcHabitsBadge({ habitCount: 0, doneToday: 0, atRisk: 0, weekRate: null })).toBeUndefined();
@@ -233,8 +275,33 @@ describe("calcHabitsBadge", () => {
     expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: null })).toBe("2/4");
   });
 
-  it("should append '7d·N%' when weekRate is non-null", () => {
+  it("should append '7d·N%' when weekRate is non-null and weekTrend is absent", () => {
     expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: 75 })).toBe("2/4 · 7d·75%");
+  });
+
+  it("should append trend arrow ↑ after weekRate when weekTrend is ↑", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: 75, weekTrend: "↑" })).toBe("2/4 · 7d·75%↑");
+  });
+
+  it("should append trend arrow ↓ after weekRate when weekTrend is ↓", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: 75, weekTrend: "↓" })).toBe("2/4 · 7d·75%↓");
+  });
+
+  it("should append trend arrow → after weekRate when weekTrend is →", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: 75, weekTrend: "→" })).toBe("2/4 · 7d·75%→");
+  });
+
+  it("should not append trend arrow when weekTrend is null", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: 75, weekTrend: null })).toBe("2/4 · 7d·75%");
+  });
+
+  it("should not append trend arrow when weekRate is null even if weekTrend is non-null", () => {
+    // weekTrend is meaningless without weekRate to display it on
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: null, weekTrend: "↑" })).toBe("2/4");
+  });
+
+  it("should include trend in full badge with all parts", () => {
+    expect(calcHabitsBadge({ habitCount: 5, doneToday: 3, atRisk: 1, weekRate: 80, weekTrend: "↑", perfectStreak: 4 })).toBe("3/5 · 7d·80%↑ · ⚠1 · 4🌟");
   });
 
   it("should append '⚠N' when atRisk > 0", () => {
