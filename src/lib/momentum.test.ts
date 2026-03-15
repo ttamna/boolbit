@@ -1,5 +1,5 @@
 // ABOUTME: Tests for momentum pure functions: calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumWeekTrend
-// ABOUTME: Covers score computation, tier thresholds, history upsert/cap, consecutive streak with date gaps, weekly average, and week-over-week trend
+// ABOUTME: Covers score computation, tier thresholds, breakdown components, history upsert/cap, consecutive streak with date gaps, weekly average, and week-over-week trend
 
 import { describe, it, expect } from "vitest";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumWeekTrend } from "./momentum";
@@ -225,6 +225,112 @@ describe("calcDailyScore", () => {
     });
     expect(result.score).toBe(100);
     expect(result.tier).toBe("high");
+  });
+
+  describe("breakdown", () => {
+    it("habitsScore is 50 when all habits checked", () => {
+      const { breakdown } = calcDailyScore({
+        habitsCheckedToday: 4, habitsTotal: 4,
+        pomodoroToday: 0, intentionDone: false, intentionSet: false,
+      });
+      expect(breakdown.habitsScore).toBe(50);
+    });
+
+    it("habitsScore is 0 when no habits checked", () => {
+      const { breakdown } = calcDailyScore({
+        habitsCheckedToday: 0, habitsTotal: 4,
+        pomodoroToday: 0, intentionDone: false, intentionSet: false,
+      });
+      expect(breakdown.habitsScore).toBe(0);
+    });
+
+    it("habitsScore is 0 when habitsTotal is 0", () => {
+      const { breakdown } = calcDailyScore({
+        habitsCheckedToday: 0, habitsTotal: 0,
+        pomodoroToday: 0, intentionDone: false, intentionSet: false,
+      });
+      expect(breakdown.habitsScore).toBe(0);
+    });
+
+    it("habitsScore is proportional: 2/4 habits → 25", () => {
+      const { breakdown } = calcDailyScore({
+        habitsCheckedToday: 2, habitsTotal: 4,
+        pomodoroToday: 0, intentionDone: false, intentionSet: false,
+      });
+      expect(breakdown.habitsScore).toBe(25);
+    });
+
+    it("pomodoroScore is 30 when goal met (no explicit goal, 3 sessions)", () => {
+      const { breakdown } = calcDailyScore({
+        habitsCheckedToday: 0, habitsTotal: 0,
+        pomodoroToday: 3, intentionDone: false, intentionSet: false,
+      });
+      expect(breakdown.pomodoroScore).toBe(30);
+    });
+
+    it("pomodoroScore is 0 when no sessions", () => {
+      const { breakdown } = calcDailyScore({
+        habitsCheckedToday: 0, habitsTotal: 0,
+        pomodoroToday: 0, intentionDone: false, intentionSet: false,
+      });
+      expect(breakdown.pomodoroScore).toBe(0);
+    });
+
+    it("pomodoroScore is 15 when 2/4 goal sessions completed", () => {
+      const { breakdown } = calcDailyScore({
+        habitsCheckedToday: 0, habitsTotal: 0,
+        pomodoroToday: 2, pomodoroGoal: 4,
+        intentionDone: false, intentionSet: false,
+      });
+      expect(breakdown.pomodoroScore).toBe(15);
+    });
+
+    it("intentionScore is 20 when done", () => {
+      const { breakdown } = calcDailyScore({
+        habitsCheckedToday: 0, habitsTotal: 0,
+        pomodoroToday: 0, intentionDone: true, intentionSet: true,
+      });
+      expect(breakdown.intentionScore).toBe(20);
+    });
+
+    it("intentionScore is 8 when set but not done", () => {
+      const { breakdown } = calcDailyScore({
+        habitsCheckedToday: 0, habitsTotal: 0,
+        pomodoroToday: 0, intentionDone: false, intentionSet: true,
+      });
+      expect(breakdown.intentionScore).toBe(8);
+    });
+
+    it("intentionScore is 0 when not set", () => {
+      const { breakdown } = calcDailyScore({
+        habitsCheckedToday: 0, habitsTotal: 0,
+        pomodoroToday: 0, intentionDone: false, intentionSet: false,
+      });
+      expect(breakdown.intentionScore).toBe(0);
+    });
+
+    it("Math.round of breakdown raw sum equals total score (invariant)", () => {
+      // breakdown stores raw floats; score = Math.round(sum) — this invariant must always hold
+      const result = calcDailyScore({
+        habitsCheckedToday: 3, habitsTotal: 4,  // 37.5 raw
+        pomodoroToday: 1, pomodoroGoal: 4,       //  7.5 raw — triggers divergence if individually rounded
+        intentionDone: false, intentionSet: true, //  8.0
+      });
+      const { breakdown, score } = result;
+      const rawSum = breakdown.habitsScore + breakdown.pomodoroScore + breakdown.intentionScore;
+      expect(Math.round(Math.min(100, rawSum))).toBe(score);
+    });
+
+    it("breakdown raw sum invariant holds at maximum score", () => {
+      const result = calcDailyScore({
+        habitsCheckedToday: 4, habitsTotal: 4,
+        pomodoroToday: 3, intentionDone: true, intentionSet: true,
+      });
+      const { breakdown, score } = result;
+      const rawSum = breakdown.habitsScore + breakdown.pomodoroScore + breakdown.intentionScore;
+      expect(Math.round(Math.min(100, rawSum))).toBe(score);
+      expect(score).toBe(100);
+    });
   });
 });
 

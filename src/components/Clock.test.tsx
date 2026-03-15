@@ -1,8 +1,10 @@
-// ABOUTME: Unit tests for calcDayFraction and formatHour pure helper functions
-// ABOUTME: Validates day progress fraction (out-of-range clamp), 24h/12h hour formatting, and edge cases (midnight, noon, 12h period)
+// ABOUTME: Unit tests for calcDayFraction and formatHour pure helper functions, and breakdown bar rendering
+// ABOUTME: Validates day progress fraction (out-of-range clamp), 24h/12h hour formatting, edge cases, and momentum breakdown bars
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen } from "@testing-library/react";
 import { calcDayFraction, formatHour } from "./Clock";
+import { Clock } from "./Clock";
 
 describe("calcDayFraction", () => {
   it("should return 0 at midnight (00:00:00)", () => {
@@ -132,4 +134,55 @@ describe("formatHour — 12h mode", () => {
       expect(h.startsWith("0")).toBe(true);
     }
   );
+});
+
+describe("Clock breakdown bars", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-16T12:00:00Z"));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const fullScore = {
+    score: 100,
+    tier: "high" as const,
+    breakdown: { habitsScore: 50, pomodoroScore: 30, intentionScore: 20 },
+  };
+
+  it("renders habits breakdown bar with correct title", () => {
+    render(<Clock dailyScore={fullScore} />);
+    expect(screen.getByTitle("습관 50/50")).toBeDefined();
+  });
+
+  it("renders pomodoro breakdown bar with correct title", () => {
+    render(<Clock dailyScore={fullScore} />);
+    expect(screen.getByTitle("집중 30/30")).toBeDefined();
+  });
+
+  it("renders intention breakdown bar with correct title", () => {
+    render(<Clock dailyScore={fullScore} />);
+    expect(screen.getByTitle("의도 20/20")).toBeDefined();
+  });
+
+  it("renders habits breakdown bar filled to 100% when all habits done", () => {
+    render(<Clock dailyScore={fullScore} />);
+    const bar = screen.getByTitle("습관 50/50").firstElementChild as HTMLElement;
+    expect(bar.style.width).toBe("100%");
+  });
+
+  it("renders habits breakdown bar filled to 50% when half habits done", () => {
+    const halfScore = {
+      score: 25,
+      tier: "low" as const,
+      breakdown: { habitsScore: 25, pomodoroScore: 0, intentionScore: 0 },
+    };
+    render(<Clock dailyScore={halfScore} />);
+    const bar = screen.getByTitle("습관 25/50").firstElementChild as HTMLElement;
+    expect(bar.style.width).toBe("50%");
+  });
+
+  it("does not render breakdown bars when dailyScore is undefined", () => {
+    render(<Clock />);
+    expect(screen.queryByTitle(/습관/)).toBeNull();
+  });
 });

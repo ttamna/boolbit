@@ -1,4 +1,4 @@
-// ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
+// ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention; includes breakdown per component
 // ABOUTME: updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumWeekTrend — history management and derived stats
 
 import type { MomentumEntry } from "../types";
@@ -25,6 +25,9 @@ export interface DailyScore {
   score: number;
   /** 'high' ≥75, 'mid' 40–74, 'low' <40 */
   tier: ScoreTier;
+  /** Per-component raw scores (pre-rounding): habits (0–50), pomodoro (0–30), intention (0/8/20).
+   *  Values are NOT individually rounded so that Math.round(habitsScore + pomodoroScore + intentionScore) === score. */
+  breakdown: { habitsScore: number; pomodoroScore: number; intentionScore: number };
 }
 
 /**
@@ -63,7 +66,12 @@ export function calcDailyScore(params: DailyScoreParams): DailyScore {
   const score = Math.round(Math.min(100, Math.max(0, habitsScore + pomodoroScore + intentionScore)));
   const tier: ScoreTier = score >= 75 ? "high" : score >= 40 ? "mid" : "low";
 
-  return { score, tier };
+  return {
+    score,
+    tier,
+    // raw (unrounded) values — bars use these directly for accurate fill %; title display rounds on render
+    breakdown: { habitsScore, pomodoroScore, intentionScore },
+  };
 }
 
 // 14-day cap: last 7 entries = "this week", first 7 = "prev week" for week-over-week comparison.

@@ -1,7 +1,7 @@
 // ABOUTME: Clock component - displays current time and date with 12h/24h format support
-// ABOUTME: Updates every second via setInterval; dailyScore badge + 14-day momentum sparkline + week-over-week trend below date row
+// ABOUTME: Updates every second via setInterval; dailyScore badge + H/P/I breakdown bars + 14-day momentum sparkline + week-over-week trend
 
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { DailyScore } from "../lib/momentum";
 import { calcMomentumStreak, calcMomentumWeekAvg, calcMomentumWeekTrend } from "../lib/momentum";
@@ -199,6 +199,23 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
               />
             );
           })}
+        </div>
+      )}
+      {/* Momentum breakdown bars — H/P/I mini-bars; breakdown values are raw floats, Math.round for title display */}
+      {dailyScore !== undefined && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 5, marginTop: 4 }}>
+          {[
+            { label: "H", title: `습관 ${Math.round(dailyScore.breakdown.habitsScore)}/50`,   value: dailyScore.breakdown.habitsScore,   max: 50, width: 28 },
+            { label: "P", title: `집중 ${Math.round(dailyScore.breakdown.pomodoroScore)}/30`,  value: dailyScore.breakdown.pomodoroScore,  max: 30, width: 20 },
+            { label: "I", title: `의도 ${dailyScore.breakdown.intentionScore}/20`,             value: dailyScore.breakdown.intentionScore, max: 20, width: 14 },
+          ].map(({ label, title, value, max, width }) => (
+            <Fragment key={label}>
+              <div title={title} style={{ width, height: 2, borderRadius: radius.bar, background: colors.borderSubtle, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${(value / max) * 100}%`, background: scoreTierColor(dailyScore.tier, accent), borderRadius: radius.bar }} />
+              </div>
+              <span style={{ ...mono, fontSize: "7px", color: colors.textPhantom, opacity: 0.6, letterSpacing: 0, userSelect: "none" }}>{label}</span>
+            </Fragment>
+          ))}
         </div>
       )}
       {/* Day progress bar — shows how much of today has elapsed */}
