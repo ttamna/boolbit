@@ -13,7 +13,7 @@ import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear } from "./lib/datePeriods";
-import { calcIntentionStreak } from "./lib/intention";
+import { calcIntentionStreak, calcIntentionWeek } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsBadge } from "./lib/habits";
 import { isoWeekStr, quarterStr } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
@@ -630,19 +630,13 @@ export default function App() {
     d.setDate(d.getDate() - (6 - i));
     return d.toLocaleDateString("sv");
   });
-  // intentionLast7: per-day set/done status for the last 7 days (oldest→newest, same order as last7Days).
-  // Today uses todayIntention/todayIntentionDone; past 6 days come from intentionHistory.
-  // Note: updateIntention intentionally preserves history entries when the user clears today's intention
+  // intentionWeek: per-day set/done status for the last 7 days — pure function extracted to src/lib/intention.ts.
+  // Note: updateIntention preserves history entries when the user clears today's intention
   // ("leave history unchanged so the last set text is preserved for reflection"). So `set: !!entry`
   // signals engagement on that day (user set an intention), not necessarily that one was active at day end.
   // This aligns with the heatmap's purpose: visualizing daily intention practice, not end-of-day state.
-  const intentionLast7 = last7Days.map(day => {
-    if (day === todayStr) return { date: day, set: !!data.todayIntention, done: data.todayIntentionDone ?? false };
-    const entry = (data.intentionHistory ?? []).find(e => e.date === day);
-    return { date: day, set: !!entry, done: entry?.done ?? false };
-  });
-  const intentionSetCount7 = intentionLast7.filter(d => d.set).length;
-  const intentionDoneCount7 = intentionLast7.filter(d => d.set && d.done).length;
+  const { days: intentionLast7, setCount: intentionSetCount7, doneCount: intentionDoneCount7 } =
+    calcIntentionWeek(last7Days, todayStr, data.todayIntention, data.todayIntentionDone, data.intentionHistory ?? []);
 
   // habitsWeekRate: average daily habit completion rate (%) over the last 7 days.
   // Pure functions extracted to src/lib/habits.ts for testability.

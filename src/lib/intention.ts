@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for intention streak calculation — no side effects
+// ABOUTME: Pure helpers for intention streak and 7-day heatmap calculation — no side effects
 // ABOUTME: todayStr anchors all date arithmetic for DST safety
 
 import type { IntentionEntry } from "../types";
@@ -24,4 +24,42 @@ export function calcIntentionStreak(
     else break;
   }
   return count;
+}
+
+export interface IntentionDay {
+  date: string;
+  set: boolean;
+  done: boolean;
+}
+
+export interface IntentionWeekResult {
+  /** Per-day set/done status, ordered oldest→newest matching the input last7Days order. */
+  days: IntentionDay[];
+  /** Number of days where set === true. */
+  setCount: number;
+  /** Number of days where set === true AND done === true. */
+  doneCount: number;
+}
+
+// Computes 7-day intention heatmap data for the collapsed badge and dot row.
+// For today (day === todayStr): set/done derive from todayIntention/todayIntentionDone.
+// For past days: set = history entry exists; done = entry.done === true.
+// todayStr MUST be the date string for "today" in the same locale as the history entries.
+export function calcIntentionWeek(
+  last7Days: string[],
+  todayStr: string,
+  todayIntention: string | undefined,
+  todayIntentionDone: boolean | undefined,
+  history: IntentionEntry[],
+): IntentionWeekResult {
+  const days = last7Days.map(day => {
+    if (day === todayStr) {
+      return { date: day, set: !!(todayIntention), done: todayIntentionDone ?? false };
+    }
+    const entry = history.find(e => e.date === day);
+    return { date: day, set: !!entry, done: entry?.done ?? false };
+  });
+  const setCount = days.filter(d => d.set).length;
+  const doneCount = days.filter(d => d.set && d.done).length;
+  return { days, setCount, doneCount };
 }
