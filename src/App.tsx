@@ -15,7 +15,7 @@ import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsBadge } from "./lib/habits";
-import { isoWeekStr, quarterStr } from "./lib/goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge } from "./lib/projects";
@@ -622,6 +622,14 @@ export default function App() {
     todayStr,
     data.intentionHistory ?? [],
   );
+  // weekGoalStreak: consecutive ISO weeks (including current) for which a weekly goal was set.
+  // Mirrors intentionConsecutiveDays pattern; shown as "N🔥" when ≥ 2 to reward consistent goal-setting.
+  const weekGoalStreak = calcWeekGoalStreak(
+    data.weekGoal,
+    data.weekGoalDate,
+    data.weekGoalHistory ?? [],
+    renderDate,
+  );
   // last7Days: [6daysAgo, ..., yesterday, today] as YYYY-MM-DD strings (oldest→newest, HabitStreak.tsx convention).
   // Single source shared by habitsWeekRate, weekPomodoroCount, and recentlyDoneCount.
   const last7Days = calcLastNDays(todayStr, 7);
@@ -895,6 +903,10 @@ export default function App() {
                         />
                         {data.weekGoal && (
                           <button onClick={() => updateWeekGoalDone(!data.weekGoalDone)} title={data.weekGoalDone ? "달성 취소" : "주간 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.weekGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
+                        )}
+                        {/* Consecutive week streak — shown when ≥2 weeks in a row to reward consistent goal-setting */}
+                        {data.weekGoal && weekGoalStreak >= 2 && (
+                          <span title={`${weekGoalStreak}주 연속 주간 목표 설정`} style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, lineHeight: 1 }}>{weekGoalStreak}🔥</span>
                         )}
                         {data.weekGoal && (
                           <button onClick={() => updateWeekGoal("")} title="주간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>

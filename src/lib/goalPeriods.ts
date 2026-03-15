@@ -1,5 +1,7 @@
-// ABOUTME: Pure helpers for goal period key generation — ISO week string and quarter string
-// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry and date stamps
+// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, and weekly goal streak
+// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, and streak display
+
+import type { GoalEntry } from "../types";
 
 // Returns ISO week string "YYYY-Www" for the given date.
 // ISO weeks start on Monday; week 1 contains the first Thursday of the year.
@@ -18,4 +20,31 @@ export function isoWeekStr(date: Date): string {
 export function quarterStr(date: Date): string {
   const q = Math.floor(date.getMonth() / 3) + 1;
   return `${date.getFullYear()}-Q${q}`;
+}
+
+// Returns the number of consecutive ISO weeks (including the current week) for which a weekly goal was set.
+// Returns 0 when: weekGoal is absent/empty, weekGoalDate is absent, or weekGoalDate ≠ isoWeekStr(now) (stale goal).
+// Checks history for up to 7 preceding weeks; stops at the first gap.
+// Maximum return value is 8 (current week + 7 history entries).
+// now: injected for deterministic testing; uses isoWeekStr internally for DST safety.
+// Exported for unit testing.
+export function calcWeekGoalStreak(
+  weekGoal: string | undefined,
+  weekGoalDate: string | undefined,
+  history: GoalEntry[],
+  now: Date,
+): number {
+  if (!weekGoal || !weekGoalDate) return 0;
+  if (weekGoalDate !== isoWeekStr(now)) return 0;
+  const historySet = new Set(history.map(e => e.date));
+  let count = 1;
+  // Use a fixed local-midnight base so setDate arithmetic doesn't drift mid-day.
+  const base = new Date(now.toLocaleDateString("sv") + "T00:00:00");
+  for (let back = 1; back <= 7; back++) {
+    const d = new Date(base);
+    d.setDate(d.getDate() - back * 7);
+    if (historySet.has(isoWeekStr(d))) count++;
+    else break;
+  }
+  return count;
 }

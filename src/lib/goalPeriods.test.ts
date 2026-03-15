@@ -1,8 +1,8 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr and quarterStr
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, and calcWeekGoalStreak
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr } from "./goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak } from "./goalPeriods";
 
 describe("isoWeekStr", () => {
   // ── Ordinary mid-year dates ──────────────────────────────────────────────
@@ -136,5 +136,106 @@ describe("quarterStr", () => {
 
   it("should always return 'YYYY-QN' format", () => {
     expect(quarterStr(new Date(2026, 6, 15))).toMatch(/^\d{4}-Q[1-4]$/);
+  });
+});
+
+describe("calcWeekGoalStreak", () => {
+  // Stable Monday anchor: Mon Mar 10 2025 = "2025-W11"
+  // Going back 7 days each time: W10(Mar 3), W09(Feb 24), W08(Feb 17), W07(Feb 10), W06(Feb 3), W05(Jan 27), W04(Jan 20)
+  const now = new Date(2025, 2, 10); // Mon Mar 10 2025 → "2025-W11"
+  const W11 = "2025-W11";
+  const W10 = "2025-W10";
+  const W09 = "2025-W09";
+  const W08 = "2025-W08";
+  const W07 = "2025-W07";
+
+  it("should return 0 when weekGoal is undefined", () => {
+    expect(calcWeekGoalStreak(undefined, W11, [], now)).toBe(0);
+  });
+
+  it("should return 0 when weekGoal is empty string", () => {
+    expect(calcWeekGoalStreak("", W11, [], now)).toBe(0);
+  });
+
+  it("should return 0 when weekGoalDate is undefined", () => {
+    expect(calcWeekGoalStreak("goal text", undefined, [], now)).toBe(0);
+  });
+
+  it("should return 0 when weekGoalDate is for a different (stale) week", () => {
+    // weekGoalDate does not match the current ISO week → stale, streak = 0
+    expect(calcWeekGoalStreak("goal text", W10, [], now)).toBe(0);
+  });
+
+  it("should return 1 when current week has goal and history is empty", () => {
+    expect(calcWeekGoalStreak("goal text", W11, [], now)).toBe(1);
+  });
+
+  it("should return 1 when history only has an older non-adjacent week (gap after current)", () => {
+    // W09 exists in history but W10 (previous week) is absent — streak breaks immediately
+    expect(calcWeekGoalStreak("goal text", W11, [{ date: W09, text: "old" }], now)).toBe(1);
+  });
+
+  it("should return 2 when current and immediately previous week both have goals", () => {
+    expect(calcWeekGoalStreak("goal text", W11, [{ date: W10, text: "prev" }], now)).toBe(2);
+  });
+
+  it("should return 3 when three consecutive weeks have goals", () => {
+    expect(calcWeekGoalStreak(
+      "goal text", W11,
+      [{ date: W10, text: "p1" }, { date: W09, text: "p2" }],
+      now,
+    )).toBe(3);
+  });
+
+  it("should return 5 when five consecutive weeks have goals", () => {
+    expect(calcWeekGoalStreak(
+      "goal text", W11,
+      [{ date: W10, text: "goal" }, { date: W09, text: "goal" }, { date: W08, text: "goal" }, { date: W07, text: "goal" }],
+      now,
+    )).toBe(5);
+  });
+
+  it("should stop counting at the first gap in consecutive week history", () => {
+    // W10 present, W09 absent, W08 present — streak stops at gap after W10
+    expect(calcWeekGoalStreak(
+      "goal text", W11,
+      [{ date: W10, text: "goal" }, { date: W08, text: "goal" }],
+      now,
+    )).toBe(2);
+  });
+
+  it("should count history entries regardless of their done status", () => {
+    expect(calcWeekGoalStreak(
+      "goal text", W11,
+      [{ date: W10, text: "done goal", done: true }, { date: W09, text: "another" }],
+      now,
+    )).toBe(3);
+  });
+
+  it("should handle year boundary correctly (2021-W01 with 2020-W53 in history)", () => {
+    // Mon Jan 4 2021 → "2021-W01"; 7 days back = Mon Dec 28 2020 → "2020-W53"
+    const nowBoundary = new Date(2021, 0, 4);
+    expect(calcWeekGoalStreak(
+      "goal text", "2021-W01",
+      [{ date: "2020-W53", text: "cross-year goal" }],
+      nowBoundary,
+    )).toBe(2);
+  });
+
+  it("should handle ISO week year boundary (2019-W01 derived from Dec 31 2018 with 2018-W52 in history)", () => {
+    // Dec 31 2018 → "2019-W01" (ISO week year ≠ calendar year)
+    // Going back 7 days from Dec 31 2018 → Dec 24 2018 → "2018-W52"
+    const nowBoundary = new Date(2018, 11, 31); // Mon Dec 31 2018 → "2019-W01"
+    expect(calcWeekGoalStreak(
+      "goal text", "2019-W01",
+      [{ date: "2018-W52", text: "prev week goal" }],
+      nowBoundary,
+    )).toBe(2);
+  });
+
+  it("should return 8 when all 7 history entries are consecutive with the current week", () => {
+    // History has 7 entries for W10..W04; current = W11; streak = 8
+    const history = [W10, W09, W08, W07, "2025-W06", "2025-W05", "2025-W04"].map(date => ({ date, text: "goal" }));
+    expect(calcWeekGoalStreak("goal text", W11, history, now)).toBe(8);
   });
 });
