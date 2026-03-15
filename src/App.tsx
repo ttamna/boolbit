@@ -16,6 +16,7 @@ import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFra
 import { calcIntentionStreak } from "./lib/intention";
 import { calcHabitsWeekRate } from "./lib/habits";
 import { isoWeekStr, quarterStr } from "./lib/goalPeriods";
+import { calcDirectionBadge } from "./lib/direction";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -775,33 +776,17 @@ export default function App() {
     : undefined;
 
   // Derived: Direction badge — shows year/month/week goal + intention status + quote count for quick overview when collapsed.
-  // Urgency thresholds: append "·Nd" remaining days when the period end is near (year ≤30d, quarter ≤14d, month ≤7d, week ≤3d).
-  const directionBadge = (() => {
-    const parts: string[] = [];
-    if (data.yearGoal) {
-      const base = data.yearGoalDone ? "Y✓✓" : "Y✓";
-      parts.push(daysLeftYear <= 30 ? `${base}·${daysLeftYear}d` : base);
-    }
-    if (data.quarterGoal) {
-      const base = data.quarterGoalDone ? "Q✓✓" : "Q✓";
-      parts.push(daysLeftQuarter <= 14 ? `${base}·${daysLeftQuarter}d` : base);
-    }
-    if (data.monthGoal) {
-      const base = data.monthGoalDone ? "M✓✓" : "M✓";
-      parts.push(daysLeftMonth <= 7 ? `${base}·${daysLeftMonth}d` : base);
-    }
-    if (data.weekGoal) {
-      const base = data.weekGoalDone ? "W✓✓" : "W✓";
-      parts.push(daysLeftWeek <= 3 ? `${base}·${daysLeftWeek}d` : base);
-    }
-    if (data.todayIntention) {
-      const base = data.todayIntentionDone ? "✓✓" : "✓";
-      parts.push(intentionConsecutiveDays >= 2 ? `${base}·${intentionConsecutiveDays}🔥` : base);
-    }
-    const quotesArr = data.quotes ?? [];
-    if (quotesArr.length > 0) parts.push(`${quotesArr.length}q`);
-    return parts.length > 0 ? parts.join(" · ") : undefined;
-  })();
+  // Pure function extracted to src/lib/direction.ts for testability.
+  const directionBadge = calcDirectionBadge({
+    yearGoal: data.yearGoal, yearGoalDone: data.yearGoalDone,
+    quarterGoal: data.quarterGoal, quarterGoalDone: data.quarterGoalDone,
+    monthGoal: data.monthGoal, monthGoalDone: data.monthGoalDone,
+    weekGoal: data.weekGoal, weekGoalDone: data.weekGoalDone,
+    todayIntention: data.todayIntention, todayIntentionDone: data.todayIntentionDone,
+    intentionConsecutiveDays,
+    quotesCount: (data.quotes ?? []).length,
+    daysLeftYear, daysLeftQuarter, daysLeftMonth, daysLeftWeek,
+  });
 
   return (
     <div
