@@ -1,12 +1,12 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; ⊖Nd = neglected N days; ★ = at personal best (streak=bestStreak≥7); edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend; today completion bar shows N/M progress; getMilestone/getUpcomingMilestone exported as pure helpers
+// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; ⊖Nd = neglected N days; ★ = at personal best (streak=bestStreak≥7); N🌟 = consecutive all-habits-done days; edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend; today completion bar shows N/M progress; getMilestone/getUpcomingMilestone exported as pure helpers
 
 import { useState, useEffect, useMemo, useRef, CSSProperties } from "react";
 import type { Habit } from "../types";
 import { fonts, fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
 import { useEditMode } from "../hooks/useEditMode";
-import { calcHabitWeekStats, calcCheckInPatch, calcUndoCheckInPatch } from "../lib/habits";
+import { calcHabitWeekStats, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak } from "../lib/habits";
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
 
@@ -426,6 +426,9 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
   // todayDoneCount and todayBarPct are derived from the same todayStr used in the habit grid.
   const todayDoneCount = habits.filter(h => h.lastChecked === todayStr).length;
   const todayBarPct = habitsTodayPct(habits, todayStr); // null when habits is empty
+  // perfectStreak: consecutive days (ending today or yesterday) where ALL habits were done.
+  // Uses last14Days so the window is consistent with the habit heatmap dots.
+  const perfectStreak = calcPerfectDayStreak(habits, last14Days);
 
   return (
     <div>
@@ -638,7 +641,7 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
       )}
       {onHabitsChange && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-          {/* "✓ 전체" — only when ≥1 habit is unchecked today; hides when all done to avoid confusion */}
+          {/* "✓ 전체" when habits remain; "N🌟" perfect-day streak (≥2) when all done today */}
           {habits.some(h => h.lastChecked !== todayStr) ? (
             <button
               onClick={checkAll}
@@ -651,6 +654,15 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
             >
               ✓ 전체
             </button>
+          ) : perfectStreak >= 2 ? (
+            // Threshold ≥2: a single perfect day is already reflected by the completion bar at 100%
+            // and doesn't constitute a "streak" yet — showing 1🌟 would feel premature.
+            <span
+              title={`${perfectStreak}일 연속 전체 완료`}
+              style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, padding: "0 2px", lineHeight: 1 }}
+            >
+              {perfectStreak}🌟
+            </span>
           ) : <span />}
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             {habits.length >= 2 && (

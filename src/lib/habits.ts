@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic — no side effects
-// ABOUTME: Covers per-habit weekly trend stats, aggregate daily completion rate, section badge, and check-in patch generation
+// ABOUTME: Covers per-habit weekly trend stats, aggregate daily completion rate, section badge, check-in patch, and perfect-day streak
 
 import type { Habit } from "../types";
 
@@ -87,6 +87,38 @@ export function calcUndoCheckInPatch(habit: Habit, today: string): Partial<Habit
     lastChecked: undefined,
     checkHistory: filtered.length > 0 ? filtered : undefined,
   };
+}
+
+// Returns the count of consecutive days (ending today or yesterday) on which ALL habits were checked.
+// dayWindow: YYYY-MM-DD strings, oldest → newest (today = last element).
+// If today is a perfect day (all habits checked), starts the streak from today.
+// If today is not perfect, falls back to yesterday so habits in progress don't reset the display.
+// Returns 0 when: habits is empty, window is empty, or neither today nor yesterday is perfect.
+// Note: because checkHistory is capped at 14 entries (see calcCheckInPatch), the returned streak
+// is implicitly bounded by the window length — typically 14 days maximum.
+// Exported for unit testing; pure function with no side effects.
+export function calcPerfectDayStreak(habits: Habit[], dayWindow: string[]): number {
+  if (habits.length === 0 || dayWindow.length === 0) return 0;
+
+  const isPerfect = (day: string): boolean =>
+    habits.every(h => !!(h.checkHistory?.includes(day)));
+
+  // Start from today if perfect; otherwise fall back to yesterday
+  let startIdx: number;
+  if (isPerfect(dayWindow[dayWindow.length - 1])) {
+    startIdx = dayWindow.length - 1;
+  } else {
+    startIdx = dayWindow.length - 2;
+    if (startIdx < 0 || !isPerfect(dayWindow[startIdx])) return 0;
+  }
+
+  // Count consecutive perfect days going backwards from startIdx
+  let streak = 0;
+  for (let i = startIdx; i >= 0; i--) {
+    if (isPerfect(dayWindow[i])) streak++;
+    else break;
+  }
+  return streak;
 }
 
 // Returns weekly check statistics for a single habit, partitioned from a 14-day window.

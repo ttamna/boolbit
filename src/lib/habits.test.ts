@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, and calcUndoCheckInPatch pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, section badge formatting, and check-in/undo patch generation
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, and calcPerfectDayStreak pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, section badge formatting, check-in/undo patch generation, and perfect-day streak
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -444,5 +444,97 @@ describe("calcUndoCheckInPatch", () => {
       checkHistory: ["2026-03-10", "2026-03-12", TODAY],
     });
     expect(calcUndoCheckInPatch(h, TODAY).checkHistory).toEqual(["2026-03-10", "2026-03-12"]);
+  });
+});
+
+describe("calcPerfectDayStreak", () => {
+  beforeEach(() => { _habitId = 0; });
+
+  // 7-day window ending at TODAY (2026-03-15 = last element), oldest → newest
+  const W7 = [
+    "2026-03-09",
+    "2026-03-10",
+    "2026-03-11",
+    "2026-03-12",
+    "2026-03-13",
+    "2026-03-14",
+    "2026-03-15",
+  ];
+
+  it("should return 0 for empty habits array", () => {
+    expect(calcPerfectDayStreak([], W7)).toBe(0);
+  });
+
+  it("should return 0 for empty day window", () => {
+    const h = makeHabit({ checkHistory: [TODAY] });
+    expect(calcPerfectDayStreak([h], [])).toBe(0);
+  });
+
+  it("should return 1 when single habit checked only today", () => {
+    const h = makeHabit({ checkHistory: [TODAY] });
+    expect(calcPerfectDayStreak([h], W7)).toBe(1);
+  });
+
+  it("should return 2 when single habit checked today and yesterday", () => {
+    const h = makeHabit({ checkHistory: ["2026-03-14", TODAY] });
+    expect(calcPerfectDayStreak([h], W7)).toBe(2);
+  });
+
+  it("should return 3 when single habit checked 3 consecutive days ending today", () => {
+    const h = makeHabit({ checkHistory: ["2026-03-13", "2026-03-14", TODAY] });
+    expect(calcPerfectDayStreak([h], W7)).toBe(3);
+  });
+
+  it("should return window length when habit checked every day in window", () => {
+    const h = makeHabit({ checkHistory: [...W7] });
+    expect(calcPerfectDayStreak([h], W7)).toBe(7);
+  });
+
+  it("should return 2 when all habits done today+yesterday but gap 2 days ago", () => {
+    const h1 = makeHabit({ checkHistory: ["2026-03-11", "2026-03-14", TODAY] });
+    const h2 = makeHabit({ checkHistory: ["2026-03-10", "2026-03-14", TODAY] });
+    expect(calcPerfectDayStreak([h1, h2], W7)).toBe(2);
+  });
+
+  it("should return 1 when all habits done today but gap yesterday", () => {
+    const h = makeHabit({ checkHistory: ["2026-03-12", TODAY] });
+    expect(calcPerfectDayStreak([h], W7)).toBe(1);
+  });
+
+  it("should fallback to yesterday and return 1 when today not perfect but yesterday all done", () => {
+    const h1 = makeHabit({ checkHistory: ["2026-03-14", TODAY] });
+    const h2 = makeHabit({ checkHistory: ["2026-03-14"] }); // done yesterday, not today
+    // Today not perfect (h2 missing); yesterday both done → streak = 1
+    expect(calcPerfectDayStreak([h1, h2], W7)).toBe(1);
+  });
+
+  it("should fallback to yesterday and count 2 when 2 consecutive perfect days before today", () => {
+    const h1 = makeHabit({ checkHistory: ["2026-03-13", "2026-03-14", TODAY] });
+    const h2 = makeHabit({ checkHistory: ["2026-03-13", "2026-03-14"] }); // not done today
+    // Today not perfect; 2026-03-14 and 2026-03-13 both perfect → streak = 2
+    expect(calcPerfectDayStreak([h1, h2], W7)).toBe(2);
+  });
+
+  it("should return 0 when neither today nor yesterday is perfect", () => {
+    const h1 = makeHabit({ checkHistory: [TODAY] }); // only today
+    const h2 = makeHabit({ checkHistory: [] });        // never done
+    // Today: h1 done, h2 not → not perfect. Yesterday: neither → not perfect.
+    expect(calcPerfectDayStreak([h1, h2], W7)).toBe(0);
+  });
+
+  it("should treat habit with undefined checkHistory as not done for any day", () => {
+    const h1 = makeHabit({ checkHistory: [TODAY] });
+    const h2 = makeHabit({ checkHistory: undefined });
+    expect(calcPerfectDayStreak([h1, h2], W7)).toBe(0);
+  });
+
+  it("should work with single-element window when that day is perfect", () => {
+    const h = makeHabit({ checkHistory: [TODAY] });
+    expect(calcPerfectDayStreak([h], [TODAY])).toBe(1);
+  });
+
+  it("should return 0 with single-element window when that day is not perfect", () => {
+    const h = makeHabit({ checkHistory: [] });
+    expect(calcPerfectDayStreak([h], [TODAY])).toBe(0);
   });
 });
