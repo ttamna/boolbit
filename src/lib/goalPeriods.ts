@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, weekly goal streak, and success rate
-// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, and history panels
+// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, goal streaks, success rate, and 7-week heatmap
+// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, history panels, and the week goal heatmap dot row
 
 import type { GoalEntry } from "../types";
 
@@ -162,4 +162,56 @@ export function calcWeekGoalStreak(
     else break;
   }
   return count;
+}
+
+// Returns N ISO week strings (oldest → newest), with index 0 = (N-1) weeks ago and index N-1 = current week.
+// todayStr: YYYY-MM-DD local date to anchor calculation — same DST-safe pattern as calcLastNDays.
+// Exported for unit testing; pure function with no side effects.
+export function calcLastNWeeks(todayStr: string, n: number): string[] {
+  const base = new Date(todayStr + "T00:00:00");
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(base);
+    d.setDate(d.getDate() - (n - 1 - i) * 7);
+    return isoWeekStr(d);
+  });
+}
+
+export interface WeekGoalEntry {
+  week: string;   // ISO week "YYYY-Www"
+  set: boolean;   // true when a goal was set for this week
+  done: boolean;  // true when the goal was marked accomplished
+}
+
+export interface WeekGoalHeatmapResult {
+  /** Per-week set/done status, ordered oldest→newest matching the input last7Weeks order. */
+  weeks: WeekGoalEntry[];
+  /** Number of weeks where set === true. */
+  setCount: number;
+  /** Number of weeks where set === true AND done === true. */
+  doneCount: number;
+}
+
+// Computes 7-week goal heatmap for the week goal dot row (mirrors calcIntentionWeek but uses ISO week keys).
+// For the current week: set/done derive from weekGoal/weekGoalDone.
+// For past weeks: set = history entry exists; done = entry.done === true.
+// currentWeek: ISO week string "YYYY-Www" for the current week.
+// Exported for unit testing; pure function with no side effects.
+export function calcWeekGoalHeatmap(
+  last7Weeks: string[],
+  currentWeek: string,
+  weekGoal: string | undefined,
+  weekGoalDone: boolean | undefined,
+  history: GoalEntry[],
+): WeekGoalHeatmapResult {
+  const weeks = last7Weeks.map(week => {
+    if (week === currentWeek) {
+      const set = !!(weekGoal);
+      return { week, set, done: set && (weekGoalDone ?? false) };
+    }
+    const entry = history.find(e => e.date === week);
+    return { week, set: !!entry, done: entry?.done ?? false };
+  });
+  const setCount = weeks.filter(w => w.set).length;
+  const doneCount = weeks.filter(w => w.set && w.done).length;
+  return { weeks, setCount, doneCount };
 }

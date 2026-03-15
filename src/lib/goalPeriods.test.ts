@@ -1,8 +1,8 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, and calcGoalSuccessRate
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, and calcWeekGoalHeatmap
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate } from "./goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap } from "./goalPeriods";
 import type { GoalEntry } from "../types";
 
 describe("isoWeekStr", () => {
@@ -557,5 +557,164 @@ describe("calcGoalSuccessRate", () => {
   it("should work for a single not-done entry", () => {
     const history: GoalEntry[] = [{ date: "2025", text: "yearly goal" }];
     expect(calcGoalSuccessRate(history)).toEqual({ done: 0, total: 1, pct: 0 });
+  });
+});
+
+// ── calcLastNWeeks ──────────────────────────────────────────────────────────
+// 2025-03-15 (Saturday) is in ISO W11 (Mon Mar 10 – Sun Mar 16).
+// Going back i*7 days from base gives week strings oldest→newest at indices 0…n-1.
+
+describe("calcLastNWeeks", () => {
+  const TODAY = "2025-03-15"; // W11
+
+  it("should return a single-element array containing the current week for n=1", () => {
+    expect(calcLastNWeeks(TODAY, 1)).toEqual(["2025-W11"]);
+  });
+
+  it("should return 7 ISO week strings oldest→newest for n=7", () => {
+    // Mar 15 (W11) − 6w = Feb 1 (W05); sequence W05…W11
+    expect(calcLastNWeeks(TODAY, 7)).toEqual([
+      "2025-W05",
+      "2025-W06",
+      "2025-W07",
+      "2025-W08",
+      "2025-W09",
+      "2025-W10",
+      "2025-W11",
+    ]);
+  });
+
+  it("should have length equal to n", () => {
+    expect(calcLastNWeeks(TODAY, 3)).toHaveLength(3);
+    expect(calcLastNWeeks(TODAY, 7)).toHaveLength(7);
+  });
+
+  it("should return an empty array when n is 0", () => {
+    expect(calcLastNWeeks(TODAY, 0)).toEqual([]);
+  });
+
+  it("should handle year-boundary correctly — Jan 1 2025 (W01) going back 2 weeks yields W51 of prior year", () => {
+    // 2025-01-01 (Wednesday) is in 2025-W01.
+    // Going back 1 week: 2024-12-25 (Wednesday) → 2024-W52.
+    // Going back 2 weeks: 2024-12-18 (Wednesday) → 2024-W51.
+    expect(calcLastNWeeks("2025-01-01", 3)).toEqual(["2024-W51", "2024-W52", "2025-W01"]);
+  });
+
+  it("should handle a date near end of year — Dec 29 2025 (in 2026-W01) going back 2 weeks", () => {
+    // Dec 29 2025 (Monday) — ISO week year is 2026 because the week containing Jan 1 2026 (Thursday)
+    // starts Dec 29. So isoWeekStr("2025-12-29") = "2026-W01".
+    // 1 week back: Dec 22 2025 → 2025-W52.
+    // 2 weeks back: Dec 15 2025 → 2025-W51.
+    expect(calcLastNWeeks("2025-12-29", 3)).toEqual(["2025-W51", "2025-W52", "2026-W01"]);
+  });
+});
+
+// ── calcWeekGoalHeatmap ─────────────────────────────────────────────────────
+// Uses W05…W11 window (same as calcLastNWeeks n=7 test above).
+
+describe("calcWeekGoalHeatmap", () => {
+  const LAST7 = ["2025-W05", "2025-W06", "2025-W07", "2025-W08", "2025-W09", "2025-W10", "2025-W11"];
+  const CURRENT = "2025-W11";
+
+  it("should return all set=false, done=false when no goal and empty history", () => {
+    const result = calcWeekGoalHeatmap(LAST7, CURRENT, undefined, undefined, []);
+    expect(result.setCount).toBe(0);
+    expect(result.doneCount).toBe(0);
+    expect(result.weeks).toHaveLength(7);
+    result.weeks.forEach(w => {
+      expect(w.set).toBe(false);
+      expect(w.done).toBe(false);
+    });
+  });
+
+  it("should mark current week as set=true, done=false when goal is set but not done", () => {
+    const result = calcWeekGoalHeatmap(LAST7, CURRENT, "이번 주 목표", undefined, []);
+    const current = result.weeks.find(w => w.week === CURRENT)!;
+    expect(current.set).toBe(true);
+    expect(current.done).toBe(false);
+    expect(result.setCount).toBe(1);
+    expect(result.doneCount).toBe(0);
+  });
+
+  it("should mark current week as done=true when weekGoalDone is true", () => {
+    const result = calcWeekGoalHeatmap(LAST7, CURRENT, "이번 주 목표", true, []);
+    const current = result.weeks.find(w => w.week === CURRENT)!;
+    expect(current.set).toBe(true);
+    expect(current.done).toBe(true);
+    expect(result.setCount).toBe(1);
+    expect(result.doneCount).toBe(1);
+  });
+
+  it("should mark current week as not set when weekGoal is empty string", () => {
+    const result = calcWeekGoalHeatmap(LAST7, CURRENT, "", undefined, []);
+    const current = result.weeks.find(w => w.week === CURRENT)!;
+    expect(current.set).toBe(false);
+    expect(current.done).toBe(false);
+  });
+
+  it("should reflect history entries for past weeks — set but not done", () => {
+    const history: GoalEntry[] = [{ date: "2025-W10", text: "지난 주 목표" }];
+    const result = calcWeekGoalHeatmap(LAST7, CURRENT, undefined, undefined, history);
+    const w10 = result.weeks.find(w => w.week === "2025-W10")!;
+    expect(w10.set).toBe(true);
+    expect(w10.done).toBe(false);
+    expect(result.setCount).toBe(1);
+    expect(result.doneCount).toBe(0);
+  });
+
+  it("should reflect history entries for past weeks — set and done", () => {
+    const history: GoalEntry[] = [{ date: "2025-W09", text: "2주 전 목표", done: true }];
+    const result = calcWeekGoalHeatmap(LAST7, CURRENT, undefined, undefined, history);
+    const w09 = result.weeks.find(w => w.week === "2025-W09")!;
+    expect(w09.set).toBe(true);
+    expect(w09.done).toBe(true);
+    expect(result.setCount).toBe(1);
+    expect(result.doneCount).toBe(1);
+  });
+
+  it("should correctly compute setCount and doneCount for mixed history", () => {
+    const history: GoalEntry[] = [
+      { date: "2025-W08", text: "3주 전", done: true },
+      { date: "2025-W09", text: "2주 전" },           // set, not done
+      { date: "2025-W10", text: "지난 주", done: true },
+    ];
+    // currentWeek: set + done (weekGoal + weekGoalDone=true)
+    const result = calcWeekGoalHeatmap(LAST7, CURRENT, "이번 주", true, history);
+    expect(result.setCount).toBe(4);
+    expect(result.doneCount).toBe(3); // W08, W10, W11
+  });
+
+  it("should return weeks array in the same order as last7Weeks input", () => {
+    const history: GoalEntry[] = [{ date: "2025-W07", text: "A" }];
+    const result = calcWeekGoalHeatmap(LAST7, CURRENT, "B", undefined, history);
+    expect(result.weeks.map(w => w.week)).toEqual(LAST7);
+  });
+
+  it("should ignore history entries outside the last7Weeks window", () => {
+    // W01 is before our 7-week window (W05…W11)
+    const history: GoalEntry[] = [{ date: "2025-W01", text: "너무 오래됨", done: true }];
+    const result = calcWeekGoalHeatmap(LAST7, CURRENT, undefined, undefined, history);
+    expect(result.setCount).toBe(0);
+    expect(result.doneCount).toBe(0);
+  });
+
+  it("should treat empty-string weekGoal the same as undefined — set=false, done=false", () => {
+    // weekGoal="" is never persisted (callers normalise "" to undefined), but the function must
+    // handle it defensively: set=false implies done=false regardless of weekGoalDone.
+    const result = calcWeekGoalHeatmap(LAST7, CURRENT, "", true, []);
+    const current = result.weeks.find(w => w.week === CURRENT)!;
+    expect(current.set).toBe(false);
+    expect(current.done).toBe(false); // done must not be true when set=false
+    expect(result.doneCount).toBe(0);
+  });
+
+  it("should silently drop the current week when currentWeek is not in last7Weeks", () => {
+    // If last7Weeks and currentWeek disagree (e.g. caller passes wrong window), the
+    // current week branch is never reached; all entries come from history only.
+    const differentCurrent = "2025-W20"; // outside LAST7 (W05…W11)
+    const result = calcWeekGoalHeatmap(LAST7, differentCurrent, "goal set", true, []);
+    // Current week goal is not reflected because LAST7 doesn't contain W20
+    expect(result.setCount).toBe(0);
+    expect(result.doneCount).toBe(0);
   });
 });

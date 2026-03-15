@@ -15,7 +15,7 @@ import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsBadge } from "./lib/habits";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate } from "./lib/goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge } from "./lib/projects";
@@ -630,6 +630,16 @@ export default function App() {
     data.weekGoalHistory ?? [],
     renderDate,
   );
+  // weekGoalHeatmap: 7-week set/done dot row — mirrors the 7-day intention heatmap for consistent visual language.
+  // last7Weeks: [6 weeks ago, …, this week] as ISO week strings (oldest→newest).
+  const last7Weeks = calcLastNWeeks(todayStr, 7);
+  const weekGoalHeatmap = calcWeekGoalHeatmap(
+    last7Weeks,
+    isoWeekStr(renderDate),
+    data.weekGoal,
+    data.weekGoalDone,
+    data.weekGoalHistory ?? [],
+  );
   // M/Q/Y goal streaks: consecutive periods for which a goal was set — same reward pattern as week.
   const monthGoalStreak = calcMonthGoalStreak(data.monthGoal, data.monthGoalDate, data.monthGoalHistory ?? [], renderDate);
   const quarterGoalStreak = calcQuarterGoalStreak(data.quarterGoal, data.quarterGoalDate, data.quarterGoalHistory ?? [], renderDate);
@@ -961,6 +971,32 @@ export default function App() {
                       <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar }}>
                         <div style={{ height: "100%", width: `${Math.round(weekElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
                       </div>
+                      {/* 7-week goal heatmap — mirrors intention heatmap; accent=set+done, dim=set-only, ghost=not set */}
+                      {weekGoalHeatmap.setCount > 0 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 2, paddingTop: 3 }}>
+                          {weekGoalHeatmap.weeks.map(({ week, set, done }, i) => {
+                            const weeksAgo = 6 - i;
+                            const label = weeksAgo === 0 ? "이번 주" : `${weeksAgo}주 전`;
+                            return (
+                              <div
+                                key={week}
+                                title={`${label}${set ? (done ? " · 달성" : " · 설정만") : " · 없음"}`}
+                                style={{
+                                  width: 4, height: 4, borderRadius: "50%",
+                                  background: done ? themeAccent : set ? colors.textPhantom : colors.borderSubtle,
+                                  opacity: done ? 0.9 : 0.55,
+                                }}
+                              />
+                            );
+                          })}
+                          <span
+                            title={`최근 7주 목표 달성 ${weekGoalHeatmap.doneCount}/${weekGoalHeatmap.setCount}주`}
+                            style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginLeft: 3, opacity: 0.7 }}
+                          >
+                            {weekGoalHeatmap.doneCount}/{weekGoalHeatmap.setCount}✓
+                          </span>
+                        </div>
+                      )}
                       {/* Past week goal history — up to 8 previous weeks, newest first */}
                       {showWeekGoalHistory && (data.weekGoalHistory ?? []).length > 0 && (
                         <div style={{ marginTop: 4 }}>
