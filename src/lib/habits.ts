@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate daily completion rate, section badge, check-in patch, perfect-day streak, and habit check-in audio cue
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, week-over-week section trend (calcHabitsWeekTrend ↑/↓/→), aggregate daily completion rate, section badge, check-in patch, perfect-day streak, and habit check-in audio cue
 
 import type { Habit } from "../types";
 
@@ -88,30 +88,66 @@ export interface HabitsBadgeParams {
   weekRate: number | null;
   /** Consecutive days where ALL habits were completed; ≥2 triggers N🌟 suffix. */
   perfectStreak?: number;
+  /** Week-over-week trend direction; null = no baseline, undefined = not provided (backward-compatible). */
+  weekTrend?: "↑" | "↓" | "→" | null;
 }
 
 /**
  * Computes the collapsed Streaks section badge string.
  * Returns undefined when there are no habits (habitCount === 0).
  *
- * Format: "[✓]N/M[ · 7d·R%][ · ⚠A][ · N🌟]" — parts joined with " · "
+ * Format: "[✓]N/M[ · 7d·R%[↑↓→]][ · ⚠A][ · N🌟]" — parts joined with " · "
  * - ✓N/M: all habits done today — prefix signals complete day at a glance when collapsed
  * - N/M: habits done today / total habits (e.g. "3/5"); no prefix when incomplete
- * - 7d·R%: 7-day avg completion rate (e.g. "7d·80%"); omitted when weekRate is null
+ * - 7d·R%[↑↓→]: 7-day avg completion rate with optional trend (e.g. "7d·80%↑"); omitted when weekRate is null
  * - ⚠A: at-risk habit count (e.g. "⚠2"); omitted when atRisk === 0
  * - N🌟: consecutive all-habits-done days (e.g. "3🌟"); omitted when perfectStreak < 2
  */
 export function calcHabitsBadge(params: HabitsBadgeParams): string | undefined {
-  const { habitCount, doneToday, atRisk, weekRate, perfectStreak } = params;
+  const { habitCount, doneToday, atRisk, weekRate, perfectStreak, weekTrend } = params;
   if (habitCount === 0) return undefined;
   const allDone = doneToday >= habitCount;
   const countStr = allDone ? `✓${doneToday}/${habitCount}` : `${doneToday}/${habitCount}`;
+  const weekRateStr = weekRate !== null
+    ? `7d·${weekRate}%${weekTrend ?? ""}`
+    : null;
   return [
     countStr,
-    weekRate !== null ? `7d·${weekRate}%` : null,
+    weekRateStr,
     atRisk > 0 ? `⚠${atRisk}` : null,
     (perfectStreak ?? 0) >= 2 ? `${perfectStreak}🌟` : null,
   ].filter(Boolean).join(" · ");
+}
+
+/**
+ * Computes the week-over-week completion rate trend for the habits section.
+ * Compares cur7 (latest 7 days) vs prev7 (prior 7 days) of last14Days.
+ * Returns null when: habits is empty, last14Days has <14 entries, or no completions in prev7 (no baseline).
+ * Threshold: ≥5pp improvement → "↑", ≤-5pp decline → "↓", otherwise "→".
+ */
+export function calcHabitsWeekTrend(habits: Habit[], last14Days: string[]): "↑" | "↓" | "→" | null {
+  if (habits.length === 0) return null;
+  if (last14Days.length < 14) return null;
+  const prev7 = last14Days.slice(0, 7);
+  const cur7 = last14Days.slice(7);
+  // Compute average daily completion rate for each 7-day window
+  const rate = (days: string[]): number | null => {
+    const anyInWindow = habits.some(h => days.some(day => h.checkHistory?.includes(day)));
+    if (!anyInWindow) return null;
+    const avg = days.reduce((sum, day) => {
+      return sum + habits.filter(h => h.checkHistory?.includes(day)).length / habits.length;
+    }, 0) / days.length;
+    return Math.round(avg * 100);
+  };
+  const prevRate = rate(prev7);
+  const curRate = rate(cur7);
+  // null when prev7 has no data — no baseline to compare against
+  if (prevRate === null) return null;
+  // When cur7 has no data but prev7 does, treat as a decline
+  const diff = (curRate ?? 0) - prevRate;
+  if (diff >= 5) return "↑";
+  if (diff <= -5) return "↓";
+  return "→";
 }
 
 // Returns the Partial<Habit> patch to apply when checking in a habit today.

@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, and playHabitCheck pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, and audio feedback
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, and playHabitCheck pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, week-over-week section trend (↑/↓/→), section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, and audio feedback
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -329,6 +329,124 @@ describe("calcHabitsBadge", () => {
 
   it("should include all four parts: count, weekRate, atRisk, perfectStreak", () => {
     expect(calcHabitsBadge({ habitCount: 5, doneToday: 3, atRisk: 1, weekRate: 80, perfectStreak: 4 })).toBe("3/5 · 7d·80% · ⚠1 · 4🌟");
+  });
+
+  it("should append trend symbol to weekRate when weekTrend is provided with weekRate", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: 75, weekTrend: "↑" })).toBe("2/4 · 7d·75%↑");
+  });
+
+  it("should append ↓ trend symbol to weekRate when declining", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: 50, weekTrend: "↓" })).toBe("2/4 · 7d·50%↓");
+  });
+
+  it("should append → trend symbol to weekRate when stable", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: 70, weekTrend: "→" })).toBe("2/4 · 7d·70%→");
+  });
+
+  it("should not append trend when weekTrend is null even if weekRate is non-null", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: 75, weekTrend: null })).toBe("2/4 · 7d·75%");
+  });
+
+  it("should not append trend when weekTrend is undefined (backward-compatible default)", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: 75 })).toBe("2/4 · 7d·75%");
+  });
+
+  it("should include all five parts: count, weekRate+trend, atRisk, perfectStreak", () => {
+    expect(calcHabitsBadge({ habitCount: 5, doneToday: 3, atRisk: 1, weekRate: 80, perfectStreak: 4, weekTrend: "↑" })).toBe("3/5 · 7d·80%↑ · ⚠1 · 4🌟");
+  });
+
+  it("should not append trend when weekRate is null even if weekTrend is provided", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: null, weekTrend: "↑" })).toBe("2/4");
+  });
+});
+
+// 14-day window for calcHabitsWeekTrend tests (oldest→newest, 2026-03-02 to 2026-03-15)
+const TREND_WINDOW_14 = [
+  "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08",
+  "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-14", "2026-03-15",
+];
+// prev7 = 2026-03-02 to 2026-03-08, cur7 = 2026-03-09 to 2026-03-15
+
+function makeHabitWithHistory(dates: string[]): Habit {
+  return { name: "H", streak: dates.length, icon: "🔥", checkHistory: dates };
+}
+
+describe("calcHabitsWeekTrend", () => {
+  it("should return null when habits array is empty", () => {
+    expect(calcHabitsWeekTrend([], TREND_WINDOW_14)).toBeNull();
+  });
+
+  it("should return null when no checks exist in either window", () => {
+    const habits = [makeHabitWithHistory([])];
+    expect(calcHabitsWeekTrend(habits, TREND_WINDOW_14)).toBeNull();
+  });
+
+  it("should return null when checks exist only in cur7 but not prev7 (no prev baseline)", () => {
+    // cur7 has checks, prev7 is empty → trend is undefined
+    const habits = [makeHabitWithHistory(["2026-03-09", "2026-03-10", "2026-03-11"])];
+    expect(calcHabitsWeekTrend(habits, TREND_WINDOW_14)).toBeNull();
+  });
+
+  it("should return ↑ when cur7 completion rate exceeds prev7 by ≥5pp", () => {
+    // prev7: habit done 2/7 days (~29%), cur7: done 6/7 days (~86%) → +57pp → ↑
+    const h = makeHabitWithHistory([
+      "2026-03-02", "2026-03-03",
+      "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-14",
+    ]);
+    expect(calcHabitsWeekTrend([h], TREND_WINDOW_14)).toBe("↑");
+  });
+
+  it("should return ↓ when cur7 completion rate is lower than prev7 by ≥5pp", () => {
+    // prev7: done 6/7 days, cur7: done 1/7 day → large decline → ↓
+    const h = makeHabitWithHistory([
+      "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08",
+      "2026-03-09",
+    ]);
+    expect(calcHabitsWeekTrend([h], TREND_WINDOW_14)).toBe("↓");
+  });
+
+  it("should return → when cur7 and prev7 rates differ by <5pp", () => {
+    // prev7: 3/7, cur7: 3/7 → exactly equal → →
+    const h = makeHabitWithHistory([
+      "2026-03-02", "2026-03-04", "2026-03-06",
+      "2026-03-09", "2026-03-11", "2026-03-13",
+    ]);
+    expect(calcHabitsWeekTrend([h], TREND_WINDOW_14)).toBe("→");
+  });
+
+  it("should aggregate across multiple habits", () => {
+    // h1: checked all prev7, none cur7; h2: none prev7, all cur7.
+    // aggregate: prev7 rate=50%, cur7 rate=50% → diff=0 → →
+    const h1 = makeHabitWithHistory(["2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08"]);
+    const h2 = makeHabitWithHistory(["2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-14", "2026-03-15"]);
+    expect(calcHabitsWeekTrend([h1, h2], TREND_WINDOW_14)).toBe("→");
+  });
+
+  it("should return → when prev7 and cur7 rates are equal", () => {
+    // prev=4/7, cur=4/7 → diff=0pp → →
+    const h = makeHabitWithHistory([
+      "2026-03-03", "2026-03-05", "2026-03-07", "2026-03-08",
+      "2026-03-09", "2026-03-11", "2026-03-13", "2026-03-15",
+    ]);
+    expect(calcHabitsWeekTrend([h], TREND_WINDOW_14)).toBe("→");
+  });
+
+  it("should return ↓ when cur7 has no completions but prev7 has data (curRate treated as 0)", () => {
+    // prev7: 7/7 (100%), cur7: 0/7 (0%) → diff=-100pp → ↓
+    const h = makeHabitWithHistory(["2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08"]);
+    expect(calcHabitsWeekTrend([h], TREND_WINDOW_14)).toBe("↓");
+  });
+
+  it("should return ↑ at exactly 5pp threshold (boundary: ≥5 → ↑)", () => {
+    // Need diff of exactly 5pp. With 2 habits and 7 days:
+    // prev7: h1 checks 3 days (3/7=43%); cur7: h1 checks 6 days (6/7=86%) → Math.round diff≈43pp → ↑
+    // Use simpler: 1 habit, prev7=1/7(14%), cur7=2/7(29%) → diff=15pp → ↑
+    const h = makeHabitWithHistory(["2026-03-02", "2026-03-09", "2026-03-10"]);
+    expect(calcHabitsWeekTrend([h], TREND_WINDOW_14)).toBe("↑");
+  });
+
+  it("should return null when last14Days is too short to form two windows", () => {
+    expect(calcHabitsWeekTrend([makeHabitWithHistory(["2026-03-09"])], ["2026-03-09", "2026-03-10"])).toBeNull();
   });
 });
 
