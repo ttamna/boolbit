@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for habit statistics — no side effects
-// ABOUTME: Covers per-habit weekly trend stats, aggregate daily completion rate, and section badge
+// ABOUTME: Pure helpers for habit statistics and check-in logic — no side effects
+// ABOUTME: Covers per-habit weekly trend stats, aggregate daily completion rate, section badge, and check-in patch generation
 
 import type { Habit } from "../types";
 
@@ -52,6 +52,41 @@ export function calcHabitsBadge(params: HabitsBadgeParams): string | undefined {
     weekRate !== null ? `7d·${weekRate}%` : null,
     atRisk > 0 ? `⚠${atRisk}` : null,
   ].filter(Boolean).join(" · ");
+}
+
+// Returns the Partial<Habit> patch to apply when checking in a habit today.
+// Adds today to checkHistory (deduplicates, sorts ascending, caps at 14 most-recent entries),
+// increments streak by 1, sets lastChecked to today, and updates bestStreak when the new
+// streak surpasses the previous best (absent bestStreak is treated as 0).
+// Exported for unit testing; pure function with no side effects.
+export function calcCheckInPatch(habit: Habit, today: string): Partial<Habit> {
+  const history = habit.checkHistory ?? [];
+  const newHistory = [...new Set([...history, today])].sort().slice(-14);
+  const newStreak = habit.streak + 1;
+  const patch: Partial<Habit> = {
+    streak: newStreak,
+    lastChecked: today,
+    checkHistory: newHistory,
+  };
+  if (newStreak > (habit.bestStreak ?? 0)) patch.bestStreak = newStreak;
+  return patch;
+}
+
+// Returns the Partial<Habit> patch to apply when undoing today's check-in.
+// Removes today from checkHistory (returns undefined when the filtered list is empty so
+// JSON.stringify omits the field — consistent with Rust serde(default) yielding None),
+// decrements streak by 1 (min 0), and clears lastChecked to undefined.
+// bestStreak is intentionally not decremented — it records the all-time high.
+// Precondition: callers must verify h.lastChecked === today before calling; if today is absent
+// from checkHistory the function still decrements streak, which would corrupt data.
+// Exported for unit testing; pure function with no side effects.
+export function calcUndoCheckInPatch(habit: Habit, today: string): Partial<Habit> {
+  const filtered = (habit.checkHistory ?? []).filter(d => d !== today);
+  return {
+    streak: Math.max(0, habit.streak - 1),
+    lastChecked: undefined,
+    checkHistory: filtered.length > 0 ? filtered : undefined,
+  };
 }
 
 // Returns weekly check statistics for a single habit, partitioned from a 14-day window.

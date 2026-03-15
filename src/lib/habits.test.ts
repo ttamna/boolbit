@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, and calcHabitsBadge pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, and section badge formatting
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, and calcUndoCheckInPatch pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, section badge formatting, and check-in/undo patch generation
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -297,5 +297,152 @@ describe("calcHabitsBadge", () => {
 
   it("should handle large atRisk count without truncation", () => {
     expect(calcHabitsBadge({ habitCount: 10, doneToday: 0, atRisk: 10, weekRate: null })).toBe("0/10 · ⚠10");
+  });
+});
+
+const TODAY = "2026-03-15";
+
+function makeHabitForCheckIn(overrides: Partial<Habit> = {}): Habit {
+  return { name: "Run", streak: 0, icon: "🏃", ...overrides };
+}
+
+describe("calcCheckInPatch", () => {
+  it("should increment streak by 1", () => {
+    const h = makeHabitForCheckIn({ streak: 5 });
+    expect(calcCheckInPatch(h, TODAY).streak).toBe(6);
+  });
+
+  it("should set lastChecked to today", () => {
+    const h = makeHabitForCheckIn();
+    expect(calcCheckInPatch(h, TODAY).lastChecked).toBe(TODAY);
+  });
+
+  it("should add today to checkHistory when history is undefined", () => {
+    const h = makeHabitForCheckIn({ checkHistory: undefined });
+    expect(calcCheckInPatch(h, TODAY).checkHistory).toEqual([TODAY]);
+  });
+
+  it("should add today to existing checkHistory", () => {
+    const h = makeHabitForCheckIn({ checkHistory: ["2026-03-14"] });
+    expect(calcCheckInPatch(h, TODAY).checkHistory).toEqual(["2026-03-14", TODAY]);
+  });
+
+  it("should deduplicate today if already in checkHistory", () => {
+    const h = makeHabitForCheckIn({ checkHistory: [TODAY, "2026-03-14"] });
+    const patch = calcCheckInPatch(h, TODAY);
+    // TODAY should appear exactly once, sorted ascending
+    expect(patch.checkHistory?.filter(d => d === TODAY)).toHaveLength(1);
+  });
+
+  it("should sort checkHistory ascending after adding today", () => {
+    // Insert today between two existing dates
+    const h = makeHabitForCheckIn({ checkHistory: ["2026-03-10", "2026-03-17"] });
+    const patch = calcCheckInPatch(h, TODAY);
+    expect(patch.checkHistory).toEqual(["2026-03-10", TODAY, "2026-03-17"]);
+  });
+
+  it("should cap checkHistory at 14 entries, keeping most recent (15→14: drops oldest)", () => {
+    // 14 old entries + today = 15 → should drop oldest (2026-03-01)
+    const old14 = Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(`2026-03-01`);
+      d.setDate(d.getDate() + i);
+      return d.toLocaleDateString("sv");
+    }); // 2026-03-01 … 2026-03-14
+    const h = makeHabitForCheckIn({ checkHistory: old14 });
+    const patch = calcCheckInPatch(h, TODAY);
+    expect(patch.checkHistory).toHaveLength(14);
+    expect(patch.checkHistory?.[patch.checkHistory.length - 1]).toBe(TODAY);
+    expect(patch.checkHistory).not.toContain("2026-03-01");
+  });
+
+  it("should keep all entries when 13 existing + today = 14 (cap not exceeded)", () => {
+    // 13 old entries + today = 14 → all retained, no drop
+    const old13 = Array.from({ length: 13 }, (_, i) => {
+      const d = new Date("2026-03-01");
+      d.setDate(d.getDate() + i);
+      return d.toLocaleDateString("sv");
+    }); // 2026-03-01 … 2026-03-13
+    const h = makeHabitForCheckIn({ checkHistory: old13 });
+    const patch = calcCheckInPatch(h, TODAY);
+    expect(patch.checkHistory).toHaveLength(14);
+    expect(patch.checkHistory).toContain("2026-03-01");
+    expect(patch.checkHistory?.[patch.checkHistory.length - 1]).toBe(TODAY);
+  });
+
+  it("should keep 14 entries when today is already in a 14-entry history (dedup → no growth)", () => {
+    // 13 old entries + today already present = 14 entries; dedup prevents adding duplicate
+    const old13 = Array.from({ length: 13 }, (_, i) => {
+      const d = new Date("2026-03-01");
+      d.setDate(d.getDate() + i);
+      return d.toLocaleDateString("sv");
+    }); // 2026-03-01 … 2026-03-13
+    const h = makeHabitForCheckIn({ checkHistory: [...old13, TODAY] }); // already 14 with TODAY
+    const patch = calcCheckInPatch(h, TODAY);
+    expect(patch.checkHistory).toHaveLength(14);
+    // Dedup verification: TODAY appears exactly once
+    expect(patch.checkHistory?.filter(d => d === TODAY)).toHaveLength(1);
+  });
+
+  it("should update bestStreak when new streak surpasses previous best", () => {
+    const h = makeHabitForCheckIn({ streak: 4, bestStreak: 4 });
+    expect(calcCheckInPatch(h, TODAY).bestStreak).toBe(5);
+  });
+
+  it("should not include bestStreak in patch when new streak does not surpass previous best", () => {
+    const h = makeHabitForCheckIn({ streak: 3, bestStreak: 10 });
+    expect(calcCheckInPatch(h, TODAY).bestStreak).toBeUndefined();
+  });
+
+  it("should update bestStreak when bestStreak is absent (treats as 0)", () => {
+    // streak=0, bestStreak=undefined → new streak=1 > 0 → should set bestStreak=1
+    const h = makeHabitForCheckIn({ streak: 0, bestStreak: undefined });
+    expect(calcCheckInPatch(h, TODAY).bestStreak).toBe(1);
+  });
+
+  it("should handle empty checkHistory array", () => {
+    const h = makeHabitForCheckIn({ checkHistory: [] });
+    expect(calcCheckInPatch(h, TODAY).checkHistory).toEqual([TODAY]);
+  });
+});
+
+describe("calcUndoCheckInPatch", () => {
+  it("should decrement streak by 1", () => {
+    const h = makeHabitForCheckIn({ streak: 5, lastChecked: TODAY });
+    expect(calcUndoCheckInPatch(h, TODAY).streak).toBe(4);
+  });
+
+  it("should clear lastChecked (undefined)", () => {
+    const h = makeHabitForCheckIn({ streak: 2, lastChecked: TODAY });
+    expect(calcUndoCheckInPatch(h, TODAY).lastChecked).toBeUndefined();
+  });
+
+  it("should remove today from checkHistory", () => {
+    const h = makeHabitForCheckIn({ streak: 3, checkHistory: ["2026-03-13", TODAY] });
+    expect(calcUndoCheckInPatch(h, TODAY).checkHistory).toEqual(["2026-03-13"]);
+  });
+
+  it("should return undefined checkHistory when no entries remain after removing today", () => {
+    const h = makeHabitForCheckIn({ streak: 1, checkHistory: [TODAY] });
+    expect(calcUndoCheckInPatch(h, TODAY).checkHistory).toBeUndefined();
+  });
+
+  it("should not go below 0 for streak", () => {
+    const h = makeHabitForCheckIn({ streak: 0, lastChecked: TODAY });
+    expect(calcUndoCheckInPatch(h, TODAY).streak).toBe(0);
+  });
+
+  it("should handle undefined checkHistory gracefully", () => {
+    const h = makeHabitForCheckIn({ streak: 1, checkHistory: undefined });
+    const patch = calcUndoCheckInPatch(h, TODAY);
+    expect(patch.checkHistory).toBeUndefined();
+    expect(patch.streak).toBe(0);
+  });
+
+  it("should preserve other days in history when removing today", () => {
+    const h = makeHabitForCheckIn({
+      streak: 3,
+      checkHistory: ["2026-03-10", "2026-03-12", TODAY],
+    });
+    expect(calcUndoCheckInPatch(h, TODAY).checkHistory).toEqual(["2026-03-10", "2026-03-12"]);
   });
 });

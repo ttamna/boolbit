@@ -6,7 +6,7 @@ import type { Habit } from "../types";
 import { fonts, fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
 import { useEditMode } from "../hooks/useEditMode";
-import { calcHabitWeekStats } from "../lib/habits";
+import { calcHabitWeekStats, calcCheckInPatch, calcUndoCheckInPatch } from "../lib/habits";
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
 
@@ -140,35 +140,19 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
 
   const checkHabit = (i: number) => {
     const h = habits[i];
-    const history = h.checkHistory ?? [];
     if (h.lastChecked === todayStr) {
-      // Undo today's check-in: decrement streak, clear lastChecked, remove today from history.
-      // Use undefined (not []) so JSON.stringify omits the field — Rust serde(default) yields None.
-      // bestStreak is not decremented on undo — it records the all-time high.
-      const filtered = history.filter(d => d !== todayStr);
-      onUpdate?.(i, {
-        streak: Math.max(0, h.streak - 1),
-        lastChecked: undefined,
-        checkHistory: filtered.length > 0 ? filtered : undefined,
-      });
+      // Undo today's check-in; bestStreak is not decremented — it records the all-time high.
+      onUpdate?.(i, calcUndoCheckInPatch(h, todayStr));
     } else {
-      // Check in: add today, deduplicate, sort (YYYY-MM-DD is lexicographic = chronological),
-      // cap at 14 most-recent days to prevent unbounded growth.
-      const newHistory = [...new Set([...history, todayStr])].sort().slice(-14);
-      const newStreak = h.streak + 1;
-      const prevBest = h.bestStreak ?? 0;
+      // Check in: pure patch computation delegated to calcCheckInPatch.
       // Note: streak is incremented unconditionally (pre-existing design — no consecutive-day check).
-      // bestStreak inherits this assumption and tracks the max value seen via check-in.
-      const patch: Partial<Habit> = {
-        streak: newStreak, lastChecked: todayStr, checkHistory: newHistory,
-      };
-      // Only update bestStreak when the new streak surpasses the previous best
-      if (newStreak > prevBest) patch.bestStreak = newStreak;
+      const patch = calcCheckInPatch(h, todayStr);
       onUpdate?.(i, patch);
       // Fire milestone notification when the check-in crosses a new milestone boundary.
       // Guard: only fire when onUpdate is defined (streak is actually being saved).
       // Dedup: milestoneNotifiedRef prevents re-fires on undo+redo within the same day.
       if (onUpdate) {
+        const newStreak = patch.streak!;
         const key = h.id ?? String(i);
         const newBadge = getMilestone(newStreak);
         if (newBadge && newBadge !== getMilestone(h.streak)) {
@@ -208,28 +192,32 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
     if (uncheckedCount === 0) return;
     const updatedHabits = habits.map(h => {
       if (h.lastChecked === todayStr) return h;
-      const history = h.checkHistory ?? [];
-      const newHistory = [...new Set([...history, todayStr])].sort().slice(-14);
-      const newStreak = h.streak + 1;
-      const prevBest = h.bestStreak ?? 0;
-      const patch: Partial<Habit> = { streak: newStreak, lastChecked: todayStr, checkHistory: newHistory };
-      if (newStreak > prevBest) patch.bestStreak = newStreak;
-      return { ...h, ...patch };
+      return { ...h, ...calcCheckInPatch(h, todayStr) };
     });
     onHabitsChange(updatedHabits);
-    // Fire milestone notifications for habits that crossed a new milestone boundary.
-    // Uses (h, idx) for the key to match checkHabit's `h.id ?? String(idx)` pattern exactly.
+    // Fire milestone and targetStreak notifications — mirrors checkHabit's single-check logic.
+    // Reads newStreak from updatedHabits to stay in sync with calcCheckInPatch's result.
     habits.forEach((h, idx) => {
       if (h.lastChecked === todayStr) return;
-      const newStreak = h.streak + 1;
+      const newStreak = updatedHabits[idx].streak;
+      const key = h.id ?? String(idx);
       const newBadge = getMilestone(newStreak);
       if (newBadge && newBadge !== getMilestone(h.streak)) {
-        const key = h.id ?? String(idx);
         const notified = milestoneNotifiedRef.current.get(key) ?? new Set<string>();
         if (!notified.has(newBadge)) {
           notified.add(newBadge);
           milestoneNotifiedRef.current.set(key, notified);
           onMilestoneReached?.(h.name, newStreak, newBadge);
+        }
+      }
+      // Fire 🎯 when targetStreak is hit and no preset milestone boundary is crossed on this step.
+      const isNewMilestone = newBadge !== null && newBadge !== getMilestone(h.streak);
+      if (h.targetStreak && newStreak === h.targetStreak && !isNewMilestone) {
+        const notified = milestoneNotifiedRef.current.get(key) ?? new Set<string>();
+        if (!notified.has("🎯")) {
+          notified.add("🎯");
+          milestoneNotifiedRef.current.set(key, notified);
+          onMilestoneReached?.(h.name, newStreak, "🎯");
         }
       }
     });
