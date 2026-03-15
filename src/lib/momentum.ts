@@ -1,5 +1,7 @@
 // ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
-// ABOUTME: Pure function; combines habit completion rate, pomodoro progress, and intention state
+// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; pure function
+
+import type { MomentumEntry } from "../types";
 
 export interface DailyScoreParams {
   /** Habits checked today */
@@ -62,4 +64,29 @@ export function calcDailyScore(params: DailyScoreParams): DailyScore {
   const tier: ScoreTier = score >= 75 ? "high" : score >= 40 ? "mid" : "low";
 
   return { score, tier };
+}
+
+const MOMENTUM_HISTORY_CAP = 7;
+
+/**
+ * Upserts today's momentum score into a rolling 7-day history array.
+ * - If today's date already exists, updates its score and tier.
+ * - Otherwise appends a new entry (newest last).
+ * - Caps the array at 7 entries, dropping the oldest when exceeded.
+ */
+export function updateMomentumHistory(
+  history: MomentumEntry[],
+  today: string,
+  score: number,
+  tier: ScoreTier,
+): MomentumEntry[] {
+  const idx = history.findIndex(e => e.date === today);
+  let next: MomentumEntry[];
+  if (idx >= 0) {
+    next = history.map((e, i) => i === idx ? { ...e, score, tier } : e);
+  } else {
+    next = [...history, { date: today, score, tier }];
+  }
+  // Keep only the most recent MOMENTUM_HISTORY_CAP entries (newest last)
+  return next.length > MOMENTUM_HISTORY_CAP ? next.slice(next.length - MOMENTUM_HISTORY_CAP) : next;
 }

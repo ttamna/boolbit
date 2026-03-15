@@ -20,7 +20,7 @@ import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory } from "./lib/pomodoro";
-import { calcDailyScore } from "./lib/momentum";
+import { calcDailyScore, updateMomentumHistory } from "./lib/momentum";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -631,6 +631,18 @@ export default function App() {
     intentionDone: !!data.todayIntentionDone,
     intentionSet: !!data.todayIntention,
   });
+  // Persist today's momentum score whenever it changes — upserts into rolling 7-day history.
+  // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
+  // (e.g. pomodoro session or habit check-in that updates data between renders).
+  useEffect(() => {
+    const current = dataRef.current;
+    const stored = (current.momentumHistory ?? []).find(e => e.date === todayStr);
+    if (stored && stored.score === dailyScore.score && stored.tier === dailyScore.tier) return;
+    const updated = updateMomentumHistory(current.momentumHistory ?? [], todayStr, dailyScore.score, dailyScore.tier);
+    persist({ ...current, momentumHistory: updated });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dailyScore.score, dailyScore.tier, todayStr]);
+
   // intentionConsecutiveDays: consecutive days (including today) on which the user has set an intention.
   // Pure function extracted to src/lib/intention.ts for testability.
   const intentionConsecutiveDays = calcIntentionStreak(
@@ -780,6 +792,7 @@ export default function App() {
           accent={themeAccent}
           onToggleFormat={() => updateSettings({ clockFormat: settings.clockFormat === "12h" ? "24h" : "12h" })}
           dailyScore={dailyScore}
+          momentumHistory={data.momentumHistory}
         />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {

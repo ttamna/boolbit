@@ -1,9 +1,10 @@
 // ABOUTME: Clock component - displays current time and date with 12h/24h format support
-// ABOUTME: Updates every second via setInterval; onToggleFormat enables format toggle; dailyScore shows momentum badge
+// ABOUTME: Updates every second via setInterval; dailyScore badge + 7-day momentum sparkline below date row
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { DailyScore } from "../lib/momentum";
+import type { MomentumEntry } from "../types";
 
 // Returns the fraction of the calendar day elapsed (0.0 = midnight, 0.5 = noon, 1.0 = end of day).
 // Clamped to [0, 1] so out-of-range inputs (e.g. negative or > 86400 total seconds) stay bounded.
@@ -39,9 +40,11 @@ interface ClockProps {
   onToggleFormat?: () => void;
   /** Optional daily momentum score (0-100) with tier; shown as a subtle badge in the date row */
   dailyScore?: DailyScore;
+  /** Rolling 7-day momentum score history; newest last; absent = no sparkline */
+  momentumHistory?: MomentumEntry[];
 }
 
-export function Clock({ use12h = false, accent, onToggleFormat, dailyScore }: ClockProps) {
+export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory }: ClockProps) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -61,6 +64,29 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore }: Cl
 
   const dayFraction = calcDayFraction(rawHour, time.getMinutes(), time.getSeconds());
   const dayPct = Math.round(dayFraction * 100);
+
+  // todayLocal: YYYY-MM-DD string for the current calendar day; recomputed only when the date string changes
+  // (i.e. at midnight), not every second — avoids creating new string objects on each tick.
+  const todayLocal = time.toLocaleDateString("sv");
+  // sparklineDays: past 6 days (excluding today) in YYYY-MM-DD for slot alignment.
+  // Derived from the stable date string, not from `time`, so it updates only at midnight.
+  const sparklineDays = useMemo(() => {
+    const days: string[] = [];
+    const base = new Date(todayLocal + "T00:00:00");
+    for (let i = 6; i >= 1; i--) {
+      const d = new Date(base);
+      d.setDate(base.getDate() - i);
+      days.push(d.toLocaleDateString("sv"));
+    }
+    return days;
+  }, [todayLocal]);
+  const histMap = useMemo(() => {
+    const map = new Map<string, MomentumEntry>();
+    (momentumHistory ?? []).forEach(e => map.set(e.date, e));
+    return map;
+  }, [momentumHistory]);
+  // Show sparkline only when there are ≥2 history entries (including today) so the trend is meaningful.
+  const showSparkline = (momentumHistory?.length ?? 0) >= 2;
 
   return (
     <div style={{ marginBottom: 20 }}>
@@ -107,6 +133,35 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore }: Cl
           )}
         </div>
       </div>
+      {/* 7-day momentum sparkline — past 6 days as colored dots; shown when ≥2 history entries */}
+      {showSparkline && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3, marginTop: 5 }}>
+          {sparklineDays.map((day, di) => {
+            const entry = histMap.get(day);
+            const daysAgo = 6 - di;
+            const labelDay = daysAgo === 1 ? "어제" : `${daysAgo}일 전`;
+            const label = entry
+              ? `${labelDay} 모멘텀 ${entry.score}/100`
+              : `${labelDay} 기록 없음`;
+            const dotColor = entry
+              ? entry.tier === "high" ? (accent ?? colors.statusActive)
+              : entry.tier === "mid" ? colors.statusProgress
+              : colors.textLabel
+              : colors.borderSubtle;
+            const opacity = entry ? (entry.score >= 75 ? 0.9 : entry.score >= 40 ? 0.65 : 0.4) : 0.25;
+            return (
+              <div
+                key={day}
+                title={label}
+                style={{
+                  width: 3, height: 3, borderRadius: "50%", flexShrink: 0,
+                  background: dotColor, opacity,
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
       {/* Day progress bar — shows how much of today has elapsed */}
       <div
         title={`하루의 ${dayPct}% 경과`}

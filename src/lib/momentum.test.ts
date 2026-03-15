@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcDailyScore — verifies 0-100 score, tier, and edge cases
-// ABOUTME: Covers no-activity baseline, full score, partial inputs, and tier thresholds
+// ABOUTME: Tests for calcDailyScore and updateMomentumHistory — score, tier, and history edge cases
+// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, and history upsert/cap
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore } from "./momentum";
+import { calcDailyScore, updateMomentumHistory } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -225,5 +225,59 @@ describe("calcDailyScore", () => {
     });
     expect(result.score).toBe(100);
     expect(result.tier).toBe("high");
+  });
+});
+
+describe("updateMomentumHistory", () => {
+  it("appends a new entry when history is empty", () => {
+    const result = updateMomentumHistory([], "2026-03-15", 72, "mid");
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({ date: "2026-03-15", score: 72, tier: "mid" });
+  });
+
+  it("upserts today's entry when same date already exists", () => {
+    const existing = [{ date: "2026-03-15", score: 50, tier: "mid" as const }];
+    const result = updateMomentumHistory(existing, "2026-03-15", 85, "high");
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({ date: "2026-03-15", score: 85, tier: "high" });
+  });
+
+  it("appends new day entry preserving previous days", () => {
+    const existing = [
+      { date: "2026-03-14", score: 60, tier: "mid" as const },
+      { date: "2026-03-15", score: 80, tier: "high" as const },
+    ];
+    const result = updateMomentumHistory(existing, "2026-03-16", 30, "low");
+    expect(result).toHaveLength(3);
+    expect(result[2]).toEqual({ date: "2026-03-16", score: 30, tier: "low" });
+  });
+
+  it("caps history at 7 entries, keeping newest", () => {
+    const existing = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 1).padStart(2, "0")}`,
+      score: i * 10,
+      tier: "low" as const,
+    }));
+    const result = updateMomentumHistory(existing, "2026-03-08", 99, "high");
+    expect(result).toHaveLength(7);
+    expect(result[0].date).toBe("2026-03-02"); // oldest dropped
+    expect(result[6]).toEqual({ date: "2026-03-08", score: 99, tier: "high" });
+  });
+
+  it("does not exceed 7 entries when upsert keeps same length", () => {
+    const existing = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 1).padStart(2, "0")}`,
+      score: 50,
+      tier: "mid" as const,
+    }));
+    const result = updateMomentumHistory(existing, "2026-03-07", 75, "high");
+    expect(result).toHaveLength(7);
+    expect(result[6]).toEqual({ date: "2026-03-07", score: 75, tier: "high" });
+  });
+
+  it("stores entry with empty string date (passthrough — caller is responsible for valid dates)", () => {
+    const result = updateMomentumHistory([], "", 0, "low");
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({ date: "", score: 0, tier: "low" });
   });
 });
