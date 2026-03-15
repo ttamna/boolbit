@@ -1,5 +1,5 @@
 // ABOUTME: Unit tests for HabitStreak component rendering behavior
-// ABOUTME: Covers today completion bar, notes display, sort button, personal-best indicator, milestone rendering, and targetStreak notification
+// ABOUTME: Covers today completion bar, notes display, sort button, personal-best indicator, milestone rendering, targetStreak notification, checkAll batch check-in, at-risk state, 14-day heatmap, and weekly trend
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -251,5 +251,173 @@ describe("HabitStreak targetStreak notification", () => {
     render(<HabitStreak habits={[habit]} onUpdate={onUpdate} onMilestoneReached={onMilestoneReached} />);
     fireEvent.click(screen.getByTitle("오늘 완료 체크"));
     expect(onMilestoneReached).not.toHaveBeenCalledWith("Run", 14, "🎯");
+  });
+});
+
+describe("HabitStreak checkAll batch check-in", () => {
+  const TODAY = "2026-03-15";
+
+  // Pin system time so the component's getToday() and yesterdayStr both match fixtures.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00Z"));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("should show '✓ 전체' button when at least one habit is unchecked today", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 5, icon: "🏃", lastChecked: TODAY },
+      { id: "h2", name: "Read", streak: 3, icon: "📚" },
+    ];
+    render(<HabitStreak habits={habits} onHabitsChange={vi.fn()} />);
+    expect(screen.getByText("✓ 전체")).toBeDefined();
+  });
+
+  it("should not show '✓ 전체' when all habits are done today", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 5, icon: "🏃", lastChecked: TODAY },
+      { id: "h2", name: "Read", streak: 3, icon: "📚", lastChecked: TODAY },
+    ];
+    render(<HabitStreak habits={habits} onHabitsChange={vi.fn()} />);
+    expect(screen.queryByText("✓ 전체")).toBeNull();
+  });
+
+  it("should not show '✓ 전체' when onHabitsChange is not provided", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 5, icon: "🏃" },
+    ];
+    render(<HabitStreak habits={habits} />);
+    expect(screen.queryByText("✓ 전체")).toBeNull();
+  });
+
+  it("should call onHabitsChange once with all habits marked done today when '✓ 전체' is clicked", () => {
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 5, icon: "🏃", lastChecked: TODAY },
+      { id: "h2", name: "Read", streak: 3, icon: "📚" },
+    ];
+    const onHabitsChange = vi.fn();
+    render(<HabitStreak habits={habits} onHabitsChange={onHabitsChange} />);
+    fireEvent.click(screen.getByText("✓ 전체"));
+    expect(onHabitsChange).toHaveBeenCalledOnce();
+    const updated: Habit[] = onHabitsChange.mock.calls[0][0];
+    // Both habits should be checked today after batch
+    expect(updated[0].lastChecked).toBe(TODAY);
+    expect(updated[1].lastChecked).toBe(TODAY);
+  });
+
+  it("should not re-check habits already done today when '✓ 전체' is clicked", () => {
+    // h1 is already checked today — its streak must NOT be incremented again
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 5, icon: "🏃", lastChecked: TODAY },
+      { id: "h2", name: "Read", streak: 3, icon: "📚" },
+    ];
+    const onHabitsChange = vi.fn();
+    render(<HabitStreak habits={habits} onHabitsChange={onHabitsChange} />);
+    fireEvent.click(screen.getByText("✓ 전체"));
+    const updated: Habit[] = onHabitsChange.mock.calls[0][0];
+    expect(updated[0].streak).toBe(5); // unchanged — already done today
+  });
+});
+
+describe("HabitStreak at-risk state", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // today = 2026-03-15, yesterday = 2026-03-14 (UTC noon pins local midnight safely)
+    vi.setSystemTime(new Date("2026-03-15T12:00:00Z"));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("should show at-risk tooltip when habit was checked yesterday but not today and streak > 0", () => {
+    const habit: Habit = { id: "h1", name: "Run", streak: 5, icon: "🏃", lastChecked: "2026-03-14" };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.getByTitle("오늘 완료하지 않으면 자정에 스트릭 초기화")).toBeDefined();
+  });
+
+  it("should show regular check tooltip when streak is 0 (not at-risk regardless of lastChecked)", () => {
+    // streak=0 → atRisk guard fails even if lastChecked is yesterday
+    const habit: Habit = { id: "h1", name: "Run", streak: 0, icon: "🏃", lastChecked: "2026-03-14" };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.getByTitle("오늘 완료 체크")).toBeDefined();
+  });
+
+  it("should show done tooltip when habit is already checked today", () => {
+    const habit: Habit = { id: "h1", name: "Run", streak: 5, icon: "🏃", lastChecked: "2026-03-15" };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.getByTitle("오늘 완료됨 — 클릭하여 취소")).toBeDefined();
+  });
+});
+
+describe("HabitStreak 14-day heatmap and weekly trend", () => {
+  // today = 2026-03-15; cur7 = 2026-03-09..15; prev7 = 2026-03-02..08
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00Z"));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("should show N/7 weekly count when habit has check history entries", () => {
+    // 2 checks in cur7 → "2/7" (trend may be ↑/↓/"" depending on prev7 count)
+    const habit: Habit = {
+      id: "h1", name: "Run", streak: 2, icon: "🏃",
+      checkHistory: ["2026-03-14", "2026-03-15"],
+    };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.queryByText(/2\/7/)).not.toBeNull();
+  });
+
+  it("should not show N/7 count when checkHistory is empty", () => {
+    const habit: Habit = { id: "h1", name: "Run", streak: 3, icon: "🏃", checkHistory: [] };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.queryByText(/\/7/)).toBeNull();
+  });
+
+  it("should not show N/7 count when checkHistory is undefined", () => {
+    const habit: Habit = { id: "h1", name: "Run", streak: 3, icon: "🏃" };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.queryByText(/\/7/)).toBeNull();
+  });
+
+  it("should show trend '↑' when current week has more checks than previous week", () => {
+    // prev7 (2026-03-02..08): 1 check on 2026-03-08
+    // cur7  (2026-03-09..15): 3 checks on 2026-03-13..15 → cur7=3 > prev7=1 → trend=↑
+    const habit: Habit = {
+      id: "h1", name: "Run", streak: 3, icon: "🏃",
+      checkHistory: ["2026-03-08", "2026-03-13", "2026-03-14", "2026-03-15"],
+    };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.queryByText(/3\/7↑/)).not.toBeNull();
+  });
+
+  it("should show trend '↓' when current week has fewer checks than previous week", () => {
+    // prev7: 4 checks (2026-03-05..08); cur7: 1 check (2026-03-15) → cur7=1 < prev7=4 → trend=↓
+    const habit: Habit = {
+      id: "h1", name: "Run", streak: 1, icon: "🏃",
+      checkHistory: ["2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08", "2026-03-15"],
+    };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.queryByText(/1\/7↓/)).not.toBeNull();
+  });
+});
+
+describe("HabitStreak target streak progress bar", () => {
+  it("should show target streak progress bar when targetStreak is set and streak > 0", () => {
+    // targetPct = round(5/10*100) = 50 → title "5/10일 — 50%"
+    const habit: Habit = { id: "h1", name: "Run", streak: 5, icon: "🏃", targetStreak: 10 };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.getByTitle("5/10일 — 50%")).toBeDefined();
+  });
+
+  it("should not show target streak progress bar when targetStreak is not set", () => {
+    const habit: Habit = { id: "h1", name: "Run", streak: 5, icon: "🏃" };
+    render(<HabitStreak habits={[habit]} />);
+    // No title matching "N/M일 — N%" pattern
+    expect(screen.queryByTitle(/\d+\/\d+일 — \d+%/)).toBeNull();
+  });
+
+  it("should not show target streak progress bar when streak is 0 (calcTargetStreakPct returns undefined)", () => {
+    // streak=0 → calcTargetStreakPct returns undefined → bar hidden
+    const habit: Habit = { id: "h1", name: "Run", streak: 0, icon: "🏃", targetStreak: 10 };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.queryByTitle(/\d+\/\d+일 — \d+%/)).toBeNull();
   });
 });
