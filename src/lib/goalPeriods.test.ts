@@ -1,8 +1,8 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, and calcGoalSuccessRate
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, and calcGoalSuccessRate
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcGoalSuccessRate } from "./goalPeriods";
+import { isoWeekStr, quarterStr, monthStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcGoalSuccessRate } from "./goalPeriods";
 import type { GoalEntry } from "../types";
 
 describe("isoWeekStr", () => {
@@ -137,6 +137,20 @@ describe("quarterStr", () => {
 
   it("should always return 'YYYY-QN' format", () => {
     expect(quarterStr(new Date(2026, 6, 15))).toMatch(/^\d{4}-Q[1-4]$/);
+  });
+});
+
+describe("monthStr", () => {
+  it("should return 'YYYY-MM' for a mid-year date", () => {
+    expect(monthStr(new Date(2025, 2, 15))).toBe("2025-03"); // Mar 15 2025
+  });
+
+  it("should zero-pad single-digit months", () => {
+    expect(monthStr(new Date(2025, 0, 1))).toBe("2025-01"); // Jan 1 2025
+  });
+
+  it("should return December correctly", () => {
+    expect(monthStr(new Date(2024, 11, 31))).toBe("2024-12"); // Dec 31 2024
   });
 });
 
@@ -330,5 +344,152 @@ describe("calcGoalSuccessRate", () => {
   it("should work for a single not-done entry", () => {
     const history: GoalEntry[] = [{ date: "2025", text: "yearly goal" }];
     expect(calcGoalSuccessRate(history)).toEqual({ done: 0, total: 1, pct: 0 });
+  });
+});
+
+describe("calcMonthGoalStreak", () => {
+  // now = Mar 15 2025; currentMonth = "2025-03"
+  const now = new Date(2025, 2, 15); // Mar 15 2025
+  const currentMonth = "2025-03";
+  const prev1 = "2025-02"; // Feb 2025
+  const prev2 = "2025-01"; // Jan 2025
+  const prev3 = "2024-12"; // Dec 2024 (year boundary)
+
+  it("should return 0 when monthGoal is undefined", () => {
+    expect(calcMonthGoalStreak(undefined, currentMonth, [], now)).toBe(0);
+  });
+
+  it("should return 0 when monthGoal is empty string", () => {
+    expect(calcMonthGoalStreak("", currentMonth, [], now)).toBe(0);
+  });
+
+  it("should return 0 when monthGoalDate is undefined", () => {
+    expect(calcMonthGoalStreak("goal", undefined, [], now)).toBe(0);
+  });
+
+  it("should return 0 when monthGoalDate is stale (previous month)", () => {
+    expect(calcMonthGoalStreak("goal", prev1, [], now)).toBe(0);
+  });
+
+  it("should return 1 when current month goal set and no history", () => {
+    expect(calcMonthGoalStreak("goal", currentMonth, [], now)).toBe(1);
+  });
+
+  it("should return 1 when history has a non-consecutive month (gap)", () => {
+    // prev2 (Jan) is set but prev1 (Feb) is absent — gap prevents counting back
+    expect(calcMonthGoalStreak("goal", currentMonth, [{ date: prev2, text: "jan" }], now)).toBe(1);
+  });
+
+  it("should return 2 when previous month is in history", () => {
+    expect(calcMonthGoalStreak("goal", currentMonth, [{ date: prev1, text: "feb" }], now)).toBe(2);
+  });
+
+  it("should return 3 when two consecutive previous months are in history", () => {
+    expect(calcMonthGoalStreak("goal", currentMonth, [
+      { date: prev1, text: "feb" },
+      { date: prev2, text: "jan" },
+    ], now)).toBe(3);
+  });
+
+  it("should stop counting at first gap in consecutive history", () => {
+    // prev1 (Feb) present, prev2 (Jan) absent, prev3 (Dec) present — stops at gap
+    expect(calcMonthGoalStreak("goal", currentMonth, [
+      { date: prev1, text: "feb" },
+      { date: prev3, text: "dec" },
+    ], now)).toBe(2);
+  });
+
+  it("should count history entries regardless of their done status", () => {
+    expect(calcMonthGoalStreak("goal", currentMonth, [
+      { date: prev1, text: "feb", done: true },
+      { date: prev2, text: "jan", done: false },
+    ], now)).toBe(3);
+  });
+
+  it("should handle year boundary correctly (Jan 2025 with Dec 2024 in history)", () => {
+    const nowJan = new Date(2025, 0, 15); // Jan 15 2025
+    expect(calcMonthGoalStreak("goal", "2025-01", [{ date: "2024-12", text: "dec" }], nowJan)).toBe(2);
+  });
+
+  it("should return 12 when all 11 history entries are consecutive with the current month (maximum)", () => {
+    // now = Mar 2025; history = Feb..Apr 2024 (11 consecutive months)
+    const history = [
+      "2025-02", "2025-01", "2024-12", "2024-11", "2024-10",
+      "2024-09", "2024-08", "2024-07", "2024-06", "2024-05", "2024-04",
+    ].map(date => ({ date, text: "goal" }));
+    expect(calcMonthGoalStreak("goal", currentMonth, history, now)).toBe(12);
+  });
+});
+
+describe("calcQuarterGoalStreak", () => {
+  // now = Mar 15 2025; quarter = Q1 2025; quarterStr = "2025-Q1"
+  const now = new Date(2025, 2, 15); // Mar 15 2025 → Q1
+  const currentQtr = "2025-Q1";
+  const prevQtr1 = "2024-Q4"; // year boundary
+  const prevQtr2 = "2024-Q3";
+  const prevQtr3 = "2024-Q2";
+
+  it("should return 0 when quarterGoal is undefined", () => {
+    expect(calcQuarterGoalStreak(undefined, currentQtr, [], now)).toBe(0);
+  });
+
+  it("should return 0 when quarterGoal is empty string", () => {
+    expect(calcQuarterGoalStreak("", currentQtr, [], now)).toBe(0);
+  });
+
+  it("should return 0 when quarterGoalDate is undefined", () => {
+    expect(calcQuarterGoalStreak("goal", undefined, [], now)).toBe(0);
+  });
+
+  it("should return 0 when quarterGoalDate is stale (previous quarter)", () => {
+    expect(calcQuarterGoalStreak("goal", prevQtr1, [], now)).toBe(0);
+  });
+
+  it("should return 1 when current quarter goal set and no history", () => {
+    expect(calcQuarterGoalStreak("goal", currentQtr, [], now)).toBe(1);
+  });
+
+  it("should return 1 when history has a non-consecutive quarter (gap)", () => {
+    // prevQtr2 (Q3 2024) present but prevQtr1 (Q4 2024) absent — gap
+    expect(calcQuarterGoalStreak("goal", currentQtr, [{ date: prevQtr2, text: "q3" }], now)).toBe(1);
+  });
+
+  it("should return 2 when previous quarter is in history (year boundary Q1→Q4)", () => {
+    expect(calcQuarterGoalStreak("goal", currentQtr, [{ date: prevQtr1, text: "q4" }], now)).toBe(2);
+  });
+
+  it("should return 3 when two consecutive previous quarters are in history", () => {
+    expect(calcQuarterGoalStreak("goal", currentQtr, [
+      { date: prevQtr1, text: "q4" },
+      { date: prevQtr2, text: "q3" },
+    ], now)).toBe(3);
+  });
+
+  it("should stop counting at first gap in consecutive history", () => {
+    // prevQtr1 (Q4) present, prevQtr2 (Q3) absent, prevQtr3 (Q2) present — stops at gap
+    expect(calcQuarterGoalStreak("goal", currentQtr, [
+      { date: prevQtr1, text: "q4" },
+      { date: prevQtr3, text: "q2" },
+    ], now)).toBe(2);
+  });
+
+  it("should count history entries regardless of their done status", () => {
+    expect(calcQuarterGoalStreak("goal", currentQtr, [
+      { date: prevQtr1, text: "q4", done: true },
+      { date: prevQtr2, text: "q3", done: false },
+    ], now)).toBe(3);
+  });
+
+  it("should handle mid-year quarter (Q3 2025 with Q2 in history)", () => {
+    const nowQ3 = new Date(2025, 6, 15); // Jul 15 2025 → Q3
+    expect(calcQuarterGoalStreak("goal", "2025-Q3", [{ date: "2025-Q2", text: "q2" }], nowQ3)).toBe(2);
+  });
+
+  it("should return 8 when all 7 history entries are consecutive with the current quarter (maximum)", () => {
+    // Q1 2025; history = Q4 2024, Q3 2024, Q2 2024, Q1 2024, Q4 2023, Q3 2023, Q2 2023
+    const history = [
+      "2024-Q4", "2024-Q3", "2024-Q2", "2024-Q1", "2023-Q4", "2023-Q3", "2023-Q2",
+    ].map(date => ({ date, text: "goal" }));
+    expect(calcQuarterGoalStreak("goal", currentQtr, history, now)).toBe(8);
   });
 });
