@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { DailyScore } from "../lib/momentum";
+import { calcMomentumStreak, calcMomentumWeekAvg } from "../lib/momentum";
 import type { MomentumEntry } from "../types";
 
 // Returns the fraction of the calendar day elapsed (0.0 = midnight, 0.5 = noon, 1.0 = end of day).
@@ -87,6 +88,11 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
   }, [momentumHistory]);
   // Show sparkline only when there are ≥2 history entries (including today) so the trend is meaningful.
   const showSparkline = (momentumHistory?.length ?? 0) >= 2;
+  // Streak + weekly avg derived from history in a single memo; recalculates only when history changes
+  const { momentumStreak, momentumWeekAvg } = useMemo(() => ({
+    momentumStreak: calcMomentumStreak(momentumHistory ?? []),
+    momentumWeekAvg: calcMomentumWeekAvg(momentumHistory ?? []),
+  }), [momentumHistory]);
 
   return (
     <div style={{ marginBottom: 20 }}>
@@ -133,9 +139,23 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
           )}
         </div>
       </div>
-      {/* 7-day momentum sparkline — past 6 days as colored dots; shown when ≥2 history entries */}
+      {/* 7-day momentum sparkline — streak badge + avg + past 6 days as colored dots; shown when ≥2 history entries */}
       {showSparkline && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3, marginTop: 5 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 5 }}>
+          <span
+            title={`7일 평균 모멘텀 ${momentumWeekAvg ?? 0}/100`}
+            style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, opacity: 0.7, letterSpacing: 0.5, userSelect: "none" }}
+          >
+            {momentumWeekAvg ?? 0}
+          </span>
+          {momentumStreak >= 2 && (
+            <span
+              title={`${momentumStreak}일 연속 고점수 🔥`}
+              style={{ ...mono, fontSize: fontSizes.mini, color: accent ?? colors.statusActive, opacity: 0.75, userSelect: "none" }}
+            >
+              🔥{momentumStreak}
+            </span>
+          )}
           {sparklineDays.map((day, di) => {
             const entry = histMap.get(day);
             const daysAgo = 6 - di;

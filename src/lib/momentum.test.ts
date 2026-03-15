@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcDailyScore and updateMomentumHistory — score, tier, and history edge cases
-// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, and history upsert/cap
+// ABOUTME: Tests for momentum pure functions: calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg
+// ABOUTME: Covers score computation, tier thresholds, history upsert/cap, consecutive streak with date gaps, and weekly average
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore, updateMomentumHistory } from "./momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -279,5 +279,128 @@ describe("updateMomentumHistory", () => {
     const result = updateMomentumHistory([], "", 0, "low");
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({ date: "", score: 0, tier: "low" });
+  });
+});
+
+describe("calcMomentumStreak", () => {
+  it("returns 0 for empty history", () => {
+    expect(calcMomentumStreak([])).toBe(0);
+  });
+
+  it("returns 0 when last entry is not high tier", () => {
+    const history = [
+      { date: "2026-03-14", score: 80, tier: "high" as const },
+      { date: "2026-03-15", score: 45, tier: "mid" as const },
+    ];
+    expect(calcMomentumStreak(history)).toBe(0);
+  });
+
+  it("returns 0 when last entry is low tier", () => {
+    const history = [{ date: "2026-03-15", score: 20, tier: "low" as const }];
+    expect(calcMomentumStreak(history)).toBe(0);
+  });
+
+  it("returns 1 when only the last entry is high", () => {
+    const history = [
+      { date: "2026-03-14", score: 50, tier: "mid" as const },
+      { date: "2026-03-15", score: 80, tier: "high" as const },
+    ];
+    expect(calcMomentumStreak(history)).toBe(1);
+  });
+
+  it("returns 2 for two consecutive high entries at end", () => {
+    const history = [
+      { date: "2026-03-13", score: 30, tier: "low" as const },
+      { date: "2026-03-14", score: 78, tier: "high" as const },
+      { date: "2026-03-15", score: 90, tier: "high" as const },
+    ];
+    expect(calcMomentumStreak(history)).toBe(2);
+  });
+
+  it("returns full count when all entries are high", () => {
+    const history = [
+      { date: "2026-03-11", score: 76, tier: "high" as const },
+      { date: "2026-03-12", score: 82, tier: "high" as const },
+      { date: "2026-03-13", score: 91, tier: "high" as const },
+      { date: "2026-03-14", score: 77, tier: "high" as const },
+      { date: "2026-03-15", score: 88, tier: "high" as const },
+    ];
+    expect(calcMomentumStreak(history)).toBe(5);
+  });
+
+  it("stops counting when mid tier interrupts the streak from the end", () => {
+    const history = [
+      { date: "2026-03-12", score: 85, tier: "high" as const },
+      { date: "2026-03-13", score: 55, tier: "mid" as const },
+      { date: "2026-03-14", score: 80, tier: "high" as const },
+      { date: "2026-03-15", score: 78, tier: "high" as const },
+    ];
+    expect(calcMomentumStreak(history)).toBe(2);
+  });
+
+  it("single high entry returns 1", () => {
+    const history = [{ date: "2026-03-15", score: 88, tier: "high" as const }];
+    expect(calcMomentumStreak(history)).toBe(1);
+  });
+
+  it("returns 1 (not 2) when two high entries have a date gap between them", () => {
+    // Gap: 2026-03-10 → 2026-03-15 (5 days, not 1 day)
+    const history = [
+      { date: "2026-03-10", score: 80, tier: "high" as const },
+      { date: "2026-03-15", score: 85, tier: "high" as const },
+    ];
+    expect(calcMomentumStreak(history)).toBe(1);
+  });
+
+  it("streak stops at date gap even when all tiers are high", () => {
+    // Consecutive for last 3 entries but gap before them
+    const history = [
+      { date: "2026-03-10", score: 80, tier: "high" as const },
+      { date: "2026-03-13", score: 82, tier: "high" as const }, // gap: +3 days
+      { date: "2026-03-14", score: 85, tier: "high" as const },
+      { date: "2026-03-15", score: 88, tier: "high" as const },
+    ];
+    expect(calcMomentumStreak(history)).toBe(3);
+  });
+});
+
+describe("calcMomentumWeekAvg", () => {
+  it("returns null for empty history", () => {
+    expect(calcMomentumWeekAvg([])).toBeNull();
+  });
+
+  it("returns score rounded when single entry", () => {
+    const history = [{ date: "2026-03-15", score: 72, tier: "mid" as const }];
+    expect(calcMomentumWeekAvg(history)).toBe(72);
+  });
+
+  it("returns average of all entries", () => {
+    const history = [
+      { date: "2026-03-13", score: 80, tier: "high" as const },
+      { date: "2026-03-14", score: 60, tier: "mid" as const },
+      { date: "2026-03-15", score: 40, tier: "mid" as const },
+    ];
+    // (80 + 60 + 40) / 3 = 60
+    expect(calcMomentumWeekAvg(history)).toBe(60);
+  });
+
+  it("rounds to nearest integer", () => {
+    const history = [
+      { date: "2026-03-14", score: 70, tier: "mid" as const },
+      { date: "2026-03-15", score: 71, tier: "mid" as const },
+    ];
+    // (70 + 71) / 2 = 70.5 → rounds to 71
+    expect(calcMomentumWeekAvg(history)).toBe(71);
+  });
+
+  it("uses all 7 entries when history is full", () => {
+    const scores = [80, 70, 60, 75, 85, 90, 65];
+    const history = scores.map((score, i) => ({
+      date: `2026-03-${String(i + 9).padStart(2, "0")}`,
+      score,
+      tier: "mid" as const,
+    }));
+    const expected = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    expect(calcMomentumWeekAvg(history)).toBe(expected);
   });
 });
