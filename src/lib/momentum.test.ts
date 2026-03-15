@@ -1,8 +1,8 @@
-// ABOUTME: Tests for momentum pure functions: calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg
-// ABOUTME: Covers score computation, tier thresholds, history upsert/cap, consecutive streak with date gaps, and weekly average
+// ABOUTME: Tests for momentum pure functions: calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumWeekTrend
+// ABOUTME: Covers score computation, tier thresholds, history upsert/cap, consecutive streak with date gaps, weekly average, and week-over-week trend
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg } from "./momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumWeekTrend } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -252,27 +252,41 @@ describe("updateMomentumHistory", () => {
     expect(result[2]).toEqual({ date: "2026-03-16", score: 30, tier: "low" });
   });
 
-  it("caps history at 7 entries, keeping newest", () => {
-    const existing = Array.from({ length: 7 }, (_, i) => ({
+  it("caps history at 14 entries, keeping newest", () => {
+    // 14 existing → append one more → 15 total → capped back to 14 (oldest dropped)
+    const existing = Array.from({ length: 14 }, (_, i) => ({
       date: `2026-03-${String(i + 1).padStart(2, "0")}`,
-      score: i * 10,
+      score: i * 5,
       tier: "low" as const,
     }));
-    const result = updateMomentumHistory(existing, "2026-03-08", 99, "high");
-    expect(result).toHaveLength(7);
+    const result = updateMomentumHistory(existing, "2026-03-15", 99, "high");
+    expect(result).toHaveLength(14);
     expect(result[0].date).toBe("2026-03-02"); // oldest dropped
-    expect(result[6]).toEqual({ date: "2026-03-08", score: 99, tier: "high" });
+    expect(result[13]).toEqual({ date: "2026-03-15", score: 99, tier: "high" });
   });
 
-  it("does not exceed 7 entries when upsert keeps same length", () => {
-    const existing = Array.from({ length: 7 }, (_, i) => ({
+  it("does not drop entries when below cap (13 entries → 14, no capping)", () => {
+    // 13 existing → append one more → 14 total → at cap, nothing dropped
+    const existing = Array.from({ length: 13 }, (_, i) => ({
       date: `2026-03-${String(i + 1).padStart(2, "0")}`,
       score: 50,
       tier: "mid" as const,
     }));
-    const result = updateMomentumHistory(existing, "2026-03-07", 75, "high");
-    expect(result).toHaveLength(7);
-    expect(result[6]).toEqual({ date: "2026-03-07", score: 75, tier: "high" });
+    const result = updateMomentumHistory(existing, "2026-03-14", 75, "high");
+    expect(result).toHaveLength(14);
+    expect(result[0].date).toBe("2026-03-01"); // oldest preserved
+    expect(result[13]).toEqual({ date: "2026-03-14", score: 75, tier: "high" });
+  });
+
+  it("does not exceed 14 entries when upsert keeps same length", () => {
+    const existing = Array.from({ length: 14 }, (_, i) => ({
+      date: `2026-03-${String(i + 1).padStart(2, "0")}`,
+      score: 50,
+      tier: "mid" as const,
+    }));
+    const result = updateMomentumHistory(existing, "2026-03-14", 75, "high");
+    expect(result).toHaveLength(14);
+    expect(result[13]).toEqual({ date: "2026-03-14", score: 75, tier: "high" });
   });
 
   it("stores entry with empty string date (passthrough — caller is responsible for valid dates)", () => {
@@ -393,7 +407,7 @@ describe("calcMomentumWeekAvg", () => {
     expect(calcMomentumWeekAvg(history)).toBe(71);
   });
 
-  it("uses all 7 entries when history is full", () => {
+  it("uses all 7 entries when history is full (7 entries)", () => {
     const scores = [80, 70, 60, 75, 85, 90, 65];
     const history = scores.map((score, i) => ({
       date: `2026-03-${String(i + 9).padStart(2, "0")}`,
@@ -402,5 +416,123 @@ describe("calcMomentumWeekAvg", () => {
     }));
     const expected = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
     expect(calcMomentumWeekAvg(history)).toBe(expected);
+  });
+
+  it("uses only the most recent 7 entries when history exceeds 7", () => {
+    // Old entries (should be ignored): scores 20,20,20,20,20,20,20 avg=20
+    // Recent 7 entries: scores 80,80,80,80,80,80,80 avg=80
+    const old7 = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 1).padStart(2, "0")}`,
+      score: 20,
+      tier: "low" as const,
+    }));
+    const recent7 = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 8).padStart(2, "0")}`,
+      score: 80,
+      tier: "high" as const,
+    }));
+    expect(calcMomentumWeekAvg([...old7, ...recent7])).toBe(80);
+  });
+});
+
+describe("calcMomentumWeekTrend", () => {
+  it("returns null for empty history", () => {
+    expect(calcMomentumWeekTrend([])).toBeNull();
+  });
+
+  it("returns null when history has fewer than 8 entries", () => {
+    const history = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 9).padStart(2, "0")}`,
+      score: 70,
+      tier: "mid" as const,
+    }));
+    expect(calcMomentumWeekTrend(history)).toBeNull();
+  });
+
+  it("returns '↑' when this week avg is meaningfully higher than prev week avg", () => {
+    // prev week (first 7): avg = 50; this week (last 7): avg = 60; delta = 10 > 2 → ↑
+    const prev = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 1).padStart(2, "0")}`,
+      score: 50,
+      tier: "mid" as const,
+    }));
+    const curr = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 8).padStart(2, "0")}`,
+      score: 60,
+      tier: "mid" as const,
+    }));
+    expect(calcMomentumWeekTrend([...prev, ...curr])).toBe("↑");
+  });
+
+  it("returns '↓' when this week avg is meaningfully lower than prev week avg", () => {
+    // prev week: avg = 75; this week: avg = 50; delta = -25 → ↓
+    const prev = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 1).padStart(2, "0")}`,
+      score: 75,
+      tier: "high" as const,
+    }));
+    const curr = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 8).padStart(2, "0")}`,
+      score: 50,
+      tier: "mid" as const,
+    }));
+    expect(calcMomentumWeekTrend([...prev, ...curr])).toBe("↓");
+  });
+
+  it("returns '→' when delta is within ±2 (noise margin, stable)", () => {
+    // prev week avg = 60; this week avg = 62; delta = 2 ≤ 2 → →
+    const prev = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 1).padStart(2, "0")}`,
+      score: 60,
+      tier: "mid" as const,
+    }));
+    const curr = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 8).padStart(2, "0")}`,
+      score: 62,
+      tier: "mid" as const,
+    }));
+    expect(calcMomentumWeekTrend([...prev, ...curr])).toBe("→");
+  });
+
+  it("returns '→' when delta is exactly -2 (negative noise margin)", () => {
+    const prev = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 1).padStart(2, "0")}`,
+      score: 70,
+      tier: "mid" as const,
+    }));
+    const curr = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 8).padStart(2, "0")}`,
+      score: 68,
+      tier: "mid" as const,
+    }));
+    expect(calcMomentumWeekTrend([...prev, ...curr])).toBe("→");
+  });
+
+  it("works correctly with 8-entry history (minimum for comparison)", () => {
+    // 1 prev entry (score 40) vs 7 curr entries (score 80): this week avg=80, prev avg=40 → ↑
+    const history = [
+      { date: "2026-03-01", score: 40, tier: "mid" as const },
+      ...Array.from({ length: 7 }, (_, i) => ({
+        date: `2026-03-${String(i + 2).padStart(2, "0")}`,
+        score: 80,
+        tier: "high" as const,
+      })),
+    ];
+    expect(calcMomentumWeekTrend(history)).toBe("↑");
+  });
+
+  it("uses last 7 as this week and all earlier as prev week when history has 14 entries", () => {
+    // prev 7 (indices 0-6): avg 40; curr 7 (indices 7-13): avg 80 → ↑
+    const prev7 = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 1).padStart(2, "0")}`,
+      score: 40,
+      tier: "low" as const,
+    }));
+    const curr7 = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(i + 8).padStart(2, "0")}`,
+      score: 80,
+      tier: "high" as const,
+    }));
+    expect(calcMomentumWeekTrend([...prev7, ...curr7])).toBe("↑");
   });
 });

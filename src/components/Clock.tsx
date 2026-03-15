@@ -1,10 +1,10 @@
 // ABOUTME: Clock component - displays current time and date with 12h/24h format support
-// ABOUTME: Updates every second via setInterval; dailyScore badge + 7-day momentum sparkline below date row
+// ABOUTME: Updates every second via setInterval; dailyScore badge + 14-day momentum sparkline + week-over-week trend below date row
 
 import { useState, useEffect, useMemo } from "react";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { DailyScore } from "../lib/momentum";
-import { calcMomentumStreak, calcMomentumWeekAvg } from "../lib/momentum";
+import { calcMomentumStreak, calcMomentumWeekAvg, calcMomentumWeekTrend } from "../lib/momentum";
 import type { MomentumEntry } from "../types";
 
 // Returns the fraction of the calendar day elapsed (0.0 = midnight, 0.5 = noon, 1.0 = end of day).
@@ -41,7 +41,7 @@ interface ClockProps {
   onToggleFormat?: () => void;
   /** Optional daily momentum score (0-100) with tier; shown as a subtle badge in the date row */
   dailyScore?: DailyScore;
-  /** Rolling 7-day momentum score history; newest last; absent = no sparkline */
+  /** Rolling 14-day momentum score history; newest last; absent = no sparkline */
   momentumHistory?: MomentumEntry[];
 }
 
@@ -88,10 +88,11 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
   }, [momentumHistory]);
   // Show sparkline only when there are ≥2 history entries (including today) so the trend is meaningful.
   const showSparkline = (momentumHistory?.length ?? 0) >= 2;
-  // Streak + weekly avg derived from history in a single memo; recalculates only when history changes
-  const { momentumStreak, momentumWeekAvg } = useMemo(() => ({
+  // Streak, weekly avg, and week-over-week trend derived from history in a single memo; recalculates only when history changes
+  const { momentumStreak, momentumWeekAvg, momentumWeekTrend } = useMemo(() => ({
     momentumStreak: calcMomentumStreak(momentumHistory ?? []),
     momentumWeekAvg: calcMomentumWeekAvg(momentumHistory ?? []),
+    momentumWeekTrend: calcMomentumWeekTrend(momentumHistory ?? []),
   }), [momentumHistory]);
 
   return (
@@ -139,7 +140,7 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
           )}
         </div>
       </div>
-      {/* 7-day momentum sparkline — streak badge + avg + past 6 days as colored dots; shown when ≥2 history entries */}
+      {/* 7-day momentum sparkline — streak badge + avg + week trend + past 6 days as colored dots; shown when ≥2 history entries */}
       {showSparkline && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 5 }}>
           <span
@@ -148,6 +149,24 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
           >
             {momentumWeekAvg ?? 0}
           </span>
+          {/* Week-over-week trend: ↑ improving, ↓ declining, → stable; visible only when ≥8 history entries */}
+          {momentumWeekTrend && (
+            <span
+              title={`주간 모멘텀 추세: 이번 주 vs 지난 주`}
+              style={{
+                ...mono,
+                fontSize: fontSizes.mini,
+                // ↑ = improving (accent/green), ↓ = declining (red), → = stable (dim neutral)
+                color: momentumWeekTrend === "↑" ? (accent ?? colors.statusActive)
+                  : momentumWeekTrend === "↓" ? colors.statusPaused
+                  : colors.textPhantom,
+                opacity: 0.7,
+                userSelect: "none",
+              }}
+            >
+              {momentumWeekTrend}
+            </span>
+          )}
           {momentumStreak >= 2 && (
             <span
               title={`${momentumStreak}일 연속 고점수 🔥`}

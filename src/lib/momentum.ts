@@ -1,5 +1,5 @@
 // ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
-// ABOUTME: updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg — history management and derived stats
+// ABOUTME: updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumWeekTrend — history management and derived stats
 
 import type { MomentumEntry } from "../types";
 
@@ -66,13 +66,14 @@ export function calcDailyScore(params: DailyScoreParams): DailyScore {
   return { score, tier };
 }
 
-const MOMENTUM_HISTORY_CAP = 7;
+// 14-day cap: last 7 entries = "this week", first 7 = "prev week" for week-over-week comparison.
+const MOMENTUM_HISTORY_CAP = 14;
 
 /**
- * Upserts today's momentum score into a rolling 7-day history array.
+ * Upserts today's momentum score into a rolling 14-day history array.
  * - If today's date already exists, updates its score and tier.
  * - Otherwise appends a new entry (newest last).
- * - Caps the array at 7 entries, dropping the oldest when exceeded.
+ * - Caps the array at 14 entries, dropping the oldest when exceeded.
  */
 export function updateMomentumHistory(
   history: MomentumEntry[],
@@ -115,11 +116,35 @@ export function calcMomentumStreak(history: MomentumEntry[]): number {
 }
 
 /**
- * Returns the rounded average score across all entries in history.
+ * Returns the rounded average score for the most recent 7 entries ("this week").
+ * Uses slice(-7) so callers passing the full 14-day history get the current-week average only.
  * Returns null when history is empty.
  */
 export function calcMomentumWeekAvg(history: MomentumEntry[]): number | null {
-  if (history.length === 0) return null;
-  const sum = history.reduce((acc, e) => acc + e.score, 0);
-  return Math.round(sum / history.length);
+  const week = history.slice(-7);
+  if (week.length === 0) return null;
+  const sum = week.reduce((acc, e) => acc + e.score, 0);
+  return Math.round(sum / week.length);
+}
+
+/**
+ * Returns a week-over-week momentum trend by comparing the most recent 7 entries (this week)
+ * to all earlier entries (prev week window).
+ * - "↑" when this week avg exceeds prev week avg by more than 2 (noise margin).
+ * - "↓" when this week avg is below prev week avg by more than 2.
+ * - "→" when the delta is within ±2 (stable, suppresses noise).
+ * - null when history has fewer than 8 entries (insufficient data for comparison).
+ */
+export function calcMomentumWeekTrend(history: MomentumEntry[]): "↑" | "↓" | "→" | null {
+  if (history.length < 8) return null;
+  const thisWeek = history.slice(-7);
+  // Anchored to the 14-day window: positions [-14, -7) regardless of total history length.
+  // This keeps "prev week" capped at 7 entries even if the caller passes a longer array.
+  const prevWeek = history.slice(-14, -7);
+  if (prevWeek.length === 0) return null;
+  const thisAvg = Math.round(thisWeek.reduce((s, e) => s + e.score, 0) / thisWeek.length);
+  const prevAvg = Math.round(prevWeek.reduce((s, e) => s + e.score, 0) / prevWeek.length);
+  const delta = thisAvg - prevAvg;
+  if (Math.abs(delta) <= 2) return "→";
+  return delta > 0 ? "↑" : "↓";
 }
