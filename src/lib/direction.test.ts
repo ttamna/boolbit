@@ -169,4 +169,55 @@ describe("calcDirectionBadge", () => {
       })
     ).toBe("✓·3/5");
   });
+
+  it("should append ↑ trend after week suffix when intentionWeekTrend is ↑", () => {
+    expect(
+      calcDirectionBadge({
+        ...base,
+        todayIntention: "Focus",
+        intentionConsecutiveDays: 1,
+        intentionSetCount7: 5,
+        intentionDoneCount7: 4,
+        intentionWeekTrend: "↑",
+      })
+    ).toBe("✓·4/5↑");
+  });
+
+  it("should append ↓ trend after week suffix when intentionWeekTrend is ↓", () => {
+    expect(
+      calcDirectionBadge({
+        ...base,
+        todayIntention: "Focus",
+        intentionConsecutiveDays: 3,
+        intentionSetCount7: 5,
+        intentionDoneCount7: 2,
+        intentionWeekTrend: "↓",
+      })
+    ).toBe("✓·3🔥·2/5↓");
+  });
+
+  it("should not append trend when intentionWeekTrend is null", () => {
+    expect(
+      calcDirectionBadge({
+        ...base,
+        todayIntention: "Focus",
+        intentionConsecutiveDays: 1,
+        intentionSetCount7: 5,
+        intentionDoneCount7: 3,
+        intentionWeekTrend: null,
+      })
+    ).toBe("✓·3/5");
+  });
+
+  it("should not append trend when intentionWeekTrend is absent (backward compat)", () => {
+    expect(
+      calcDirectionBadge({
+        ...base,
+        todayIntention: "Focus",
+        intentionConsecutiveDays: 1,
+        intentionSetCount7: 5,
+        intentionDoneCount7: 3,
+      })
+    ).toBe("✓·3/5");
+  });
 });

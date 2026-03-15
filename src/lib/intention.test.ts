@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcIntentionStreak and calcIntentionWeek pure helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, and calcIntentionWeekTrend pure helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek } from "./intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend } from "./intention";
 import type { IntentionEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
@@ -184,5 +184,114 @@ describe("calcIntentionWeek", () => {
     expect(days).toHaveLength(1);
     expect(days[0]).toEqual({ date: TODAY, set: true, done: false });
     expect(setCount).toBe(1);
+  });
+});
+
+// ─── calcIntentionWeekTrend ───────────────────────────────────────────────────
+
+// 14 YYYY-MM-DD strings, oldest→newest, ending at TODAY
+// prev7: indices 0–6 (2026-03-02 to 2026-03-08)
+// cur7:  indices 7–13 (2026-03-09 to 2026-03-15 = TODAY)
+const LAST_14 = [
+  "2026-03-02", "2026-03-03", "2026-03-04",
+  "2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08",
+  "2026-03-09", "2026-03-10", "2026-03-11",
+  "2026-03-12", "2026-03-13", "2026-03-14",
+  TODAY,
+];
+
+describe("calcIntentionWeekTrend", () => {
+  it("should return null when last14Days has fewer than 14 elements", () => {
+    expect(calcIntentionWeekTrend(LAST_14.slice(0, 13), TODAY, undefined, undefined, [])).toBeNull();
+  });
+
+  it("should return null when prev7 has no set intentions (no baseline)", () => {
+    // cur7 has entries but prev7 is empty → no baseline to compare against
+    const history: IntentionEntry[] = [{ date: "2026-03-09", text: "이번주", done: true }];
+    expect(calcIntentionWeekTrend(LAST_14, TODAY, undefined, undefined, history)).toBeNull();
+  });
+
+  it("should return ↑ when cur7 done rate is significantly higher than prev7", () => {
+    // prev7: 1/7 done (14%); cur7: 7/7 done (100%) → +86pp → ↑
+    const history: IntentionEntry[] = [
+      { date: "2026-03-02", text: "d", done: true },   // prev7: only 1 done
+      { date: "2026-03-03", text: "d", done: false },
+      { date: "2026-03-04", text: "d", done: false },
+      { date: "2026-03-05", text: "d", done: false },
+      { date: "2026-03-06", text: "d", done: false },
+      { date: "2026-03-07", text: "d", done: false },
+      { date: "2026-03-08", text: "d", done: false },
+      { date: "2026-03-09", text: "d", done: true },   // cur7: 6 done from history
+      { date: "2026-03-10", text: "d", done: true },
+      { date: "2026-03-11", text: "d", done: true },
+      { date: "2026-03-12", text: "d", done: true },
+      { date: "2026-03-13", text: "d", done: true },
+      { date: "2026-03-14", text: "d", done: true },
+    ];
+    // today: set + done → cur7: 7/7 = 100%
+    expect(calcIntentionWeekTrend(LAST_14, TODAY, "오늘의도", true, history)).toBe("↑");
+  });
+
+  it("should return ↓ when cur7 done rate is significantly lower than prev7", () => {
+    // prev7: 7/7 done (100%); cur7: 1/7 done (14%) → -86pp → ↓
+    const history: IntentionEntry[] = [
+      { date: "2026-03-02", text: "d", done: true },
+      { date: "2026-03-03", text: "d", done: true },
+      { date: "2026-03-04", text: "d", done: true },
+      { date: "2026-03-05", text: "d", done: true },
+      { date: "2026-03-06", text: "d", done: true },
+      { date: "2026-03-07", text: "d", done: true },
+      { date: "2026-03-08", text: "d", done: true },
+      { date: "2026-03-09", text: "d", done: true },   // cur7: only 1 done
+      { date: "2026-03-10", text: "d", done: false },
+      { date: "2026-03-11", text: "d", done: false },
+      { date: "2026-03-12", text: "d", done: false },
+      { date: "2026-03-13", text: "d", done: false },
+      { date: "2026-03-14", text: "d", done: false },
+    ];
+    // today: set but not done → cur7: 1/7 = 14%
+    expect(calcIntentionWeekTrend(LAST_14, TODAY, "오늘의도", false, history)).toBe("↓");
+  });
+
+  it("should return → when done rates are equal (within ±10pp)", () => {
+    // prev7: 4/7 (57%); cur7: 4/7 (57%) — 6 from history + today set-not-done = 4/7
+    const history: IntentionEntry[] = [
+      { date: "2026-03-02", text: "d", done: true },
+      { date: "2026-03-03", text: "d", done: true },
+      { date: "2026-03-04", text: "d", done: true },
+      { date: "2026-03-05", text: "d", done: true },
+      { date: "2026-03-06", text: "d", done: false },
+      { date: "2026-03-07", text: "d", done: false },
+      { date: "2026-03-08", text: "d", done: false },
+      { date: "2026-03-09", text: "d", done: true },
+      { date: "2026-03-10", text: "d", done: true },
+      { date: "2026-03-11", text: "d", done: true },
+      { date: "2026-03-12", text: "d", done: true },
+      { date: "2026-03-13", text: "d", done: false },
+      { date: "2026-03-14", text: "d", done: false },
+    ];
+    // today: set but not done → cur7: 4/7 = 57% (same as prev7)
+    expect(calcIntentionWeekTrend(LAST_14, TODAY, "오늘의도", false, history)).toBe("→");
+  });
+
+  it("should return ↓ when cur7 has no set intentions but prev7 has some", () => {
+    // prev7: 3/3 set+done (100%); cur7: 0 set → curRate=0 → -100pp → ↓
+    const history: IntentionEntry[] = [
+      { date: "2026-03-02", text: "d", done: true },
+      { date: "2026-03-03", text: "d", done: true },
+      { date: "2026-03-04", text: "d", done: true },
+    ];
+    // today: not set → cur7: 0/0 set → treated as 0%
+    expect(calcIntentionWeekTrend(LAST_14, TODAY, undefined, undefined, history)).toBe("↓");
+  });
+
+  it("should include today's intention as part of cur7", () => {
+    // prev7: 3/3 (100%); cur7: today only, set+done (1/1=100%) → diff 0 → →
+    const history: IntentionEntry[] = [
+      { date: "2026-03-02", text: "d", done: true },
+      { date: "2026-03-03", text: "d", done: true },
+      { date: "2026-03-04", text: "d", done: true },
+    ];
+    expect(calcIntentionWeekTrend(LAST_14, TODAY, "오늘의도", true, history)).toBe("→");
   });
 });

@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for intention streak and 7-day heatmap calculation — no side effects
-// ABOUTME: todayStr anchors all date arithmetic for DST safety
+// ABOUTME: Pure helpers for intention streak, 7-day heatmap, and week-over-week trend calculation — no side effects
+// ABOUTME: todayStr anchors all date arithmetic for DST safety; calcIntentionWeekTrend compares prev-7/cur-7 done rates
 
 import type { IntentionEntry } from "../types";
 
@@ -62,4 +62,34 @@ export function calcIntentionWeek(
   const setCount = days.filter(d => d.set).length;
   const doneCount = days.filter(d => d.set && d.done).length;
   return { days, setCount, doneCount };
+}
+
+/**
+ * Compares intention done rates between the previous 7 days and the current 7 days.
+ * last14Days MUST be 14 YYYY-MM-DD strings oldest→newest (last14Days[13] === todayStr).
+ * prev7 = last14Days[0..6]; cur7 = last14Days[7..13].
+ * Returns null when last14Days.length < 14 or when prev7 has no set intentions (no baseline).
+ * Threshold: ≥10pp improvement → "↑"; ≤-10pp → "↓"; within ±10pp → "→".
+ */
+export function calcIntentionWeekTrend(
+  last14Days: string[],
+  todayStr: string,
+  todayIntention: string | undefined,
+  todayIntentionDone: boolean | undefined,
+  history: IntentionEntry[],
+): "↑" | "↓" | "→" | null {
+  if (last14Days.length < 14) return null;
+  const prev7 = last14Days.slice(0, 7);
+  const cur7 = last14Days.slice(7);
+  const prev = calcIntentionWeek(prev7, todayStr, todayIntention, todayIntentionDone, history);
+  const cur = calcIntentionWeek(cur7, todayStr, todayIntention, todayIntentionDone, history);
+  // No baseline when prev7 had no set intentions
+  if (prev.setCount === 0) return null;
+  const prevRate = prev.doneCount / prev.setCount;
+  // curRate: 0 when no intentions set this week (treated as complete absence → decline)
+  const curRate = cur.setCount > 0 ? cur.doneCount / cur.setCount : 0;
+  const diff = Math.round((curRate - prevRate) * 100);
+  if (diff >= 10) return "↑";
+  if (diff <= -10) return "↓";
+  return "→";
 }

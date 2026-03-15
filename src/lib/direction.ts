@@ -18,6 +18,8 @@ export interface DirectionBadgeParams {
   intentionSetCount7?: number;
   /** Number of intentions marked done in the last 7 days; paired with intentionSetCount7. */
   intentionDoneCount7?: number;
+  /** Week-over-week intention done-rate trend; null = no baseline or insufficient data. */
+  intentionWeekTrend?: "↑" | "↓" | "→" | null;
   /** Number of quotes in the quotes array; appended as "Nq" when > 0. */
   quotesCount: number;
   /** Days remaining in the current calendar year (including today); urgency suffix when ≤ 30. */
@@ -38,8 +40,9 @@ export interface DirectionBadgeParams {
  * - Double ✓ when marked done; single ✓ when set but not done.
  * - Urgency "·Nd" appended when period end is near:
  *   year ≤30d, quarter ≤14d, month ≤7d, week ≤3d.
- * Intention: "✓[✓][·N🔥][·D/S]" — streak suffix when consecutiveDays ≥ 2;
- *   week suffix "·D/S" (done/set) appended when intentionSetCount7 > 0.
+ * Intention: "✓[✓][·N🔥][·D/S[↑↓→]]" — streak suffix when consecutiveDays ≥ 2;
+ *   week suffix "·D/S" (done/set) appended when intentionSetCount7 > 0;
+ *   trend arrow (↑/↓/→) appended to week suffix when intentionWeekTrend is non-null.
  * Parts joined by " · ".
  */
 export function calcDirectionBadge(params: DirectionBadgeParams): string | undefined {
@@ -50,7 +53,7 @@ export function calcDirectionBadge(params: DirectionBadgeParams): string | undef
     weekGoal, weekGoalDone,
     todayIntention, todayIntentionDone,
     intentionConsecutiveDays,
-    intentionSetCount7, intentionDoneCount7,
+    intentionSetCount7, intentionDoneCount7, intentionWeekTrend,
     quotesCount,
     daysLeftYear, daysLeftQuarter, daysLeftMonth, daysLeftWeek,
   } = params;
@@ -77,7 +80,7 @@ export function calcDirectionBadge(params: DirectionBadgeParams): string | undef
     const base = todayIntentionDone ? "✓✓" : "✓";
     const streakSuffix = intentionConsecutiveDays >= 2 ? `·${intentionConsecutiveDays}🔥` : "";
     const weekSuffix = (intentionSetCount7 !== undefined && intentionSetCount7 > 0)
-      ? `·${intentionDoneCount7 ?? 0}/${intentionSetCount7}`
+      ? `·${intentionDoneCount7 ?? 0}/${intentionSetCount7}${intentionWeekTrend ?? ""}`
       : "";
     parts.push(`${base}${streakSuffix}${weekSuffix}`);
   }

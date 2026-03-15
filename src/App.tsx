@@ -13,7 +13,7 @@ import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
-import { calcIntentionStreak, calcIntentionWeek } from "./lib/intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsBadge, calcPerfectDayStreak } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
@@ -742,6 +742,11 @@ export default function App() {
     focusProjectName: focusProject?.name,
   });
 
+  // intentionWeekTrend: ↑/↓/→ comparing this week's intention done rate vs last week (null when no prev baseline).
+  const intentionWeekTrend = calcIntentionWeekTrend(
+    last14Days, todayStr, data.todayIntention, data.todayIntentionDone, data.intentionHistory ?? [],
+  );
+
   // Derived: Direction badge — shows year/month/week goal + intention status + quote count for quick overview when collapsed.
   // Pure function extracted to src/lib/direction.ts for testability.
   const directionBadge = calcDirectionBadge({
@@ -753,6 +758,7 @@ export default function App() {
     intentionConsecutiveDays,
     intentionSetCount7,
     intentionDoneCount7,
+    intentionWeekTrend,
     quotesCount: (data.quotes ?? []).length,
     daysLeftYear, daysLeftQuarter, daysLeftMonth, daysLeftWeek,
   });
