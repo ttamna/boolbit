@@ -1,5 +1,5 @@
 // ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, and audio feedback
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, lifetime format, goal-progress percentage, and session-end audio cue
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, and session-end audio cue
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -107,11 +107,39 @@ export function calcPomodoroBadge(
   sessionsToday: number,
   sessionGoal: number | undefined,
   focusMins: number,
+  focusStreak?: number,
 ): string | null {
   const countStr = calcSessionCountStr(sessionsToday, sessionGoal);
   if (countStr === null) return null;
   const timeSuffix = sessionsToday > 0 ? ` · ${formatLifetime(sessionsToday * focusMins)}` : "";
-  return `🍅 ${countStr}${timeSuffix}`;
+  const streakSuffix = focusStreak != null && focusStreak >= 2 ? ` · 🔥${focusStreak}d` : "";
+  return `🍅 ${countStr}${timeSuffix}${streakSuffix}`;
+}
+
+// Returns the number of consecutive days (including today) ending at todayStr with at least 1 pomodoro session.
+// Counts backward from todayStr; stops at the first day with no sessions or a missing entry.
+// Returns 0 when history is empty or there is a gap before today (or yesterday).
+// Pure function with no side effects.
+export function calcFocusStreak(history: PomodoroDay[], todayStr: string): number {
+  // No early-exit on history.length === 0 alone: count=0 entries are valid and handled by the loop.
+  const dateMap = new Map<string, number>(history.map(e => [e.date, e.count]));
+  const parts = todayStr.split("-").map(Number);
+  const [yr, mo, day] = parts; // local year/month/day — named distinctly to avoid shadowing inside loop
+  let streak = 0;
+  // If today has no sessions yet, start from yesterday (streak is still alive — user has rest of today).
+  // If yesterday also has no sessions (count=0 or absent), the streak is 0.
+  const todayCount = dateMap.get(todayStr) ?? 0;
+  let daysBack = todayCount > 0 ? 0 : 1;
+  // Walk backward using local Date arithmetic to avoid UTC offset issues
+  while (true) {
+    const cur = new Date(yr, mo - 1, day - daysBack); // local time — no TZ shift risk
+    const dateKey = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+    const count = dateMap.get(dateKey) ?? 0;
+    if (count <= 0) break;
+    streak++;
+    daysBack++;
+  }
+  return streak;
 }
 
 // Returns percentage progress toward daily session goal, clamped to [0, 100].

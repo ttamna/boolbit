@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { PomodoroDay } from "../types";
-import { calcLast14Days, calcSessionWeekTrend, calcPomodoroBadge, formatLifetime, phaseAccent, phaseLabel, sessionGoalPct, playPhaseDone } from "../lib/pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcPomodoroBadge, calcFocusStreak, formatLifetime, phaseAccent, phaseLabel, sessionGoalPct, playPhaseDone } from "../lib/pomodoro";
 import type { Phase } from "../lib/pomodoro";
 
 const DEFAULT_DURATION: Record<Phase, number> = { focus: 25, break: 5, longBreak: 15 };
@@ -269,8 +269,10 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const progress = 1 - remaining / (durations[phase] * 60);
   // Timer was started (or resumed) but is currently stopped mid-countdown
   const isPaused = !running && remaining < durations[phase] * 60;
-  // Collapsed header badge: "🍅 ×N/G · Xm" or null when nothing to show.
-  const pomodoroBadge = calcPomodoroBadge(sessionsToday, sessionGoal, durations.focus);
+  // focusStreak: consecutive days with ≥1 session; shown in badge when ≥2
+  const focusStreak = calcFocusStreak(sessionHistory ?? [], todayStr);
+  // Collapsed header badge: "🍅 ×N/G · Xm[· 🔥Nd]" or null when nothing to show.
+  const pomodoroBadge = calcPomodoroBadge(sessionsToday, sessionGoal, durations.focus, focusStreak);
   const goalReached = sessionGoal != null && sessionsToday >= sessionGoal;
   // goalPct: session goal progress percentage; null when no goal set (see sessionGoalPct for edge cases)
   const goalPct = sessionGoalPct(sessionsToday, sessionGoal);

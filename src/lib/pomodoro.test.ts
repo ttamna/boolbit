@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, and audio feedback graceful fallback
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string, focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, and audio feedback graceful fallback
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone } from "./pomodoro";
 import { colors } from "../theme";
 import type { PomodoroDay } from "../types";
 
@@ -324,6 +324,26 @@ describe("calcPomodoroBadge", () => {
     // 3 sessions × 45min = 2h 15m
     expect(calcPomodoroBadge(3, undefined, 45)).toBe("🍅 ×3 · 2h 15m");
   });
+
+  it("should append '🔥Nd streak' suffix when focusStreak is 2 or more", () => {
+    expect(calcPomodoroBadge(2, undefined, 25, 3)).toBe("🍅 ×2 · 50m · 🔥3d");
+  });
+
+  it("should not append streak suffix when focusStreak is 1 (single day is not notable)", () => {
+    expect(calcPomodoroBadge(2, undefined, 25, 1)).toBe("🍅 ×2 · 50m");
+  });
+
+  it("should not append streak suffix when focusStreak is 0", () => {
+    expect(calcPomodoroBadge(2, undefined, 25, 0)).toBe("🍅 ×2 · 50m");
+  });
+
+  it("should not append streak suffix when focusStreak is absent", () => {
+    expect(calcPomodoroBadge(2, undefined, 25)).toBe("🍅 ×2 · 50m");
+  });
+
+  it("should include streak suffix even when goal is set", () => {
+    expect(calcPomodoroBadge(3, 8, 25, 5)).toBe("🍅 ×3/8 · 1h 15m · 🔥5d");
+  });
 });
 
 describe("calcSessionCountStr", () => {
@@ -465,6 +485,62 @@ describe("sessionGoalPct", () => {
     // sessionsToday is injected from props; documented to show the function does not guard
     // against negative input — callers must sanitize before rendering a progress bar.
     expect(() => sessionGoalPct(-1, 8)).not.toThrow();
+  });
+});
+
+describe("calcFocusStreak", () => {
+  // Local date arithmetic — avoids UTC offset shifting (new Date(localStr).toISOString() is TZ-unsafe)
+  const D = (offset: number) => {
+    const d = new Date(2026, 2, 15 + offset); // month is 0-indexed; local time
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const TODAY = D(0);
+  const YTD = D(-1);
+  const D2 = D(-2);
+  const D3 = D(-3);
+
+  function day(date: string, count: number): PomodoroDay {
+    return { date, count };
+  }
+
+  it("shouldReturn0WhenHistoryIsEmpty", () => {
+    expect(calcFocusStreak([], TODAY)).toBe(0);
+  });
+
+  it("shouldReturn1WhenOnlyTodayHasSessions", () => {
+    expect(calcFocusStreak([day(TODAY, 2)], TODAY)).toBe(1);
+  });
+
+  it("shouldReturn2WhenTodayAndYesterdayHaveSessions", () => {
+    expect(calcFocusStreak([day(YTD, 1), day(TODAY, 3)], TODAY)).toBe(2);
+  });
+
+  it("shouldReturn0WhenTodayHasNoSessionsAndYesterdayHasNone", () => {
+    expect(calcFocusStreak([day(D2, 2)], TODAY)).toBe(0);
+  });
+
+  it("shouldCountConsecutiveDaysBackwardFromToday", () => {
+    expect(calcFocusStreak([day(D3, 1), day(D2, 2), day(YTD, 1), day(TODAY, 4)], TODAY)).toBe(4);
+  });
+
+  it("shouldStopAtGapAndNotCountDaysBeforeIt", () => {
+    // D3 and D2 have sessions but YTD is missing → only TODAY counts
+    expect(calcFocusStreak([day(D3, 1), day(D2, 2), day(TODAY, 1)], TODAY)).toBe(1);
+  });
+
+  it("shouldCountStreakEndingYesterdayWhenTodayHasNoSessions", () => {
+    // User hasn't done a session today yet; streak still active from yesterday
+    expect(calcFocusStreak([day(D2, 2), day(YTD, 3)], TODAY)).toBe(2);
+  });
+
+  it("shouldIgnoreZeroCountEntries", () => {
+    // count=0 entries should break the streak just as missing entries do
+    expect(calcFocusStreak([day(YTD, 0), day(TODAY, 2)], TODAY)).toBe(1);
+  });
+
+  it("shouldReturn0WhenOnlyOlderHistoryExistsWithGap", () => {
+    // Only D3 has sessions — gap to today → streak 0
+    expect(calcFocusStreak([day(D3, 5)], TODAY)).toBe(0);
   });
 });
 
