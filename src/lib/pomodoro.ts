@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for pomodoro session statistics and phase UI mapping — no side effects
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, and lifetime format
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, lifetime format, and goal-progress percentage
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -114,12 +114,19 @@ export function calcPomodoroBadge(
   return `🍅 ${countStr}${timeSuffix}`;
 }
 
+// Returns percentage progress toward daily session goal, clamped to [0, 100].
+// Returns null when goal is absent or zero (guards NaN from 0/0 and undefined access).
+// Pure function with no side effects.
+export function sessionGoalPct(sessionsToday: number, sessionGoal: number | undefined): number | null {
+  if (sessionGoal == null || sessionGoal <= 0) return null;
+  return Math.min(100, Math.round((sessionsToday / sessionGoal) * 100));
+}
+
 // Returns prev-7/cur-7 session counts, trend arrow, and histMap for the 14-day heatmap.
 // last14Days partitioning: indices 0–6 = prev7 (previous week); indices 7–13 = cur7 (current week).
 // trend: "↑" improving, "↓" declining, "" stable (suppressed when equal to avoid noise).
 // histMap: fast O(1) date→count lookup for heatmap dot rendering.
 // Returns null when sessionHistory is empty (no data to display).
-// Exported for unit testing; pure function with no side effects.
 export function calcSessionWeekTrend(
   sessionHistory: PomodoroDay[],
   last14Days: string[],

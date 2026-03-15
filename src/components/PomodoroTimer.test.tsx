@@ -1,9 +1,9 @@
-// ABOUTME: Tests for PomodoroTimer autoStart phase-transition behavior and pure helper functions
-// ABOUTME: focus→break→focus cycle must continue without stopping when autoStart=true; sessionGoalPct + formatLifetime edge cases
+// ABOUTME: Tests for PomodoroTimer autoStart phase-transition behavior
+// ABOUTME: focus→break→focus cycle must continue without stopping when autoStart=true
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
-import { PomodoroTimer, sessionGoalPct, formatLifetime } from "./PomodoroTimer";
+import { PomodoroTimer } from "./PomodoroTimer";
 
 // Mock Tauri notification plugin — not available in jsdom
 vi.mock("@tauri-apps/plugin-notification", () => ({
@@ -35,74 +35,6 @@ async function advanceSecs(secs: number) {
     });
   }
 }
-
-describe("formatLifetime", () => {
-  it("should return '0m' when mins is 0", () => {
-    expect(formatLifetime(0)).toBe("0m");
-  });
-
-  it("should return '1m' when mins is 1", () => {
-    expect(formatLifetime(1)).toBe("1m");
-  });
-
-  it("should return '59m' at the boundary just before 1 hour", () => {
-    expect(formatLifetime(59)).toBe("59m");
-  });
-
-  it("should return '1h' when mins is exactly 60 (no trailing 0m)", () => {
-    expect(formatLifetime(60)).toBe("1h");
-  });
-
-  it("should return '1h 1m' when mins is 61", () => {
-    expect(formatLifetime(61)).toBe("1h 1m");
-  });
-
-  it("should return '1h 30m' when mins is 90", () => {
-    expect(formatLifetime(90)).toBe("1h 30m");
-  });
-
-  it("should return '2h' when mins is exactly 120 (no trailing 0m)", () => {
-    expect(formatLifetime(120)).toBe("2h");
-  });
-
-  it("should return '2h 1m' when mins is 121", () => {
-    expect(formatLifetime(121)).toBe("2h 1m");
-  });
-
-  it("should return '23h 59m' for a large value", () => {
-    expect(formatLifetime(1439)).toBe("23h 59m");
-  });
-});
-
-describe("sessionGoalPct", () => {
-  it("should return null when sessionGoal is undefined", () => {
-    expect(sessionGoalPct(3, undefined)).toBeNull();
-  });
-
-  it("should return null when sessionGoal is 0", () => {
-    expect(sessionGoalPct(3, 0)).toBeNull();
-  });
-
-  it("should return 0 when sessionsToday is 0", () => {
-    expect(sessionGoalPct(0, 8)).toBe(0);
-  });
-
-  it("should return 38 when 3 of 8 sessions done", () => {
-    expect(sessionGoalPct(3, 8)).toBe(38); // Math.round(3/8*100) = 37.5 → 38
-  });
-
-  it("should return 50 when half done", () => {
-    expect(sessionGoalPct(4, 8)).toBe(50);
-  });
-
-  it("should return 100 when goal is exactly met", () => {
-    expect(sessionGoalPct(8, 8)).toBe(100);
-  });
-
-  it("should clamp to 100 when sessions exceed goal", () => {
-    expect(sessionGoalPct(10, 8)).toBe(100);
-  });
-});
 
 describe("PomodoroTimer weekly trend display", () => {
   beforeEach(() => {

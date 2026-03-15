@@ -5,10 +5,8 @@ import { useState, useEffect, useRef, useMemo, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { PomodoroDay } from "../types";
-import { calcLast14Days, calcSessionWeekTrend, calcPomodoroBadge, formatLifetime, phaseAccent, phaseLabel } from "../lib/pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcPomodoroBadge, formatLifetime, phaseAccent, phaseLabel, sessionGoalPct } from "../lib/pomodoro";
 import type { Phase } from "../lib/pomodoro";
-// Re-export formatLifetime as part of this component's public API (used alongside sessionGoalPct by callers).
-export { formatLifetime };
 
 const DEFAULT_DURATION: Record<Phase, number> = { focus: 25, break: 5, longBreak: 15 };
 const PRESETS: Record<Phase, number[]> = { focus: [15, 25, 45], break: [5, 10, 15], longBreak: [10, 15, 20] };
@@ -54,14 +52,6 @@ interface PomodoroTimerProps {
   onMoveUp?: () => void;   // reorder: move this section one step earlier
   onMoveDown?: () => void; // reorder: move this section one step later
   accent?: string;         // theme accent color applied to the focus phase; absent = statusActive (green)
-}
-
-// Returns percentage progress toward daily session goal, clamped to [0, 100].
-// Returns null when goal is absent or zero (guards NaN from 0/0 and undefined access).
-// Exported for unit testing; pure function with no side effects.
-export function sessionGoalPct(sessionsToday: number, sessionGoal: number | undefined): number | null {
-  if (sessionGoal == null || sessionGoal <= 0) return null;
-  return Math.min(100, Math.round(sessionsToday / sessionGoal * 100));
 }
 
 export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, sessionHistory, lifetimeMins, focusProject, todayIntention, onMoveUp, onMoveDown, accent }: PomodoroTimerProps) {
