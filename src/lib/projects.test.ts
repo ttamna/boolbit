@@ -1,5 +1,5 @@
 // ABOUTME: Tests for pure functions in lib/projects.ts
-// ABOUTME: Covers calcProjectsBadge, avgRunningProgressPct, sortProjects, and 11 date/deadline/staleness helpers (incl. dateAfterDays, calcScheduleGap)
+// ABOUTME: Covers calcProjectsBadge, avgRunningProgressPct, sortProjects, calcCompletionForecast, and 11 date/deadline/staleness helpers (incl. dateAfterDays, calcScheduleGap)
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
@@ -17,6 +17,7 @@ import {
   deadlineColor,
   dateAfterDays,
   calcScheduleGap,
+  calcCompletionForecast,
 } from "./projects";
 import { colors } from "../theme";
 import type { Project, PomodoroDay } from "../types";
@@ -1048,5 +1049,84 @@ describe("sortProjects", () => {
     const sorted = sortProjects([nonFocusImminent, focusOverdue], REF_DATE);
     expect(sorted[0].name).toBe("FocusOverdue");
     expect(sorted[1].name).toBe("NonFocusImminent");
+  });
+});
+
+describe("calcCompletionForecast", () => {
+  // Reference: today = 2026-01-20, created = 2026-01-10 (10 days elapsed)
+  // progress = 50 → velocity = 5%/day → remaining 50% → 10 more days → forecastDate = 2026-01-30
+  const TODAY = new Date("2026-01-20T12:00:00");
+
+  it("should return null when progress is 0", () => {
+    expect(calcCompletionForecast(0, "2026-01-10", undefined, TODAY)).toBeNull();
+  });
+
+  it("should return null when progress is 100", () => {
+    expect(calcCompletionForecast(100, "2026-01-10", undefined, TODAY)).toBeNull();
+  });
+
+  it("should return null when createdDate is undefined", () => {
+    expect(calcCompletionForecast(50, undefined, undefined, TODAY)).toBeNull();
+  });
+
+  it("should return null when fewer than 3 days have elapsed since creation", () => {
+    // Only 2 days elapsed — too early to judge velocity reliably
+    const almostToday = new Date("2026-01-12T12:00:00");
+    expect(calcCompletionForecast(50, "2026-01-10", undefined, almostToday)).toBeNull();
+  });
+
+  it("should return a result when exactly 3 days have elapsed (boundary)", () => {
+    // Exactly 3 days elapsed: daysElapsed=3 → guard daysElapsed<3 does not fire
+    const exactly3Days = new Date("2026-01-13T12:00:00");
+    expect(calcCompletionForecast(50, "2026-01-10", undefined, exactly3Days)).not.toBeNull();
+  });
+
+  it("should return null when createdDate is an invalid format string", () => {
+    expect(calcCompletionForecast(50, "bad-date", undefined, TODAY)).toBeNull();
+    expect(calcCompletionForecast(50, "2026-1-5", undefined, TODAY)).toBeNull();
+  });
+
+  it("should compute forecastDate as today + remaining/velocity days", () => {
+    // velocity = 50%/10d = 5%/day; remaining = 50%; 50/5 = 10 days → 2026-01-30
+    const result = calcCompletionForecast(50, "2026-01-10", undefined, TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.forecastDate).toBe("2026-01-30");
+  });
+
+  it("should return null daysVsDeadline when deadline is absent", () => {
+    const result = calcCompletionForecast(50, "2026-01-10", undefined, TODAY);
+    expect(result!.daysVsDeadline).toBeNull();
+  });
+
+  it("should return positive daysVsDeadline when forecast is before deadline (ahead)", () => {
+    // forecast = 2026-01-30, deadline = 2026-02-01 → 2 days ahead
+    const result = calcCompletionForecast(50, "2026-01-10", "2026-02-01", TODAY);
+    expect(result!.daysVsDeadline).toBe(2);
+  });
+
+  it("should return negative daysVsDeadline when forecast is after deadline (behind)", () => {
+    // forecast = 2026-01-30, deadline = 2026-01-25 → -5 days (5 days late)
+    const result = calcCompletionForecast(50, "2026-01-10", "2026-01-25", TODAY);
+    expect(result!.daysVsDeadline).toBe(-5);
+  });
+
+  it("should return 0 daysVsDeadline when forecast matches deadline exactly", () => {
+    // forecast = 2026-01-30, deadline = 2026-01-30
+    const result = calcCompletionForecast(50, "2026-01-10", "2026-01-30", TODAY);
+    expect(result!.daysVsDeadline).toBe(0);
+  });
+
+  it("should handle slow progress correctly (low velocity)", () => {
+    // 10% done in 10 days = 1%/day; remaining 90% / 1%/day = 90 days → 2026-04-20
+    const result = calcCompletionForecast(10, "2026-01-10", undefined, TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.forecastDate).toBe("2026-04-20");
+  });
+
+  it("should use current date when today parameter is omitted", () => {
+    // Should not throw and must return a result or null — verifies default-date code path
+    const result = calcCompletionForecast(50, "2020-01-01", undefined);
+    // velocity > 0 and elapsed > 3 days → forecast returned
+    expect(result).not.toBeNull();
   });
 });

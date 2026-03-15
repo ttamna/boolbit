@@ -1,5 +1,5 @@
 // ABOUTME: ProjectCard component - displays a single project with progress bar and metrics
-// ABOUTME: Status cycles active→in-progress→paused→done; isFocus=★; +Nd/+Nw/+Nmo age badge (active, createdDate→today); ∑Nd/Nw/Nmo duration badge (done, createdDate→completedDate); schedule efficiency (+/-N%)
+// ABOUTME: Status cycles active→in-progress→paused→done; isFocus=★; +Nd age; ∑Nd duration; schedule efficiency (+/-N%); velocity forecast (→±Nd vs deadline)
 
 import { useState, CSSProperties } from "react";
 import type { Project, GitHubData } from "../types";
@@ -18,6 +18,7 @@ import {
   deadlineColor,
   dateAfterDays,
   calcScheduleGap,
+  calcCompletionForecast,
 } from "../lib/projects";
 
 const CI_COLOR: Record<NonNullable<GitHubData["ciStatus"]>, string> = {
@@ -81,6 +82,12 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
   // timePct<10 guard avoids a jarring red badge that appears when a project is barely started but already "behind".
   const scheduleGap = project.status !== "done" && !!project.deadline
     ? calcScheduleGap(project.progress, project.createdDate, project.deadline)
+    : null;
+  // completionForecast: forward-looking completion forecast based on observed velocity (progress / days elapsed).
+  // Only meaningful for non-done projects; requires createdDate to compute velocity.
+  // Shows →±Nd relative to deadline (when set) — complements scheduleGap's backward-looking efficiency metric.
+  const completionForecast = project.status !== "done"
+    ? calcCompletionForecast(project.progress, project.createdDate, project.deadline)
     : null;
 
   const [repoStatus, setRepoStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
@@ -335,6 +342,29 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
                 style={{ ...mono, fontSize: fontSizes.mini, color: scheduleGap.gap >= 5 ? colors.statusActive : scheduleGap.gap >= -10 ? colors.statusProgress : colors.statusPaused, opacity: 0.75 }}
               >
                 {scheduleGap.gap > 0 ? `+${scheduleGap.gap}` : `${scheduleGap.gap}`}%
+              </span>
+            )}
+            {/* Velocity forecast: →±Nd vs deadline (when deadline set) or →YYYY-MM-DD (no deadline).
+                Complements schedule efficiency with a forward-looking "at this rate, done when?" answer. */}
+            {completionForecast !== null && completionForecast.daysVsDeadline !== null && (
+              <span
+                title={`완료 예측: ${completionForecast.forecastDate} · 마감 ${completionForecast.daysVsDeadline >= 0 ? `${completionForecast.daysVsDeadline}일 전 완료` : `${Math.abs(completionForecast.daysVsDeadline)}일 지연 예상`}`}
+                style={{
+                  ...mono, fontSize: fontSizes.mini, opacity: 0.7,
+                  color: completionForecast.daysVsDeadline >= 5 ? colors.statusActive
+                    : completionForecast.daysVsDeadline >= -10 ? colors.statusProgress
+                    : colors.statusPaused,
+                }}
+              >
+                →{completionForecast.daysVsDeadline > 0 ? `+${completionForecast.daysVsDeadline}` : completionForecast.daysVsDeadline}d
+              </span>
+            )}
+            {completionForecast !== null && completionForecast.daysVsDeadline === null && (
+              <span
+                title={`완료 예측: ${completionForecast.forecastDate} (현재 속도 기준)`}
+                style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, opacity: 0.6 }}
+              >
+                →{completionForecast.forecastDate.slice(5)}
               </span>
             )}
             <InlineEdit

@@ -214,6 +214,48 @@ export function calcScheduleGap(
   return { gap: Math.round(progress - timePct), timePct };
 }
 
+export interface CompletionForecast {
+  /** Projected completion date (YYYY-MM-DD) based on current velocity (progress / days elapsed). */
+  forecastDate: string;
+  /** Days from forecast to deadline: positive = ahead, negative = behind. null when no deadline. */
+  daysVsDeadline: number | null;
+}
+
+// Computes a forward-looking completion forecast based on observed progress velocity.
+// velocity = progress% / daysElapsed; forecastDate = today + remaining% / velocity.
+// Returns null when: progress ≤ 0 or ≥ 100 (not in-flight), createdDate absent, or < 3 days elapsed (too early).
+// today: optional injection for deterministic testing.
+export function calcCompletionForecast(
+  progress: number,
+  createdDate: string | undefined,
+  deadline: string | undefined,
+  today?: Date,
+): CompletionForecast | null {
+  if (!createdDate || !/^\d{4}-\d{2}-\d{2}$/.test(createdDate) || progress <= 0 || progress >= 100) return null;
+
+  const now = today ? new Date(today) : new Date();
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const created = new Date(createdDate + "T00:00:00").getTime();
+  const daysElapsed = (todayMidnight - created) / 86400000;
+
+  if (daysElapsed < 3) return null; // too early to establish a reliable velocity
+
+  const velocity = progress / daysElapsed; // % per day
+  const remaining = 100 - progress;
+  const daysToComplete = remaining / velocity;
+
+  const forecastMs = todayMidnight + daysToComplete * 86400000;
+  const forecastDate = new Date(forecastMs).toLocaleDateString("sv");
+
+  let daysVsDeadline: number | null = null;
+  if (deadline && /^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
+    const deadlineMs = new Date(deadline + "T00:00:00").getTime();
+    daysVsDeadline = Math.round((deadlineMs - forecastMs) / 86400000);
+  }
+
+  return { forecastDate, daysVsDeadline };
+}
+
 // Returns urgency color: red if today or overdue (days ≤ 0), yellow if ≤7 days, dim otherwise.
 export function deadlineColor(dateStr: string): string {
   const days = deadlineDays(dateStr);
