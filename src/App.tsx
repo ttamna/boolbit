@@ -2,7 +2,7 @@
 // ABOUTME: Handles data loading/saving, inline patch updates, and section reorder via sectionOrder field
 
 import { useState, useEffect, useCallback, useRef, CSSProperties, Fragment } from "react";
-import type { WidgetData, Habit, Project, SectionKey, GitHubData, PomodoroDay, IntentionEntry, GoalEntry } from "./types";
+import type { WidgetData, Habit, Project, SectionKey, GitHubData, PomodoroDay, IntentionEntry } from "./types";
 import { colors, fonts, fontSizes, radius, shadows, THEMES, PROJECT_STATUS_COLORS } from "./theme";
 import { invoke, isTauri } from "./lib/tauri";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -16,6 +16,7 @@ import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFra
 import { calcIntentionStreak } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsBadge } from "./lib/habits";
 import { isoWeekStr, quarterStr } from "./lib/goalPeriods";
+import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge } from "./lib/projects";
 import { Clock } from "./components/Clock";
@@ -128,45 +129,10 @@ export default function App() {
             }
             return withId;
           });
-          // Clear today's intention when the app loads and the date has advanced past the day it was set.
-          // Requires todayIntentionDate to be present; old data without this field is left as-is
-          // (date unknown — clearing would be destructive for intentions set on the same day as the update).
-          const intentionStale = !!(saved.todayIntention && saved.todayIntentionDate && saved.todayIntentionDate < todayStr);
-          // Clear week goal when the ISO week has advanced past the week it was set.
-          const currentWeek = isoWeekStr(now);
-          const weekGoalStale = !!(saved.weekGoal && saved.weekGoalDate && saved.weekGoalDate < currentWeek);
-          // Clear month goal when the calendar month has advanced past the month it was set
-          const currentMonth = todayStr.slice(0, 7); // "YYYY-MM" — reuse todayStr base
-          const monthGoalStale = !!(saved.monthGoal && saved.monthGoalDate && saved.monthGoalDate < currentMonth);
-          // Clear quarter goal when the calendar quarter has advanced past the quarter it was set
-          const currentQuarter = quarterStr(now); // "YYYY-Q1"…"YYYY-Q4"
-          const quarterGoalStale = !!(saved.quarterGoal && saved.quarterGoalDate && saved.quarterGoalDate < currentQuarter);
-          // Clear year goal when the calendar year has advanced past the year it was set
-          const currentYear = todayStr.slice(0, 4); // "YYYY" — first 4 chars of sv locale date
-          const yearGoalStale = !!(saved.yearGoal && saved.yearGoalDate && saved.yearGoalDate < currentYear);
+          // Detect stale goals and build log-before-clear history patches.
+          // calcGoalExpiry encapsulates all five period checks + history-patch logic (see src/lib/goalExpiry.ts).
+          const { intentionStale, weekGoalStale, monthGoalStale, quarterGoalStale, yearGoalStale, historyPatch: goalHistoryPatch } = calcGoalExpiry(saved, now);
           const needsSave = hadExpired || needsIdMigration || intentionStale || weekGoalStale || monthGoalStale || quarterGoalStale || yearGoalStale;
-          // Log-before-clear: append expiring goals to history before clearing
-          const goalHistoryPatch: Partial<WidgetData> = {};
-          if (weekGoalStale && saved.weekGoal && saved.weekGoalDate) {
-            const entry: GoalEntry = { date: saved.weekGoalDate, text: saved.weekGoal, ...(saved.weekGoalDone ? { done: true } : {}) };
-            const prev: GoalEntry[] = saved.weekGoalHistory ?? [];
-            goalHistoryPatch.weekGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-8);
-          }
-          if (monthGoalStale && saved.monthGoal && saved.monthGoalDate) {
-            const entry: GoalEntry = { date: saved.monthGoalDate, text: saved.monthGoal, ...(saved.monthGoalDone ? { done: true } : {}) };
-            const prev: GoalEntry[] = saved.monthGoalHistory ?? [];
-            goalHistoryPatch.monthGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-12);
-          }
-          if (quarterGoalStale && saved.quarterGoal && saved.quarterGoalDate) {
-            const entry: GoalEntry = { date: saved.quarterGoalDate, text: saved.quarterGoal, ...(saved.quarterGoalDone ? { done: true } : {}) };
-            const prev: GoalEntry[] = saved.quarterGoalHistory ?? [];
-            goalHistoryPatch.quarterGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-8);
-          }
-          if (yearGoalStale && saved.yearGoal && saved.yearGoalDate) {
-            const entry: GoalEntry = { date: saved.yearGoalDate, text: saved.yearGoal, ...(saved.yearGoalDone ? { done: true } : {}) };
-            const prev: GoalEntry[] = saved.yearGoalHistory ?? [];
-            goalHistoryPatch.yearGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-5);
-          }
           const resolvedData = needsSave ? {
             ...saved,
             habits: reset,
@@ -240,7 +206,6 @@ export default function App() {
     if (!loaded) return;
     const id = setInterval(async () => {
       const now = new Date();
-      const todayStr = now.toLocaleDateString("sv");
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toLocaleDateString("sv");
@@ -254,44 +219,9 @@ export default function App() {
         }
         return h;
       });
-      // Clear today's intention when the date has advanced past the day it was set.
-      // Same backward-compat rule as initial load: requires todayIntentionDate to be present.
-      const intentionStale = !!(current.todayIntention && current.todayIntentionDate && current.todayIntentionDate < todayStr);
-      // Clear week goal when the ISO week has advanced past the week it was set.
-      const currentWeek = isoWeekStr(now);
-      const weekGoalStale = !!(current.weekGoal && current.weekGoalDate && current.weekGoalDate < currentWeek);
-      // Clear month goal when the calendar month has advanced past the month it was set.
-      const currentMonth = now.toLocaleDateString("sv").slice(0, 7);
-      const monthGoalStale = !!(current.monthGoal && current.monthGoalDate && current.monthGoalDate < currentMonth);
-      // Clear quarter goal when the calendar quarter has advanced past the quarter it was set.
-      const currentQuarter = quarterStr(now);
-      const quarterGoalStale = !!(current.quarterGoal && current.quarterGoalDate && current.quarterGoalDate < currentQuarter);
-      // Clear year goal when the calendar year has advanced past the year it was set.
-      const currentYear = now.toLocaleDateString("sv").slice(0, 4);
-      const yearGoalStale = !!(current.yearGoal && current.yearGoalDate && current.yearGoalDate < currentYear);
+      // Detect stale goals and build log-before-clear history patches (same pure function as initial load).
+      const { intentionStale, weekGoalStale, monthGoalStale, quarterGoalStale, yearGoalStale, historyPatch: goalHistoryPatch } = calcGoalExpiry(current, now);
       if (!hadExpired && !intentionStale && !weekGoalStale && !monthGoalStale && !quarterGoalStale && !yearGoalStale) return;
-      // Log-before-clear: append expiring goals to history before clearing
-      const goalHistoryPatch: Partial<WidgetData> = {};
-      if (weekGoalStale && current.weekGoal && current.weekGoalDate) {
-        const entry: GoalEntry = { date: current.weekGoalDate, text: current.weekGoal, ...(current.weekGoalDone ? { done: true } : {}) };
-        const prev: GoalEntry[] = current.weekGoalHistory ?? [];
-        goalHistoryPatch.weekGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-8);
-      }
-      if (monthGoalStale && current.monthGoal && current.monthGoalDate) {
-        const entry: GoalEntry = { date: current.monthGoalDate, text: current.monthGoal, ...(current.monthGoalDone ? { done: true } : {}) };
-        const prev: GoalEntry[] = current.monthGoalHistory ?? [];
-        goalHistoryPatch.monthGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-12);
-      }
-      if (quarterGoalStale && current.quarterGoal && current.quarterGoalDate) {
-        const entry: GoalEntry = { date: current.quarterGoalDate, text: current.quarterGoal, ...(current.quarterGoalDone ? { done: true } : {}) };
-        const prev: GoalEntry[] = current.quarterGoalHistory ?? [];
-        goalHistoryPatch.quarterGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-8);
-      }
-      if (yearGoalStale && current.yearGoal && current.yearGoalDate) {
-        const entry: GoalEntry = { date: current.yearGoalDate, text: current.yearGoal, ...(current.yearGoalDone ? { done: true } : {}) };
-        const prev: GoalEntry[] = current.yearGoalHistory ?? [];
-        goalHistoryPatch.yearGoalHistory = [...prev.filter(e => e.date !== entry.date), entry].slice(-5);
-      }
       await persist({
         ...current,
         habits: reset,
