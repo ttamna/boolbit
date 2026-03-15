@@ -1,12 +1,14 @@
 // ABOUTME: HabitStreak component - displays habit grid with streak counts and icons
-// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; ⊖Nd = neglected N days; ★ = at personal best (streak=bestStreak≥7); N🌟 = consecutive all-habits-done days; edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend; today completion bar shows N/M progress; getMilestone/getUpcomingMilestone exported as pure helpers
+// ABOUTME: Click ✓ to check/uncheck today; ✓ 전체 batch check-in; amber ✓ = streak at risk; ⊖Nd = neglected N days; ★ = at personal best (streak=bestStreak≥7); N🌟 = consecutive all-habits-done days; edit mode: add/delete/reorder/targetStreak/bestStreak; 14-day dots split prev-7/cur-7 with N/7↑↓ weekly trend; today completion bar shows N/M progress
 
 import { useState, useEffect, useMemo, useRef, CSSProperties } from "react";
 import type { Habit } from "../types";
 import { fonts, fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
 import { useEditMode } from "../hooks/useEditMode";
-import { calcHabitWeekStats, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak } from "../lib/habits";
+import { calcHabitWeekStats, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo } from "../lib/habits";
+// Re-export the 4 helpers that moved from this file to lib/habits — preserves any existing imports.
+export { getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo };
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
 
@@ -18,61 +20,6 @@ const moveBtnStyle = (disabled: boolean): CSSProperties => ({
 });
 
 const getToday = () => new Date().toLocaleDateString("sv"); // YYYY-MM-DD local date
-
-// Returns milestone badge emoji for notable streak lengths; null otherwise.
-// Exported for unit testing; thresholds: 7🔥 / 30⭐ / 100💎.
-export function getMilestone(streak: number): string | null {
-  if (streak >= 100) return "💎";
-  if (streak >= 30)  return "⭐";
-  if (streak >= 7)   return "🔥";
-  return null;
-}
-
-// Returns next unreached milestone if within threshold days away; null otherwise.
-// Note: a non-null result can coexist with a non-null getMilestone result (e.g. streak=27
-// has milestone 🔥 and upcoming ⭐ in 3 days). Callers must decide which to display.
-// Exported for unit testing; default threshold=3.
-export function getUpcomingMilestone(streak: number, threshold = 3): { days: number; badge: string } | null {
-  if (streak <= 0) return null;
-  const MILESTONES = [
-    { at: 7, badge: "🔥" },
-    { at: 30, badge: "⭐" },
-    { at: 100, badge: "💎" },
-  ];
-  for (const { at, badge } of MILESTONES) {
-    const days = at - streak;
-    if (days > 0 && days <= threshold) return { days, badge };
-  }
-  return null;
-}
-
-// Returns percentage of habits completed today, clamped to [0, 100].
-// Returns null when habits array is empty (guard against division by zero).
-// Exported for unit testing; pure function with no side effects.
-export function habitsTodayPct(habits: Habit[], todayStr: string): number | null {
-  if (habits.length === 0) return null;
-  const done = habits.filter(h => h.lastChecked === todayStr).length;
-  return Math.min(100, Math.round(done / habits.length * 100));
-}
-
-// Returns days since the most recent check-in based on checkHistory (sorted ascending).
-// Returns null when: no history, last check was today (0 days), or last check was yesterday (1 day — atRisk already handles this case).
-// Returns N (≥2) when the habit has been neglected for N days, giving a quick "⊖Nd" indicator.
-// Exported for unit testing; mirrors the pattern of ProjectCard's lastFocusDaysAgo helper.
-export function habitLastCheckDaysAgo(checkHistory: string[] | undefined, today: string): number | null {
-  if (!checkHistory || checkHistory.length === 0) return null;
-  // checkHistory is sorted ascending (YYYY-MM-DD lexicographic = chronological); last entry is most recent
-  const lastCheck = checkHistory[checkHistory.length - 1];
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(lastCheck)) return null;
-  const lastTs = new Date(lastCheck + "T00:00:00").getTime();
-  if (isNaN(lastTs)) return null;
-  const todayTs = new Date(today + "T00:00:00").getTime();
-  if (isNaN(todayTs)) return null;
-  const days = Math.floor((todayTs - lastTs) / 86400000);
-  // Suppress for today (0) and yesterday (1) — yesterday is already shown as atRisk amber ✓
-  // Future lastCheck dates (negative days) also return null safely via the days >= 2 check
-  return days >= 2 ? days : null;
-}
 
 interface HabitStreakProps {
   habits: Habit[];
