@@ -12,7 +12,7 @@ import { useWindowSync } from "./hooks/useWindowSync";
 import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
-import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction } from "./lib/datePeriods";
+import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear } from "./lib/datePeriods";
 import { calcIntentionStreak } from "./lib/intention";
 import { calcHabitsWeekRate } from "./lib/habits";
 import { isoWeekStr, quarterStr } from "./lib/goalPeriods";
@@ -667,21 +667,19 @@ export default function App() {
   // to avoid DST/time-of-day distortions that would occur if renderDate (current time) were used as base.
   const todayMidnight = new Date(todayStr + "T00:00:00");
   // Period remaining days — all anchor to todayMidnight (local midnight) for DST safety.
-  // Month/quarter: Date(y, m+1, 0) = last midnight of month m. Year: Date(y+1, 0, 0) = Dec 31 (same trick, different axis).
   // Declared largest→smallest to match usage order in directionBadge (Y→Q→M→W).
   // Design: expanded labels always show Nd; collapsed badge uses urgency thresholds (≤30/14/7/3d) for compactness.
-  const daysLeftInYear    = Math.floor((new Date(todayMidnight.getFullYear() + 1, 0, 0).getTime() - todayMidnight.getTime()) / 86400000) + 1;
-  const qEndMonth = Math.ceil((todayMidnight.getMonth() + 1) / 3) * 3; // 3, 6, 9, or 12
-  const daysLeftInQuarter = Math.floor((new Date(todayMidnight.getFullYear(), qEndMonth, 0).getTime() - todayMidnight.getTime()) / 86400000) + 1;
-  const daysLeftInMonth   = Math.floor((new Date(todayMidnight.getFullYear(), todayMidnight.getMonth() + 1, 0).getTime() - todayMidnight.getTime()) / 86400000) + 1;
-  // Week: ISO week ends Sunday. getDay() on local midnight is consistent with isoWeekStr which uses local date parts.
-  const daysLeftInWeek    = todayMidnight.getDay() === 0 ? 1 : 8 - todayMidnight.getDay();
+  const daysLeftYear    = daysLeftInYear(todayMidnight);
+  const daysLeftQuarter = daysLeftInQuarter(todayMidnight);
+  const daysLeftMonth   = daysLeftInMonth(todayMidnight);
+  // ISO week ends Sunday; getDay() on local midnight is consistent with isoWeekStr which uses local date parts.
+  const daysLeftWeek    = daysLeftInWeek(todayMidnight);
   // Period elapsed fractions — used for the 2px progress bars in Direction goal rows.
   // Consistent visual language with Clock day bar and DragBar year bar.
-  const yearElapsedFrac    = periodElapsedFraction(daysLeftInYear,    totalDaysInYear(todayMidnight));
-  const quarterElapsedFrac = periodElapsedFraction(daysLeftInQuarter, totalDaysInQuarter(todayMidnight));
-  const monthElapsedFrac   = periodElapsedFraction(daysLeftInMonth,   totalDaysInMonth(todayMidnight));
-  const weekElapsedFrac    = periodElapsedFraction(daysLeftInWeek, 7);
+  const yearElapsedFrac    = periodElapsedFraction(daysLeftYear,    totalDaysInYear(todayMidnight));
+  const quarterElapsedFrac = periodElapsedFraction(daysLeftQuarter, totalDaysInQuarter(todayMidnight));
+  const monthElapsedFrac   = periodElapsedFraction(daysLeftMonth,   totalDaysInMonth(todayMidnight));
+  const weekElapsedFrac    = periodElapsedFraction(daysLeftWeek, 7);
   const habitsDoneToday = habitsArr.filter(h => h.lastChecked === todayStr).length;
   // atRisk: streak > 0, last checked yesterday — semantically equivalent to HabitStreak.tsx:338's !doneToday&&streak>0&&lastChecked===yesterday
   const habitsAtRisk = habitsArr.filter(h => h.streak > 0 && h.lastChecked === yesterdayHabitsStr).length;
@@ -782,19 +780,19 @@ export default function App() {
     const parts: string[] = [];
     if (data.yearGoal) {
       const base = data.yearGoalDone ? "Y✓✓" : "Y✓";
-      parts.push(daysLeftInYear <= 30 ? `${base}·${daysLeftInYear}d` : base);
+      parts.push(daysLeftYear <= 30 ? `${base}·${daysLeftYear}d` : base);
     }
     if (data.quarterGoal) {
       const base = data.quarterGoalDone ? "Q✓✓" : "Q✓";
-      parts.push(daysLeftInQuarter <= 14 ? `${base}·${daysLeftInQuarter}d` : base);
+      parts.push(daysLeftQuarter <= 14 ? `${base}·${daysLeftQuarter}d` : base);
     }
     if (data.monthGoal) {
       const base = data.monthGoalDone ? "M✓✓" : "M✓";
-      parts.push(daysLeftInMonth <= 7 ? `${base}·${daysLeftInMonth}d` : base);
+      parts.push(daysLeftMonth <= 7 ? `${base}·${daysLeftMonth}d` : base);
     }
     if (data.weekGoal) {
       const base = data.weekGoalDone ? "W✓✓" : "W✓";
-      parts.push(daysLeftInWeek <= 3 ? `${base}·${daysLeftInWeek}d` : base);
+      parts.push(daysLeftWeek <= 3 ? `${base}·${daysLeftWeek}d` : base);
     }
     if (data.todayIntention) {
       const base = data.todayIntentionDone ? "✓✓" : "✓";
@@ -901,7 +899,7 @@ export default function App() {
                     {/* Year goal — auto-expires when calendar year advances; ✓ marks done; ✕ clears when set; ▾ shows past year history */}
                     <div style={{ padding: "0 14px 8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
-                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.yearGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`${daysLeftInYear}일 남음`}>Y<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInYear}d</span></span>
+                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.yearGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`${daysLeftYear}일 남음`}>Y<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftYear}d</span></span>
                         <InlineEdit
                           value={data.yearGoal ?? ""}
                           onSave={updateYearGoal}
@@ -942,7 +940,7 @@ export default function App() {
                     {/* Quarter goal — auto-expires when calendar quarter advances; ✓ marks done; ✕ clears when set; ▾ shows past quarter history */}
                     <div style={{ padding: "0 14px 8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
-                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.quarterGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`Q${currentQtr} · ${daysLeftInQuarter}일 남음`}>Q{currentQtr}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInQuarter}d</span></span>
+                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.quarterGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`Q${currentQtr} · ${daysLeftQuarter}일 남음`}>Q{currentQtr}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftQuarter}d</span></span>
                         <InlineEdit
                           value={data.quarterGoal ?? ""}
                           onSave={updateQuarterGoal}
@@ -983,7 +981,7 @@ export default function App() {
                     {/* Month goal — auto-expires when calendar month advances; ✓ marks done; ✕ clears when set; ▾ shows past month history */}
                     <div style={{ padding: "0 14px 8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
-                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.monthGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`M${currentMonth} · ${daysLeftInMonth}일 남음`}>M{currentMonth}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInMonth}d</span></span>
+                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.monthGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`M${currentMonth} · ${daysLeftMonth}일 남음`}>M{currentMonth}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftMonth}d</span></span>
                         <InlineEdit
                           value={data.monthGoal ?? ""}
                           onSave={updateMonthGoal}
@@ -1024,7 +1022,7 @@ export default function App() {
                     {/* Week goal — auto-expires when ISO week advances; ✓ marks done; ✕ clears when set; ▾ shows past week history */}
                     <div style={{ padding: "0 14px 8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
-                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.weekGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`W${currentWeek} · ${daysLeftInWeek}일 남음`}>W{currentWeek}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftInWeek}d</span></span>
+                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.weekGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`W${currentWeek} · ${daysLeftWeek}일 남음`}>W{currentWeek}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftWeek}d</span></span>
                         <InlineEdit
                           value={data.weekGoal ?? ""}
                           onSave={updateWeekGoal}

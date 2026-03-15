@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for computing period total-day counts from a local Date
-// ABOUTME: Used by App.tsx direction-section goal rows to compute period elapsed fractions
+// ABOUTME: Pure helpers for computing period counts and remaining days from a local Date
+// ABOUTME: Used by App.tsx direction-section for goal row progress bars and urgency badges
 
 /** Total days in the calendar month containing `date` (local time). */
 export function totalDaysInMonth(date: Date): number {
@@ -36,4 +36,36 @@ export function totalDaysInYear(date: Date): number {
 export function periodElapsedFraction(daysLeft: number, totalDays: number): number {
   if (totalDays <= 0) return 0;
   return Math.max(0, Math.min(1, (totalDays - daysLeft) / totalDays));
+}
+
+/** Days remaining in the ISO week (Mon–Sun) containing `date` (local time), including today.
+ *  Sunday → 1 (week ends today); Monday → 7 (full week ahead); Saturday → 2. */
+export function daysLeftInWeek(date: Date): number {
+  return date.getDay() === 0 ? 1 : 8 - date.getDay();
+}
+
+/** Days remaining in the calendar month containing `date` (local time), including today.
+ *  First day → total days in month; last day → 1. */
+export function daysLeftInMonth(date: Date): number {
+  const y = date.getFullYear();
+  const m = date.getMonth();
+  // Date(y, m+1, 0) = last midnight of month m (day 0 of next month = last day of current month)
+  return Math.floor((new Date(y, m + 1, 0).getTime() - date.getTime()) / 86400000) + 1;
+}
+
+/** Days remaining in the calendar quarter (Q1–Q4) containing `date` (local time), including today.
+ *  First day of quarter → total days in quarter; last day → 1. */
+export function daysLeftInQuarter(date: Date): number {
+  const qEndMonth = Math.ceil((date.getMonth() + 1) / 3) * 3; // 3, 6, 9, or 12
+  const y = date.getFullYear();
+  // Date(y, qEndMonth, 0) = last midnight of the quarter's final month
+  return Math.floor((new Date(y, qEndMonth, 0).getTime() - date.getTime()) / 86400000) + 1;
+}
+
+/** Days remaining in the calendar year containing `date` (local time), including today.
+ *  January 1 → 365 or 366; December 31 → 1. */
+export function daysLeftInYear(date: Date): number {
+  const y = date.getFullYear();
+  // Date(y+1, 0, 0) = December 31 of year y (January day 0 of y+1 = last day of y)
+  return Math.floor((new Date(y + 1, 0, 0).getTime() - date.getTime()) / 86400000) + 1;
 }

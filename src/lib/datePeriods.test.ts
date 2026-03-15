@@ -2,7 +2,7 @@
 // ABOUTME: Covers leap-year edge cases for month/quarter/year and fraction boundary values
 
 import { describe, it, expect } from "vitest";
-import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction } from "./datePeriods";
+import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear } from "./datePeriods";
 
 describe("totalDaysInMonth", () => {
   it("should return 31 for January", () => {
@@ -96,5 +96,117 @@ describe("periodElapsedFraction", () => {
 
   it("should return 0 when totalDays is 0 (degenerate guard)", () => {
     expect(periodElapsedFraction(0, 0)).toBe(0);
+  });
+});
+
+// 2026-03-15 is a Sunday; the week anchors: Mon 03-09 through Sun 03-15.
+describe("daysLeftInWeek", () => {
+  it("should return 1 on Sunday (ISO week ends today)", () => {
+    expect(daysLeftInWeek(new Date(2026, 2, 15))).toBe(1); // Sun
+  });
+
+  it("should return 7 on Monday (full ISO week ahead)", () => {
+    expect(daysLeftInWeek(new Date(2026, 2, 9))).toBe(7); // Mon
+  });
+
+  it("should return 6 on Tuesday", () => {
+    expect(daysLeftInWeek(new Date(2026, 2, 10))).toBe(6); // Tue
+  });
+
+  it("should return 5 on Wednesday", () => {
+    expect(daysLeftInWeek(new Date(2026, 2, 11))).toBe(5); // Wed
+  });
+
+  it("should return 4 on Thursday", () => {
+    expect(daysLeftInWeek(new Date(2026, 2, 12))).toBe(4); // Thu
+  });
+
+  it("should return 3 on Friday", () => {
+    expect(daysLeftInWeek(new Date(2026, 2, 13))).toBe(3); // Fri
+  });
+
+  it("should return 2 on Saturday", () => {
+    expect(daysLeftInWeek(new Date(2026, 2, 14))).toBe(2); // Sat
+  });
+});
+
+describe("daysLeftInMonth", () => {
+  it("should return 31 on January 1 (first day of 31-day month)", () => {
+    expect(daysLeftInMonth(new Date(2026, 0, 1))).toBe(31);
+  });
+
+  it("should return 1 on January 31 (last day of month)", () => {
+    expect(daysLeftInMonth(new Date(2026, 0, 31))).toBe(1);
+  });
+
+  it("should return 28 on February 1 of a non-leap year", () => {
+    expect(daysLeftInMonth(new Date(2026, 1, 1))).toBe(28);
+  });
+
+  it("should return 29 on February 1 of a leap year", () => {
+    expect(daysLeftInMonth(new Date(2024, 1, 1))).toBe(29);
+  });
+
+  it("should return 1 on December 31 (last day of year)", () => {
+    expect(daysLeftInMonth(new Date(2026, 11, 31))).toBe(1);
+  });
+});
+
+describe("daysLeftInQuarter", () => {
+  it("should return 90 on January 1 of Q1 non-leap year (Q1=90 days)", () => {
+    expect(daysLeftInQuarter(new Date(2026, 0, 1))).toBe(90);
+  });
+
+  it("should return 91 on January 1 of Q1 leap year (Q1=91 days)", () => {
+    expect(daysLeftInQuarter(new Date(2024, 0, 1))).toBe(91);
+  });
+
+  it("should return 1 on March 31 (last day of Q1)", () => {
+    expect(daysLeftInQuarter(new Date(2026, 2, 31))).toBe(1);
+  });
+
+  it("should return 91 on April 1 (first day of Q2=91 days)", () => {
+    expect(daysLeftInQuarter(new Date(2026, 3, 1))).toBe(91);
+  });
+
+  it("should return 1 on June 30 (last day of Q2)", () => {
+    expect(daysLeftInQuarter(new Date(2026, 5, 30))).toBe(1);
+  });
+
+  it("should return 92 on July 1 (first day of Q3=92 days)", () => {
+    // Q3: Jul(31) + Aug(31) + Sep(30) = 92
+    expect(daysLeftInQuarter(new Date(2026, 6, 1))).toBe(92);
+  });
+
+  it("should return 92 on October 1 (first day of Q4=92 days)", () => {
+    expect(daysLeftInQuarter(new Date(2026, 9, 1))).toBe(92);
+  });
+
+  it("should return 1 on December 31 (last day of Q4 and year)", () => {
+    expect(daysLeftInQuarter(new Date(2026, 11, 31))).toBe(1);
+  });
+});
+
+describe("daysLeftInYear", () => {
+  it("should return 365 on January 1 of a non-leap year", () => {
+    expect(daysLeftInYear(new Date(2026, 0, 1))).toBe(365);
+  });
+
+  it("should return 366 on January 1 of a leap year", () => {
+    expect(daysLeftInYear(new Date(2024, 0, 1))).toBe(366);
+  });
+
+  it("should return 1 on December 31", () => {
+    expect(daysLeftInYear(new Date(2026, 11, 31))).toBe(1);
+  });
+
+  it("should return 92 on October 1 (92 days remain: Oct31+Nov30+Dec31)", () => {
+    // Oct(31) + Nov(30) + Dec(31) = 92 days including Oct 1
+    expect(daysLeftInYear(new Date(2026, 9, 1))).toBe(92);
+  });
+
+  it("should return 307 on February 29 of a leap year (leap day is included)", () => {
+    // Feb 29 (leap) to Dec 31 inclusive: Mar(31)+Apr(30)+May(31)+Jun(30)+Jul(31)+Aug(31)+Sep(30)+Oct(31)+Nov(30)+Dec(31) + 1(Feb29) = 307
+    expect(daysLeftInYear(new Date(2024, 1, 29))).toBe(307);
   });
 });
