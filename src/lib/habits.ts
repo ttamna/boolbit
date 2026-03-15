@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate daily completion rate, section badge, check-in patch, perfect-day streak, and habit check-in audio cue
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, and habit check-in audio cue
 
 import type { Habit } from "../types";
 
@@ -77,6 +77,19 @@ export function calcHabitsWeekRate(habits: Habit[], dayWindow: string[]): number
   return Math.round(avgRate * 100);
 }
 
+// Returns ↑ when curRate > prevRate, ↓ when curRate < prevRate, → when equal (both non-null).
+// Returns null when either rate is null — no baseline exists to compute a meaningful trend.
+// Exported for unit testing; pure function with no side effects.
+export function calcHabitsWeekTrend(
+  curRate: number | null,
+  prevRate: number | null,
+): "↑" | "↓" | "→" | null {
+  if (curRate === null || prevRate === null) return null;
+  if (curRate > prevRate) return "↑";
+  if (curRate < prevRate) return "↓";
+  return "→";
+}
+
 export interface HabitsBadgeParams {
   /** Total habit count; returns undefined when 0. */
   habitCount: number;
@@ -88,6 +101,8 @@ export interface HabitsBadgeParams {
   weekRate: number | null;
   /** Consecutive days where ALL habits were completed; ≥2 triggers N🌟 suffix. */
   perfectStreak?: number;
+  /** Week-over-week trend: ↑/↓/→ appended after weekRate when non-null; absent/null = no arrow. */
+  weekTrend?: "↑" | "↓" | "→" | null;
 }
 
 /**
@@ -102,13 +117,14 @@ export interface HabitsBadgeParams {
  * - N🌟: consecutive all-habits-done days (e.g. "3🌟"); omitted when perfectStreak < 2
  */
 export function calcHabitsBadge(params: HabitsBadgeParams): string | undefined {
-  const { habitCount, doneToday, atRisk, weekRate, perfectStreak } = params;
+  const { habitCount, doneToday, atRisk, weekRate, perfectStreak, weekTrend } = params;
   if (habitCount === 0) return undefined;
   const allDone = doneToday >= habitCount;
   const countStr = allDone ? `✓${doneToday}/${habitCount}` : `${doneToday}/${habitCount}`;
+  const trendSuffix = weekRate !== null && weekTrend ? weekTrend : "";
   return [
     countStr,
-    weekRate !== null ? `7d·${weekRate}%` : null,
+    weekRate !== null ? `7d·${weekRate}%${trendSuffix}` : null,
     atRisk > 0 ? `⚠${atRisk}` : null,
     (perfectStreak ?? 0) >= 2 ? `${perfectStreak}🌟` : null,
   ].filter(Boolean).join(" · ");

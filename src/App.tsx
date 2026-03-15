@@ -14,7 +14,7 @@ import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend } from "./lib/intention";
-import { calcHabitsWeekRate, calcHabitsBadge, calcPerfectDayStreak } from "./lib/habits";
+import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
@@ -734,7 +734,8 @@ export default function App() {
   const quarterGoalStreak = calcQuarterGoalStreak(data.quarterGoal, data.quarterGoalDate, data.quarterGoalHistory ?? [], renderDate);
   const yearGoalStreak = calcYearGoalStreak(data.yearGoal, data.yearGoalDate, data.yearGoalHistory ?? [], renderDate);
   // last7Days: [6daysAgo, ..., yesterday, today] as YYYY-MM-DD strings (oldest→newest, HabitStreak.tsx convention).
-  // Single source shared by habitsWeekRate, weekPomodoroCount, and recentlyDoneCount.
+  // Single source shared by habitsWeekRate (cur-7), weekPomodoroCount, and recentlyDoneCount.
+  // habitsWeekTrend uses last14Days.slice(0,7) for the prev-7 window (see below).
   const last7Days = calcLastNDays(todayStr, 7);
   // intentionWeek: per-day set/done status for the last 7 days — pure function extracted to src/lib/intention.ts.
   // Note: updateIntention preserves history entries when the user clears today's intention
@@ -750,11 +751,15 @@ export default function App() {
   // habitsPerfectStreak: consecutive days all habits completed — same 14-day window as HabitStreak.tsx.
   const last14Days = calcLastNDays(todayStr, 14);
   const habitsPerfectStreak = calcPerfectDayStreak(habitsArr, last14Days);
+  // habitsWeekTrend: week-over-week direction — compares cur-7 rate vs prev-7 rate using the same 14-day window.
+  const habitsPrevWeekRate = calcHabitsWeekRate(habitsArr, last14Days.slice(0, 7));
+  const habitsWeekTrend = calcHabitsWeekTrend(habitsWeekRate, habitsPrevWeekRate);
   const habitsBadge = calcHabitsBadge({
     habitCount: habitsArr.length,
     doneToday: habitsDoneToday,
     atRisk: habitsAtRisk,
     weekRate: habitsWeekRate,
+    weekTrend: habitsWeekTrend,
     perfectStreak: habitsPerfectStreak,
   });
 
