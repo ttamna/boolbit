@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > pomodoro > deadline soon > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > project stale > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > pomodoro > deadline soon > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > project stale > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import type { Project } from "../types";
@@ -61,7 +61,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > pomodoro_last_one > deadline_soon > goal_expiry > project_stale > personal_best.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > pomodoro_last_one > deadline_soon > goal_expiry > project_stale > personal_best.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -114,12 +114,32 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     return { text: "✍️ 오늘의 의도를 설정해보세요", level: "info" };
   }
 
-  // 6. Pomodoro: one session away from daily goal
+  // 6. Period start: morning + first day of a new period + no goal set yet.
+  // Cascade: year > quarter > month > week — largest period takes precedence on overlapping start dates.
+  // Excludes days when intention_missing already fired (nowHour < 12 but intention not set).
+  if (nowHour < 12 && todayIntentionDate === todayStr) {
+    const [yr, mo, day] = todayStr.split("-").map(Number);
+    const wday = new Date(yr, mo - 1, day).getDay(); // 0 = Sunday, 1 = Monday, 6 = Saturday
+    if (mo === 1 && day === 1 && !yearGoal) {
+      return { text: "🎯 새 해! 연간 목표를 세워보세요", level: "info" };
+    }
+    if ((mo === 1 || mo === 4 || mo === 7 || mo === 10) && day === 1 && !quarterGoal) {
+      return { text: "📋 새 분기! 분기 목표를 세워보세요", level: "info" };
+    }
+    if (day === 1 && !monthGoal) {
+      return { text: "📅 새 달! 월간 목표를 세워보세요", level: "info" };
+    }
+    if (wday === 1 && !weekGoal) {
+      return { text: "🗓️ 새 주! 주간 목표를 세워보세요", level: "info" };
+    }
+  }
+
+  // 7. Pomodoro: one session away from daily goal
   if (sessionGoal !== undefined && sessionsToday === sessionGoal - 1) {
     return { text: "🍅 포모도로 목표까지 1세션!", level: "info" };
   }
 
-  // 7. Deadline soon: active/in-progress project deadline within 4–7 days
+  // 8. Deadline soon: active/in-progress project deadline within 4–7 days
   if (projects && projects.length > 0) {
     const soon = projects
       .filter(p => p.status !== "done" && p.status !== "paused" && p.deadline)
@@ -131,7 +151,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     }
   }
 
-  // 8. Goal expiry: personal goal period ending soon and not yet marked done.
+  // 9. Goal expiry: personal goal period ending soon and not yet marked done.
   // Priority: week (≤2d) > month (≤2d) > quarter (≤7d) > year (≤14d) — shorter cycle = higher urgency.
   if (weekGoal && !weekGoalDone && daysLeftWeek != null && daysLeftWeek <= 2) {
     const suffix = daysLeftWeek <= 1 ? "오늘 마감" : `${daysLeftWeek}일`;
@@ -150,7 +170,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     return { text: `📋 연간 목표 마감 임박 (${suffix})`, level: "warning" };
   }
 
-  // 9. Project stale: active/in-progress project not focused via pomodoro in 7+ days
+  // 10. Project stale: active/in-progress project not focused via pomodoro in 7+ days
   if (projects && projects.length > 0) {
     const todayMs = new Date(todayStr + "T00:00:00").getTime();
     const stale = projects
@@ -166,7 +186,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     }
   }
 
-  // 10. Personal best streak: habit checked in today, streak hit a milestone (7/30/100d),
+  // 11. Personal best streak: habit checked in today, streak hit a milestone (7/30/100d),
   // and streak equals bestStreak (all-time high). Milestone gate prevents daily repetition
   // on continuous best-streak runs.
   const personalBest = habits

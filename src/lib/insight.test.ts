@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all ten insight types and their priority ordering
+// ABOUTME: Covers all eleven insight types and their priority ordering
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -141,11 +141,12 @@ describe("calcTodayInsight", () => {
   });
 
   it("shouldNotReturnMilestoneNearForStreakThatIsNotNearMilestone", () => {
+    // Use Tuesday 2024-01-16 so week_start (Monday-only) and other period triggers don't fire.
     const result = calcTodayInsight({
-      habits: [habit("운동", 5, YESTERDAY)],
-      todayStr: TODAY,
+      habits: [habit("운동", 5, "2024-01-15")],
+      todayStr: "2024-01-16", // Tuesday — no period_start triggers
       nowHour: 10,
-      todayIntentionDate: TODAY,
+      todayIntentionDate: "2024-01-16",
       sessionsToday: 0,
       sessionGoal: undefined,
       habitsAllDoneDate: undefined,
@@ -1483,5 +1484,249 @@ describe("calcTodayInsight", () => {
       habitsAllDoneDate: undefined,
     });
     expect(result).toBeNull();
+  });
+
+  // ── period_start ────────────────────────────────────────────────────────────
+  // Test dates (verified against day-of-week):
+  //   "2024-01-01" = Monday  (year + quarter + month + week start)
+  //   "2024-01-22" = Monday  (week start only)
+  //   "2024-02-01" = Thursday (month start only)
+  //   "2024-04-01" = Monday  (quarter + month + week start)
+
+  it("shouldReturnWeekStartWhenMondayMorningIntentionSetNoWeekGoal", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-01-22", // Monday, not 1st of month
+      nowHour: 9,
+      todayIntentionDate: "2024-01-22", // intention already set
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("새 주");
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldNotReturnWeekStartWhenWeekGoalAlreadySet", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-01-22",
+      nowHour: 9,
+      todayIntentionDate: "2024-01-22",
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "이번 주 독서 2권",
+    });
+    expect(result).toBeNull(); // no other triggers, week goal set → no period_start
+  });
+
+  it("shouldNotReturnWeekStartWhenNotMonday", () => {
+    // TODAY = "2024-01-15" is a Monday; use Tuesday "2024-01-16" to confirm no week_start fires
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-01-16", // Tuesday
+      nowHour: 9,
+      todayIntentionDate: "2024-01-16",
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnWeekStartAfterNoon", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-01-22",
+      nowHour: 13, // afternoon
+      todayIntentionDate: "2024-01-22",
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnPeriodStartWhenIntentionNotSet", () => {
+    // intention_missing (priority 5) fires first — period_start requires intention already set
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-01-22", // Monday
+      nowHour: 9,
+      todayIntentionDate: undefined, // intention NOT set today
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도"); // intention_missing fires, not week_start
+  });
+
+  it("shouldReturnMonthStartWhenFirstOfMonthMorningIntentionSetNoMonthGoal", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-02-01", // February 1, Thursday — month start, not quarter start
+      nowHour: 9,
+      todayIntentionDate: "2024-02-01",
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("새 달");
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldNotReturnMonthStartWhenMonthGoalAlreadySet", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-02-01",
+      nowHour: 9,
+      todayIntentionDate: "2024-02-01",
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: "2월 운동 20회",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnQuarterStartWhenApr1MorningIntentionSetNoQuarterGoalYearGoalSet", () => {
+    // April 1, 2024 = Monday; yearGoal set → skip year, quarterGoal not set → quarter_start
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-04-01",
+      nowHour: 9,
+      todayIntentionDate: "2024-04-01",
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "연간 목표", // already set
+      quarterGoal: undefined, // not set
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("새 분기");
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldReturnYearStartWhenJan1MorningIntentionSetNoYearGoal", () => {
+    // January 1, 2024 = Monday; yearGoal not set → year_start (highest priority)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-01-01",
+      nowHour: 9,
+      todayIntentionDate: "2024-01-01",
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("새 해");
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldPrioritizeYearOverQuarterOverMonthOverWeekOnJan1", () => {
+    // Jan 1 is simultaneously year + quarter + month + week start.
+    // With no yearGoal: year_start fires first.
+    const resultYear = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-01-01",
+      nowHour: 9,
+      todayIntentionDate: "2024-01-01",
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: undefined,
+      quarterGoal: undefined,
+    });
+    expect(resultYear!.text).toContain("새 해");
+
+    // With yearGoal set but no quarterGoal: quarter_start fires.
+    const resultQuarter = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-01-01",
+      nowHour: 9,
+      todayIntentionDate: "2024-01-01",
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "연간 목표",
+      quarterGoal: undefined,
+    });
+    expect(resultQuarter!.text).toContain("새 분기");
+
+    // With yearGoal + quarterGoal set but no monthGoal: month_start fires.
+    const resultMonth = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-01-01",
+      nowHour: 9,
+      todayIntentionDate: "2024-01-01",
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "연간 목표",
+      quarterGoal: "분기 목표",
+      monthGoal: undefined,
+    });
+    expect(resultMonth!.text).toContain("새 달");
+
+    // With yearGoal + quarterGoal + monthGoal set but no weekGoal: week_start fires.
+    const resultWeek = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-01-01",
+      nowHour: 9,
+      todayIntentionDate: "2024-01-01",
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "연간 목표",
+      quarterGoal: "분기 목표",
+      monthGoal: "월간 목표",
+      weekGoal: undefined,
+    });
+    expect(resultWeek!.text).toContain("새 주");
+  });
+
+  it("shouldPrioritizeMonthStartOverWeekStartWhenBothApply", () => {
+    // Apr 1, 2024 = Monday → month start + week start simultaneously.
+    // month goal not set: month_start wins over week_start.
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-04-01",
+      nowHour: 9,
+      todayIntentionDate: "2024-04-01",
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "연간 목표",
+      quarterGoal: "분기 목표",
+      monthGoal: undefined, // not set → month_start fires
+      weekGoal: undefined,  // not set too, but month takes precedence
+    });
+    expect(result!.text).toContain("새 달");
+  });
+
+  it("shouldPrioritizeIntentionMissingOverPeriodStart", () => {
+    // If intention is not set, intention_missing (priority 5) beats period_start (priority 6).
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: "2024-01-22", // Monday
+      nowHour: 9,
+      todayIntentionDate: undefined, // NOT set
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: undefined,
+    });
+    expect(result!.text).toContain("의도"); // intention_missing, not week_start
+    expect(result!.text).not.toContain("새 주");
   });
 });
