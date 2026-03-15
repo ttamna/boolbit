@@ -1319,7 +1319,7 @@ export default function App() {
 
       {/* ── Settings panel ── */}
       {settingsOpen && (
-        <SettingsPanel settings={settings} onUpdate={updateSettings} />
+        <SettingsPanel settings={settings} onUpdate={updateSettings} widgetData={data} onImport={persist} />
       )}
     </div>
   );

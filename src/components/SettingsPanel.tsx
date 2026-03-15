@@ -1,9 +1,10 @@
 // ABOUTME: SettingsPanel component - collapsible panel for widget appearance settings
-// ABOUTME: Provides opacity slider, theme switcher, GitHub PAT input with connection test
+// ABOUTME: Provides opacity slider, theme switcher, GitHub PAT input, and data export/import
 
-import { useState, useEffect, CSSProperties } from "react";
+import { useState, useEffect, useRef, CSSProperties } from "react";
 import { fontSizes, colors, THEMES, ThemeKey } from "../theme";
-import type { WidgetSettings } from "../types";
+import type { WidgetSettings, WidgetData } from "../types";
+import { buildExportBlob, triggerDownload, parseImportedData } from "../lib/dataIO";
 
 type PatStatus = 'idle' | 'testing' | 'ok' | 'error';
 
@@ -26,6 +27,8 @@ async function testPat(pat: string): Promise<{ status: PatStatus; msg: string }>
 interface SettingsPanelProps {
   settings: WidgetSettings;
   onUpdate: (patch: Partial<WidgetSettings>) => void;
+  widgetData?: WidgetData;
+  onImport?: (data: WidgetData) => void;
 }
 
 const row: CSSProperties = {
@@ -42,13 +45,16 @@ const label: CSSProperties = {
   flexShrink: 0,
 };
 
-export function SettingsPanel({ settings, onUpdate }: SettingsPanelProps) {
+export function SettingsPanel({ settings, onUpdate, widgetData, onImport }: SettingsPanelProps) {
   const currentTheme = settings.theme;
   const themeAccent = THEMES[currentTheme].accent;
 
   const [patDraft, setPatDraft] = useState(settings.githubPat ?? "");
   const [patStatus, setPatStatus] = useState<PatStatus>('idle');
   const [patMsg, setPatMsg] = useState("");
+
+  const [importMsg, setImportMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync if PAT changes externally
   useEffect(() => { setPatDraft(settings.githubPat ?? ""); }, [settings.githubPat]);
@@ -245,6 +251,86 @@ export function SettingsPanel({ settings, onUpdate }: SettingsPanelProps) {
             );
           })}
         </div>
+      </div>
+
+      <div style={{ ...row, alignItems: "flex-start", flexDirection: "column", gap: 6, paddingTop: 10, borderTop: `1px solid ${colors.borderFaint}` }}>
+        <span style={label}>데이터 백업</span>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            onClick={() => {
+              if (!widgetData) return;
+              const date = new Date().toISOString().slice(0, 10);
+              triggerDownload(buildExportBlob(widgetData), `vision-widget-${date}.json`);
+            }}
+            disabled={!widgetData}
+            style={{
+              fontSize: fontSizes.xs,
+              padding: "3px 10px",
+              borderRadius: 4,
+              background: "transparent",
+              color: widgetData ? themeAccent : colors.textPhantom,
+              border: `1px solid ${widgetData ? themeAccent : colors.borderFaint}`,
+              cursor: widgetData ? "pointer" : "default",
+              transition: "border 0.15s, color 0.15s",
+            }}
+          >
+            내보내기
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              fontSize: fontSizes.xs,
+              padding: "3px 10px",
+              borderRadius: 4,
+              background: "transparent",
+              color: colors.textSubtle,
+              border: `1px solid ${colors.borderFaint}`,
+              cursor: "pointer",
+              transition: "border 0.15s, color 0.15s",
+            }}
+          >
+            가져오기
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            style={{ display: "none" }}
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = ev => {
+                const text = ev.target?.result;
+                if (typeof text !== "string") return;
+                const result = parseImportedData(text);
+                if (result.ok) {
+                  onImport?.(result.data);
+                  setImportMsg({ text: "가져오기 완료", ok: true });
+                  // Auto-clear success message after 3 s so re-imports are distinguishable
+                  setTimeout(() => setImportMsg(null), 3000);
+                } else {
+                  setImportMsg({ text: result.error, ok: false });
+                }
+                // Reset so same file can be re-selected
+                e.target.value = "";
+              };
+              reader.onerror = () => {
+                setImportMsg({ text: "파일 읽기 오류가 발생했습니다.", ok: false });
+                e.target.value = "";
+              };
+              reader.readAsText(file);
+            }}
+          />
+        </div>
+        {importMsg && (
+          <span style={{
+            fontSize: fontSizes.xs,
+            color: importMsg.ok ? colors.statusActive : colors.statusPaused,
+          }}>
+            {importMsg.text}
+          </span>
+        )}
       </div>
     </div>
   );
