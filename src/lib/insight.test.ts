@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all seven insight types and their priority ordering
+// ABOUTME: Covers all eight insight types and their priority ordering
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -11,6 +11,9 @@ const IN_3 = "2024-01-18";
 const IN_4 = "2024-01-19";
 const IN_7 = "2024-01-22";
 const IN_8 = "2024-01-23";
+const DAYS_6_AGO = "2024-01-09";
+const DAYS_7_AGO = "2024-01-08";
+const DAYS_8_AGO = "2024-01-07";
 
 /** Minimal habit shape used across tests */
 function habit(name: string, streak: number, lastChecked?: string) {
@@ -568,6 +571,147 @@ describe("calcTodayInsight", () => {
       projects: [],
     });
     expect(result).toBeNull();
+  });
+
+  // ── project_stale ──────────────────────────────────────────────────────────
+  it("shouldReturnProjectStaleWhenActiveProjectNotFocusedIn7Days", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "앱개발", status: "active", lastFocusDate: DAYS_7_AGO }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("앱개발");
+    expect(result!.text).toContain("7");
+  });
+
+  it("shouldReturnProjectStaleWhenInProgressProjectNotFocusedIn8Days", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "리팩토링", status: "in-progress", lastFocusDate: DAYS_8_AGO }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("리팩토링");
+    expect(result!.text).toContain("8");
+  });
+
+  it("shouldNotReturnProjectStaleWhenLastFocusWas6DaysAgo", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "최근프로젝트", status: "active", lastFocusDate: DAYS_6_AGO }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectStaleWhenLastFocusDateAbsent", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "신규프로젝트", status: "active" }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectStaleWhenLastFocusDateIsToday", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "오늘집중", status: "active", lastFocusDate: TODAY }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectStaleForDoneProject", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "완료됨", status: "done", lastFocusDate: DAYS_7_AGO }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectStaleForPausedProject", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "멈춤프로젝트", status: "paused", lastFocusDate: DAYS_7_AGO }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnMostStaleProjectWhenMultipleQualify", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "덜방치됨", status: "active", lastFocusDate: DAYS_7_AGO },
+        { name: "가장방치됨", status: "in-progress", lastFocusDate: DAYS_8_AGO },
+      ],
+    });
+    expect(result!.text).toContain("가장방치됨");
+    expect(result!.text).toContain("8");
+  });
+
+  it("shouldPrioritizeDeadlineSoonOverProjectStale", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "마감임박", status: "active", deadline: IN_4 },               // deadline_soon
+        { name: "방치됨", status: "active", lastFocusDate: DAYS_7_AGO },      // project_stale
+      ],
+    });
+    expect(result!.text).toContain("마감임박");  // deadline_soon wins
+    expect(result!.text).toContain("D-4");
   });
 
   // ── deadline priority ordering ──────────────────────────────────────────────

@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > pomodoro > deadline soon
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > pomodoro > deadline soon > project stale
 
 import { getUpcomingMilestone } from "./habits";
 import type { Project } from "../types";
@@ -19,8 +19,8 @@ interface InsightParams {
   sessionsToday: number;
   sessionGoal: number | undefined;
   habitsAllDoneDate: string | undefined;
-  /** Active/in-progress projects to surface deadline warnings; absent = no project context */
-  projects?: Pick<Project, "name" | "deadline" | "status">[];
+  /** Active/in-progress projects to surface deadline warnings and stale-focus alerts; absent = no project context */
+  projects?: Pick<Project, "name" | "deadline" | "status" | "lastFocusDate">[];
 }
 
 // Returns days from todayStr until deadline (0 = today, positive = future). Uses injected todayStr for testability.
@@ -33,7 +33,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > pomodoro_last_one > deadline_soon.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > pomodoro_last_one > deadline_soon > project_stale.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const { habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects } = params;
 
@@ -94,6 +94,22 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
       .sort((a, b) => a.days - b.days)[0];
     if (soon) {
       return { text: `📅 ${soon.name} D-${soon.days}`, level: "info" };
+    }
+  }
+
+  // 8. Project stale: active/in-progress project not focused via pomodoro in 7+ days
+  if (projects && projects.length > 0) {
+    const todayMs = new Date(todayStr + "T00:00:00").getTime();
+    const stale = projects
+      .filter(p => p.status !== "done" && p.status !== "paused" && p.lastFocusDate && /^\d{4}-\d{2}-\d{2}$/.test(p.lastFocusDate))
+      .map(p => {
+        const lastMs = new Date(p.lastFocusDate! + "T00:00:00").getTime();
+        return isNaN(lastMs) ? null : { name: p.name, days: Math.floor((todayMs - lastMs) / 86400000) };
+      })
+      .filter((p): p is { name: string; days: number } => p !== null && p.days >= 7)
+      .sort((a, b) => b.days - a.days)[0]; // most neglected first
+    if (stale) {
+      return { text: `⊖ ${stale.name} ${stale.days}일째 미집중`, level: "info" };
     }
   }
 
