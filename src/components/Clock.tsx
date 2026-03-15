@@ -45,9 +45,11 @@ interface ClockProps {
   momentumHistory?: MomentumEntry[];
   /** Optional context-aware insight shown below the sparkline */
   insight?: TodayInsight;
+  /** Consecutive days with momentum score ≥ 40; shown as 🔥Nd when ≥ 2 */
+  momentumStreak?: number;
 }
 
-export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight }: ClockProps) {
+export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight, momentumStreak }: ClockProps) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -119,6 +121,21 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
               }}
             >
               {dailyScore.score}
+            </span>
+          )}
+          {momentumStreak !== undefined && momentumStreak >= 2 && (
+            <span
+              title={`${momentumStreak}일 연속 모멘텀 40점 이상`}
+              style={{
+                ...mono,
+                fontSize: fontSizes.mini,
+                color: accent ?? colors.statusActive,
+                opacity: 0.7,
+                cursor: "default",
+                userSelect: "none",
+              }}
+            >
+              🔥{momentumStreak}d
             </span>
           )}
           {onToggleFormat && (

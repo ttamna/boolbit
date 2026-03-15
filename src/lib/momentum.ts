@@ -1,5 +1,5 @@
 // ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
-// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; pure function
+// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; calcMomentumStreak — consecutive qualifying days (score≥40)
 
 import type { MomentumEntry } from "../types";
 
@@ -89,4 +89,41 @@ export function updateMomentumHistory(
   }
   // Keep only the most recent MOMENTUM_HISTORY_CAP entries (newest last)
   return next.length > MOMENTUM_HISTORY_CAP ? next.slice(next.length - MOMENTUM_HISTORY_CAP) : next;
+}
+
+// Minimum score to count a day as a qualifying momentum day (mid-tier threshold matches calcDailyScore).
+const MOMENTUM_STREAK_MIN_SCORE = 40;
+
+/**
+ * Returns the number of consecutive qualifying days (score ≥ 40) ending at or before todayStr.
+ *
+ * - If today's entry is present and score ≥ 40: count includes today.
+ * - If today's entry is absent OR score < 40: start from yesterday (streak still alive —
+ *   momentum score updates in real-time so a low score early in the day does not conclusively
+ *   end the streak; the user still has the rest of today to improve).
+ *   Differs from calcFocusStreak: a session count of 0 means "nothing done yet today" (discrete),
+ *   whereas a momentum score of e.g. 10 at 9 AM is a live in-progress value (continuous).
+ * - Stops at the first day where the entry is absent or score < 40.
+ * - Future history entries (date > todayStr) are safely ignored: daysBack starts at 0 (today)
+ *   or 1 (yesterday) and walks backward, so later dates are never reached.
+ *
+ * Pure function with no side effects.
+ */
+export function calcMomentumStreak(history: MomentumEntry[], todayStr: string): number {
+  const dateMap = new Map<string, MomentumEntry>(history.map(e => [e.date, e]));
+  const parts = todayStr.split("-").map(Number);
+  const [yr, mo, day] = parts;
+  const todayEntry = dateMap.get(todayStr);
+  // Start from today when score already qualifies; fall back to yesterday otherwise.
+  let daysBack = (todayEntry !== undefined && todayEntry.score >= MOMENTUM_STREAK_MIN_SCORE) ? 0 : 1;
+  let streak = 0;
+  while (true) {
+    const cur = new Date(yr, mo - 1, day - daysBack); // local time — no TZ shift risk
+    const dateKey = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+    const entry = dateMap.get(dateKey);
+    if (!entry || entry.score < MOMENTUM_STREAK_MIN_SCORE) break;
+    streak++;
+    daysBack++;
+  }
+  return streak;
 }

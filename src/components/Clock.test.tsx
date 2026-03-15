@@ -1,8 +1,9 @@
-// ABOUTME: Unit tests for calcDayFraction and formatHour pure helper functions
-// ABOUTME: Validates day progress fraction (out-of-range clamp), 24h/12h hour formatting, and edge cases (midnight, noon, 12h period)
+// ABOUTME: Unit tests for calcDayFraction, formatHour, and Clock component — momentumStreak badge rendering
+// ABOUTME: Validates day progress fraction (out-of-range clamp), 24h/12h hour formatting, edge cases, and streak badge visibility rules
 
 import { describe, it, expect } from "vitest";
-import { calcDayFraction, formatHour } from "./Clock";
+import { render, screen } from "@testing-library/react";
+import { calcDayFraction, formatHour, Clock } from "./Clock";
 
 describe("calcDayFraction", () => {
   it("should return 0 at midnight (00:00:00)", () => {
@@ -132,4 +133,32 @@ describe("formatHour — 12h mode", () => {
       expect(h.startsWith("0")).toBe(true);
     }
   );
+});
+
+describe("Clock — momentumStreak badge", () => {
+  it("should not render streak badge when momentumStreak is absent", () => {
+    render(<Clock />);
+    expect(screen.queryByText(/🔥/)).toBeNull();
+  });
+
+  it("should not render streak badge when momentumStreak is 1", () => {
+    render(<Clock momentumStreak={1} />);
+    expect(screen.queryByText(/🔥/)).toBeNull();
+  });
+
+  it("should render streak badge '🔥2d' when momentumStreak is 2", () => {
+    render(<Clock momentumStreak={2} />);
+    expect(screen.getByText("🔥2d")).toBeDefined();
+  });
+
+  it("should render streak badge '🔥7d' when momentumStreak is 7", () => {
+    render(<Clock momentumStreak={7} />);
+    expect(screen.getByText("🔥7d")).toBeDefined();
+  });
+
+  it("should render correct tooltip text for the streak badge", () => {
+    render(<Clock momentumStreak={5} />);
+    const badge = document.querySelector("[title='5일 연속 모멘텀 40점 이상']");
+    expect(badge).not.toBeNull();
+  });
 });

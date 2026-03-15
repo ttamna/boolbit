@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcDailyScore and updateMomentumHistory — score, tier, and history edge cases
-// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, and history upsert/cap
+// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, and calcMomentumStreak — score, tier, history edge cases
+// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, and streak counting
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore, updateMomentumHistory } from "./momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -279,5 +279,115 @@ describe("updateMomentumHistory", () => {
     const result = updateMomentumHistory([], "", 0, "low");
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({ date: "", score: 0, tier: "low" });
+  });
+});
+
+describe("calcMomentumStreak", () => {
+  it("should return 0 when history is empty", () => {
+    expect(calcMomentumStreak([], "2026-03-16")).toBe(0);
+  });
+
+  it("should return 0 when today's entry has score < 40 and yesterday is absent", () => {
+    const history = [{ date: "2026-03-16", score: 20, tier: "low" as const }];
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(0);
+  });
+
+  it("should return 1 when today's entry has score exactly 40 (boundary)", () => {
+    const history = [{ date: "2026-03-16", score: 40, tier: "mid" as const }];
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(1);
+  });
+
+  it("should return 0 when today's score is 39 (just below boundary)", () => {
+    const history = [{ date: "2026-03-16", score: 39, tier: "low" as const }];
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(0);
+  });
+
+  it("should return 1 when today qualifies and yesterday is absent", () => {
+    const history = [{ date: "2026-03-16", score: 75, tier: "high" as const }];
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(1);
+  });
+
+  it("should return 2 when today and yesterday both qualify", () => {
+    const history = [
+      { date: "2026-03-15", score: 60, tier: "mid" as const },
+      { date: "2026-03-16", score: 80, tier: "high" as const },
+    ];
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(2);
+  });
+
+  it("should return 1 when today is absent but yesterday qualifies (streak alive)", () => {
+    const history = [{ date: "2026-03-15", score: 65, tier: "mid" as const }];
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(1);
+  });
+
+  it("should return 0 when today is absent and yesterday's score < 40", () => {
+    const history = [{ date: "2026-03-15", score: 30, tier: "low" as const }];
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(0);
+  });
+
+  it("should return 0 when today is absent and yesterday is also absent", () => {
+    const history = [{ date: "2026-03-14", score: 70, tier: "mid" as const }];
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(0);
+  });
+
+  it("should count consecutive qualifying days, stopping at the first gap", () => {
+    const history = [
+      { date: "2026-03-12", score: 50, tier: "mid" as const }, // gap before this
+      { date: "2026-03-14", score: 55, tier: "mid" as const },
+      { date: "2026-03-15", score: 70, tier: "mid" as const },
+      { date: "2026-03-16", score: 85, tier: "high" as const },
+    ];
+    // 16, 15, 14 are consecutive; 13 is absent (gap) → streak = 3
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(3);
+  });
+
+  it("should stop at a day with score < 40 even if earlier days qualify", () => {
+    const history = [
+      { date: "2026-03-13", score: 80, tier: "high" as const },
+      { date: "2026-03-14", score: 20, tier: "low" as const }, // breaks chain
+      { date: "2026-03-15", score: 60, tier: "mid" as const },
+      { date: "2026-03-16", score: 70, tier: "mid" as const },
+    ];
+    // 16, 15 qualify; 14 breaks chain → streak = 2
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(2);
+  });
+
+  it("should count full 7-day window when all 7 entries qualify", () => {
+    const history = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-03-${String(10 + i).padStart(2, "0")}`,
+      score: 50 + i,
+      tier: "mid" as const,
+    }));
+    // 10–16, today = 16 → streak = 7
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(7);
+  });
+
+  it("should start from yesterday when today's score < 40 and yesterday qualifies", () => {
+    const history = [
+      { date: "2026-03-14", score: 60, tier: "mid" as const },
+      { date: "2026-03-15", score: 55, tier: "mid" as const },
+      { date: "2026-03-16", score: 10, tier: "low" as const }, // today low but streak alive from yesterday
+    ];
+    // today < 40 → start from yesterday; 15 and 14 both qualify → streak = 2
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(2);
+  });
+
+  it("should work across month boundaries", () => {
+    const history = [
+      { date: "2026-02-28", score: 55, tier: "mid" as const },
+      { date: "2026-03-01", score: 60, tier: "mid" as const },
+      { date: "2026-03-02", score: 75, tier: "high" as const },
+    ];
+    expect(calcMomentumStreak(history, "2026-03-02")).toBe(3);
+  });
+
+  it("should ignore future history entries beyond todayStr", () => {
+    const history = [
+      { date: "2026-03-15", score: 70, tier: "mid" as const },
+      { date: "2026-03-16", score: 80, tier: "high" as const },
+      { date: "2026-03-17", score: 90, tier: "high" as const }, // future — should not be counted
+    ];
+    // todayStr = 2026-03-16: streak includes 16 + 15 = 2; future entry on 17 is not reached
+    expect(calcMomentumStreak(history, "2026-03-16")).toBe(2);
   });
 });
