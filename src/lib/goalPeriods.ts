@@ -271,3 +271,108 @@ export function calcMonthGoalHeatmap(
   const doneCount = months.filter(m => m.set && m.done).length;
   return { months, setCount, doneCount };
 }
+
+// Returns N "YYYY-QN" quarter strings (oldest → newest), anchored at todayStr.
+// Index 0 = (N-1) quarters ago; index N-1 = current quarter.
+// Uses pure string/integer arithmetic (same pattern as calcLastNMonths/calcLastNYears) — no Date object.
+// Exported for unit testing; pure function with no side effects.
+export function calcLastNQuarters(todayStr: string, n: number): string[] {
+  const year = todayStr.slice(0, 4);
+  const q = Math.floor((parseInt(todayStr.slice(5, 7), 10) - 1) / 3) + 1;
+  const currentQuarter = `${year}-Q${q}`;
+  const quarters: string[] = [];
+  let qStr = currentQuarter;
+  for (let i = 0; i < n; i++) {
+    quarters.unshift(qStr);
+    qStr = prevQuarterStr(qStr);
+  }
+  return quarters;
+}
+
+export interface QuarterGoalEntry {
+  quarter: string;  // "YYYY-Q1"..."YYYY-Q4"
+  set: boolean;     // true when a goal was set for this quarter
+  done: boolean;    // true when the goal was marked accomplished
+}
+
+export interface QuarterGoalHeatmapResult {
+  /** Per-quarter set/done status, ordered oldest→newest matching the input lastNQuarters order. */
+  quarters: QuarterGoalEntry[];
+  /** Number of quarters where set === true. */
+  setCount: number;
+  /** Number of quarters where set === true AND done === true. */
+  doneCount: number;
+}
+
+// Computes N-quarter goal heatmap for the quarter goal dot row (mirrors calcMonthGoalHeatmap but uses "YYYY-QN" keys).
+// For the current quarter: set/done derive from quarterGoal/quarterGoalDone.
+// For past quarters: set = history entry exists; done = entry.done === true.
+// currentQuarter: "YYYY-QN" string for the current quarter.
+// Exported for unit testing; pure function with no side effects.
+export function calcQuarterGoalHeatmap(
+  lastNQuarters: string[],
+  currentQuarter: string,
+  quarterGoal: string | undefined,
+  quarterGoalDone: boolean | undefined,
+  history: GoalEntry[],
+): QuarterGoalHeatmapResult {
+  const quarters = lastNQuarters.map(quarter => {
+    if (quarter === currentQuarter) {
+      const set = !!(quarterGoal);
+      return { quarter, set, done: set && (quarterGoalDone ?? false) };
+    }
+    const entry = history.find(e => e.date === quarter);
+    return { quarter, set: !!entry, done: entry?.done ?? false };
+  });
+  const setCount = quarters.filter(q => q.set).length;
+  const doneCount = quarters.filter(q => q.set && q.done).length;
+  return { quarters, setCount, doneCount };
+}
+
+// Returns N "YYYY" year strings (oldest → newest), anchored at todayStr.
+// Index 0 = (N-1) years ago; index N-1 = current year.
+// Exported for unit testing; pure function with no side effects.
+export function calcLastNYears(todayStr: string, n: number): string[] {
+  const currentYear = parseInt(todayStr.slice(0, 4), 10);
+  return Array.from({ length: n }, (_, i) => String(currentYear - (n - 1 - i)));
+}
+
+export interface YearGoalEntry {
+  year: string;     // "YYYY"
+  set: boolean;     // true when a goal was set for this year
+  done: boolean;    // true when the goal was marked accomplished
+}
+
+export interface YearGoalHeatmapResult {
+  /** Per-year set/done status, ordered oldest→newest matching the input lastNYears order. */
+  years: YearGoalEntry[];
+  /** Number of years where set === true. */
+  setCount: number;
+  /** Number of years where set === true AND done === true. */
+  doneCount: number;
+}
+
+// Computes N-year goal heatmap for the year goal dot row (mirrors calcQuarterGoalHeatmap but uses "YYYY" keys).
+// For the current year: set/done derive from yearGoal/yearGoalDone.
+// For past years: set = history entry exists; done = entry.done === true.
+// currentYear: "YYYY" string for the current year.
+// Exported for unit testing; pure function with no side effects.
+export function calcYearGoalHeatmap(
+  lastNYears: string[],
+  currentYear: string,
+  yearGoal: string | undefined,
+  yearGoalDone: boolean | undefined,
+  history: GoalEntry[],
+): YearGoalHeatmapResult {
+  const years = lastNYears.map(year => {
+    if (year === currentYear) {
+      const set = !!(yearGoal);
+      return { year, set, done: set && (yearGoalDone ?? false) };
+    }
+    const entry = history.find(e => e.date === year);
+    return { year, set: !!entry, done: entry?.done ?? false };
+  });
+  const setCount = years.filter(y => y.set).length;
+  const doneCount = years.filter(y => y.set && y.done).length;
+  return { years, setCount, doneCount };
+}

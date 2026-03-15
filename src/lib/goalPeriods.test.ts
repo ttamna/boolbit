@@ -1,8 +1,8 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, and calcMonthGoalHeatmap
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, and calcYearGoalHeatmap
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap } from "./goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap } from "./goalPeriods";
 import type { GoalEntry } from "../types";
 
 describe("isoWeekStr", () => {
@@ -856,6 +856,215 @@ describe("calcMonthGoalHeatmap", () => {
     // done is only meaningful when set is true; guard: set && done
     const result = calcMonthGoalHeatmap(LAST6, CURRENT, undefined, true, []);
     const cur = result.months.find(m => m.month === CURRENT)!;
+    expect(cur.set).toBe(false);
+    expect(cur.done).toBe(false);
+  });
+});
+
+// ── calcLastNQuarters ─────────────────────────────────────────────────────────
+
+describe("calcLastNQuarters", () => {
+  it("should return [currentQuarter] when n=1", () => {
+    // 2026-03-15 is in Q1
+    expect(calcLastNQuarters("2026-03-15", 1)).toEqual(["2026-Q1"]);
+  });
+
+  it("should return 4 quarters ending at current for n=4, mid-year Q1", () => {
+    // 2026-Q1 → back 3 quarters → 2025-Q2, 2025-Q3, 2025-Q4, 2026-Q1
+    expect(calcLastNQuarters("2026-03-15", 4)).toEqual(["2025-Q2", "2025-Q3", "2025-Q4", "2026-Q1"]);
+  });
+
+  it("should wrap year boundary correctly for Q1 → Q4 of prior year", () => {
+    // 2025-Q1 → back 2 → 2024-Q3, 2024-Q4, 2025-Q1
+    expect(calcLastNQuarters("2025-01-15", 3)).toEqual(["2024-Q3", "2024-Q4", "2025-Q1"]);
+  });
+
+  it("should return 4 quarters correctly for Q4", () => {
+    // 2025-12-15 is Q4; last 4: 2025-Q1, 2025-Q2, 2025-Q3, 2025-Q4
+    expect(calcLastNQuarters("2025-12-15", 4)).toEqual(["2025-Q1", "2025-Q2", "2025-Q3", "2025-Q4"]);
+  });
+
+  it("should return empty array when n=0", () => {
+    expect(calcLastNQuarters("2026-03-15", 0)).toEqual([]);
+  });
+});
+
+// ── calcQuarterGoalHeatmap ───────────────────────────────────────────────────
+
+describe("calcQuarterGoalHeatmap", () => {
+  // Anchored to 2026-03-15 → current quarter = "2026-Q1"
+  const CURRENT_Q = "2026-Q1";
+  const LAST4 = ["2025-Q2", "2025-Q3", "2025-Q4", "2026-Q1"];
+
+  it("should return 4 quarter entries for a 4-element input", () => {
+    const result = calcQuarterGoalHeatmap(LAST4, CURRENT_Q, undefined, undefined, []);
+    expect(result.quarters).toHaveLength(4);
+  });
+
+  it("should mark current quarter set=true when quarterGoal is set", () => {
+    const result = calcQuarterGoalHeatmap(LAST4, CURRENT_Q, "ship v1", undefined, []);
+    const cur = result.quarters.find(q => q.quarter === CURRENT_Q)!;
+    expect(cur.set).toBe(true);
+    expect(cur.done).toBe(false);
+  });
+
+  it("should mark current quarter done=true when quarterGoal is set and quarterGoalDone=true", () => {
+    const result = calcQuarterGoalHeatmap(LAST4, CURRENT_Q, "ship v1", true, []);
+    const cur = result.quarters.find(q => q.quarter === CURRENT_Q)!;
+    expect(cur.set).toBe(true);
+    expect(cur.done).toBe(true);
+  });
+
+  it("should mark current quarter set=false when quarterGoal is absent", () => {
+    const result = calcQuarterGoalHeatmap(LAST4, CURRENT_Q, undefined, undefined, []);
+    const cur = result.quarters.find(q => q.quarter === CURRENT_Q)!;
+    expect(cur.set).toBe(false);
+    expect(cur.done).toBe(false);
+  });
+
+  it("should mark past quarter set=true when it exists in history", () => {
+    const history: GoalEntry[] = [{ date: "2025-Q4", text: "Q4 goal" }];
+    const result = calcQuarterGoalHeatmap(LAST4, CURRENT_Q, undefined, undefined, history);
+    const q4 = result.quarters.find(q => q.quarter === "2025-Q4")!;
+    expect(q4.set).toBe(true);
+    expect(q4.done).toBe(false);
+  });
+
+  it("should mark past quarter done=true when history entry has done=true", () => {
+    const history: GoalEntry[] = [{ date: "2025-Q4", text: "Q4 goal", done: true }];
+    const result = calcQuarterGoalHeatmap(LAST4, CURRENT_Q, undefined, undefined, history);
+    const q4 = result.quarters.find(q => q.quarter === "2025-Q4")!;
+    expect(q4.set).toBe(true);
+    expect(q4.done).toBe(true);
+  });
+
+  it("should mark past quarter set=false when not in history", () => {
+    const result = calcQuarterGoalHeatmap(LAST4, CURRENT_Q, undefined, undefined, []);
+    const q2 = result.quarters.find(q => q.quarter === "2025-Q2")!;
+    expect(q2.set).toBe(false);
+    expect(q2.done).toBe(false);
+  });
+
+  it("should count setCount and doneCount correctly across current and past quarters", () => {
+    const history: GoalEntry[] = [
+      { date: "2025-Q3", text: "goal A", done: true },
+      { date: "2025-Q4", text: "goal B" },
+    ];
+    // set: Q3(history), Q4(history), Q1(current) = 3; done: Q3(history) + Q1(current done) = 2
+    const result = calcQuarterGoalHeatmap(LAST4, CURRENT_Q, "Q1 goal", true, history);
+    expect(result.setCount).toBe(3);
+    expect(result.doneCount).toBe(2);
+  });
+
+  it("should return setCount=0 and doneCount=0 when no goals set and history empty", () => {
+    const result = calcQuarterGoalHeatmap(LAST4, CURRENT_Q, undefined, undefined, []);
+    expect(result.setCount).toBe(0);
+    expect(result.doneCount).toBe(0);
+  });
+
+  it("should not mark current quarter done when quarterGoal is absent even if quarterGoalDone=true", () => {
+    const result = calcQuarterGoalHeatmap(LAST4, CURRENT_Q, undefined, true, []);
+    const cur = result.quarters.find(q => q.quarter === CURRENT_Q)!;
+    expect(cur.set).toBe(false);
+    expect(cur.done).toBe(false);
+  });
+});
+
+// ── calcLastNYears ────────────────────────────────────────────────────────────
+
+describe("calcLastNYears", () => {
+  it("should return [currentYear] when n=1", () => {
+    expect(calcLastNYears("2026-03-15", 1)).toEqual(["2026"]);
+  });
+
+  it("should return 4 years ending at current for n=4", () => {
+    expect(calcLastNYears("2026-03-15", 4)).toEqual(["2023", "2024", "2025", "2026"]);
+  });
+
+  it("should handle year-end date correctly", () => {
+    expect(calcLastNYears("2025-12-31", 3)).toEqual(["2023", "2024", "2025"]);
+  });
+
+  it("should return empty array when n=0", () => {
+    expect(calcLastNYears("2026-03-15", 0)).toEqual([]);
+  });
+});
+
+// ── calcYearGoalHeatmap ──────────────────────────────────────────────────────
+
+describe("calcYearGoalHeatmap", () => {
+  const CURRENT_Y = "2026";
+  const LAST4Y = ["2023", "2024", "2025", "2026"];
+
+  it("should return 4 year entries for a 4-element input", () => {
+    const result = calcYearGoalHeatmap(LAST4Y, CURRENT_Y, undefined, undefined, []);
+    expect(result.years).toHaveLength(4);
+  });
+
+  it("should mark current year set=true when yearGoal is set", () => {
+    const result = calcYearGoalHeatmap(LAST4Y, CURRENT_Y, "run a marathon", undefined, []);
+    const cur = result.years.find(y => y.year === CURRENT_Y)!;
+    expect(cur.set).toBe(true);
+    expect(cur.done).toBe(false);
+  });
+
+  it("should mark current year done=true when yearGoal is set and yearGoalDone=true", () => {
+    const result = calcYearGoalHeatmap(LAST4Y, CURRENT_Y, "run a marathon", true, []);
+    const cur = result.years.find(y => y.year === CURRENT_Y)!;
+    expect(cur.set).toBe(true);
+    expect(cur.done).toBe(true);
+  });
+
+  it("should mark current year set=false when yearGoal is absent", () => {
+    const result = calcYearGoalHeatmap(LAST4Y, CURRENT_Y, undefined, undefined, []);
+    const cur = result.years.find(y => y.year === CURRENT_Y)!;
+    expect(cur.set).toBe(false);
+    expect(cur.done).toBe(false);
+  });
+
+  it("should mark past year set=true when it exists in history", () => {
+    const history: GoalEntry[] = [{ date: "2025", text: "2025 goal" }];
+    const result = calcYearGoalHeatmap(LAST4Y, CURRENT_Y, undefined, undefined, history);
+    const y25 = result.years.find(y => y.year === "2025")!;
+    expect(y25.set).toBe(true);
+    expect(y25.done).toBe(false);
+  });
+
+  it("should mark past year done=true when history entry has done=true", () => {
+    const history: GoalEntry[] = [{ date: "2024", text: "2024 goal", done: true }];
+    const result = calcYearGoalHeatmap(LAST4Y, CURRENT_Y, undefined, undefined, history);
+    const y24 = result.years.find(y => y.year === "2024")!;
+    expect(y24.set).toBe(true);
+    expect(y24.done).toBe(true);
+  });
+
+  it("should mark past year set=false when not in history", () => {
+    const result = calcYearGoalHeatmap(LAST4Y, CURRENT_Y, undefined, undefined, []);
+    const y23 = result.years.find(y => y.year === "2023")!;
+    expect(y23.set).toBe(false);
+    expect(y23.done).toBe(false);
+  });
+
+  it("should count setCount and doneCount correctly", () => {
+    const history: GoalEntry[] = [
+      { date: "2024", text: "goal", done: true },
+      { date: "2025", text: "goal" },
+    ];
+    // set: 2024 + 2025 + 2026(current) = 3; done: 2024 + 2026(done) = 2
+    const result = calcYearGoalHeatmap(LAST4Y, CURRENT_Y, "2026 goal", true, history);
+    expect(result.setCount).toBe(3);
+    expect(result.doneCount).toBe(2);
+  });
+
+  it("should return setCount=0 and doneCount=0 when no goals set and history empty", () => {
+    const result = calcYearGoalHeatmap(LAST4Y, CURRENT_Y, undefined, undefined, []);
+    expect(result.setCount).toBe(0);
+    expect(result.doneCount).toBe(0);
+  });
+
+  it("should not mark current year done when yearGoal is absent even if yearGoalDone=true", () => {
+    const result = calcYearGoalHeatmap(LAST4Y, CURRENT_Y, undefined, true, []);
+    const cur = result.years.find(y => y.year === CURRENT_Y)!;
     expect(cur.set).toBe(false);
     expect(cur.done).toBe(false);
   });

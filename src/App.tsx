@@ -15,7 +15,7 @@ import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsBadge } from "./lib/habits";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap } from "./lib/goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge } from "./lib/projects";
@@ -647,6 +647,29 @@ export default function App() {
     data.monthGoalDone,
     data.monthGoalHistory ?? [],
   );
+  // quarterGoalHeatmap: 4-quarter set/done dot row — mirrors monthGoalHeatmap for consistent visual language.
+  // last4Quarters: [3 quarters ago, …, this quarter] as "YYYY-QN" strings (oldest→newest).
+  // currentQuarterStr: derived from todayStr + currentQtr (same todayStr-based pattern as currentMonthStr/currentYearStr).
+  const currentQuarterStr = `${todayStr.slice(0, 4)}-Q${currentQtr}`; // "YYYY-Q1"…"YYYY-Q4"
+  const last4Quarters = calcLastNQuarters(todayStr, 4);
+  const quarterGoalHeatmap = calcQuarterGoalHeatmap(
+    last4Quarters,
+    currentQuarterStr,
+    data.quarterGoal,
+    data.quarterGoalDone,
+    data.quarterGoalHistory ?? [],
+  );
+  // yearGoalHeatmap: 4-year set/done dot row — mirrors quarterGoalHeatmap for consistent visual language.
+  // last4Years: [3 years ago, …, this year] as "YYYY" strings (oldest→newest).
+  const currentYearStr = todayStr.slice(0, 4); // "YYYY"
+  const last4Years = calcLastNYears(todayStr, 4);
+  const yearGoalHeatmap = calcYearGoalHeatmap(
+    last4Years,
+    currentYearStr,
+    data.yearGoal,
+    data.yearGoalDone,
+    data.yearGoalHistory ?? [],
+  );
   // M/Q/Y goal streaks: consecutive periods for which a goal was set — same reward pattern as week.
   const monthGoalStreak = calcMonthGoalStreak(data.monthGoal, data.monthGoalDate, data.monthGoalHistory ?? [], renderDate);
   const quarterGoalStreak = calcQuarterGoalStreak(data.quarterGoal, data.quarterGoalDate, data.quarterGoalHistory ?? [], renderDate);
@@ -827,6 +850,32 @@ export default function App() {
                       <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar }}>
                         <div style={{ height: "100%", width: `${Math.round(yearElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
                       </div>
+                      {/* 4-year goal heatmap — mirrors quarter goal heatmap; accent=set+done, dim=set-only, ghost=not set */}
+                      {yearGoalHeatmap.setCount > 0 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 2, paddingTop: 3 }}>
+                          {yearGoalHeatmap.years.map(({ year, set, done }, i) => {
+                            const yearsAgo = yearGoalHeatmap.years.length - 1 - i;
+                            const label = yearsAgo === 0 ? "올해" : `${yearsAgo}년 전`;
+                            return (
+                              <div
+                                key={year}
+                                title={`${label}${set ? (done ? " · 달성" : " · 설정만") : " · 없음"}`}
+                                style={{
+                                  width: 4, height: 4, borderRadius: "50%",
+                                  background: done ? themeAccent : set ? colors.textPhantom : colors.borderSubtle,
+                                  opacity: done ? 0.9 : 0.55,
+                                }}
+                              />
+                            );
+                          })}
+                          <span
+                            title={`최근 4년 목표 달성 ${yearGoalHeatmap.doneCount}/${yearGoalHeatmap.setCount}년`}
+                            style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginLeft: 3, opacity: 0.7 }}
+                          >
+                            {yearGoalHeatmap.doneCount}/{yearGoalHeatmap.setCount}✓
+                          </span>
+                        </div>
+                      )}
                       {showYearGoalHistory && (data.yearGoalHistory ?? []).length > 0 && (
                         <div style={{ marginTop: 4 }}>
                           {yearGoalRate && (
@@ -877,6 +926,32 @@ export default function App() {
                       <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar }}>
                         <div style={{ height: "100%", width: `${Math.round(quarterElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
                       </div>
+                      {/* 4-quarter goal heatmap — mirrors month goal heatmap; accent=set+done, dim=set-only, ghost=not set */}
+                      {quarterGoalHeatmap.setCount > 0 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 2, paddingTop: 3 }}>
+                          {quarterGoalHeatmap.quarters.map(({ quarter, set, done }, i) => {
+                            const quartersAgo = quarterGoalHeatmap.quarters.length - 1 - i;
+                            const label = quartersAgo === 0 ? "이번 분기" : `${quartersAgo}분기 전`;
+                            return (
+                              <div
+                                key={quarter}
+                                title={`${label}${set ? (done ? " · 달성" : " · 설정만") : " · 없음"}`}
+                                style={{
+                                  width: 4, height: 4, borderRadius: "50%",
+                                  background: done ? themeAccent : set ? colors.textPhantom : colors.borderSubtle,
+                                  opacity: done ? 0.9 : 0.55,
+                                }}
+                              />
+                            );
+                          })}
+                          <span
+                            title={`최근 4분기 목표 달성 ${quarterGoalHeatmap.doneCount}/${quarterGoalHeatmap.setCount}분기`}
+                            style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginLeft: 3, opacity: 0.7 }}
+                          >
+                            {quarterGoalHeatmap.doneCount}/{quarterGoalHeatmap.setCount}✓
+                          </span>
+                        </div>
+                      )}
                       {showQuarterGoalHistory && (data.quarterGoalHistory ?? []).length > 0 && (
                         <div style={{ marginTop: 4 }}>
                           {quarterGoalRate && (
