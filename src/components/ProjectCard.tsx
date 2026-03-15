@@ -20,9 +20,9 @@ import {
 } from "../lib/projects";
 
 const CI_COLOR: Record<NonNullable<GitHubData["ciStatus"]>, string> = {
-  success: "#4ade80",
-  failure: "#f87171",
-  pending: "#facc15",
+  success: colors.ciSuccess,
+  failure: colors.ciFailure,
+  pending: colors.ciPending,
 };
 
 // Returns a YYYY-MM-DD date string for n days from today (local time).

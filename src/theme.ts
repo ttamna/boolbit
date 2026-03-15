@@ -33,6 +33,12 @@ export const colors = {
   statusPaused: "#F87171",
   statusLongBreak: "#7DD3FC",  // long-break phase in pomodoro (sky blue)
   statusDone: "#A78BFA",       // violet — project completed
+
+  // CI build status — intentionally separate tokens from project-status tokens above
+  // so CI badge colors can evolve independently (values coincide with statusActive/Paused today)
+  ciSuccess: "#4ADE80",        // green — build passed
+  ciFailure: "#F87171",        // red — build failed or cancelled/timed-out
+  ciPending: "#FACC15",        // lighter yellow (≠ statusProgress #FBBF24 amber) — build in flight
 } as const;
 
 export const fonts = {
