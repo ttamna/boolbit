@@ -12,6 +12,19 @@ interface InlineEditProps {
   multiline?: boolean; // when true: textarea with auto-resize; Enter = newline, Ctrl+Enter = save
 }
 
+// Returns the value to save, or null if the draft should be discarded (no change or invalid).
+// multiline: trimEnd only — empty string is a valid save (field cleared; commit() forwards to onSave).
+// single-line: trim both ends — empty string is NOT saved (clearing is disallowed).
+export function resolveCommit(draft: string, original: string, multiline: boolean): string | null {
+  if (multiline) {
+    const cleaned = draft.trimEnd();
+    return cleaned !== original ? cleaned : null;
+  } else {
+    const trimmed = draft.trim();
+    return trimmed && trimmed !== original ? trimmed : null;
+  }
+}
+
 // Shrink to 0 then expand to scrollHeight so textarea fits its content exactly
 function autoResize(el: HTMLTextAreaElement | null) {
   if (!el) return;
@@ -52,18 +65,9 @@ export function InlineEdit({ value, onSave, placeholder, style, inputStyle, mult
 
   const commit = () => {
     setEditing(false);
-    if (multiline) {
-      // trimEnd only: preserve leading whitespace in the string; strip trailing newlines.
-      // Empty string is forwarded to onSave so users can clear the field by deleting all text
-      // and blurring — callers decide clearing semantics (e.g. `v || undefined`).
-      const cleaned = draft.trimEnd();
-      if (cleaned !== value) onSave(cleaned);
-      else setDraft(value);
-    } else {
-      const trimmed = draft.trim();
-      if (trimmed && trimmed !== value) onSave(trimmed);
-      else setDraft(value);
-    }
+    const newValue = resolveCommit(draft, value, multiline ?? false);
+    if (newValue !== null) onSave(newValue);
+    else setDraft(value);
   };
 
   const cancel = () => {
