@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, weekly goal streak, and success rate
+// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, weekly/monthly/quarterly/yearly goal streaks, and success rate
 // ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, and history panels
 
 import type { GoalEntry } from "../types";
@@ -22,6 +22,12 @@ export function quarterStr(date: Date): string {
   return `${date.getFullYear()}-Q${q}`;
 }
 
+// Returns "YYYY-MM" month string for the given date (zero-padded month).
+// Mirrors isoWeekStr and quarterStr for consistent key generation across all period types.
+export function monthStr(date: Date): string {
+  return date.toLocaleDateString("sv").slice(0, 7);
+}
+
 export interface GoalSuccessRate {
   /** Count of history entries with done === true. */
   done: number;
@@ -39,6 +45,62 @@ export function calcGoalSuccessRate(history: GoalEntry[]): GoalSuccessRate | nul
   if (history.length === 0) return null;
   const done = history.filter(e => e.done === true).length;
   return { done, total: history.length, pct: Math.round(done / history.length * 100) };
+}
+
+// Returns the number of consecutive months (including the current month) for which a monthly goal was set.
+// Returns 0 when: monthGoal is absent/empty, monthGoalDate is absent, or monthGoalDate ≠ current "YYYY-MM" (stale).
+// Checks history for up to 11 preceding months; stops at the first gap.
+// Maximum return value is 12 (current month + 11 history entries).
+// now: injected for deterministic testing.
+// Exported for unit testing; pure function with no side effects.
+export function calcMonthGoalStreak(
+  monthGoal: string | undefined,
+  monthGoalDate: string | undefined,
+  history: GoalEntry[],
+  now: Date,
+): number {
+  if (!monthGoal || !monthGoalDate) return 0;
+  if (monthGoalDate !== monthStr(now)) return 0;
+  const historySet = new Set(history.map(e => e.date));
+  let count = 1;
+  let year = now.getFullYear();
+  let month = now.getMonth(); // 0-based
+  for (let back = 1; back <= 11; back++) {
+    month--;
+    if (month < 0) { month = 11; year--; }
+    const key = `${year}-${String(month + 1).padStart(2, "0")}`;
+    if (historySet.has(key)) count++;
+    else break;
+  }
+  return count;
+}
+
+// Returns the number of consecutive quarters (including the current quarter) for which a quarterly goal was set.
+// Returns 0 when: quarterGoal is absent/empty, quarterGoalDate is absent, or quarterGoalDate ≠ quarterStr(now) (stale).
+// Checks history for up to 7 preceding quarters; stops at the first gap.
+// Maximum return value is 8 (current quarter + 7 history entries).
+// now: injected for deterministic testing; uses quarterStr internally.
+// Exported for unit testing; pure function with no side effects.
+export function calcQuarterGoalStreak(
+  quarterGoal: string | undefined,
+  quarterGoalDate: string | undefined,
+  history: GoalEntry[],
+  now: Date,
+): number {
+  if (!quarterGoal || !quarterGoalDate) return 0;
+  if (quarterGoalDate !== quarterStr(now)) return 0;
+  const historySet = new Set(history.map(e => e.date));
+  let count = 1;
+  let year = now.getFullYear();
+  let quarter = Math.floor(now.getMonth() / 3) + 1; // 1-based
+  for (let back = 1; back <= 7; back++) {
+    quarter--;
+    if (quarter <= 0) { quarter = 4; year--; }
+    const key = `${year}-Q${quarter}`;
+    if (historySet.has(key)) count++;
+    else break;
+  }
+  return count;
 }
 
 // Returns the number of consecutive ISO weeks (including the current week) for which a weekly goal was set.
@@ -63,6 +125,31 @@ export function calcWeekGoalStreak(
     const d = new Date(base);
     d.setDate(d.getDate() - back * 7);
     if (historySet.has(isoWeekStr(d))) count++;
+    else break;
+  }
+  return count;
+}
+
+// Returns the number of consecutive years (including the current year) for which a yearly goal was set.
+// Returns 0 when: yearGoal is absent/empty, yearGoalDate is absent, or yearGoalDate ≠ current "YYYY" (stale).
+// Checks history for up to 4 preceding years; stops at the first gap.
+// Maximum return value is 5 (current year + 4 history entries, matching yearGoalHistory cap).
+// now: injected for deterministic testing.
+// Exported for unit testing; pure function with no side effects.
+export function calcYearGoalStreak(
+  yearGoal: string | undefined,
+  yearGoalDate: string | undefined,
+  history: GoalEntry[],
+  now: Date,
+): number {
+  if (!yearGoal || !yearGoalDate) return 0;
+  const currentYear = String(now.getFullYear());
+  if (yearGoalDate !== currentYear) return 0;
+  const historySet = new Set(history.map(e => e.date));
+  let count = 1;
+  for (let back = 1; back <= 4; back++) {
+    const key = String(now.getFullYear() - back);
+    if (historySet.has(key)) count++;
     else break;
   }
   return count;
