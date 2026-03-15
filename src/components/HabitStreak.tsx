@@ -6,7 +6,7 @@ import type { Habit } from "../types";
 import { fonts, fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
 import { useEditMode } from "../hooks/useEditMode";
-import { calcHabitWeekStats, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct } from "../lib/habits";
+import { calcHabitWeekStats, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck } from "../lib/habits";
 import { calcLastNDays } from "../lib/datePeriods";
 // Re-export the 4 helpers that moved from this file to lib/habits — preserves any existing imports.
 export { getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo };
@@ -28,9 +28,11 @@ interface HabitStreakProps {
   onHabitsChange?: (habits: Habit[]) => void;
   accent?: string;
   onMilestoneReached?: (habitName: string, streak: number, badge: string) => void;
+  soundEnabled?: boolean; // play audio cue on check-in when true; absent/false = silent
+  onSoundChange?: (v: boolean) => void; // persist sound toggle
 }
 
-export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilestoneReached }: HabitStreakProps) {
+export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilestoneReached, soundEnabled, onSoundChange }: HabitStreakProps) {
   const [newIcon, setNewIcon] = useState("⭐");
   const [newName, setNewName] = useState("");
   const { editing, openEditing, closeEditing } = useEditMode();
@@ -88,6 +90,11 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
       // Note: streak is incremented unconditionally (pre-existing design — no consecutive-day check).
       const patch = calcCheckInPatch(h, todayStr);
       onUpdate?.(i, patch);
+      // Play audio cue: allDone=true when this check-in completes the last remaining habit today.
+      if (soundEnabled) {
+        const uncheckedBefore = habits.filter(habit => habit.lastChecked !== todayStr).length;
+        void playHabitCheck(uncheckedBefore === 1);
+      }
       // Fire milestone notification when the check-in crosses a new milestone boundary.
       // Guard: only fire when onUpdate is defined (streak is actually being saved).
       // Dedup: milestoneNotifiedRef prevents re-fires on undo+redo within the same day.
@@ -135,6 +142,8 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
       return { ...h, ...calcCheckInPatch(h, todayStr) };
     });
     onHabitsChange(updatedHabits);
+    // Batch check-in always completes all habits → allDone=true celebration sound.
+    if (soundEnabled) void playHabitCheck(true);
     // Fire milestone and targetStreak notifications — mirrors checkHabit's single-check logic.
     // Reads newStreak from updatedHabits to stay in sync with calcCheckInPatch's result.
     habits.forEach((h, idx) => {
@@ -603,6 +612,19 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
             </span>
           ) : <span />}
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {onSoundChange && (
+              <button
+                onClick={() => onSoundChange(!soundEnabled)}
+                title={soundEnabled ? "체크인 사운드 켜짐 — 클릭하여 끄기" : "체크인 사운드 꺼짐 — 클릭하여 켜기"}
+                style={{
+                  background: "transparent", border: "none", cursor: "pointer",
+                  color: soundEnabled ? (accent ?? colors.textSubtle) : colors.textPhantom,
+                  fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1,
+                }}
+              >
+                {soundEnabled ? "🔊" : "🔇"}
+              </button>
+            )}
             {habits.length >= 2 && (
               <button
                 onClick={handleSort}

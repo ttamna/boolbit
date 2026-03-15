@@ -501,6 +501,11 @@ export default function App() {
     persist({ ...data, pomodoroSound: pomodoroSound || undefined });
   }, [data, persist]);
 
+  const updateHabitsSound = useCallback((habitsSound: boolean) => {
+    // Store true when enabled; coerce false → undefined so absent and false are both "disabled"
+    persist({ ...data, habitsSound: habitsSound || undefined });
+  }, [data, persist]);
+
   // Batch-refresh GitHub data for all projects that have a repo set.
   // Fetches all repos in parallel, then applies results atomically to avoid
   // parallel-persist races (each updateProject call would overwrite the others).
@@ -781,7 +786,7 @@ export default function App() {
             <Fragment key="streaks">
               <SectionLabel accent={themeAccent} collapsed={collapsed.includes("streaks")} onToggle={() => toggleSection("streaks")} badge={habitsBadge} onMoveUp={up} onMoveDown={dn}>Streaks</SectionLabel>
               {!collapsed.includes("streaks") && (
-                <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} accent={themeAccent} onMilestoneReached={handleHabitMilestone} />
+                <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} accent={themeAccent} onMilestoneReached={handleHabitMilestone} soundEnabled={data.habitsSound} onSoundChange={updateHabitsSound} />
               )}
             </Fragment>
           );

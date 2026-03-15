@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, and calcTargetStreakPct pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, and target streak progress
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, and playHabitCheck pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, and audio feedback
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -822,5 +822,19 @@ describe("calcTargetStreakPct", () => {
 
   it("should return 100 for streak=7, target=7 (week goal exactly met)", () => {
     expect(calcTargetStreakPct(7, 7)).toBe(100);
+  });
+});
+
+describe("playHabitCheck", () => {
+  it("should resolve without error for a regular check-in (AudioContext unavailable in jsdom)", async () => {
+    await expect(playHabitCheck()).resolves.toBeUndefined();
+  });
+
+  it("should resolve without error when allDone=true (all habits completed today)", async () => {
+    await expect(playHabitCheck(true)).resolves.toBeUndefined();
+  });
+
+  it("should resolve without error when allDone=false (explicit partial check)", async () => {
+    await expect(playHabitCheck(false)).resolves.toBeUndefined();
   });
 });

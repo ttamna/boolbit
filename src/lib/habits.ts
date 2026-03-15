@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for habit statistics and check-in logic — no side effects
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate daily completion rate, section badge, check-in patch, and perfect-day streak
+// ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate daily completion rate, section badge, check-in patch, perfect-day streak, and habit check-in audio cue
 
 import type { Habit } from "../types";
 
@@ -207,4 +207,43 @@ export function calcHabitWeekStats(
   const prev7 = last14Days.slice(0, 7).filter(day => history.includes(day)).length;
   const trend = cur7 > prev7 ? "↑" : cur7 < prev7 ? "↓" : "";
   return { cur7, prev7, trend };
+}
+
+// Plays a short audio cue when a habit is checked in using the Web Audio API.
+// Regular check: single E5 tone (659 Hz) — crisp, positive confirmation.
+// All done (allDone=true): ascending D5→G5 two-tone (587→784 Hz) — celebratory "all complete" signal.
+// Resolves immediately when AudioContext is unavailable (jsdom, restricted iframe, etc.).
+// Not a pure function — has audio side effects; exported for use in HabitStreak.
+export async function playHabitCheck(allDone = false): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Ctx = (window as any).AudioContext ?? (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx() as AudioContext;
+    // allDone: ascending D5→G5 (587→784 Hz); regular: single E5 (659 Hz)
+    const freqs: number[] = allDone ? [587, 784] : [659];
+    const toneDuration = 0.1;
+    const toneGap = 0.04;
+
+    freqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * (toneDuration + toneGap);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.18, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + toneDuration);
+      osc.start(t);
+      osc.stop(t + toneDuration);
+    });
+
+    const totalMs = ((freqs.length - 1) * (toneDuration + toneGap) + toneDuration + 0.05) * 1000;
+    await new Promise<void>(resolve => setTimeout(resolve, totalMs));
+    await ctx.close();
+  } catch {
+    // Graceful fallback: AudioContext unavailable or restricted
+  }
 }
