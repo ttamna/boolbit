@@ -21,6 +21,7 @@ import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory } from "./lib/momentum";
+import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -631,6 +632,16 @@ export default function App() {
     intentionDone: !!data.todayIntentionDone,
     intentionSet: !!data.todayIntention,
   });
+  // todayInsight: single most actionable context-aware insight for the Clock badge
+  const todayInsight = calcTodayInsight({
+    habits: habitsArr,
+    todayStr,
+    nowHour: renderDate.getHours(),
+    todayIntentionDate: data.todayIntentionDate,
+    sessionsToday: pomodoroSessionsToday,
+    sessionGoal: data.pomodoroSessionGoal,
+    habitsAllDoneDate: data.habitsAllDoneDate,
+  });
   // Persist today's momentum score whenever it changes — upserts into rolling 7-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
   // (e.g. pomodoro session or habit check-in that updates data between renders).
@@ -799,6 +810,7 @@ export default function App() {
           onToggleFormat={() => updateSettings({ clockFormat: settings.clockFormat === "12h" ? "24h" : "12h" })}
           dailyScore={dailyScore}
           momentumHistory={data.momentumHistory}
+          insight={todayInsight ?? undefined}
         />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {

@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { DailyScore } from "../lib/momentum";
+import type { TodayInsight } from "../lib/insight";
 import type { MomentumEntry } from "../types";
 
 // Returns the fraction of the calendar day elapsed (0.0 = midnight, 0.5 = noon, 1.0 = end of day).
@@ -42,9 +43,11 @@ interface ClockProps {
   dailyScore?: DailyScore;
   /** Rolling 7-day momentum score history; newest last; absent = no sparkline */
   momentumHistory?: MomentumEntry[];
+  /** Optional context-aware insight shown below the sparkline */
+  insight?: TodayInsight;
 }
 
-export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory }: ClockProps) {
+export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight }: ClockProps) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -160,6 +163,21 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
               />
             );
           })}
+        </div>
+      )}
+      {/* Today's insight — context-aware one-liner: streak risk, milestone, intention, pomodoro */}
+      {insight && (
+        <div style={{
+          marginTop: showSparkline ? 4 : 6,
+          fontSize: fontSizes.mini,
+          color: insight.level === "warning" ? colors.statusPaused
+            : insight.level === "success" ? (accent ?? colors.statusActive)
+            : colors.textLabel,
+          opacity: 0.75,
+          letterSpacing: 0.3,
+          userSelect: "none",
+        }}>
+          {insight.text}
         </div>
       )}
       {/* Day progress bar — shows how much of today has elapsed */}
