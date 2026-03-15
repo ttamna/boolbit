@@ -2,7 +2,7 @@
 // ABOUTME: Covers leap-year edge cases for month/quarter/year and fraction boundary values
 
 import { describe, it, expect } from "vitest";
-import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear } from "./datePeriods";
+import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./datePeriods";
 
 describe("totalDaysInMonth", () => {
   it("should return 31 for January", () => {
@@ -208,5 +208,69 @@ describe("daysLeftInYear", () => {
   it("should return 307 on February 29 of a leap year (leap day is included)", () => {
     // Feb 29 (leap) to Dec 31 inclusive: Mar(31)+Apr(30)+May(31)+Jun(30)+Jul(31)+Aug(31)+Sep(30)+Oct(31)+Nov(30)+Dec(31) + 1(Feb29) = 307
     expect(daysLeftInYear(new Date(2024, 1, 29))).toBe(307);
+  });
+});
+
+describe("calcLastNDays", () => {
+  it("should return exactly n strings", () => {
+    expect(calcLastNDays("2026-03-15", 7)).toHaveLength(7);
+    expect(calcLastNDays("2026-03-15", 14)).toHaveLength(14);
+  });
+
+  it("should return n=1 as [todayStr]", () => {
+    expect(calcLastNDays("2026-03-15", 1)).toEqual(["2026-03-15"]);
+  });
+
+  it("should return oldest-first with todayStr as the last element", () => {
+    const result = calcLastNDays("2026-03-15", 7);
+    expect(result[6]).toBe("2026-03-15");
+    expect(result[0]).toBe("2026-03-09");
+  });
+
+  it("should return consecutive dates with no gaps", () => {
+    const result = calcLastNDays("2026-03-15", 7);
+    for (let i = 1; i < result.length; i++) {
+      // Use setDate to advance by 1 day — DST-safe (avoids 86400000ms timestamp arithmetic)
+      const expectedNext = new Date(result[i - 1] + "T00:00:00");
+      expectedNext.setDate(expectedNext.getDate() + 1);
+      expect(expectedNext.toLocaleDateString("sv")).toBe(result[i]);
+    }
+  });
+
+  it("should cross a month boundary correctly (Mar 5 → Feb 27 start)", () => {
+    // last 7 days ending 2026-03-05: 2026-02-27 through 2026-03-05
+    const result = calcLastNDays("2026-03-05", 7);
+    expect(result[0]).toBe("2026-02-27");
+    expect(result[6]).toBe("2026-03-05");
+  });
+
+  it("should cross a year boundary correctly (Jan 3 → Dec 28 start)", () => {
+    // last 7 days ending 2026-01-03: 2025-12-28 through 2026-01-03
+    const result = calcLastNDays("2026-01-03", 7);
+    expect(result[0]).toBe("2025-12-28");
+    expect(result[6]).toBe("2026-01-03");
+  });
+
+  it("should handle 14-day window matching calcLast14Days contract", () => {
+    // last 14 days ending 2026-03-15: 2026-03-02 through 2026-03-15
+    const result = calcLastNDays("2026-03-15", 14);
+    expect(result[0]).toBe("2026-03-02");
+    expect(result[13]).toBe("2026-03-15");
+  });
+
+  it("should handle Feb 28 → Feb 29 leap-year boundary in a 3-day window", () => {
+    // 2024-03-01 ending: 2024-02-28, 2024-02-29, 2024-03-01
+    const result = calcLastNDays("2024-03-01", 3);
+    expect(result).toEqual(["2024-02-28", "2024-02-29", "2024-03-01"]);
+  });
+
+  it("should return all YYYY-MM-DD formatted strings", () => {
+    const result = calcLastNDays("2026-03-15", 7);
+    const isoPattern = /^\d{4}-\d{2}-\d{2}$/;
+    result.forEach(d => expect(d).toMatch(isoPattern));
+  });
+
+  it("should return an empty array when n is 0", () => {
+    expect(calcLastNDays("2026-03-15", 0)).toEqual([]);
   });
 });

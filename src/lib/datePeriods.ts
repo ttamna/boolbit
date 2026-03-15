@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for computing period counts and remaining days from a local Date
-// ABOUTME: Used by App.tsx direction-section for goal row progress bars and urgency badges
+// ABOUTME: Pure helpers for period counts, remaining days, elapsed fractions, and date range arrays
+// ABOUTME: Used by App.tsx for direction-section goal rows, urgency badges, and last-N-days windows
 
 /** Total days in the calendar month containing `date` (local time). */
 export function totalDaysInMonth(date: Date): number {
@@ -68,4 +68,20 @@ export function daysLeftInYear(date: Date): number {
   const y = date.getFullYear();
   // Date(y+1, 0, 0) = December 31 of year y (January day 0 of y+1 = last day of y)
   return Math.floor((new Date(y + 1, 0, 0).getTime() - date.getTime()) / 86400000) + 1;
+}
+
+/**
+ * Returns the last n YYYY-MM-DD date strings anchored at todayStr (local midnight basis),
+ * ordered oldest → newest. The last element is always todayStr.
+ *
+ * Uses local midnight to avoid DST distortions that would occur with timestamp arithmetic.
+ * n=7: [6daysAgo, ..., yesterday, today]; n=14: [13daysAgo, ..., today].
+ */
+export function calcLastNDays(todayStr: string, n: number): string[] {
+  const base = new Date(todayStr + "T00:00:00");
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(base);
+    d.setDate(d.getDate() - (n - 1 - i));
+    return d.toLocaleDateString("sv");
+  });
 }

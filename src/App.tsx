@@ -12,7 +12,7 @@ import { useWindowSync } from "./hooks/useWindowSync";
 import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
-import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear } from "./lib/datePeriods";
+import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsBadge } from "./lib/habits";
 import { isoWeekStr, quarterStr } from "./lib/goalPeriods";
@@ -624,12 +624,7 @@ export default function App() {
   );
   // last7Days: [6daysAgo, ..., yesterday, today] as YYYY-MM-DD strings (oldest→newest, HabitStreak.tsx convention).
   // Single source shared by habitsWeekRate, weekPomodoroCount, and recentlyDoneCount.
-  // Anchors to todayMidnight for DST safety.
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(todayMidnight);
-    d.setDate(d.getDate() - (6 - i));
-    return d.toLocaleDateString("sv");
-  });
+  const last7Days = calcLastNDays(todayStr, 7);
   // intentionWeek: per-day set/done status for the last 7 days — pure function extracted to src/lib/intention.ts.
   // Note: updateIntention preserves history entries when the user clears today's intention
   // ("leave history unchanged so the last set text is preserved for reflection"). So `set: !!entry`
