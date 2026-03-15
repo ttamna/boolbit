@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useMemo, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { PomodoroDay } from "../types";
+import { calcLast14Days, calcSessionWeekTrend } from "../lib/pomodoro";
 
 type Phase = "focus" | "break" | "longBreak";
 
@@ -279,17 +280,9 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   // phaseColor: focus phase uses the theme accent; break phases keep semantic colors for clear phase distinction.
   const phaseColor = phase === "focus" ? focusColor : phaseAccent(phase);
 
-  // Last 14 days (oldest to newest) derived from todayStr — recomputed when history changes or at midnight.
+  // Last 14 days (oldest to newest) derived from todayStr — recomputed at midnight.
   // pomodoroHistory is capped at 14 entries in lib.rs sanitize; rendering all 14 uses stored data fully.
-  const last14Days = useMemo(() => {
-    if (!sessionHistory) return null;
-    const base = new Date(todayStr + "T00:00:00");
-    return Array.from({ length: 14 }, (_, i) => {
-      const d = new Date(base);
-      d.setDate(d.getDate() - (13 - i));
-      return d.toLocaleDateString("sv");
-    });
-  }, [sessionHistory, todayStr]);
+  const last14Days = useMemo(() => calcLast14Days(todayStr), [todayStr]);
 
   // intentionText: trimmed non-empty intention to display during focus sessions; undefined when empty/done
   const intentionText = todayIntention?.trim() || undefined;
@@ -321,18 +314,11 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     : "focus";
 
   // sessionWeekTrend: memoized prev-7/cur-7 session data with histMap bundled for heatmap render.
-  // Co-located with sessionHistory/last14Days to make dependencies explicit; null when no history.
   // Sessions per 7-day window are unbounded (unlike habits where max is 7), so counts use "회" not "/7".
-  const sessionWeekTrend = useMemo(() => {
-    if (!last14Days || !sessionHistory || sessionHistory.length === 0) return null;
-    const histMap = new Map(sessionHistory.map(d => [d.date, d.count] as [string, number]));
-    // cur7: slice(7) = last14Days[7..13] = most recent 7 days; prev7: slice(0,7) = prior 7 days
-    const cur7 = last14Days.slice(7).reduce((s, d) => s + (histMap.get(d) ?? 0), 0);
-    const prev7 = last14Days.slice(0, 7).reduce((s, d) => s + (histMap.get(d) ?? 0), 0);
-    // trend: ↑ improving, ↓ declining, "" stable — suppressed when equal to avoid noise
-    const trend = cur7 > prev7 ? "↑" : cur7 < prev7 ? "↓" : "";
-    return { days: last14Days, histMap, cur7, prev7, trend };
-  }, [last14Days]); // last14Days already encodes sessionHistory + todayStr (its own deps)
+  const sessionWeekTrend = useMemo(
+    () => calcSessionWeekTrend(sessionHistory ?? [], last14Days),
+    [sessionHistory, last14Days],
+  );
 
   return (
     <div style={{ borderTop: `1px solid ${colors.borderFaint}`, marginTop: 4 }}>
@@ -414,7 +400,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           Dots split into prev-7 | cur-7 with a 5px gap at di===7 (mirrors HabitStreak.tsx week-boundary pattern). */}
       {sessionWeekTrend && (
         <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 2, paddingBottom: 6 }}>
-          {sessionWeekTrend.days.map((day, di) => {
+          {last14Days.map((day, di) => {
             const count = sessionWeekTrend.histMap.get(day) ?? 0;
             const daysAgo = 13 - di;
             const label = daysAgo === 0
