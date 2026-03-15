@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all eight insight types and their priority ordering
+// ABOUTME: Covers all nine insight types and their priority ordering
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -863,6 +863,39 @@ describe("calcTodayInsight", () => {
     expect(result).toBeNull();
   });
 
+  it("shouldReturnWeekGoalExpiryWhenDaysLeftWeekZero", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "주간 목표",
+      weekGoalDone: false,
+      daysLeftWeek: 0,
+    });
+    expect(result!.text).toContain("오늘 마감");
+  });
+
+  it("shouldReturnWeekGoalExpiryWhenDoneUndefined", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "주간 목표",
+      weekGoalDone: undefined,
+      daysLeftWeek: 1,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("주간 목표 마감 임박");
+  });
+
   it("shouldReturnGoalExpiryForMonthGoalOnLastDayOfMonth", () => {
     const result = calcTodayInsight({
       habits: [],
@@ -933,6 +966,22 @@ describe("calcTodayInsight", () => {
     expect(result).toBeNull();
   });
 
+  it("shouldReturnMonthGoalExpiryWhenDaysLeftMonthZero", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: "월간 목표",
+      monthGoalDone: false,
+      daysLeftMonth: 0,
+    });
+    expect(result!.text).toContain("오늘 마감");
+  });
+
   it("shouldPrioritizeWeekGoalExpiryOverMonthGoalExpiry", () => {
     const result = calcTodayInsight({
       habits: [],
@@ -985,5 +1034,282 @@ describe("calcTodayInsight", () => {
       daysLeftWeek: 1,  // goal_expiry
     });
     expect(result!.text).toContain("주간 목표");  // goal_expiry wins over project_stale
+  });
+
+  // ── quarter goal expiry ────────────────────────────────────────────────────
+  it("shouldReturnQuarterGoalExpiryWhenDaysLeftQuarter7", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      quarterGoal: "분기 목표",
+      quarterGoalDone: false,
+      daysLeftQuarter: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("분기 목표 마감 임박");
+    expect(result!.text).toContain("7일");
+  });
+
+  it("shouldReturnQuarterGoalExpiryWhenDaysLeftQuarter1", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      quarterGoal: "분기 목표",
+      quarterGoalDone: false,
+      daysLeftQuarter: 1,
+    });
+    expect(result!.text).toContain("오늘 마감");
+  });
+
+  it("shouldNotReturnQuarterGoalExpiryWhenDone", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      quarterGoal: "분기 목표",
+      quarterGoalDone: true,
+      daysLeftQuarter: 1,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnQuarterGoalExpiryWhenDoneUndefined", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      quarterGoal: "분기 목표",
+      quarterGoalDone: undefined,
+      daysLeftQuarter: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("분기 목표 마감 임박");
+  });
+
+  it("shouldReturnQuarterGoalExpiryWhenDaysLeftQuarterZero", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      quarterGoal: "분기 목표",
+      quarterGoalDone: false,
+      daysLeftQuarter: 0,
+    });
+    expect(result!.text).toContain("오늘 마감");
+  });
+
+  it("shouldNotReturnQuarterGoalExpiryWhenDaysLeft8", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      quarterGoal: "분기 목표",
+      quarterGoalDone: false,
+      daysLeftQuarter: 8,
+    });
+    expect(result).toBeNull();
+  });
+
+  // ── year goal expiry ───────────────────────────────────────────────────────
+  it("shouldReturnYearGoalExpiryWhenDaysLeftYear14", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "연간 목표",
+      yearGoalDone: false,
+      daysLeftYear: 14,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("연간 목표 마감 임박");
+    expect(result!.text).toContain("14일");
+  });
+
+  it("shouldReturnYearGoalExpiryWhenDaysLeftYear1", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "연간 목표",
+      yearGoalDone: false,
+      daysLeftYear: 1,
+    });
+    expect(result!.text).toContain("오늘 마감");
+  });
+
+  it("shouldNotReturnYearGoalExpiryWhenDone", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "연간 목표",
+      yearGoalDone: true,
+      daysLeftYear: 1,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnYearGoalExpiryWhenDoneUndefined", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "연간 목표",
+      yearGoalDone: undefined,
+      daysLeftYear: 10,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연간 목표 마감 임박");
+  });
+
+  it("shouldReturnYearGoalExpiryWhenDaysLeftYearZero", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "연간 목표",
+      yearGoalDone: false,
+      daysLeftYear: 0,
+    });
+    expect(result!.text).toContain("오늘 마감");
+  });
+
+  it("shouldNotReturnYearGoalExpiryWhenDaysLeft15", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "연간 목표",
+      yearGoalDone: false,
+      daysLeftYear: 15,
+    });
+    expect(result).toBeNull();
+  });
+
+  // ── quarter/year goal expiry priority ordering ─────────────────────────────
+  it("shouldPrioritizeWeekGoalOverQuarterGoal", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "주간 목표",
+      weekGoalDone: false,
+      daysLeftWeek: 1,
+      quarterGoal: "분기 목표",
+      quarterGoalDone: false,
+      daysLeftQuarter: 7,
+    });
+    expect(result!.text).toContain("주간 목표");  // week goal wins
+  });
+
+  it("shouldPrioritizeMonthGoalOverQuarterGoal", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: "월간 목표",
+      monthGoalDone: false,
+      daysLeftMonth: 1,
+      quarterGoal: "분기 목표",
+      quarterGoalDone: false,
+      daysLeftQuarter: 1,  // both at most urgent — month wins
+    });
+    expect(result!.text).toContain("월간 목표");  // month goal wins
+  });
+
+  it("shouldPrioritizeQuarterGoalOverYearGoal", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      quarterGoal: "분기 목표",
+      quarterGoalDone: false,
+      daysLeftQuarter: 7,
+      yearGoal: "연간 목표",
+      yearGoalDone: false,
+      daysLeftYear: 14,
+    });
+    expect(result!.text).toContain("분기 목표");  // quarter goal wins
+  });
+
+  it("shouldPrioritizeQuarterGoalOverProjectStale", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "방치된프로젝트", status: "active", lastFocusDate: DAYS_7_AGO }],
+      quarterGoal: "분기 목표",
+      quarterGoalDone: false,
+      daysLeftQuarter: 7,
+    });
+    expect(result!.text).toContain("분기 목표");  // quarter goal_expiry wins over project_stale
   });
 });

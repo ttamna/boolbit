@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > pomodoro > deadline soon > goal expiry > project stale
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > pomodoro > deadline soon > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > project stale
 
 import { getUpcomingMilestone } from "./habits";
 import type { Project } from "../types";
@@ -33,6 +33,18 @@ interface InsightParams {
   monthGoalDone?: boolean;
   /** Days remaining in the current calendar month (including today); 1 = last day of the month. */
   daysLeftMonth?: number;
+  /** Quarterly goal text; absent/empty = no goal set. */
+  quarterGoal?: string;
+  /** True when quarterly goal has been marked done; absent/false = not done. */
+  quarterGoalDone?: boolean;
+  /** Days remaining in the current calendar quarter (including today); 1 = last day of the quarter. */
+  daysLeftQuarter?: number;
+  /** Yearly goal text; absent/empty = no goal set. */
+  yearGoal?: string;
+  /** True when yearly goal has been marked done; absent/false = not done. */
+  yearGoalDone?: boolean;
+  /** Days remaining in the current calendar year (including today); 1 = last day of the year. */
+  daysLeftYear?: number;
 }
 
 // Returns days from todayStr until deadline (0 = today, positive = future). Uses injected todayStr for testability.
@@ -51,6 +63,8 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
     weekGoal, weekGoalDone, daysLeftWeek,
     monthGoal, monthGoalDone, daysLeftMonth,
+    quarterGoal, quarterGoalDone, daysLeftQuarter,
+    yearGoal, yearGoalDone, daysLeftYear,
   } = params;
 
   // 1. Streak at risk: evening (≥ 18h) + high streak (≥ 7) + not yet checked today
@@ -113,15 +127,23 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     }
   }
 
-  // 8. Goal expiry: personal goal period ending in ≤2 days and not yet marked done
-  // Week goal takes priority (shorter cycle = higher urgency than month).
+  // 8. Goal expiry: personal goal period ending soon and not yet marked done.
+  // Priority: week (≤2d) > month (≤2d) > quarter (≤7d) > year (≤14d) — shorter cycle = higher urgency.
   if (weekGoal && !weekGoalDone && daysLeftWeek != null && daysLeftWeek <= 2) {
-    const suffix = daysLeftWeek === 1 ? "오늘 마감" : `${daysLeftWeek}일`;
+    const suffix = daysLeftWeek <= 1 ? "오늘 마감" : `${daysLeftWeek}일`;
     return { text: `📋 주간 목표 마감 임박 (${suffix})`, level: "warning" };
   }
   if (monthGoal && !monthGoalDone && daysLeftMonth != null && daysLeftMonth <= 2) {
-    const suffix = daysLeftMonth === 1 ? "오늘 마감" : `${daysLeftMonth}일`;
+    const suffix = daysLeftMonth <= 1 ? "오늘 마감" : `${daysLeftMonth}일`;
     return { text: `📋 월간 목표 마감 임박 (${suffix})`, level: "warning" };
+  }
+  if (quarterGoal && !quarterGoalDone && daysLeftQuarter != null && daysLeftQuarter <= 7) {
+    const suffix = daysLeftQuarter <= 1 ? "오늘 마감" : `${daysLeftQuarter}일`;
+    return { text: `📋 분기 목표 마감 임박 (${suffix})`, level: "warning" };
+  }
+  if (yearGoal && !yearGoalDone && daysLeftYear != null && daysLeftYear <= 14) {
+    const suffix = daysLeftYear <= 1 ? "오늘 마감" : `${daysLeftYear}일`;
+    return { text: `📋 연간 목표 마감 임박 (${suffix})`, level: "warning" };
   }
 
   // 9. Project stale: active/in-progress project not focused via pomodoro in 7+ days

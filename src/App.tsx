@@ -663,6 +663,12 @@ export default function App() {
     monthGoal: data.monthGoal,
     monthGoalDone: data.monthGoalDone,
     daysLeftMonth,
+    quarterGoal: data.quarterGoal,
+    quarterGoalDone: data.quarterGoalDone,
+    daysLeftQuarter,
+    yearGoal: data.yearGoal,
+    yearGoalDone: data.yearGoalDone,
+    daysLeftYear,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 7-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
