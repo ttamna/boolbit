@@ -7,6 +7,7 @@ import { fonts, fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
 import { useEditMode } from "../hooks/useEditMode";
 import { calcHabitWeekStats, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo } from "../lib/habits";
+import { calcLastNDays } from "../lib/datePeriods";
 // Re-export the 4 helpers that moved from this file to lib/habits — preserves any existing imports.
 export { getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo };
 
@@ -41,16 +42,8 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
   }, []);
 
   // Last 14 days as YYYY-MM-DD strings (oldest → newest), derived from todayStr to stay consistent.
-  // Using todayStr as base (not new Date()) prevents a 1-min mismatch right after midnight
-  // when todayStr is still yesterday but new Date() has already advanced to the new day.
-  const last14Days = useMemo(() => {
-    const base = new Date(todayStr + "T00:00:00"); // local midnight of todayStr
-    return Array.from({ length: 14 }, (_, i) => {
-      const d = new Date(base);
-      d.setDate(d.getDate() - (13 - i));
-      return d.toLocaleDateString("sv");
-    });
-  }, [todayStr]);
+  // todayStr base prevents 1-min mismatch right after midnight when todayStr is still yesterday but new Date() has already advanced.
+  const last14Days = calcLastNDays(todayStr, 14);
 
   // Tracks milestone badges already notified today per habit — prevents re-fires on undo+redo.
   // Key: habitId (stable) or index string; value: Set of badge strings fired today.
