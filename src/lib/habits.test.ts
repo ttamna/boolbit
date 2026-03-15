@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate and calcHabitWeekStats pure helpers
-// ABOUTME: Validates average daily completion rate and per-habit weekly trend statistics
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, and calcHabitsBadge pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, and section badge formatting
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -221,5 +221,61 @@ describe("calcHabitWeekStats", () => {
   it("should handle single check in previous week", () => {
     const result = calcHabitWeekStats([PREV_7[0]], LAST_14);
     expect(result).toEqual({ cur7: 0, prev7: 1, trend: "↓" });
+  });
+});
+
+describe("calcHabitsBadge", () => {
+  it("should return undefined when habitCount is 0", () => {
+    expect(calcHabitsBadge({ habitCount: 0, doneToday: 0, atRisk: 0, weekRate: null })).toBeUndefined();
+  });
+
+  it("should return 'N/M' when weekRate is null and atRisk is 0", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: null })).toBe("2/4");
+  });
+
+  it("should append '7d·N%' when weekRate is non-null", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 0, weekRate: 75 })).toBe("2/4 · 7d·75%");
+  });
+
+  it("should append '⚠N' when atRisk > 0", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 1, weekRate: null })).toBe("2/4 · ⚠1");
+  });
+
+  it("should include all three parts when weekRate is non-null and atRisk > 0", () => {
+    expect(calcHabitsBadge({ habitCount: 5, doneToday: 3, atRisk: 2, weekRate: 80 })).toBe("3/5 · 7d·80% · ⚠2");
+  });
+
+  it("should handle all habits done today (doneToday === habitCount)", () => {
+    expect(calcHabitsBadge({ habitCount: 3, doneToday: 3, atRisk: 0, weekRate: 100 })).toBe("3/3 · 7d·100%");
+  });
+
+  it("should handle zero done today", () => {
+    expect(calcHabitsBadge({ habitCount: 3, doneToday: 0, atRisk: 0, weekRate: null })).toBe("0/3");
+  });
+
+  it("should omit the weekRate part when weekRate is null", () => {
+    const badge = calcHabitsBadge({ habitCount: 3, doneToday: 1, atRisk: 0, weekRate: null });
+    expect(badge).not.toContain("7d");
+  });
+
+  it("should omit the atRisk part when atRisk is 0", () => {
+    const badge = calcHabitsBadge({ habitCount: 3, doneToday: 3, atRisk: 0, weekRate: 100 });
+    expect(badge).not.toContain("⚠");
+  });
+
+  it("should join parts with ' · ' separator", () => {
+    const badge = calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 1, weekRate: 50 });
+    expect(badge).toBe("2/4 · 7d·50% · ⚠1");
+    expect(badge!.split(" · ")).toHaveLength(3);
+  });
+
+  it("should show weekRate=0 when explicitly provided (caller controls the null-guard)", () => {
+    // calcHabitsWeekRate already returns null when no checks exist in window (avoids misleading 0%).
+    // calcHabitsBadge is a pass-through: if weekRate=0 is given, it still renders.
+    expect(calcHabitsBadge({ habitCount: 2, doneToday: 1, atRisk: 0, weekRate: 0 })).toBe("1/2 · 7d·0%");
+  });
+
+  it("should handle large atRisk count without truncation", () => {
+    expect(calcHabitsBadge({ habitCount: 10, doneToday: 0, atRisk: 10, weekRate: null })).toBe("0/10 · ⚠10");
   });
 });

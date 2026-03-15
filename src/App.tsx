@@ -14,7 +14,7 @@ import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear } from "./lib/datePeriods";
 import { calcIntentionStreak } from "./lib/intention";
-import { calcHabitsWeekRate } from "./lib/habits";
+import { calcHabitsWeekRate, calcHabitsBadge } from "./lib/habits";
 import { isoWeekStr, quarterStr } from "./lib/goalPeriods";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge } from "./lib/projects";
@@ -715,15 +715,14 @@ export default function App() {
   const intentionDoneCount7 = intentionLast7.filter(d => d.set && d.done).length;
 
   // habitsWeekRate: average daily habit completion rate (%) over the last 7 days.
-  // Pure function extracted to src/lib/habits.ts for testability.
+  // Pure functions extracted to src/lib/habits.ts for testability.
   const habitsWeekRate = calcHabitsWeekRate(habitsArr, last7Days);
-  const habitsBadge = habitsArr.length > 0
-    ? [
-        `${habitsDoneToday}/${habitsArr.length}`,
-        habitsWeekRate !== null ? `7d·${habitsWeekRate}%` : null,
-        habitsAtRisk > 0 ? `⚠${habitsAtRisk}` : null,
-      ].filter(Boolean).join(" · ")
-    : undefined;
+  const habitsBadge = calcHabitsBadge({
+    habitCount: habitsArr.length,
+    doneToday: habitsDoneToday,
+    atRisk: habitsAtRisk,
+    weekRate: habitsWeekRate,
+  });
 
   // Derived: Projects section badge — focuses on non-done projects; shared with PomodoroTimer via focusProject.
   const projectsArr = data.projects ?? [];

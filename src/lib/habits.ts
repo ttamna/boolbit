@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics — no side effects
-// ABOUTME: Covers per-habit weekly trend stats and aggregate daily completion rate
+// ABOUTME: Covers per-habit weekly trend stats, aggregate daily completion rate, and section badge
 
 import type { Habit } from "../types";
 
@@ -19,6 +19,36 @@ export function calcHabitsWeekRate(habits: Habit[], dayWindow: string[]): number
     return sum + habits.filter(h => h.checkHistory?.includes(day)).length / habits.length;
   }, 0) / dayWindow.length;
   return Math.round(avgRate * 100);
+}
+
+export interface HabitsBadgeParams {
+  /** Total habit count; returns undefined when 0. */
+  habitCount: number;
+  /** Number of habits with lastChecked === todayStr. */
+  doneToday: number;
+  /** Number of habits at risk of losing streak (checked yesterday, not yet checked today). */
+  atRisk: number;
+  /** Average daily completion rate (%) over the last 7 days; null = no data to show. */
+  weekRate: number | null;
+}
+
+/**
+ * Computes the collapsed Streaks section badge string.
+ * Returns undefined when there are no habits (habitCount === 0).
+ *
+ * Format: "N/M[ · 7d·R%][ · ⚠A]" — parts joined with " · "
+ * - N/M: habits done today / total habits (e.g. "3/5")
+ * - 7d·R%: 7-day avg completion rate (e.g. "7d·80%"); omitted when weekRate is null
+ * - ⚠A: at-risk habit count (e.g. "⚠2"); omitted when atRisk === 0
+ */
+export function calcHabitsBadge(params: HabitsBadgeParams): string | undefined {
+  const { habitCount, doneToday, atRisk, weekRate } = params;
+  if (habitCount === 0) return undefined;
+  return [
+    `${doneToday}/${habitCount}`,
+    weekRate !== null ? `7d·${weekRate}%` : null,
+    atRisk > 0 ? `⚠${atRisk}` : null,
+  ].filter(Boolean).join(" · ");
 }
 
 // Returns weekly check statistics for a single habit, partitioned from a 14-day window.
