@@ -1,8 +1,20 @@
-// ABOUTME: Tests for calcProjectsBadge pure function
-// ABOUTME: Covers all badge segments: focus name, running/total, avgProgress, pomodoro, overdue, recently done
+// ABOUTME: Tests for pure functions in lib/projects.ts
+// ABOUTME: Covers calcProjectsBadge and 9 date/deadline/staleness helpers
 
-import { describe, it, expect } from "vitest";
-import { calcProjectsBadge } from "./projects";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  calcProjectsBadge,
+  relativeTime,
+  staleColor,
+  deadlineDays,
+  deadlineRelative,
+  lastFocusDaysAgo,
+  projectAgeLabel,
+  deadlinePresetLabel,
+  timeElapsedPct,
+  deadlineColor,
+} from "./projects";
+import { colors } from "../theme";
 import type { Project, PomodoroDay } from "../types";
 
 // Minimal project factory
@@ -292,5 +304,388 @@ describe("calcProjectsBadge", () => {
       // nonDone=1, running=1, avg=80, focus=Alpha, overdue=1, recentDone=1, pomodoro=4
       expect(badge).toBe("★ Alpha · 1/1 · 80% · 🍅4·7d · ⚠1 · ✓1·7d");
     });
+  });
+});
+
+// ─── Date/time helpers ────────────────────────────────────────────────────────
+// Frozen at 2024-06-10T12:00:00Z (noon UTC) for deterministic tests.
+// Local midnight varies by timezone; functions that use new Date() + setHours(0,0,0,0) are tested
+// with setSystemTime so they produce a stable "today" regardless of the runner's tz offset.
+const FROZEN_ISO = "2024-06-10T12:00:00.000Z";
+const FROZEN_DATE = new Date(FROZEN_ISO);
+
+describe("relativeTime", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(FROZEN_DATE); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("should return '—' for an invalid date string", () => {
+    expect(relativeTime("not-a-date")).toBe("—");
+  });
+
+  it("should return '—' for an empty string", () => {
+    expect(relativeTime("")).toBe("—");
+  });
+
+  it("should return '0m ago' when the timestamp equals now", () => {
+    expect(relativeTime(FROZEN_ISO)).toBe("0m ago");
+  });
+
+  it("should return '30m ago' for 30 minutes ago", () => {
+    const ts = new Date(FROZEN_DATE.getTime() - 30 * 60000).toISOString();
+    expect(relativeTime(ts)).toBe("30m ago");
+  });
+
+  it("should return '59m ago' just before the 1-hour threshold", () => {
+    const ts = new Date(FROZEN_DATE.getTime() - 59 * 60000).toISOString();
+    expect(relativeTime(ts)).toBe("59m ago");
+  });
+
+  it("should return '1h ago' exactly at 60 minutes", () => {
+    const ts = new Date(FROZEN_DATE.getTime() - 60 * 60000).toISOString();
+    expect(relativeTime(ts)).toBe("1h ago");
+  });
+
+  it("should return '23h ago' just before the 1-day threshold", () => {
+    const ts = new Date(FROZEN_DATE.getTime() - 23 * 3600000).toISOString();
+    expect(relativeTime(ts)).toBe("23h ago");
+  });
+
+  it("should return '1d ago' exactly at 24 hours", () => {
+    const ts = new Date(FROZEN_DATE.getTime() - 24 * 3600000).toISOString();
+    expect(relativeTime(ts)).toBe("1d ago");
+  });
+
+  it("should return '7d ago' for 7 days ago", () => {
+    const ts = new Date(FROZEN_DATE.getTime() - 7 * 86400000).toISOString();
+    expect(relativeTime(ts)).toBe("7d ago");
+  });
+
+  it("should clamp future timestamps to '0m ago' (Math.max guard)", () => {
+    const future = new Date(FROZEN_DATE.getTime() + 60000).toISOString();
+    expect(relativeTime(future)).toBe("0m ago");
+  });
+});
+
+describe("staleColor", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(FROZEN_DATE); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("should return textDim for an invalid date string", () => {
+    expect(staleColor("bad")).toBe(colors.textDim);
+  });
+
+  it("should return textDim when commit is today (0 days stale)", () => {
+    expect(staleColor(FROZEN_ISO)).toBe(colors.textDim);
+  });
+
+  it("should return textDim when commit is exactly 2 days ago (boundary: >2 triggers amber)", () => {
+    const ts = new Date(FROZEN_DATE.getTime() - 2 * 86400000).toISOString();
+    expect(staleColor(ts)).toBe(colors.textDim);
+  });
+
+  it("should return statusProgress when commit is 2 days 1 hour ago (just over 2-day threshold)", () => {
+    // Use 49 hours (> 2 days) to avoid floating-point ambiguity at the ms-level boundary
+    const ts = new Date(FROZEN_DATE.getTime() - 49 * 3600000).toISOString();
+    expect(staleColor(ts)).toBe(colors.statusProgress);
+  });
+
+  it("should return statusProgress when commit is exactly 7 days ago (boundary: >7 triggers red)", () => {
+    const ts = new Date(FROZEN_DATE.getTime() - 7 * 86400000).toISOString();
+    expect(staleColor(ts)).toBe(colors.statusProgress);
+  });
+
+  it("should return statusPaused when commit is 7 days 1 hour ago (just over 7-day threshold)", () => {
+    // Use 169 hours (> 7 days) to avoid floating-point ambiguity at the ms-level boundary
+    const ts = new Date(FROZEN_DATE.getTime() - 169 * 3600000).toISOString();
+    expect(staleColor(ts)).toBe(colors.statusPaused);
+  });
+
+  it("should return statusPaused for a very old commit (30 days ago)", () => {
+    const ts = new Date(FROZEN_DATE.getTime() - 30 * 86400000).toISOString();
+    expect(staleColor(ts)).toBe(colors.statusPaused);
+  });
+});
+
+describe("deadlineDays", () => {
+  // Freeze to a known local date: 2024-06-10 (local midnight determined per runner tz,
+  // but since we freeze at noon UTC the local date is stable for UTC±11 timezones)
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2024-06-10T12:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("should return null for an empty string", () => {
+    expect(deadlineDays("")).toBeNull();
+  });
+
+  it("should return null for an invalid format (not YYYY-MM-DD)", () => {
+    expect(deadlineDays("June 10 2024")).toBeNull();
+  });
+
+  it("should return null for a partial date string", () => {
+    expect(deadlineDays("2024-06")).toBeNull();
+  });
+
+  it("should return 0 when the deadline is today", () => {
+    expect(deadlineDays("2024-06-10")).toBe(0);
+  });
+
+  it("should return 1 when the deadline is tomorrow", () => {
+    expect(deadlineDays("2024-06-11")).toBe(1);
+  });
+
+  it("should return -1 when the deadline was yesterday", () => {
+    expect(deadlineDays("2024-06-09")).toBe(-1);
+  });
+
+  it("should return 5 when the deadline is 5 days away", () => {
+    expect(deadlineDays("2024-06-15")).toBe(5);
+  });
+
+  it("should return -5 when the deadline was 5 days ago", () => {
+    expect(deadlineDays("2024-06-05")).toBe(-5);
+  });
+});
+
+describe("deadlineRelative", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2024-06-10T12:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("should return '—' for an invalid date string", () => {
+    expect(deadlineRelative("")).toBe("—");
+  });
+
+  it("should return '오늘 마감' when deadline is today", () => {
+    expect(deadlineRelative("2024-06-10")).toBe("오늘 마감");
+  });
+
+  it("should return 'D-1' when deadline is tomorrow", () => {
+    expect(deadlineRelative("2024-06-11")).toBe("D-1");
+  });
+
+  it("should return 'D-5' when deadline is 5 days away", () => {
+    expect(deadlineRelative("2024-06-15")).toBe("D-5");
+  });
+
+  it("should return '1d 초과' when deadline was yesterday", () => {
+    expect(deadlineRelative("2024-06-09")).toBe("1d 초과");
+  });
+
+  it("should return '10d 초과' when deadline was 10 days ago", () => {
+    expect(deadlineRelative("2024-05-31")).toBe("10d 초과");
+  });
+});
+
+describe("lastFocusDaysAgo", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2024-06-10T12:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("should return null for undefined input", () => {
+    expect(lastFocusDaysAgo(undefined)).toBeNull();
+  });
+
+  it("should return null for an empty string", () => {
+    expect(lastFocusDaysAgo("")).toBeNull();
+  });
+
+  it("should return null for an invalid format", () => {
+    expect(lastFocusDaysAgo("June 10")).toBeNull();
+  });
+
+  it("should return null when lastFocusDate is today (no stale indicator needed)", () => {
+    expect(lastFocusDaysAgo("2024-06-10")).toBeNull();
+  });
+
+  it("should return 1 when last focused yesterday", () => {
+    expect(lastFocusDaysAgo("2024-06-09")).toBe(1);
+  });
+
+  it("should return 3 when last focused 3 days ago", () => {
+    expect(lastFocusDaysAgo("2024-06-07")).toBe(3);
+  });
+
+  it("should return null for a future date (focus date ahead of today — unexpected but guarded)", () => {
+    // days = floor((today - future) / 86400000) < 0 → days <= 0 → null
+    expect(lastFocusDaysAgo("2024-06-15")).toBeNull();
+  });
+});
+
+describe("projectAgeLabel", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2024-06-10T12:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("should return null for undefined createdDate", () => {
+    expect(projectAgeLabel(undefined)).toBeNull();
+  });
+
+  it("should return null for an invalid format", () => {
+    expect(projectAgeLabel("2024/06/10")).toBeNull();
+  });
+
+  it("should return null when createdDate equals today (0 days elapsed — too new for a label)", () => {
+    expect(projectAgeLabel("2024-06-10")).toBeNull();
+  });
+
+  it("should return null when createdDate is in the future", () => {
+    expect(projectAgeLabel("2024-06-15")).toBeNull();
+  });
+
+  it("should return '3d' for a 3-day-old project", () => {
+    expect(projectAgeLabel("2024-06-07")).toBe("3d");
+  });
+
+  it("should return '6d' just before the 1-week threshold", () => {
+    expect(projectAgeLabel("2024-06-04")).toBe("6d");
+  });
+
+  it("should return '1w' exactly at 7 days", () => {
+    expect(projectAgeLabel("2024-06-03")).toBe("1w");
+  });
+
+  it("should return '2w' at 14 days", () => {
+    expect(projectAgeLabel("2024-05-27")).toBe("2w");
+  });
+
+  it("should return '4w' at 28 days (just under 1 month)", () => {
+    expect(projectAgeLabel("2024-05-13")).toBe("4w");
+  });
+
+  it("should return '1mo' exactly at 30 days", () => {
+    expect(projectAgeLabel("2024-05-11")).toBe("1mo");
+  });
+
+  it("should return '2mo' at 60 days", () => {
+    expect(projectAgeLabel("2024-04-11")).toBe("2mo");
+  });
+
+  it("should use asOfDate as the end anchor instead of today (future asOfDate differs from frozen today)", () => {
+    // createdDate = 2024-05-10, asOfDate = 2024-07-10 (ahead of frozen today 2024-06-10)
+    // May 10 → July 10 = 61 days → Math.floor(61/30)=2 → "2mo"
+    // This verifies asOfDate branch is independent of the "today" branch.
+    expect(projectAgeLabel("2024-05-10", "2024-07-10")).toBe("2mo");
+  });
+
+  it("should return null when asOfDate equals createdDate (0-day duration)", () => {
+    expect(projectAgeLabel("2024-06-10", "2024-06-10")).toBeNull();
+  });
+
+  it("should return null for an invalid asOfDate format", () => {
+    expect(projectAgeLabel("2024-06-01", "June 10")).toBeNull();
+  });
+});
+
+describe("deadlinePresetLabel", () => {
+  it("should return '+N달' for multiples of 30 days", () => {
+    expect(deadlinePresetLabel(30)).toBe("+1달");
+    expect(deadlinePresetLabel(60)).toBe("+2달");
+    expect(deadlinePresetLabel(90)).toBe("+3달");
+  });
+
+  it("should return '+N주' for multiples of 7 days (that are not multiples of 30)", () => {
+    expect(deadlinePresetLabel(7)).toBe("+1주");
+    expect(deadlinePresetLabel(14)).toBe("+2주");
+    expect(deadlinePresetLabel(21)).toBe("+3주");
+  });
+
+  it("should return '+N일' for non-week, non-month days", () => {
+    expect(deadlinePresetLabel(1)).toBe("+1일");
+    expect(deadlinePresetLabel(3)).toBe("+3일");
+    expect(deadlinePresetLabel(10)).toBe("+10일");
+  });
+
+  it("should return '+0달' for 0 days (edge case: 0 % 30 === 0)", () => {
+    expect(deadlinePresetLabel(0)).toBe("+0달");
+  });
+
+  it("should prefer 달 over 주 for days that are multiples of both 7 and 30 (30-check runs first)", () => {
+    // 210 = 7 × 30, so both conditions match; 달 wins because the 30 condition is checked first
+    expect(deadlinePresetLabel(210)).toBe("+7달");
+  });
+});
+
+describe("timeElapsedPct", () => {
+  it("should return null when createdDate is undefined", () => {
+    expect(timeElapsedPct(undefined, "2024-12-31")).toBeNull();
+  });
+
+  it("should return null when deadline is undefined", () => {
+    expect(timeElapsedPct("2024-01-01", undefined)).toBeNull();
+  });
+
+  it("should return null for an invalid createdDate format", () => {
+    expect(timeElapsedPct("2024/01/01", "2024-12-31")).toBeNull();
+  });
+
+  it("should return null for an invalid deadline format", () => {
+    expect(timeElapsedPct("2024-01-01", "Dec 31 2024")).toBeNull();
+  });
+
+  it("should return null when deadline equals createdDate (degenerate range)", () => {
+    expect(timeElapsedPct("2024-06-10", "2024-06-10")).toBeNull();
+  });
+
+  it("should return null when deadline is before createdDate", () => {
+    expect(timeElapsedPct("2024-06-10", "2024-06-01")).toBeNull();
+  });
+
+  it("should return 0 when today equals createdDate (start of project)", () => {
+    // T00:00:00 (no Z) = local midnight; implementation calls setHours(0,0,0,0) after copying,
+    // which is a no-op on local midnight. UTC midnight ("T00:00:00Z") would shift to a different
+    // local day in non-UTC timezones, breaking the test.
+    const today = new Date("2024-01-01T00:00:00");
+    expect(timeElapsedPct("2024-01-01", "2024-12-31", today)).toBe(0);
+  });
+
+  it("should return 100 when today equals deadline (end of project)", () => {
+    const today = new Date("2024-12-31T00:00:00");
+    expect(timeElapsedPct("2024-01-01", "2024-12-31", today)).toBe(100);
+  });
+
+  it("should return 100 when today is after the deadline (clamped)", () => {
+    const today = new Date("2025-03-01T00:00:00");
+    expect(timeElapsedPct("2024-01-01", "2024-12-31", today)).toBe(100);
+  });
+
+  it("should return 0 when today is before createdDate (clamped)", () => {
+    const today = new Date("2023-12-31T00:00:00");
+    expect(timeElapsedPct("2024-01-01", "2024-12-31", today)).toBe(0);
+  });
+
+  it("should return exactly 50 at the midpoint of a 60-day range", () => {
+    // 2024-01-01 → 2024-03-01 is exactly 60 days (Jan=31, Feb=29 leap year)
+    // today = 2024-01-31 (30 days in) → Math.round(30/60*100) = Math.round(50.0) = 50
+    const today = new Date("2024-01-31T00:00:00");
+    expect(timeElapsedPct("2024-01-01", "2024-03-01", today)).toBe(50);
+  });
+});
+
+describe("deadlineColor", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2024-06-10T12:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("should return textPhantom for an invalid date string", () => {
+    expect(deadlineColor("")).toBe(colors.textPhantom);
+  });
+
+  it("should return statusPaused when deadline is today (days = 0, due today = urgent)", () => {
+    expect(deadlineColor("2024-06-10")).toBe(colors.statusPaused);
+  });
+
+  it("should return statusPaused when deadline is in the past (overdue)", () => {
+    expect(deadlineColor("2024-06-01")).toBe(colors.statusPaused);
+  });
+
+  it("should return statusProgress when deadline is 1 day away (within 7-day warning)", () => {
+    expect(deadlineColor("2024-06-11")).toBe(colors.statusProgress);
+  });
+
+  it("should return statusProgress exactly at 7 days remaining (boundary)", () => {
+    expect(deadlineColor("2024-06-17")).toBe(colors.statusProgress);
+  });
+
+  it("should return textSubtle when deadline is 8 days away (beyond 7-day warning)", () => {
+    expect(deadlineColor("2024-06-18")).toBe(colors.textSubtle);
+  });
+
+  it("should return textSubtle for a far-future deadline", () => {
+    expect(deadlineColor("2025-12-31")).toBe(colors.textSubtle);
   });
 });
