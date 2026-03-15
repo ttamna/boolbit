@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for ProjectCard projectAgeLabel, timeElapsedPct, deadlinePresetLabel,
+// ABOUTME: Unit tests for lib/projects pure helpers — projectAgeLabel, timeElapsedPct, deadlinePresetLabel,
 // ABOUTME: and time-dependent helpers: relativeTime, staleColor, deadlineDays, deadlineRelative, lastFocusDaysAgo, deadlineColor
 
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
-import { projectAgeLabel, timeElapsedPct, deadlinePresetLabel, relativeTime, staleColor, deadlineDays, deadlineRelative, lastFocusDaysAgo, deadlineColor } from "./ProjectCard";
+import { projectAgeLabel, timeElapsedPct, deadlinePresetLabel, relativeTime, staleColor, deadlineDays, deadlineRelative, lastFocusDaysAgo, deadlineColor } from "../lib/projects";
 import { colors } from "../theme";
 
 describe("projectAgeLabel", () => {

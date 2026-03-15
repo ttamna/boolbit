@@ -7,30 +7,17 @@ import { fonts, fontSizes, colors, radius, PROJECT_STATUS_COLORS } from "../them
 import { InlineEdit } from "./InlineEdit";
 import { verifyRepo, fetchRepoData } from "../lib/github";
 import { openUrl } from "@tauri-apps/plugin-opener";
-
-// Exported for unit testing; pure function with respect to injected Date.now() via vi.setSystemTime.
-export function relativeTime(isoDate: string): string {
-  const ts = new Date(isoDate).getTime();
-  if (isNaN(ts)) return "—";
-  const diff = Math.max(0, Date.now() - ts);
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
-// Returns a color token based on how stale the last commit is.
-// Uses statusPaused for >7 days, statusProgress for 2-7 days, textDim otherwise.
-// Exported for unit testing; pure function with respect to injected Date.now() via vi.setSystemTime.
-export function staleColor(isoDate: string): string {
-  const ts = new Date(isoDate).getTime();
-  if (isNaN(ts)) return colors.textDim;
-  const days = Math.max(0, (Date.now() - ts) / 86400000);
-  if (days > 7) return colors.statusPaused;
-  if (days > 2) return colors.statusProgress;
-  return colors.textDim;
-}
+import {
+  relativeTime,
+  staleColor,
+  deadlineDays,
+  deadlineRelative,
+  lastFocusDaysAgo,
+  projectAgeLabel,
+  deadlinePresetLabel,
+  timeElapsedPct,
+  deadlineColor,
+} from "../lib/projects";
 
 const CI_COLOR: Record<NonNullable<GitHubData["ciStatus"]>, string> = {
   success: "#4ade80",
@@ -38,108 +25,11 @@ const CI_COLOR: Record<NonNullable<GitHubData["ciStatus"]>, string> = {
   pending: "#facc15",
 };
 
-// Returns days remaining until deadline relative to local midnight.
-// Requires strict YYYY-MM-DD format; returns null for invalid/empty strings.
-// Uses T00:00:00 for local-midnight parsing (avoids UTC off-by-one).
-// Uses Math.floor so DST days (23h) count as 0 remaining, not 1.
-// Exported for unit testing; pure function with respect to injected today via vi.setSystemTime.
-export function deadlineDays(dateStr: string): number | null {
-  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
-  const ts = new Date(dateStr + "T00:00:00").getTime();
-  if (isNaN(ts)) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.floor((ts - today.getTime()) / 86400000);
-}
-
-// Returns a relative deadline label: "D-5", "오늘 마감", "5d 초과", or "—" if invalid.
-// Exported for unit testing.
-export function deadlineRelative(dateStr: string): string {
-  const days = deadlineDays(dateStr);
-  if (days === null) return "—";
-  if (days === 0) return "오늘 마감";
-  if (days > 0) return `D-${days}`;
-  return `${-days}d 초과`;
-}
-
-// Returns days elapsed since lastFocusDate relative to local midnight; null if today or invalid.
-// Used to show "⊖ Nd" stale-focus indicator on project cards.
-// Exported for unit testing; pure function with respect to injected today via vi.setSystemTime.
-export function lastFocusDaysAgo(dateStr: string | undefined): number | null {
-  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
-  const ts = new Date(dateStr + "T00:00:00").getTime();
-  if (isNaN(ts)) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const days = Math.floor((today.getTime() - ts) / 86400000);
-  return days > 0 ? days : null; // null if today (no stale indicator needed)
-}
-
-// Returns a compact age/duration label: "Nd", "Nw", "Nmo", or null if invalid/absent.
-// asOfDate: optional end-point (YYYY-MM-DD) — defaults to today when absent.
-// Used for active projects (today anchor → age) and done projects (completedDate anchor → duration).
-// Exported for unit testing; mirrors the pattern of habitLastCheckDaysAgo in HabitStreak.
-export function projectAgeLabel(dateStr: string | undefined, asOfDate?: string): string | null {
-  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
-  const ts = new Date(dateStr + "T00:00:00").getTime();
-  if (isNaN(ts)) return null;
-  let end: number;
-  if (asOfDate) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(asOfDate)) return null;
-    end = new Date(asOfDate + "T00:00:00").getTime();
-    if (isNaN(end)) return null;
-  } else {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    end = today.getTime();
-  }
-  const days = Math.floor((end - ts) / 86400000);
-  if (days <= 0) return null; // same day or future — no label yet
-  if (days < 7) return `${days}d`;
-  if (days < 30) return `${Math.floor(days / 7)}w`;
-  return `${Math.floor(days / 30)}mo`;
-}
-
 // Returns a YYYY-MM-DD date string for n days from today (local time).
 function dateAfterDays(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() + n);
   return d.toLocaleDateString("sv");
-}
-
-// Returns a compact human-readable label for a deadline offset in days.
-// Prefers month units (30-day multiples), then weeks (7-day multiples), then raw days.
-// Exported for unit testing — pure function with no side effects.
-export function deadlinePresetLabel(days: number): string {
-  if (days % 30 === 0) return `+${days / 30}달`;
-  if (days % 7 === 0) return `+${days / 7}주`;
-  return `+${days}일`;
-}
-
-// Returns the percentage of time elapsed from createdDate to deadline, clamped to [0, 100].
-// Both dates use T00:00:00 local-midnight parsing for DST safety (same pattern as deadlineDays).
-// Returns null when either date is absent/invalid or deadline ≤ createdDate (degenerate range).
-// today: optional injection for deterministic testing; defaults to local midnight when omitted.
-// Callers use this to compare against project.progress and derive schedule efficiency (gap = progress - timePct).
-export function timeElapsedPct(createdDate: string | undefined, deadline: string | undefined, today?: Date): number | null {
-  if (!createdDate || !deadline) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(createdDate) || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return null;
-  const start = new Date(createdDate + "T00:00:00").getTime();
-  const end = new Date(deadline + "T00:00:00").getTime();
-  if (end <= start) return null;
-  // Normalize to local midnight regardless of how today was constructed (self-defending against sub-day precision).
-  const todayMidnight = (() => { const d = today ? new Date(today) : new Date(); d.setHours(0, 0, 0, 0); return d; })();
-  return Math.min(100, Math.max(0, Math.round((todayMidnight.getTime() - start) / (end - start) * 100)));
-}
-
-// Returns urgency color: red if today or overdue (days ≤ 0), yellow if ≤7 days, dim otherwise.
-// Exported for unit testing.
-export function deadlineColor(dateStr: string): string {
-  const days = deadlineDays(dateStr);
-  if (days === null) return colors.textPhantom;
-  if (days <= 0) return colors.statusPaused;
-  if (days <= 7) return colors.statusProgress;
-  return colors.textSubtle;
 }
 
 // Opens a GitHub URL path under the given repo; no-op if repo is absent or malformed
