@@ -15,8 +15,9 @@ import {
   lastFocusDaysAgo,
   projectAgeLabel,
   deadlinePresetLabel,
-  timeElapsedPct,
   deadlineColor,
+  dateAfterDays,
+  calcScheduleGap,
 } from "../lib/projects";
 
 const CI_COLOR: Record<NonNullable<GitHubData["ciStatus"]>, string> = {
@@ -24,13 +25,6 @@ const CI_COLOR: Record<NonNullable<GitHubData["ciStatus"]>, string> = {
   failure: colors.ciFailure,
   pending: colors.ciPending,
 };
-
-// Returns a YYYY-MM-DD date string for n days from today (local time).
-function dateAfterDays(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return d.toLocaleDateString("sv");
-}
 
 // Opens a GitHub URL path under the given repo; no-op if repo is absent or malformed
 function openGitHubUrl(repo: string | undefined, path = "") {
@@ -85,12 +79,8 @@ export function ProjectCard({ project, onUpdate, onDelete, pat, sessionsToday, s
   // scheduleGap: schedule efficiency for non-done projects — gap = progress% minus elapsed-time% (integer, rounded).
   // null when status===done, deadline unset, createdDate absent, degenerate range, or timePct<10 (too early to judge).
   // timePct<10 guard avoids a jarring red badge that appears when a project is barely started but already "behind".
-  const scheduleGap: { gap: number; timePct: number } | null = project.status !== "done" && !!project.deadline
-    ? (() => {
-        const timePct = timeElapsedPct(project.createdDate, project.deadline);
-        if (timePct === null || timePct < 10) return null;
-        return { gap: Math.round(project.progress - timePct), timePct };
-      })()
+  const scheduleGap = project.status !== "done" && !!project.deadline
+    ? calcScheduleGap(project.progress, project.createdDate, project.deadline)
     : null;
 
   const [repoStatus, setRepoStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');

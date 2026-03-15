@@ -191,6 +191,29 @@ export function timeElapsedPct(createdDate: string | undefined, deadline: string
   return Math.min(100, Math.max(0, Math.round((todayMidnight.getTime() - start) / (end - start) * 100)));
 }
 
+// Returns a YYYY-MM-DD local date string for `from + n days`.
+// `from` defaults to today when omitted; inject for deterministic testing.
+export function dateAfterDays(n: number, from?: Date): string {
+  const d = from ? new Date(from) : new Date();
+  d.setDate(d.getDate() + n);
+  return d.toLocaleDateString("sv");
+}
+
+// Returns schedule efficiency { gap, timePct } or null when too early or dates are invalid.
+// gap = Math.round(progress - timePct): positive = ahead, negative = behind, 0 = on track.
+// Suppresses result when timePct < 10 to avoid jarring badge at project start.
+// today: optional injection for deterministic testing.
+export function calcScheduleGap(
+  progress: number,
+  createdDate: string | undefined,
+  deadline: string | undefined,
+  today?: Date,
+): { gap: number; timePct: number } | null {
+  const timePct = timeElapsedPct(createdDate, deadline, today);
+  if (timePct === null || timePct < 10) return null;
+  return { gap: Math.round(progress - timePct), timePct };
+}
+
 // Returns urgency color: red if today or overdue (days ≤ 0), yellow if ≤7 days, dim otherwise.
 export function deadlineColor(dateStr: string): string {
   const days = deadlineDays(dateStr);

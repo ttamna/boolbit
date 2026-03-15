@@ -1,5 +1,5 @@
 // ABOUTME: Tests for pure functions in lib/projects.ts
-// ABOUTME: Covers calcProjectsBadge and 9 date/deadline/staleness helpers
+// ABOUTME: Covers calcProjectsBadge and 11 date/deadline/staleness helpers (incl. dateAfterDays, calcScheduleGap)
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
@@ -13,6 +13,8 @@ import {
   deadlinePresetLabel,
   timeElapsedPct,
   deadlineColor,
+  dateAfterDays,
+  calcScheduleGap,
 } from "./projects";
 import { colors } from "../theme";
 import type { Project, PomodoroDay } from "../types";
@@ -654,6 +656,126 @@ describe("timeElapsedPct", () => {
     // today = 2024-01-31 (30 days in) → Math.round(30/60*100) = Math.round(50.0) = 50
     const today = new Date("2024-01-31T00:00:00");
     expect(timeElapsedPct("2024-01-01", "2024-03-01", today)).toBe(50);
+  });
+});
+
+describe("dateAfterDays", () => {
+  it("should return a YYYY-MM-DD string 7 days after the given anchor date", () => {
+    const from = new Date("2024-06-10T00:00:00");
+    expect(dateAfterDays(7, from)).toBe("2024-06-17");
+  });
+
+  it("should return the anchor date itself when n is 0", () => {
+    const from = new Date("2024-06-10T00:00:00");
+    expect(dateAfterDays(0, from)).toBe("2024-06-10");
+  });
+
+  it("should cross month boundaries correctly", () => {
+    const from = new Date("2024-01-28T00:00:00");
+    expect(dateAfterDays(7, from)).toBe("2024-02-04");
+  });
+
+  it("should cross year boundaries correctly", () => {
+    const from = new Date("2024-12-28T00:00:00");
+    expect(dateAfterDays(7, from)).toBe("2025-01-04");
+  });
+
+  it("should return a date in the past when n is negative", () => {
+    const from = new Date("2024-06-10T00:00:00");
+    expect(dateAfterDays(-3, from)).toBe("2024-06-07");
+  });
+
+  it("should handle n=30 (month preset)", () => {
+    const from = new Date("2024-06-10T00:00:00");
+    expect(dateAfterDays(30, from)).toBe("2024-07-10");
+  });
+
+  it("should handle n=90 (3-month preset)", () => {
+    const from = new Date("2024-06-10T00:00:00");
+    expect(dateAfterDays(90, from)).toBe("2024-09-08");
+  });
+
+  it("should use today when from is omitted (production-usage path)", () => {
+    // Matches how ProjectCard.tsx calls: dateAfterDays(days) — no injection
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-06-10T12:00:00Z"));
+    try {
+      expect(dateAfterDays(7)).toBe("2024-06-17");
+      expect(dateAfterDays(14)).toBe("2024-06-24");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("calcScheduleGap", () => {
+  // Uses timeElapsedPct internally, so inject today for determinism
+  const START = "2024-01-01";
+  const END   = "2024-03-01"; // 60 days from START (2024 is a leap year; Jan=31, Feb=29)
+
+  it("should return null when createdDate is undefined", () => {
+    expect(calcScheduleGap(50, undefined, END)).toBeNull();
+  });
+
+  it("should return null when deadline is undefined", () => {
+    expect(calcScheduleGap(50, START, undefined)).toBeNull();
+  });
+
+  it("should return null when timePct is null (invalid dates)", () => {
+    expect(calcScheduleGap(50, "bad-date", END)).toBeNull();
+  });
+
+  it("should return null when timePct < 10 (too early to judge schedule)", () => {
+    // 3 of 60 days elapsed → timePct = Math.round(3/60*100) = 5 → < 10 → null
+    const today = new Date("2024-01-04T00:00:00");
+    expect(calcScheduleGap(50, START, END, today)).toBeNull();
+  });
+
+  it("should return null when timePct rounds to 8 (< 10 boundary still suppresses)", () => {
+    // 5 of 60 days elapsed → timePct = Math.round(5/60*100) = Math.round(8.33) = 8 → < 10 → null
+    const today = new Date("2024-01-06T00:00:00");
+    expect(calcScheduleGap(50, START, END, today)).toBeNull();
+  });
+
+  it("should NOT return null when timePct equals exactly 10 (first non-suppressed value)", () => {
+    // 6 of 60 days elapsed → timePct = Math.round(6/60*100) = Math.round(10) = 10 → >= 10 → non-null
+    const today = new Date("2024-01-07T00:00:00");
+    const result = calcScheduleGap(50, START, END, today);
+    expect(result).not.toBeNull();
+    expect(result?.timePct).toBe(10);
+  });
+
+  it("should return { gap, timePct } when timePct >= 10", () => {
+    // 30 of 60 days elapsed → timePct = 50; progress = 70 → gap = 20
+    const today = new Date("2024-01-31T00:00:00");
+    expect(calcScheduleGap(70, START, END, today)).toEqual({ gap: 20, timePct: 50 });
+  });
+
+  it("should return negative gap when progress is behind schedule", () => {
+    // timePct = 50, progress = 30 → gap = -20
+    const today = new Date("2024-01-31T00:00:00");
+    expect(calcScheduleGap(30, START, END, today)).toEqual({ gap: -20, timePct: 50 });
+  });
+
+  it("should return gap = 0 when progress exactly matches elapsed time", () => {
+    // timePct = 50, progress = 50 → gap = 0
+    const today = new Date("2024-01-31T00:00:00");
+    expect(calcScheduleGap(50, START, END, today)).toEqual({ gap: 0, timePct: 50 });
+  });
+
+  it("should round gap to nearest integer when progress - timePct is not a whole number", () => {
+    // 7 of 60 days elapsed → timePct = Math.round(7/60*100) = Math.round(11.67) = 12
+    // progress=20 → gap = Math.round(20 - 12) = 8
+    const today = new Date("2024-01-08T00:00:00");
+    const result = calcScheduleGap(20, START, END, today);
+    expect(result?.gap).toBe(8);
+    expect(result?.timePct).toBe(12);
+  });
+
+  it("should clamp timePct to 100 when today is past deadline", () => {
+    // today well past deadline → timePct = 100; progress = 80 → gap = -20
+    const today = new Date("2025-06-01T00:00:00");
+    expect(calcScheduleGap(80, START, END, today)).toEqual({ gap: -20, timePct: 100 });
   });
 });
 
