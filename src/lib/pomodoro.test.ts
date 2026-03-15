@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcLast14Days and calcSessionWeekTrend
-// ABOUTME: Covers date range derivation, prev-7/cur-7 session partitioning, and trend arrow logic
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory } from "./pomodoro";
 import type { PomodoroDay } from "../types";
 
 // Shared fixture: derived from calcLast14Days so partitioning assumptions stay consistent.
@@ -180,5 +180,108 @@ describe("calcSessionWeekTrend", () => {
     const result = calcSessionWeekTrend(history, LAST14)!;
     expect(result.cur7).toBe(2);
     expect(result.prev7).toBe(0);
+  });
+});
+
+describe("calcTodaySessionCount", () => {
+  const TODAY = "2026-03-15";
+
+  it("should return 1 when sessionDate is undefined (first session ever)", () => {
+    expect(calcTodaySessionCount(undefined, undefined, TODAY)).toBe(1);
+  });
+
+  it("should return 1 when sessionDate is a past date (new day, reset)", () => {
+    expect(calcTodaySessionCount("2026-03-14", 7, TODAY)).toBe(1);
+  });
+
+  it("should return 1 when sessionDate equals today but sessionCount is undefined", () => {
+    // Defensive: sessionDate matches but count absent — treat as first
+    expect(calcTodaySessionCount(TODAY, undefined, TODAY)).toBe(1);
+  });
+
+  it("should return 2 when sessionDate equals today and sessionCount is 1", () => {
+    expect(calcTodaySessionCount(TODAY, 1, TODAY)).toBe(2);
+  });
+
+  it("should return 6 when sessionDate equals today and sessionCount is 5", () => {
+    expect(calcTodaySessionCount(TODAY, 5, TODAY)).toBe(6);
+  });
+
+  it("should reset on any date mismatch, regardless of session count magnitude", () => {
+    expect(calcTodaySessionCount("2025-01-01", 999, TODAY)).toBe(1);
+  });
+});
+
+describe("updatePomodoroHistory", () => {
+  const TODAY = "2026-03-15";
+
+  it("should return a single-entry array when history is empty", () => {
+    const result = updatePomodoroHistory([], TODAY, 3);
+    expect(result).toEqual([{ date: TODAY, count: 3 }]);
+  });
+
+  it("should append today when today is not yet in history", () => {
+    const history: PomodoroDay[] = [{ date: "2026-03-14", count: 2 }];
+    const result = updatePomodoroHistory(history, TODAY, 5);
+    expect(result).toContainEqual({ date: TODAY, count: 5 });
+    expect(result).toContainEqual({ date: "2026-03-14", count: 2 });
+    expect(result).toHaveLength(2);
+  });
+
+  it("should replace today's existing entry with the new count", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-14", count: 2 },
+      { date: TODAY, count: 3 },
+    ];
+    const result = updatePomodoroHistory(history, TODAY, 5);
+    // Only one entry for today, with updated count
+    const todayEntries = result.filter(d => d.date === TODAY);
+    expect(todayEntries).toHaveLength(1);
+    expect(todayEntries[0].count).toBe(5);
+  });
+
+  it("should return entries sorted ascending by date", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-10", count: 1 },
+      { date: "2026-03-12", count: 2 },
+    ];
+    const result = updatePomodoroHistory(history, TODAY, 4);
+    expect(result[0].date).toBe("2026-03-10");
+    expect(result[1].date).toBe("2026-03-12");
+    expect(result[2].date).toBe(TODAY);
+  });
+
+  it("should cap at 14 entries when history is full and today is not in it", () => {
+    // Build 14 past entries — adding today makes 15, so oldest is dropped
+    const history: PomodoroDay[] = Array.from({ length: 14 }, (_, i) => ({
+      date: `2026-02-${String(i + 1).padStart(2, "0")}`,
+      count: i + 1,
+    }));
+    const result = updatePomodoroHistory(history, TODAY, 1);
+    expect(result).toHaveLength(14);
+    expect(result[result.length - 1].date).toBe(TODAY);
+    // Oldest entry (2026-02-01) should have been dropped
+    expect(result.some(d => d.date === "2026-02-01")).toBe(false);
+  });
+
+  it("should stay at 14 entries when history already has today and is at the cap", () => {
+    // 13 past entries + today = 14 in, replace today → still 14
+    const history: PomodoroDay[] = [
+      ...Array.from({ length: 13 }, (_, i) => ({
+        date: `2026-02-${String(i + 1).padStart(2, "0")}`,
+        count: i + 1,
+      })),
+      { date: TODAY, count: 2 },
+    ];
+    const result = updatePomodoroHistory(history, TODAY, 8);
+    expect(result).toHaveLength(14);
+    expect(result.find(d => d.date === TODAY)?.count).toBe(8);
+  });
+
+  it("should not mutate the original history array", () => {
+    const history: PomodoroDay[] = [{ date: "2026-03-14", count: 1 }];
+    const original = [...history];
+    updatePomodoroHistory(history, TODAY, 3);
+    expect(history).toEqual(original);
   });
 });

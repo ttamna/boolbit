@@ -1,7 +1,35 @@
 // ABOUTME: Pure helpers for pomodoro session statistics — no side effects
-// ABOUTME: Covers 14-day date range derivation and prev-7/cur-7 session trend calculation
+// ABOUTME: Covers today-count derivation, 14-day history upsert, date range, and week trend calculation
 
 import type { PomodoroDay } from "../types";
+
+// Returns the updated today-session count given the persisted state.
+// Resets to 1 when sessionDate differs from today (new day); increments by 1 when same day.
+// sessionDate: stored 'pomodoroSessionsDate' (YYYY-MM-DD or undefined)
+// sessionCount: stored 'pomodoroSessions' (integer or undefined)
+// today: current date as YYYY-MM-DD
+// Exported for unit testing; pure function with no side effects.
+export function calcTodaySessionCount(
+  sessionDate: string | undefined,
+  sessionCount: number | undefined,
+  today: string,
+): number {
+  return sessionDate === today ? (sessionCount ?? 0) + 1 : 1;
+}
+
+// Upserts today's session count into the rolling 14-day history.
+// Removes any existing entry for today, appends the new count, sorts chronologically, caps at 14.
+// Does not mutate the input history array.
+// Exported for unit testing; pure function with no side effects.
+export function updatePomodoroHistory(
+  history: PomodoroDay[],
+  today: string,
+  count: number,
+): PomodoroDay[] {
+  return [...history.filter(d => d.date !== today), { date: today, count }]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-14);
+}
 
 // Returns the last 14 YYYY-MM-DD date strings (oldest → newest) anchored at todayStr.
 // Index 0 = 13 days ago; index 13 = today.

@@ -2,7 +2,7 @@
 // ABOUTME: Handles data loading/saving, inline patch updates, and section reorder via sectionOrder field
 
 import { useState, useEffect, useCallback, useRef, CSSProperties, Fragment } from "react";
-import type { WidgetData, Habit, Project, SectionKey, GitHubData, PomodoroDay, IntentionEntry } from "./types";
+import type { WidgetData, Habit, Project, SectionKey, GitHubData, IntentionEntry } from "./types";
 import { colors, fonts, fontSizes, radius, shadows, THEMES, PROJECT_STATUS_COLORS } from "./theme";
 import { invoke, isTauri } from "./lib/tauri";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -19,6 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge } from "./lib/projects";
+import { calcTodaySessionCount, updatePomodoroHistory } from "./lib/pomodoro";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -524,13 +525,8 @@ export default function App() {
 
   const handlePomodoroSession = useCallback((focusMins: number) => {
     const today = new Date().toLocaleDateString("sv"); // YYYY-MM-DD local date (sv = Swedish = ISO format)
-    const count = data.pomodoroSessionsDate === today ? (data.pomodoroSessions ?? 0) + 1 : 1;
-    // Upsert today's count into rolling history: remove old entry for today, append updated, sort, cap at 14.
-    // Sorted YYYY-MM-DD strings compare lexicographically = chronologically, matching checkHistory pattern.
-    const history: PomodoroDay[] = data.pomodoroHistory ?? [];
-    const newHistory = [...history.filter(d => d.date !== today), { date: today, count }]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(-14);
+    const count = calcTodaySessionCount(data.pomodoroSessionsDate, data.pomodoroSessions, today);
+    const newHistory = updatePomodoroHistory(data.pomodoroHistory ?? [], today, count);
     // Credit session to the ★ focused project (if any) as a lifetime counter.
     const focusIdx = data.projects.findIndex(p => p.isFocus);
     const updatedProjects = focusIdx >= 0
