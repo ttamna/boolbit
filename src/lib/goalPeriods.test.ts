@@ -1,8 +1,9 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, and calcWeekGoalStreak
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, and calcGoalSuccessRate
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak } from "./goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcGoalSuccessRate } from "./goalPeriods";
+import type { GoalEntry } from "../types";
 
 describe("isoWeekStr", () => {
   // ── Ordinary mid-year dates ──────────────────────────────────────────────
@@ -237,5 +238,97 @@ describe("calcWeekGoalStreak", () => {
     // History has 7 entries for W10..W04; current = W11; streak = 8
     const history = [W10, W09, W08, W07, "2025-W06", "2025-W05", "2025-W04"].map(date => ({ date, text: "goal" }));
     expect(calcWeekGoalStreak("goal text", W11, history, now)).toBe(8);
+  });
+});
+
+describe("calcGoalSuccessRate", () => {
+  it("should return null when history is empty", () => {
+    expect(calcGoalSuccessRate([])).toBeNull();
+  });
+
+  it("should return done:0 and pct:0 when no entries have done:true", () => {
+    const history: GoalEntry[] = [
+      { date: "2025-W01", text: "goal A" },
+      { date: "2025-W02", text: "goal B" },
+      { date: "2025-W03", text: "goal C" },
+    ];
+    expect(calcGoalSuccessRate(history)).toEqual({ done: 0, total: 3, pct: 0 });
+  });
+
+  it("should return done:N and pct:100 when all entries have done:true", () => {
+    const history: GoalEntry[] = [
+      { date: "2025-W01", text: "goal A", done: true },
+      { date: "2025-W02", text: "goal B", done: true },
+      { date: "2025-W03", text: "goal C", done: true },
+    ];
+    expect(calcGoalSuccessRate(history)).toEqual({ done: 3, total: 3, pct: 100 });
+  });
+
+  it("should return pct:50 for 2 done out of 4", () => {
+    const history: GoalEntry[] = [
+      { date: "2025-W01", text: "A", done: true },
+      { date: "2025-W02", text: "B", done: true },
+      { date: "2025-W03", text: "C" },
+      { date: "2025-W04", text: "D" },
+    ];
+    expect(calcGoalSuccessRate(history)).toEqual({ done: 2, total: 4, pct: 50 });
+  });
+
+  it("should round pct: 1/3 rounds to 33", () => {
+    const history: GoalEntry[] = [
+      { date: "2025-W01", text: "A", done: true },
+      { date: "2025-W02", text: "B" },
+      { date: "2025-W03", text: "C" },
+    ];
+    const result = calcGoalSuccessRate(history);
+    expect(result?.done).toBe(1);
+    expect(result?.total).toBe(3);
+    expect(result?.pct).toBe(33); // Math.round(1/3 * 100) = 33
+  });
+
+  it("should round pct: 2/3 rounds to 67", () => {
+    const history: GoalEntry[] = [
+      { date: "2025-W01", text: "A", done: true },
+      { date: "2025-W02", text: "B", done: true },
+      { date: "2025-W03", text: "C" },
+    ];
+    expect(calcGoalSuccessRate(history)?.pct).toBe(67); // Math.round(2/3 * 100) = 67
+  });
+
+  it("should not count entries with done:false as done", () => {
+    const history: GoalEntry[] = [
+      { date: "2025-W01", text: "A", done: false },
+      { date: "2025-W02", text: "B", done: true },
+    ];
+    expect(calcGoalSuccessRate(history)).toEqual({ done: 1, total: 2, pct: 50 });
+  });
+
+  it("should return done:0 when all entries have done:false (explicit false treated same as absent)", () => {
+    // done: false and done: undefined are both "not done" — project convention uses done === true strict check
+    const history: GoalEntry[] = [
+      { date: "2025-W01", text: "A", done: false },
+      { date: "2025-W02", text: "B", done: false },
+      { date: "2025-W03", text: "C", done: false },
+    ];
+    expect(calcGoalSuccessRate(history)).toEqual({ done: 0, total: 3, pct: 0 });
+  });
+
+  it("should not count entries with done absent as done (absent = not done convention)", () => {
+    // done?: boolean — absent means false per project convention (JSON.stringify omits undefined)
+    const history: GoalEntry[] = [
+      { date: "2025-W01", text: "A" }, // no done field
+      { date: "2025-W02", text: "B", done: true },
+    ];
+    expect(calcGoalSuccessRate(history)).toEqual({ done: 1, total: 2, pct: 50 });
+  });
+
+  it("should work for a single done entry", () => {
+    const history: GoalEntry[] = [{ date: "2025-Q1", text: "quarterly goal", done: true }];
+    expect(calcGoalSuccessRate(history)).toEqual({ done: 1, total: 1, pct: 100 });
+  });
+
+  it("should work for a single not-done entry", () => {
+    const history: GoalEntry[] = [{ date: "2025", text: "yearly goal" }];
+    expect(calcGoalSuccessRate(history)).toEqual({ done: 0, total: 1, pct: 0 });
   });
 });

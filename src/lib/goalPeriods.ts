@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, and weekly goal streak
-// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, and streak display
+// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, weekly goal streak, and success rate
+// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, and history panels
 
 import type { GoalEntry } from "../types";
 
@@ -20,6 +20,25 @@ export function isoWeekStr(date: Date): string {
 export function quarterStr(date: Date): string {
   const q = Math.floor(date.getMonth() / 3) + 1;
   return `${date.getFullYear()}-Q${q}`;
+}
+
+export interface GoalSuccessRate {
+  /** Count of history entries with done === true. */
+  done: number;
+  /** Total history entry count. */
+  total: number;
+  /** Math.round(done / total * 100) — percentage achieved. */
+  pct: number;
+}
+
+// Returns aggregate success rate from a goal history array.
+// done: count of entries with done === true (absent/false both count as not done — project convention).
+// Returns null when history is empty (no data to display).
+// Exported for unit testing; pure function with no side effects.
+export function calcGoalSuccessRate(history: GoalEntry[]): GoalSuccessRate | null {
+  if (history.length === 0) return null;
+  const done = history.filter(e => e.done === true).length;
+  return { done, total: history.length, pct: Math.round(done / history.length * 100) };
 }
 
 // Returns the number of consecutive ISO weeks (including the current week) for which a weekly goal was set.

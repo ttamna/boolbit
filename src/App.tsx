@@ -15,7 +15,7 @@ import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsBadge } from "./lib/habits";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak } from "./lib/goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcGoalSuccessRate } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge } from "./lib/projects";
@@ -763,6 +763,11 @@ export default function App() {
             // Past intentions: filter out today, take newest 6, reverse to newest-first.
             // Computed once and shared between toggle button visibility and history panel.
             const pastIntentions = (data.intentionHistory ?? []).filter(e => e.date !== todayStr).slice(-6).reverse();
+            // Goal success rates — computed once, shared between each history panel and the toggle button.
+            const weekGoalRate = calcGoalSuccessRate(data.weekGoalHistory ?? []);
+            const monthGoalRate = calcGoalSuccessRate(data.monthGoalHistory ?? []);
+            const quarterGoalRate = calcGoalSuccessRate(data.quarterGoalHistory ?? []);
+            const yearGoalRate = calcGoalSuccessRate(data.yearGoalHistory ?? []);
             return (
               <Fragment key="direction">
                 <SectionLabel accent={themeAccent} collapsed={collapsed.includes("direction")} onToggle={() => toggleSection("direction")} badge={directionBadge} onMoveUp={up} onMoveDown={dn}>Direction</SectionLabel>
@@ -799,6 +804,11 @@ export default function App() {
                       </div>
                       {showYearGoalHistory && (data.yearGoalHistory ?? []).length > 0 && (
                         <div style={{ marginTop: 4 }}>
+                          {yearGoalRate && (
+                            <div style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginBottom: 3, opacity: 0.7 }}>
+                              {yearGoalRate.done}/{yearGoalRate.total} 달성 · {yearGoalRate.pct}%
+                            </div>
+                          )}
                           {[...(data.yearGoalHistory ?? [])].reverse().map(e => (
                             <div key={e.date} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 2 }}>
                               <span style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, flexShrink: 0, minWidth: 32 }}>{e.date}</span>
@@ -840,6 +850,11 @@ export default function App() {
                       </div>
                       {showQuarterGoalHistory && (data.quarterGoalHistory ?? []).length > 0 && (
                         <div style={{ marginTop: 4 }}>
+                          {quarterGoalRate && (
+                            <div style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginBottom: 3, opacity: 0.7 }}>
+                              {quarterGoalRate.done}/{quarterGoalRate.total} 달성 · {quarterGoalRate.pct}%
+                            </div>
+                          )}
                           {[...(data.quarterGoalHistory ?? [])].reverse().map(e => (
                             <div key={e.date} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 2 }}>
                               <span style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, flexShrink: 0, minWidth: 48 }}>{e.date}</span>
@@ -881,6 +896,11 @@ export default function App() {
                       </div>
                       {showMonthGoalHistory && (data.monthGoalHistory ?? []).length > 0 && (
                         <div style={{ marginTop: 4 }}>
+                          {monthGoalRate && (
+                            <div style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginBottom: 3, opacity: 0.7 }}>
+                              {monthGoalRate.done}/{monthGoalRate.total} 달성 · {monthGoalRate.pct}%
+                            </div>
+                          )}
                           {[...(data.monthGoalHistory ?? [])].reverse().map(e => (
                             <div key={e.date} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 2 }}>
                               <span style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, flexShrink: 0, minWidth: 44 }}>{e.date}</span>
@@ -928,6 +948,11 @@ export default function App() {
                       {/* Past week goal history — up to 8 previous weeks, newest first */}
                       {showWeekGoalHistory && (data.weekGoalHistory ?? []).length > 0 && (
                         <div style={{ marginTop: 4 }}>
+                          {weekGoalRate && (
+                            <div style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginBottom: 3, opacity: 0.7 }}>
+                              {weekGoalRate.done}/{weekGoalRate.total} 달성 · {weekGoalRate.pct}%
+                            </div>
+                          )}
                           {[...(data.weekGoalHistory ?? [])].reverse().map(e => (
                             <div key={e.date} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 2 }}>
                               <span style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, flexShrink: 0, minWidth: 48 }}>{e.date}</span>
