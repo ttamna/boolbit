@@ -767,6 +767,8 @@ export default function App() {
             // Past intentions: filter out today, take newest 6, reverse to newest-first.
             // Computed once and shared between toggle button visibility and history panel.
             const pastIntentions = (data.intentionHistory ?? []).filter(e => e.date !== todayStr).slice(-6).reverse();
+            // Intention history success rate — same metric as W/M/Q/Y goal history panels, shown when expanded.
+            const intentionHistoryRate = calcGoalSuccessRate(pastIntentions);
             // Goal success rates — computed once, shared between each history panel and the toggle button.
             const weekGoalRate = calcGoalSuccessRate(data.weekGoalHistory ?? []);
             const monthGoalRate = calcGoalSuccessRate(data.monthGoalHistory ?? []);
@@ -1046,6 +1048,11 @@ export default function App() {
                     {/* Past intention history — up to 6 previous days, newest first */}
                     {showHistory && pastIntentions.length > 0 && (
                       <div style={{ padding: "0 14px 6px" }}>
+                        {intentionHistoryRate && (
+                          <div style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginBottom: 3, opacity: 0.7 }}>
+                            {intentionHistoryRate.done}/{intentionHistoryRate.total} 달성 · {intentionHistoryRate.pct}%
+                          </div>
+                        )}
                         {pastIntentions.map(e => (
                           <div key={e.date} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 3 }}>
                             <span style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, flexShrink: 0, minWidth: 32 }}>{e.date.slice(5)}</span>
