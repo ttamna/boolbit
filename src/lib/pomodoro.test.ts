@@ -1,5 +1,5 @@
 // ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string, focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, and audio feedback graceful fallback
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, and audio feedback graceful fallback
 
 import { describe, it, expect } from "vitest";
 import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone } from "./pomodoro";
@@ -343,6 +343,38 @@ describe("calcPomodoroBadge", () => {
 
   it("should include streak suffix even when goal is set", () => {
     expect(calcPomodoroBadge(3, 8, 25, 5)).toBe("🍅 ×3/8 · 1h 15m · 🔥5d");
+  });
+
+  it("should append '7d·N↑' suffix when weekSessions is positive and trend is ↑", () => {
+    expect(calcPomodoroBadge(2, undefined, 25, undefined, 12, "↑")).toBe("🍅 ×2 · 50m · 7d·12↑");
+  });
+
+  it("should append '7d·N↓' suffix when weekSessions is positive and trend is ↓", () => {
+    expect(calcPomodoroBadge(2, undefined, 25, undefined, 8, "↓")).toBe("🍅 ×2 · 50m · 7d·8↓");
+  });
+
+  it("should append '7d·N' without arrow when weekTrend is empty string (stable)", () => {
+    expect(calcPomodoroBadge(2, undefined, 25, undefined, 5, "")).toBe("🍅 ×2 · 50m · 7d·5");
+  });
+
+  it("should not append week suffix when weekSessions is null", () => {
+    expect(calcPomodoroBadge(2, undefined, 25, undefined, null, "↑")).toBe("🍅 ×2 · 50m");
+  });
+
+  it("should not append week suffix when weekSessions is undefined", () => {
+    expect(calcPomodoroBadge(2, undefined, 25, undefined, undefined, "↑")).toBe("🍅 ×2 · 50m");
+  });
+
+  it("should not append week suffix when weekSessions is 0", () => {
+    expect(calcPomodoroBadge(2, undefined, 25, undefined, 0, "")).toBe("🍅 ×2 · 50m");
+  });
+
+  it("should include both streak and week suffixes when both are present", () => {
+    expect(calcPomodoroBadge(3, 8, 25, 5, 12, "↑")).toBe("🍅 ×3/8 · 1h 15m · 🔥5d · 7d·12↑");
+  });
+
+  it("should include week suffix without streak when focusStreak is absent", () => {
+    expect(calcPomodoroBadge(1, 4, 25, undefined, 6, "↓")).toBe("🍅 ×1/4 · 25m · 7d·6↓");
   });
 });
 

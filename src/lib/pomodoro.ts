@@ -102,18 +102,25 @@ export function formatLifetime(mins: number): string {
 // "🍅 ×N/G[ · Xm]": goal set, not yet reached; time suffix included only when N > 0.
 // "🍅 ×N · Xm": no goal; N sessions completed today with time.
 // focusMins: the configured focus phase duration (minutes per session).
+// weekSessions: total sessions in the current 7-day window; absent/null/0 = omit week suffix.
+// weekTrend: "↑"/"↓"/"" appended to weekSessions when provided; "" (stable) suppresses arrow.
 // Exported for unit testing; pure function with no side effects.
 export function calcPomodoroBadge(
   sessionsToday: number,
   sessionGoal: number | undefined,
   focusMins: number,
   focusStreak?: number,
+  weekSessions?: number | null,
+  weekTrend?: "↑" | "↓" | "",
 ): string | null {
   const countStr = calcSessionCountStr(sessionsToday, sessionGoal);
   if (countStr === null) return null;
   const timeSuffix = sessionsToday > 0 ? ` · ${formatLifetime(sessionsToday * focusMins)}` : "";
   const streakSuffix = focusStreak != null && focusStreak >= 2 ? ` · 🔥${focusStreak}d` : "";
-  return `🍅 ${countStr}${timeSuffix}${streakSuffix}`;
+  const weekSuffix = (weekSessions ?? 0) > 0
+    ? ` · 7d·${weekSessions}${weekTrend ?? ""}`
+    : "";
+  return `🍅 ${countStr}${timeSuffix}${streakSuffix}${weekSuffix}`;
 }
 
 // Returns the number of consecutive days (including today) ending at todayStr with at least 1 pomodoro session.

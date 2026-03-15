@@ -271,8 +271,21 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const isPaused = !running && remaining < durations[phase] * 60;
   // focusStreak: consecutive days with ≥1 session; shown in badge when ≥2
   const focusStreak = calcFocusStreak(sessionHistory ?? [], todayStr);
-  // Collapsed header badge: "🍅 ×N/G · Xm[· 🔥Nd]" or null when nothing to show.
-  const pomodoroBadge = calcPomodoroBadge(sessionsToday, sessionGoal, durations.focus, focusStreak);
+  // sessionWeekTrend: memoized prev-7/cur-7 session data with histMap bundled for heatmap render.
+  // Sessions per 7-day window are unbounded (unlike habits where max is 7), so counts use "회" not "/7".
+  const sessionWeekTrend = useMemo(
+    () => calcSessionWeekTrend(sessionHistory ?? [], last14Days),
+    [sessionHistory, last14Days],
+  );
+  // Collapsed header badge: "🍅 ×N/G · Xm[· 🔥Nd][· 7d·N↑]" or null when nothing to show.
+  const pomodoroBadge = calcPomodoroBadge(
+    sessionsToday,
+    sessionGoal,
+    durations.focus,
+    focusStreak,
+    sessionWeekTrend?.cur7,
+    sessionWeekTrend?.trend,
+  );
   const goalReached = sessionGoal != null && sessionsToday >= sessionGoal;
   // goalPct: session goal progress percentage; null when no goal set (see sessionGoalPct for edge cases)
   const goalPct = sessionGoalPct(sessionsToday, sessionGoal);
@@ -283,13 +296,6 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const skipNextPhase: Phase = phase === "focus"
     ? (cycleCountRef.current + 1 >= effectiveLongBreakInterval ? "longBreak" : "break")
     : "focus";
-
-  // sessionWeekTrend: memoized prev-7/cur-7 session data with histMap bundled for heatmap render.
-  // Sessions per 7-day window are unbounded (unlike habits where max is 7), so counts use "회" not "/7".
-  const sessionWeekTrend = useMemo(
-    () => calcSessionWeekTrend(sessionHistory ?? [], last14Days),
-    [sessionHistory, last14Days],
-  );
 
   return (
     <div style={{ borderTop: `1px solid ${colors.borderFaint}`, marginTop: 4 }}>
