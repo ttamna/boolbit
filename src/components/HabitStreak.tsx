@@ -169,14 +169,26 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
       // Guard: only fire when onUpdate is defined (streak is actually being saved).
       // Dedup: milestoneNotifiedRef prevents re-fires on undo+redo within the same day.
       if (onUpdate) {
+        const key = h.id ?? String(i);
         const newBadge = getMilestone(newStreak);
         if (newBadge && newBadge !== getMilestone(h.streak)) {
-          const key = h.id ?? String(i);
           const notified = milestoneNotifiedRef.current.get(key) ?? new Set<string>();
           if (!notified.has(newBadge)) {
             notified.add(newBadge);
             milestoneNotifiedRef.current.set(key, notified);
             onMilestoneReached?.(h.name, newStreak, newBadge);
+          }
+        }
+        // Fire 🎯 notification when streak exactly hits the user-defined targetStreak,
+        // but ONLY when this check-in doesn't ALSO cross a preset milestone boundary (7/30/100) —
+        // a boundary crossing fires its own notification, making 🎯 a duplicate.
+        const isNewMilestone = newBadge !== null && newBadge !== getMilestone(h.streak);
+        if (h.targetStreak && newStreak === h.targetStreak && !isNewMilestone) {
+          const notified = milestoneNotifiedRef.current.get(key) ?? new Set<string>();
+          if (!notified.has("🎯")) {
+            notified.add("🎯");
+            milestoneNotifiedRef.current.set(key, notified);
+            onMilestoneReached?.(h.name, newStreak, "🎯");
           }
         }
       }

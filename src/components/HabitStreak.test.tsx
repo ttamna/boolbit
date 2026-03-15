@@ -408,3 +408,54 @@ describe("getUpcomingMilestone", () => {
     expect(getUpcomingMilestone(25, 3)).toBeNull();
   });
 });
+
+describe("HabitStreak targetStreak notification", () => {
+  const TODAY = "2026-03-15";
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00Z"));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("should call onMilestoneReached with 🎯 when streak hits a non-milestone targetStreak", () => {
+    // streak 13 → 14: not a preset milestone (7/30/100), targetStreak=14 → fires 🎯
+    const habit: Habit = { id: "h1", name: "Run", streak: 13, icon: "🏃", targetStreak: 14 };
+    const onUpdate = vi.fn();
+    const onMilestoneReached = vi.fn();
+    render(<HabitStreak habits={[habit]} onUpdate={onUpdate} onMilestoneReached={onMilestoneReached} />);
+    fireEvent.click(screen.getByTitle("오늘 완료 체크"));
+    expect(onMilestoneReached).toHaveBeenCalledWith("Run", 14, "🎯");
+  });
+
+  it("should not call onMilestoneReached with 🎯 when targetStreak coincides with preset milestone 7", () => {
+    // streak 6 → 7: getMilestone(7)=🔥 fires; 🎯 should NOT fire to avoid duplicate notification
+    const habit: Habit = { id: "h1", name: "Run", streak: 6, icon: "🏃", targetStreak: 7 };
+    const onUpdate = vi.fn();
+    const onMilestoneReached = vi.fn();
+    render(<HabitStreak habits={[habit]} onUpdate={onUpdate} onMilestoneReached={onMilestoneReached} />);
+    fireEvent.click(screen.getByTitle("오늘 완료 체크"));
+    expect(onMilestoneReached).toHaveBeenCalledWith("Run", 7, "🔥");
+    expect(onMilestoneReached).not.toHaveBeenCalledWith("Run", 7, "🎯");
+  });
+
+  it("should not call onMilestoneReached with 🎯 when targetStreak is not yet reached", () => {
+    // streak 12 → 13: targetStreak=14 not yet hit → no 🎯
+    const habit: Habit = { id: "h1", name: "Run", streak: 12, icon: "🏃", targetStreak: 14 };
+    const onUpdate = vi.fn();
+    const onMilestoneReached = vi.fn();
+    render(<HabitStreak habits={[habit]} onUpdate={onUpdate} onMilestoneReached={onMilestoneReached} />);
+    fireEvent.click(screen.getByTitle("오늘 완료 체크"));
+    expect(onMilestoneReached).not.toHaveBeenCalledWith("Run", 13, "🎯");
+  });
+
+  it("should not call onMilestoneReached with 🎯 when no targetStreak is set", () => {
+    // streak 13 → 14 but no targetStreak defined → no 🎯
+    const habit: Habit = { id: "h1", name: "Run", streak: 13, icon: "🏃" };
+    const onUpdate = vi.fn();
+    const onMilestoneReached = vi.fn();
+    render(<HabitStreak habits={[habit]} onUpdate={onUpdate} onMilestoneReached={onMilestoneReached} />);
+    fireEvent.click(screen.getByTitle("오늘 완료 체크"));
+    expect(onMilestoneReached).not.toHaveBeenCalledWith("Run", 14, "🎯");
+  });
+});
