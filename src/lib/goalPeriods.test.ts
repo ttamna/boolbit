@@ -1,8 +1,8 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, and calcGoalSuccessRate
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, and calcGoalSuccessRate
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr, monthStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcGoalSuccessRate } from "./goalPeriods";
+import { isoWeekStr, quarterStr, monthStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate } from "./goalPeriods";
 import type { GoalEntry } from "../types";
 
 describe("isoWeekStr", () => {
@@ -491,5 +491,71 @@ describe("calcQuarterGoalStreak", () => {
       "2024-Q4", "2024-Q3", "2024-Q2", "2024-Q1", "2023-Q4", "2023-Q3", "2023-Q2",
     ].map(date => ({ date, text: "goal" }));
     expect(calcQuarterGoalStreak("goal", currentQtr, history, now)).toBe(8);
+  });
+});
+
+describe("calcYearGoalStreak", () => {
+  // now = Mar 15 2025; year = 2025; yearGoalDate format = "YYYY"
+  const now = new Date(2025, 2, 15); // Mar 15 2025
+  const currentYear = "2025";
+  const prevYear1 = "2024";
+  const prevYear2 = "2023";
+  const prevYear3 = "2022";
+
+  it("should return 0 when yearGoal is undefined", () => {
+    expect(calcYearGoalStreak(undefined, currentYear, [], now)).toBe(0);
+  });
+
+  it("should return 0 when yearGoal is empty string", () => {
+    expect(calcYearGoalStreak("", currentYear, [], now)).toBe(0);
+  });
+
+  it("should return 0 when yearGoalDate is undefined", () => {
+    expect(calcYearGoalStreak("goal", undefined, [], now)).toBe(0);
+  });
+
+  it("should return 0 when yearGoalDate is stale (previous year)", () => {
+    expect(calcYearGoalStreak("goal", prevYear1, [], now)).toBe(0);
+  });
+
+  it("should return 1 when current year goal set and no history", () => {
+    expect(calcYearGoalStreak("goal", currentYear, [], now)).toBe(1);
+  });
+
+  it("should return 1 when history has a non-consecutive year (gap)", () => {
+    // prevYear2 (2023) present but prevYear1 (2024) absent — gap
+    expect(calcYearGoalStreak("goal", currentYear, [{ date: prevYear2, text: "2023" }], now)).toBe(1);
+  });
+
+  it("should return 2 when previous year is in history", () => {
+    expect(calcYearGoalStreak("goal", currentYear, [{ date: prevYear1, text: "2024" }], now)).toBe(2);
+  });
+
+  it("should return 3 when two consecutive previous years are in history", () => {
+    expect(calcYearGoalStreak("goal", currentYear, [
+      { date: prevYear1, text: "2024" },
+      { date: prevYear2, text: "2023" },
+    ], now)).toBe(3);
+  });
+
+  it("should stop counting at first gap in consecutive history", () => {
+    // prevYear1 (2024) present, prevYear2 (2023) absent, prevYear3 (2022) present — stops at gap
+    expect(calcYearGoalStreak("goal", currentYear, [
+      { date: prevYear1, text: "2024" },
+      { date: prevYear3, text: "2022" },
+    ], now)).toBe(2);
+  });
+
+  it("should count history entries regardless of their done status", () => {
+    expect(calcYearGoalStreak("goal", currentYear, [
+      { date: prevYear1, text: "2024", done: true },
+      { date: prevYear2, text: "2023", done: false },
+    ], now)).toBe(3);
+  });
+
+  it("should return 5 when all 4 history entries are consecutive with the current year (maximum)", () => {
+    // yearGoalHistory caps at 5 entries; current + 4 history = 5 max
+    const history = ["2024", "2023", "2022", "2021"].map(date => ({ date, text: "goal" }));
+    expect(calcYearGoalStreak("goal", currentYear, history, now)).toBe(5);
   });
 });

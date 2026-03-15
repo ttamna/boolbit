@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, weekly/monthly/quarterly goal streaks, and success rate
+// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, weekly/monthly/quarterly/yearly goal streaks, and success rate
 // ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, and history panels
 
 import type { GoalEntry } from "../types";
@@ -125,6 +125,31 @@ export function calcWeekGoalStreak(
     const d = new Date(base);
     d.setDate(d.getDate() - back * 7);
     if (historySet.has(isoWeekStr(d))) count++;
+    else break;
+  }
+  return count;
+}
+
+// Returns the number of consecutive years (including the current year) for which a yearly goal was set.
+// Returns 0 when: yearGoal is absent/empty, yearGoalDate is absent, or yearGoalDate ≠ current "YYYY" (stale).
+// Checks history for up to 4 preceding years; stops at the first gap.
+// Maximum return value is 5 (current year + 4 history entries, matching yearGoalHistory cap).
+// now: injected for deterministic testing.
+// Exported for unit testing; pure function with no side effects.
+export function calcYearGoalStreak(
+  yearGoal: string | undefined,
+  yearGoalDate: string | undefined,
+  history: GoalEntry[],
+  now: Date,
+): number {
+  if (!yearGoal || !yearGoalDate) return 0;
+  const currentYear = String(now.getFullYear());
+  if (yearGoalDate !== currentYear) return 0;
+  const historySet = new Set(history.map(e => e.date));
+  let count = 1;
+  for (let back = 1; back <= 4; back++) {
+    const key = String(now.getFullYear() - back);
+    if (historySet.has(key)) count++;
     else break;
   }
   return count;
