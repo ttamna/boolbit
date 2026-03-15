@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, goal streaks, success rate, and 7-week heatmap
-// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, history panels, and the week goal heatmap dot row
+// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, goal streaks, success rate, and goal heatmaps
+// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, history panels, and goal heatmap dot rows
 
 import type { GoalEntry } from "../types";
 
@@ -214,4 +214,60 @@ export function calcWeekGoalHeatmap(
   const setCount = weeks.filter(w => w.set).length;
   const doneCount = weeks.filter(w => w.set && w.done).length;
   return { weeks, setCount, doneCount };
+}
+
+// Returns N "YYYY-MM" strings (oldest → newest), anchored at todayStr.
+// Index 0 = (N-1) months ago; index N-1 = current month.
+// Uses prevMonthStr (integer arithmetic) to avoid Date.setMonth() overflow
+// (e.g. Jan 31 → setMonth(Feb) → Mar 3 on 31-day months).
+// Exported for unit testing; pure function with no side effects.
+export function calcLastNMonths(todayStr: string, n: number): string[] {
+  const currentMonth = todayStr.slice(0, 7); // "YYYY-MM"
+  const months: string[] = [];
+  let m = currentMonth;
+  for (let i = 0; i < n; i++) {
+    months.unshift(m);
+    m = prevMonthStr(m);
+  }
+  return months;
+}
+
+export interface MonthGoalEntry {
+  month: string;   // "YYYY-MM"
+  set: boolean;    // true when a goal was set for this month
+  done: boolean;   // true when the goal was marked accomplished
+}
+
+export interface MonthGoalHeatmapResult {
+  /** Per-month set/done status, ordered oldest→newest matching the input lastNMonths order. */
+  months: MonthGoalEntry[];
+  /** Number of months where set === true. */
+  setCount: number;
+  /** Number of months where set === true AND done === true. */
+  doneCount: number;
+}
+
+// Computes N-month goal heatmap for the month goal dot row (mirrors calcWeekGoalHeatmap but uses "YYYY-MM" keys).
+// For the current month: set/done derive from monthGoal/monthGoalDone.
+// For past months: set = history entry exists; done = entry.done === true.
+// currentMonth: "YYYY-MM" string for the current month.
+// Exported for unit testing; pure function with no side effects.
+export function calcMonthGoalHeatmap(
+  lastNMonths: string[],
+  currentMonth: string,
+  monthGoal: string | undefined,
+  monthGoalDone: boolean | undefined,
+  history: GoalEntry[],
+): MonthGoalHeatmapResult {
+  const months = lastNMonths.map(month => {
+    if (month === currentMonth) {
+      const set = !!(monthGoal);
+      return { month, set, done: set && (monthGoalDone ?? false) };
+    }
+    const entry = history.find(e => e.date === month);
+    return { month, set: !!entry, done: entry?.done ?? false };
+  });
+  const setCount = months.filter(m => m.set).length;
+  const doneCount = months.filter(m => m.set && m.done).length;
+  return { months, setCount, doneCount };
 }

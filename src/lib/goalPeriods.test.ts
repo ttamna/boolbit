@@ -1,8 +1,8 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, and calcWeekGoalHeatmap
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, and calcMonthGoalHeatmap
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap } from "./goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap } from "./goalPeriods";
 import type { GoalEntry } from "../types";
 
 describe("isoWeekStr", () => {
@@ -716,5 +716,147 @@ describe("calcWeekGoalHeatmap", () => {
     // Current week goal is not reflected because LAST7 doesn't contain W20
     expect(result.setCount).toBe(0);
     expect(result.doneCount).toBe(0);
+  });
+});
+
+describe("calcLastNMonths", () => {
+  const TODAY = "2026-03-15";
+
+  it("should return exactly N months", () => {
+    expect(calcLastNMonths(TODAY, 6)).toHaveLength(6);
+    expect(calcLastNMonths(TODAY, 1)).toHaveLength(1);
+    expect(calcLastNMonths(TODAY, 3)).toHaveLength(3);
+  });
+
+  it("should have the current month ('YYYY-MM') as the last element", () => {
+    const months = calcLastNMonths(TODAY, 6);
+    expect(months[5]).toBe("2026-03");
+  });
+
+  it("should have (N-1) months ago as the first element", () => {
+    // n=6 → first element is 5 months before March 2026 = October 2025
+    expect(calcLastNMonths(TODAY, 6)[0]).toBe("2025-10");
+  });
+
+  it("should order months ascending (oldest first)", () => {
+    const months = calcLastNMonths(TODAY, 6);
+    for (let i = 1; i < months.length; i++) {
+      expect(months[i] > months[i - 1]).toBe(true);
+    }
+  });
+
+  it("should handle year boundary correctly (Jan rolls back to Dec of prior year)", () => {
+    // n=3 anchored at 2026-01-15: Jan 2026, Dec 2025, Nov 2025 → oldest first
+    const months = calcLastNMonths("2026-01-15", 3);
+    expect(months).toEqual(["2025-11", "2025-12", "2026-01"]);
+  });
+
+  it("should produce YYYY-MM formatted strings", () => {
+    const pattern = /^\d{4}-\d{2}$/;
+    calcLastNMonths(TODAY, 6).forEach(m => expect(m).toMatch(pattern));
+  });
+
+  it("should return only current month when n=1", () => {
+    expect(calcLastNMonths(TODAY, 1)).toEqual(["2026-03"]);
+  });
+
+  it("should return same-year adjacent months for December anchor", () => {
+    // n=2 at 2026-12-01: Nov 2026, Dec 2026 (same-year, no boundary crossing)
+    expect(calcLastNMonths("2026-12-01", 2)).toEqual(["2026-11", "2026-12"]);
+  });
+
+  it("should return empty array when n=0", () => {
+    expect(calcLastNMonths(TODAY, 0)).toEqual([]);
+  });
+});
+
+describe("calcMonthGoalHeatmap", () => {
+  // Fixture: last 6 months ending March 2026
+  const LAST6 = calcLastNMonths("2026-03-15", 6); // ["2025-10","2025-11","2025-12","2026-01","2026-02","2026-03"]
+  const CURRENT = "2026-03";
+
+  it("should return exactly N month entries matching input array length", () => {
+    const result = calcMonthGoalHeatmap(LAST6, CURRENT, undefined, undefined, []);
+    expect(result.months).toHaveLength(6);
+  });
+
+  it("should mark current month set=true when monthGoal is set", () => {
+    const result = calcMonthGoalHeatmap(LAST6, CURRENT, "launch MVP", undefined, []);
+    const cur = result.months.find(m => m.month === CURRENT)!;
+    expect(cur.set).toBe(true);
+    expect(cur.done).toBe(false);
+  });
+
+  it("should mark current month done=true when monthGoal is set and monthGoalDone=true", () => {
+    const result = calcMonthGoalHeatmap(LAST6, CURRENT, "launch MVP", true, []);
+    const cur = result.months.find(m => m.month === CURRENT)!;
+    expect(cur.set).toBe(true);
+    expect(cur.done).toBe(true);
+  });
+
+  it("should mark current month set=false when monthGoal is absent", () => {
+    const result = calcMonthGoalHeatmap(LAST6, CURRENT, undefined, undefined, []);
+    const cur = result.months.find(m => m.month === CURRENT)!;
+    expect(cur.set).toBe(false);
+    expect(cur.done).toBe(false);
+  });
+
+  it("should mark past month set=true when it exists in history", () => {
+    const history: GoalEntry[] = [{ date: "2026-02", text: "Ship feature" }];
+    const result = calcMonthGoalHeatmap(LAST6, CURRENT, undefined, undefined, history);
+    const feb = result.months.find(m => m.month === "2026-02")!;
+    expect(feb.set).toBe(true);
+    expect(feb.done).toBe(false);
+  });
+
+  it("should mark past month done=true when history entry has done=true", () => {
+    const history: GoalEntry[] = [{ date: "2026-02", text: "Ship feature", done: true }];
+    const result = calcMonthGoalHeatmap(LAST6, CURRENT, undefined, undefined, history);
+    const feb = result.months.find(m => m.month === "2026-02")!;
+    expect(feb.set).toBe(true);
+    expect(feb.done).toBe(true);
+  });
+
+  it("should mark past month set=false when not in history", () => {
+    const result = calcMonthGoalHeatmap(LAST6, CURRENT, undefined, undefined, []);
+    const oct = result.months.find(m => m.month === "2025-10")!;
+    expect(oct.set).toBe(false);
+    expect(oct.done).toBe(false);
+  });
+
+  it("should count setCount correctly across current and past months", () => {
+    const history: GoalEntry[] = [
+      { date: "2025-10", text: "goal A" },
+      { date: "2026-02", text: "goal B" },
+    ];
+    // set: Oct(history), Feb(history), Mar(current) = 3; done: 0
+    const result = calcMonthGoalHeatmap(LAST6, CURRENT, "march goal", undefined, history);
+    expect(result.setCount).toBe(3);
+    expect(result.doneCount).toBe(0);
+  });
+
+  it("should count doneCount correctly when current and past months are done", () => {
+    const history: GoalEntry[] = [
+      { date: "2026-01", text: "goal", done: true },
+      { date: "2026-02", text: "goal", done: false },
+    ];
+    // done: Jan(history done), Mar(current done) = 2
+    const result = calcMonthGoalHeatmap(LAST6, CURRENT, "march goal", true, history);
+    expect(result.doneCount).toBe(2);
+    expect(result.setCount).toBe(3); // Jan + Feb + Mar
+  });
+
+  it("should return setCount=0 and doneCount=0 when no goals set and history empty", () => {
+    const result = calcMonthGoalHeatmap(LAST6, CURRENT, undefined, undefined, []);
+    expect(result.setCount).toBe(0);
+    expect(result.doneCount).toBe(0);
+  });
+
+  it("should not mark current month done when monthGoal is absent even if monthGoalDone=true", () => {
+    // done is only meaningful when set is true; guard: set && done
+    const result = calcMonthGoalHeatmap(LAST6, CURRENT, undefined, true, []);
+    const cur = result.months.find(m => m.month === CURRENT)!;
+    expect(cur.set).toBe(false);
+    expect(cur.done).toBe(false);
   });
 });

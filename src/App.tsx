@@ -15,7 +15,7 @@ import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsBadge } from "./lib/habits";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap } from "./lib/goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge } from "./lib/projects";
@@ -636,6 +636,17 @@ export default function App() {
     data.weekGoalDone,
     data.weekGoalHistory ?? [],
   );
+  // monthGoalHeatmap: 6-month set/done dot row — mirrors the 7-week goal heatmap for consistent visual language.
+  // last6Months: [5 months ago, …, this month] as "YYYY-MM" strings (oldest→newest).
+  const last6Months = calcLastNMonths(todayStr, 6);
+  const currentMonthStr = todayStr.slice(0, 7); // "YYYY-MM"
+  const monthGoalHeatmap = calcMonthGoalHeatmap(
+    last6Months,
+    currentMonthStr,
+    data.monthGoal,
+    data.monthGoalDone,
+    data.monthGoalHistory ?? [],
+  );
   // M/Q/Y goal streaks: consecutive periods for which a goal was set — same reward pattern as week.
   const monthGoalStreak = calcMonthGoalStreak(data.monthGoal, data.monthGoalDate, data.monthGoalHistory ?? [], renderDate);
   const quarterGoalStreak = calcQuarterGoalStreak(data.quarterGoal, data.quarterGoalDate, data.quarterGoalHistory ?? [], renderDate);
@@ -916,6 +927,32 @@ export default function App() {
                       <div style={{ height: 2, background: colors.borderSubtle, borderRadius: radius.bar }}>
                         <div style={{ height: "100%", width: `${Math.round(monthElapsedFrac * 100)}%`, background: `${themeAccent}28`, borderRadius: radius.bar, transition: "width 0.3s ease" }} />
                       </div>
+                      {/* 6-month goal heatmap — mirrors week goal heatmap; accent=set+done, dim=set-only, ghost=not set */}
+                      {monthGoalHeatmap.setCount > 0 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 2, paddingTop: 3 }}>
+                          {monthGoalHeatmap.months.map(({ month, set, done }, i) => {
+                            const monthsAgo = monthGoalHeatmap.months.length - 1 - i;
+                            const label = monthsAgo === 0 ? "이번 달" : `${monthsAgo}달 전`;
+                            return (
+                              <div
+                                key={month}
+                                title={`${label}${set ? (done ? " · 달성" : " · 설정만") : " · 없음"}`}
+                                style={{
+                                  width: 4, height: 4, borderRadius: "50%",
+                                  background: done ? themeAccent : set ? colors.textPhantom : colors.borderSubtle,
+                                  opacity: done ? 0.9 : 0.55,
+                                }}
+                              />
+                            );
+                          })}
+                          <span
+                            title={`최근 6달 목표 달성 ${monthGoalHeatmap.doneCount}/${monthGoalHeatmap.setCount}달`}
+                            style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginLeft: 3, opacity: 0.7 }}
+                          >
+                            {monthGoalHeatmap.doneCount}/{monthGoalHeatmap.setCount}✓
+                          </span>
+                        </div>
+                      )}
                       {showMonthGoalHistory && (data.monthGoalHistory ?? []).length > 0 && (
                         <div style={{ marginTop: 4 }}>
                           {monthGoalRate && (
