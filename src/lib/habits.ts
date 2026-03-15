@@ -181,6 +181,16 @@ export function calcPerfectDayStreak(habits: Habit[], dayWindow: string[]): numb
   return streak;
 }
 
+// Returns percentage progress toward the user-defined target streak goal, clamped to [0, 100].
+// Returns undefined when: targetStreak is absent/0/negative (no valid goal) or streak is 0 or negative (not started).
+// Separates "no goal" from "goal at 0%" so callers can gate progress bar visibility cleanly.
+// Exported for unit testing; pure function with no side effects.
+export function calcTargetStreakPct(streak: number, targetStreak: number | undefined): number | undefined {
+  const target = targetStreak ?? 0;
+  if (target <= 0 || streak <= 0) return undefined;
+  return Math.min(100, Math.round(streak / target * 100));
+}
+
 // Returns weekly check statistics for a single habit, partitioned from a 14-day window.
 // last14Days: 14 YYYY-MM-DD strings ordered oldest→newest.
 //   Indices 0–6: previous week; indices 7–13: current week.
