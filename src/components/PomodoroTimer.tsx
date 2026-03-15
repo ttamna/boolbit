@@ -5,11 +5,10 @@ import { useState, useEffect, useRef, useMemo, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { PomodoroDay } from "../types";
-import { calcLast14Days, calcSessionWeekTrend, calcPomodoroBadge, formatLifetime } from "../lib/pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcPomodoroBadge, formatLifetime, phaseAccent, phaseLabel } from "../lib/pomodoro";
+import type { Phase } from "../lib/pomodoro";
 // Re-export formatLifetime as part of this component's public API (used alongside sessionGoalPct by callers).
 export { formatLifetime };
-
-type Phase = "focus" | "break" | "longBreak";
 
 const DEFAULT_DURATION: Record<Phase, number> = { focus: 25, break: 5, longBreak: 15 };
 const PRESETS: Record<Phase, number[]> = { focus: [15, 25, 45], break: [5, 10, 15], longBreak: [10, 15, 20] };
@@ -18,19 +17,6 @@ const LONG_BREAK_INTERVAL_PRESETS = [2, 3, 4, 6] as const;
 const mono: CSSProperties = { fontFamily: fonts.mono };
 
 function pad(n: number) { return String(n).padStart(2, "0"); }
-
-// Accent color per phase: green for focus, yellow for short break, sky-blue for long break
-function phaseAccent(p: Phase): string {
-  if (p === "focus") return colors.statusActive;
-  if (p === "break") return colors.statusProgress;
-  return colors.statusLongBreak;
-}
-
-function phaseLabel(p: Phase): string {
-  if (p === "focus") return "집중";
-  if (p === "break") return "휴식";
-  return "긴 휴식";
-}
 
 
 async function notify(title: string, body: string) {

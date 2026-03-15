@@ -1,7 +1,31 @@
-// ABOUTME: Pure helpers for pomodoro session statistics — no side effects
-// ABOUTME: Covers today-count derivation, 14-day history upsert, date range, week trend, header badge string, and lifetime format
+// ABOUTME: Pure helpers for pomodoro session statistics and phase UI mapping — no side effects
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, and lifetime format
 
 import type { PomodoroDay } from "../types";
+import { colors } from "../theme";
+
+/** The three phases of a pomodoro cycle. */
+export type Phase = "focus" | "break" | "longBreak";
+
+// Returns the accent color token for the given pomodoro phase.
+// focus → colors.statusActive (green); break → colors.statusProgress (amber); longBreak → colors.statusLongBreak (sky-blue).
+// PomodoroTimer applies a theme-accent override for focus and calls this only for non-focus phases,
+// but the function covers all three to form a complete, independently testable contract.
+// Exported for unit testing; pure function with no side effects.
+export function phaseAccent(p: Phase): string {
+  if (p === "focus") return colors.statusActive;
+  if (p === "break") return colors.statusProgress;
+  return colors.statusLongBreak;
+}
+
+// Returns the Korean display label for the given pomodoro phase.
+// focus → "집중"; break → "휴식"; longBreak → "긴 휴식".
+// Exported for unit testing; pure function with no side effects.
+export function phaseLabel(p: Phase): string {
+  if (p === "focus") return "집중";
+  if (p === "break") return "휴식";
+  return "긴 휴식";
+}
 
 // Returns the updated today-session count given the persisted state.
 // Resets to 1 when sessionDate differs from today (new day); increments by 1 when same day.

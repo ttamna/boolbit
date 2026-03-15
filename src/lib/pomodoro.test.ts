@@ -1,8 +1,9 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string, and section collapsed badge
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, phaseAccent, phaseLabel
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string, section collapsed badge, and phase UI mapping
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, phaseAccent, phaseLabel } from "./pomodoro";
+import { colors } from "../theme";
 import type { PomodoroDay } from "../types";
 
 // Shared fixture: derived from calcLast14Days so partitioning assumptions stay consistent.
@@ -356,5 +357,33 @@ describe("calcSessionCountStr", () => {
 
   it("should return '✓1' when sessionsToday is 1 and sessionGoal is 1 (immediate goal reached)", () => {
     expect(calcSessionCountStr(1, 1)).toBe("✓1");
+  });
+});
+
+describe("phaseAccent", () => {
+  it("should return statusActive color for focus phase", () => {
+    expect(phaseAccent("focus")).toBe(colors.statusActive);
+  });
+
+  it("should return statusProgress color for break phase", () => {
+    expect(phaseAccent("break")).toBe(colors.statusProgress);
+  });
+
+  it("should return statusLongBreak color for longBreak phase", () => {
+    expect(phaseAccent("longBreak")).toBe(colors.statusLongBreak);
+  });
+});
+
+describe("phaseLabel", () => {
+  it("should return '집중' for focus phase", () => {
+    expect(phaseLabel("focus")).toBe("집중");
+  });
+
+  it("should return '휴식' for break phase", () => {
+    expect(phaseLabel("break")).toBe("휴식");
+  });
+
+  it("should return '긴 휴식' for longBreak phase", () => {
+    expect(phaseLabel("longBreak")).toBe("긴 휴식");
   });
 });
