@@ -17,6 +17,8 @@ const base: import("./direction").DirectionBadgeParams = {
   todayIntention: undefined,
   todayIntentionDone: undefined,
   intentionConsecutiveDays: 1,
+  intentionSetCount7: undefined,
+  intentionDoneCount7: undefined,
   quotesCount: 0,
   daysLeftYear: 100,
   daysLeftQuarter: 50,
@@ -110,5 +112,61 @@ describe("calcDirectionBadge", () => {
     // Only monthGoal set → only M✓ in output, no Y✓/Q✓/W✓
     const result = calcDirectionBadge({ ...base, monthGoal: "Launch", daysLeftMonth: 20 });
     expect(result).toBe("M✓");
+  });
+
+  // 7-day intention completion rate suffix
+  it("should NOT append week suffix when intentionSetCount7 is 0", () => {
+    expect(
+      calcDirectionBadge({ ...base, todayIntention: "Focus", intentionSetCount7: 0, intentionDoneCount7: 0 })
+    ).toBe("✓");
+  });
+
+  it("should NOT append week suffix when intentionSetCount7 is undefined", () => {
+    expect(
+      calcDirectionBadge({ ...base, todayIntention: "Focus" })
+    ).toBe("✓");
+  });
+
+  it("should append '·N/M' week suffix when intentionSetCount7 > 0", () => {
+    expect(
+      calcDirectionBadge({ ...base, todayIntention: "Focus", intentionSetCount7: 7, intentionDoneCount7: 5 })
+    ).toBe("✓·5/7");
+  });
+
+  it("should combine streak and week suffix: '✓·3🔥·4/6'", () => {
+    expect(
+      calcDirectionBadge({
+        ...base,
+        todayIntention: "Focus",
+        intentionConsecutiveDays: 3,
+        intentionSetCount7: 6,
+        intentionDoneCount7: 4,
+      })
+    ).toBe("✓·3🔥·4/6");
+  });
+
+  it("should combine done+streak+week: '✓✓·5🔥·7/7'", () => {
+    expect(
+      calcDirectionBadge({
+        ...base,
+        todayIntention: "Focus",
+        todayIntentionDone: true,
+        intentionConsecutiveDays: 5,
+        intentionSetCount7: 7,
+        intentionDoneCount7: 7,
+      })
+    ).toBe("✓✓·5🔥·7/7");
+  });
+
+  it("should show week suffix without streak when consecutiveDays is 1", () => {
+    expect(
+      calcDirectionBadge({
+        ...base,
+        todayIntention: "Focus",
+        intentionConsecutiveDays: 1,
+        intentionSetCount7: 5,
+        intentionDoneCount7: 3,
+      })
+    ).toBe("✓·3/5");
   });
 });

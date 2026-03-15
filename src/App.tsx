@@ -719,6 +719,8 @@ export default function App() {
     weekGoal: data.weekGoal, weekGoalDone: data.weekGoalDone,
     todayIntention: data.todayIntention, todayIntentionDone: data.todayIntentionDone,
     intentionConsecutiveDays,
+    intentionSetCount7,
+    intentionDoneCount7,
     quotesCount: (data.quotes ?? []).length,
     daysLeftYear, daysLeftQuarter, daysLeftMonth, daysLeftWeek,
   });

@@ -14,6 +14,10 @@ export interface DirectionBadgeParams {
   todayIntentionDone?: boolean;
   /** Consecutive days the user has set an intention (including today); ≥2 triggers streak display. */
   intentionConsecutiveDays: number;
+  /** Number of intentions set in the last 7 days; shows "·N/M" completion suffix when > 0. */
+  intentionSetCount7?: number;
+  /** Number of intentions marked done in the last 7 days; paired with intentionSetCount7. */
+  intentionDoneCount7?: number;
   /** Number of quotes in the quotes array; appended as "Nq" when > 0. */
   quotesCount: number;
   /** Days remaining in the current calendar year (including today); urgency suffix when ≤ 30. */
@@ -34,7 +38,8 @@ export interface DirectionBadgeParams {
  * - Double ✓ when marked done; single ✓ when set but not done.
  * - Urgency "·Nd" appended when period end is near:
  *   year ≤30d, quarter ≤14d, month ≤7d, week ≤3d.
- * Intention: "✓[✓][·N🔥]" — streak suffix when consecutiveDays ≥ 2.
+ * Intention: "✓[✓][·N🔥][·D/S]" — streak suffix when consecutiveDays ≥ 2;
+ *   week suffix "·D/S" (done/set) appended when intentionSetCount7 > 0.
  * Parts joined by " · ".
  */
 export function calcDirectionBadge(params: DirectionBadgeParams): string | undefined {
@@ -45,6 +50,7 @@ export function calcDirectionBadge(params: DirectionBadgeParams): string | undef
     weekGoal, weekGoalDone,
     todayIntention, todayIntentionDone,
     intentionConsecutiveDays,
+    intentionSetCount7, intentionDoneCount7,
     quotesCount,
     daysLeftYear, daysLeftQuarter, daysLeftMonth, daysLeftWeek,
   } = params;
@@ -69,7 +75,11 @@ export function calcDirectionBadge(params: DirectionBadgeParams): string | undef
   }
   if (todayIntention) {
     const base = todayIntentionDone ? "✓✓" : "✓";
-    parts.push(intentionConsecutiveDays >= 2 ? `${base}·${intentionConsecutiveDays}🔥` : base);
+    const streakSuffix = intentionConsecutiveDays >= 2 ? `·${intentionConsecutiveDays}🔥` : "";
+    const weekSuffix = (intentionSetCount7 !== undefined && intentionSetCount7 > 0)
+      ? `·${intentionDoneCount7 ?? 0}/${intentionSetCount7}`
+      : "";
+    parts.push(`${base}${streakSuffix}${weekSuffix}`);
   }
   if (quotesCount > 0) parts.push(`${quotesCount}q`);
 
