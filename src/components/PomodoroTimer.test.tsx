@@ -104,6 +104,39 @@ describe("sessionGoalPct", () => {
   });
 });
 
+describe("PomodoroTimer weekly trend display", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should display weekly session count with 회 suffix when sessions exist", () => {
+    // cur7 = 3 + 2 = 5 sessions (both dates fall in the current 7-day window ending today)
+    const sessionHistory = [
+      { date: "2026-03-15", count: 3 },
+      { date: "2026-03-14", count: 2 },
+    ];
+    render(<PomodoroTimer sessionHistory={sessionHistory} />);
+    // cur7=5, prev7=0 → trend='↑', so rendered text is "5회↑"; /5회/ partial match covers this
+    expect(screen.queryByText(/5회/)).not.toBeNull();
+  });
+
+  it("should NOT display weekly session count as 'N/7' (misleading fraction format)", () => {
+    // Pomodoro sessions are unbounded per week — 'N/7' looks like 'N out of 7' which is wrong
+    const sessionHistory = [
+      { date: "2026-03-15", count: 3 },
+      { date: "2026-03-14", count: 2 },
+    ];
+    render(<PomodoroTimer sessionHistory={sessionHistory} />);
+    // cur7 = 5 — should NOT render as "5/7" which implies a 7-cap; actual is "5회↑"
+    expect(screen.queryByText(/5\/7/)).toBeNull();
+  });
+});
+
 describe("PomodoroTimer autoStart phase transitions", () => {
   beforeEach(() => {
     vi.useFakeTimers();

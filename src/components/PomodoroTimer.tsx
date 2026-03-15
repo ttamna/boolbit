@@ -424,12 +424,12 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               />
             );
           })}
-          {/* Weekly session count — N/7 with trend arrow; tooltip shows both windows + 14-day total */}
+          {/* Weekly session count — N회 with trend arrow; sessions are unbounded (not capped at 7); tooltip shows both windows + 14-day total */}
           <span
             title={`최근 7일 ${sessionWeekTrend.cur7}회 · 이전 7일 ${sessionWeekTrend.prev7}회 · 14일 합계 ${sessionWeekTrend.cur7 + sessionWeekTrend.prev7}회`}
             style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginLeft: 3, opacity: 0.7 }}
           >
-            {sessionWeekTrend.cur7}/7{sessionWeekTrend.trend}
+            {sessionWeekTrend.cur7}회{sessionWeekTrend.trend}
           </span>
         </div>
       )}
