@@ -15,7 +15,7 @@ import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsBadge } from "./lib/habits";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcGoalSuccessRate } from "./lib/goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge } from "./lib/projects";
@@ -630,6 +630,10 @@ export default function App() {
     data.weekGoalHistory ?? [],
     renderDate,
   );
+  // M/Q/Y goal streaks: consecutive periods for which a goal was set — same reward pattern as week.
+  const monthGoalStreak = calcMonthGoalStreak(data.monthGoal, data.monthGoalDate, data.monthGoalHistory ?? [], renderDate);
+  const quarterGoalStreak = calcQuarterGoalStreak(data.quarterGoal, data.quarterGoalDate, data.quarterGoalHistory ?? [], renderDate);
+  const yearGoalStreak = calcYearGoalStreak(data.yearGoal, data.yearGoalDate, data.yearGoalHistory ?? [], renderDate);
   // last7Days: [6daysAgo, ..., yesterday, today] as YYYY-MM-DD strings (oldest→newest, HabitStreak.tsx convention).
   // Single source shared by habitsWeekRate, weekPomodoroCount, and recentlyDoneCount.
   const last7Days = calcLastNDays(todayStr, 7);
@@ -786,6 +790,10 @@ export default function App() {
                         {data.yearGoal && (
                           <button onClick={() => updateYearGoalDone(!data.yearGoalDone)} title={data.yearGoalDone ? "달성 취소" : "연간 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.yearGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
                         )}
+                        {/* Consecutive year streak — shown when ≥2 years in a row to reward consistent goal-setting */}
+                        {data.yearGoal && yearGoalStreak >= 2 && (
+                          <span title={`${yearGoalStreak}년 연속 연간 목표 설정`} style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, lineHeight: 1 }}>{yearGoalStreak}🔥</span>
+                        )}
                         {data.yearGoal && (
                           <button onClick={() => updateYearGoal("")} title="연간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                         )}
@@ -832,6 +840,10 @@ export default function App() {
                         {data.quarterGoal && (
                           <button onClick={() => updateQuarterGoalDone(!data.quarterGoalDone)} title={data.quarterGoalDone ? "달성 취소" : "분기 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.quarterGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
                         )}
+                        {/* Consecutive quarter streak — shown when ≥2 quarters in a row */}
+                        {data.quarterGoal && quarterGoalStreak >= 2 && (
+                          <span title={`${quarterGoalStreak}분기 연속 분기 목표 설정`} style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, lineHeight: 1 }}>{quarterGoalStreak}🔥</span>
+                        )}
                         {data.quarterGoal && (
                           <button onClick={() => updateQuarterGoal("")} title="분기 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
                         )}
@@ -877,6 +889,10 @@ export default function App() {
                         />
                         {data.monthGoal && (
                           <button onClick={() => updateMonthGoalDone(!data.monthGoalDone)} title={data.monthGoalDone ? "달성 취소" : "월간 목표 달성 완료로 표시"} style={{ background: "transparent", border: "none", cursor: "pointer", color: data.monthGoalDone ? themeAccent : colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1, transition: "color 0.15s" }}>✓</button>
+                        )}
+                        {/* Consecutive month streak — shown when ≥2 months in a row */}
+                        {data.monthGoal && monthGoalStreak >= 2 && (
+                          <span title={`${monthGoalStreak}달 연속 월간 목표 설정`} style={{ ...s.mono, fontSize: fontSizes.mini, color: colors.textPhantom, lineHeight: 1 }}>{monthGoalStreak}🔥</span>
                         )}
                         {data.monthGoal && (
                           <button onClick={() => updateMonthGoal("")} title="월간 목표 지우기" style={{ background: "transparent", border: "none", cursor: "pointer", color: colors.textGhost, fontSize: fontSizes.mini, padding: "0 2px", lineHeight: 1 }}>✕</button>
