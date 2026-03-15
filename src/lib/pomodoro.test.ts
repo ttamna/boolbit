@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, header badge string
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string, and section collapsed badge
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge } from "./pomodoro";
 import type { PomodoroDay } from "../types";
 
 // Shared fixture: derived from calcLast14Days so partitioning assumptions stay consistent.
@@ -283,6 +283,45 @@ describe("updatePomodoroHistory", () => {
     const original = [...history];
     updatePomodoroHistory(history, TODAY, 3);
     expect(history).toEqual(original);
+  });
+});
+
+describe("calcPomodoroBadge", () => {
+  it("should return null when sessionsToday is 0 and sessionGoal is absent (nothing to show)", () => {
+    expect(calcPomodoroBadge(0, undefined, 25)).toBeNull();
+  });
+
+  it("should return '🍅 ×0/8' without time suffix when sessionsToday is 0 but goal is set", () => {
+    expect(calcPomodoroBadge(0, 8, 25)).toBe("🍅 ×0/8");
+  });
+
+  it("should return '🍅 ×1 · 25m' when 1 session, no goal, 25min focus", () => {
+    expect(calcPomodoroBadge(1, undefined, 25)).toBe("🍅 ×1 · 25m");
+  });
+
+  it("should return '🍅 ×3/8 · 1h 15m' when 3 of 8 done, 25min focus", () => {
+    expect(calcPomodoroBadge(3, 8, 25)).toBe("🍅 ×3/8 · 1h 15m");
+  });
+
+  it("should return '🍅 ✓8 · 3h 20m' when 8 sessions exactly meet goal, 25min focus", () => {
+    expect(calcPomodoroBadge(8, 8, 25)).toBe("🍅 ✓8 · 3h 20m");
+  });
+
+  it("should return '🍅 ✓10 · 4h 10m' when 10 sessions exceed goal, 25min focus", () => {
+    expect(calcPomodoroBadge(10, 8, 25)).toBe("🍅 ✓10 · 4h 10m");
+  });
+
+  it("should return '🍅 ×2 · 30m' for 2 sessions with 15min focus", () => {
+    expect(calcPomodoroBadge(2, undefined, 15)).toBe("🍅 ×2 · 30m");
+  });
+
+  it("should return '🍅 ×4 · 1h' for 4 sessions of 15 minutes (exactly 60min — no trailing 0m)", () => {
+    expect(calcPomodoroBadge(4, undefined, 15)).toBe("🍅 ×4 · 1h");
+  });
+
+  it("should use focusMins for time calculation, not a hardcoded 25", () => {
+    // 3 sessions × 45min = 2h 15m
+    expect(calcPomodoroBadge(3, undefined, 45)).toBe("🍅 ×3 · 2h 15m");
   });
 });
 

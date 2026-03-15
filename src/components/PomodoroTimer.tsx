@@ -5,7 +5,9 @@ import { useState, useEffect, useRef, useMemo, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { PomodoroDay } from "../types";
-import { calcLast14Days, calcSessionWeekTrend, calcSessionCountStr } from "../lib/pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcPomodoroBadge, formatLifetime } from "../lib/pomodoro";
+// Re-export formatLifetime as part of this component's public API (used alongside sessionGoalPct by callers).
+export { formatLifetime };
 
 type Phase = "focus" | "break" | "longBreak";
 
@@ -30,14 +32,6 @@ function phaseLabel(p: Phase): string {
   return "긴 휴식";
 }
 
-// Formats cumulative focus minutes as "Xh Ym" (≥60 min) or "Xm" (<60 min) for the ∑ badge.
-// Exported for unit testing.
-export function formatLifetime(mins: number): string {
-  if (mins < 60) return `${mins}m`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
-}
 
 async function notify(title: string, body: string) {
   try {
@@ -291,10 +285,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const progress = 1 - remaining / (durations[phase] * 60);
   // Timer was started (or resumed) but is currently stopped mid-countdown
   const isPaused = !running && remaining < durations[phase] * 60;
-  // todayTimeStr: total focus time today — reuses formatLifetime to avoid duplicate format logic.
-  const todayTimeStr = formatLifetime(sessionsToday * durations.focus);
-  // Session count badge string — delegated to pure function in lib/pomodoro for testability.
-  const sessionCountStr = calcSessionCountStr(sessionsToday, sessionGoal);
+  // Collapsed header badge: "🍅 ×N/G · Xm" or null when nothing to show.
+  const pomodoroBadge = calcPomodoroBadge(sessionsToday, sessionGoal, durations.focus);
   const goalReached = sessionGoal != null && sessionsToday >= sessionGoal;
   // goalPct: session goal progress percentage; null when no goal set (see sessionGoalPct for edge cases)
   const goalPct = sessionGoalPct(sessionsToday, sessionGoal);
@@ -342,9 +334,9 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               >↓</button>
             </div>
           )}
-          {sessionCountStr !== null && (
+          {pomodoroBadge !== null && (
             <span style={{ fontSize: fontSizes.mini, color: goalReached ? focusColor : colors.textSubtle }}>
-              🍅 {sessionCountStr}{sessionsToday > 0 ? ` · ${todayTimeStr}` : ""}
+              {pomodoroBadge}
             </span>
           )}
           {lt > 0 && (

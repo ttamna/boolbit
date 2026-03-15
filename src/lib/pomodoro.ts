@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for pomodoro session statistics — no side effects
-// ABOUTME: Covers today-count derivation, 14-day history upsert, date range, week trend, and header badge string
+// ABOUTME: Covers today-count derivation, 14-day history upsert, date range, week trend, header badge string, and lifetime format
 
 import type { PomodoroDay } from "../types";
 
@@ -60,6 +60,34 @@ export function calcSessionCountStr(
       : `×${sessionsToday}/${sessionGoal}`;
   }
   return `×${sessionsToday}`;
+}
+
+// Formats cumulative focus minutes as "Xh Ym" (≥60 min) or "Xm" (<60 min) for the ∑ badge.
+// Exported for unit testing; pure function with no side effects.
+export function formatLifetime(mins: number): string {
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+// Returns the Pomodoro collapsed section badge string, or null when nothing to show.
+// Combines the session count indicator (calcSessionCountStr) with today's total focus time.
+// null: sessionsToday === 0 and sessionGoal absent — matches the calcSessionCountStr null case.
+// "🍅 ✓N · Xm": goal reached or exceeded; N ≥ 1, so time suffix is always present.
+// "🍅 ×N/G[ · Xm]": goal set, not yet reached; time suffix included only when N > 0.
+// "🍅 ×N · Xm": no goal; N sessions completed today with time.
+// focusMins: the configured focus phase duration (minutes per session).
+// Exported for unit testing; pure function with no side effects.
+export function calcPomodoroBadge(
+  sessionsToday: number,
+  sessionGoal: number | undefined,
+  focusMins: number,
+): string | null {
+  const countStr = calcSessionCountStr(sessionsToday, sessionGoal);
+  if (countStr === null) return null;
+  const timeSuffix = sessionsToday > 0 ? ` · ${formatLifetime(sessionsToday * focusMins)}` : "";
+  return `🍅 ${countStr}${timeSuffix}`;
 }
 
 // Returns prev-7/cur-7 session counts, trend arrow, and histMap for the 14-day heatmap.
