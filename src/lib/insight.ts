@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > pomodoro > deadline soon > project stale
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > pomodoro > deadline soon > goal expiry > project stale
 
 import { getUpcomingMilestone } from "./habits";
 import type { Project } from "../types";
@@ -21,6 +21,18 @@ interface InsightParams {
   habitsAllDoneDate: string | undefined;
   /** Active/in-progress projects to surface deadline warnings and stale-focus alerts; absent = no project context */
   projects?: Pick<Project, "name" | "deadline" | "status" | "lastFocusDate">[];
+  /** Weekly goal text; absent/empty = no goal set. */
+  weekGoal?: string;
+  /** True when weekly goal has been marked done; absent/false = not done. */
+  weekGoalDone?: boolean;
+  /** Days remaining in the current ISO week (including today); 1 = last day of the week. */
+  daysLeftWeek?: number;
+  /** Monthly goal text; absent/empty = no goal set. */
+  monthGoal?: string;
+  /** True when monthly goal has been marked done; absent/false = not done. */
+  monthGoalDone?: boolean;
+  /** Days remaining in the current calendar month (including today); 1 = last day of the month. */
+  daysLeftMonth?: number;
 }
 
 // Returns days from todayStr until deadline (0 = today, positive = future). Uses injected todayStr for testability.
@@ -33,9 +45,13 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > pomodoro_last_one > deadline_soon > project_stale.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > pomodoro_last_one > deadline_soon > goal_expiry > project_stale.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
-  const { habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects } = params;
+  const {
+    habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
+    weekGoal, weekGoalDone, daysLeftWeek,
+    monthGoal, monthGoalDone, daysLeftMonth,
+  } = params;
 
   // 1. Streak at risk: evening (≥ 18h) + high streak (≥ 7) + not yet checked today
   if (nowHour >= 18) {
@@ -97,7 +113,18 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     }
   }
 
-  // 8. Project stale: active/in-progress project not focused via pomodoro in 7+ days
+  // 8. Goal expiry: personal goal period ending in ≤2 days and not yet marked done
+  // Week goal takes priority (shorter cycle = higher urgency than month).
+  if (weekGoal && !weekGoalDone && daysLeftWeek != null && daysLeftWeek <= 2) {
+    const suffix = daysLeftWeek === 1 ? "오늘 마감" : `${daysLeftWeek}일`;
+    return { text: `📋 주간 목표 마감 임박 (${suffix})`, level: "warning" };
+  }
+  if (monthGoal && !monthGoalDone && daysLeftMonth != null && daysLeftMonth <= 2) {
+    const suffix = daysLeftMonth === 1 ? "오늘 마감" : `${daysLeftMonth}일`;
+    return { text: `📋 월간 목표 마감 임박 (${suffix})`, level: "warning" };
+  }
+
+  // 9. Project stale: active/in-progress project not focused via pomodoro in 7+ days
   if (projects && projects.length > 0) {
     const todayMs = new Date(todayStr + "T00:00:00").getTime();
     const stale = projects

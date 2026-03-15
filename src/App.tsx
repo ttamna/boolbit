@@ -657,6 +657,12 @@ export default function App() {
     sessionGoal: data.pomodoroSessionGoal,
     habitsAllDoneDate: data.habitsAllDoneDate,
     projects: data.projects ?? [],
+    weekGoal: data.weekGoal,
+    weekGoalDone: data.weekGoalDone,
+    daysLeftWeek,
+    monthGoal: data.monthGoal,
+    monthGoalDone: data.monthGoalDone,
+    daysLeftMonth,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 7-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes

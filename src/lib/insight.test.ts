@@ -776,4 +776,214 @@ describe("calcTodayInsight", () => {
     });
     expect(result!.text).toContain("프로젝트Y");  // nearer deadline wins
   });
+
+  // ── goal_expiry ─────────────────────────────────────────────────────────────
+  it("shouldReturnGoalExpiryForWeekGoalOnLastDayOfWeek", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "이번 주 독서 3권",
+      weekGoalDone: false,
+      daysLeftWeek: 1,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("주간 목표");
+    expect(result!.text).toContain("오늘");
+  });
+
+  it("shouldReturnGoalExpiryForWeekGoalWhenTwoDaysLeftInWeek", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "주간 목표",
+      weekGoalDone: false,
+      daysLeftWeek: 2,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("주간 목표");
+    expect(result!.text).toContain("2일");
+  });
+
+  it("shouldNotReturnGoalExpiryForWeekGoalWhenThreeDaysLeft", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "주간 목표",
+      weekGoalDone: false,
+      daysLeftWeek: 3,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGoalExpiryWhenWeekGoalIsDone", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "주간 목표",
+      weekGoalDone: true,
+      daysLeftWeek: 1,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGoalExpiryWhenWeekGoalAbsent", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: undefined,
+      daysLeftWeek: 1,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnGoalExpiryForMonthGoalOnLastDayOfMonth", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: "이번 달 목표",
+      monthGoalDone: false,
+      daysLeftMonth: 1,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("월간 목표");
+    expect(result!.text).toContain("오늘");
+  });
+
+  it("shouldReturnGoalExpiryForMonthGoalWhenTwoDaysLeftInMonth", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: "월간 목표",
+      monthGoalDone: undefined,
+      daysLeftMonth: 2,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("월간 목표");
+    expect(result!.text).toContain("2일");
+  });
+
+  it("shouldNotReturnGoalExpiryForMonthGoalWhenThreeDaysLeft", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: "월간 목표",
+      monthGoalDone: false,
+      daysLeftMonth: 3,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGoalExpiryWhenMonthGoalIsDone", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: "월간 목표",
+      monthGoalDone: true,
+      daysLeftMonth: 1,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPrioritizeWeekGoalExpiryOverMonthGoalExpiry", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "주간 목표",
+      weekGoalDone: false,
+      daysLeftWeek: 1,
+      monthGoal: "월간 목표",
+      monthGoalDone: false,
+      daysLeftMonth: 1,
+    });
+    expect(result!.text).toContain("주간 목표");  // week goal wins (shorter cycle = higher urgency)
+  });
+
+  it("shouldPrioritizeDeadlineSoonOverGoalExpiry", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "마감임박프로젝트", deadline: IN_4, status: "active" }],  // deadline_soon
+      weekGoal: "주간 목표",
+      weekGoalDone: false,
+      daysLeftWeek: 1,  // goal_expiry
+    });
+    expect(result!.text).toContain("마감임박프로젝트");  // deadline_soon wins
+    expect(result!.text).toContain("D-4");
+  });
+
+  it("shouldPrioritizeGoalExpiryOverProjectStale", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "방치된프로젝트", status: "active", lastFocusDate: DAYS_7_AGO }],  // project_stale
+      weekGoal: "주간 목표",
+      weekGoalDone: false,
+      daysLeftWeek: 1,  // goal_expiry
+    });
+    expect(result!.text).toContain("주간 목표");  // goal_expiry wins over project_stale
+  });
 });
