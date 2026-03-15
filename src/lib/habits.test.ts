@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, and habitLastCheckDaysAgo pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, and completion tracking
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, and calcTargetStreakPct pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, and target streak progress
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -776,5 +776,51 @@ describe("habitLastCheckDaysAgo", () => {
   it("should return null for future lastCheck dates (clock skew or manual edit)", () => {
     // Future date produces negative days; days >= 2 is false, so null is returned safely
     expect(habitLastCheckDaysAgo(["2026-03-20"], TODAY_LCD)).toBeNull();
+  });
+});
+
+describe("calcTargetStreakPct", () => {
+  it("should return undefined when targetStreak is undefined (no goal set)", () => {
+    expect(calcTargetStreakPct(15, undefined)).toBeUndefined();
+  });
+
+  it("should return undefined when targetStreak is 0 (no goal — lib.rs sanitizes 0→None)", () => {
+    expect(calcTargetStreakPct(15, 0)).toBeUndefined();
+  });
+
+  it("should return undefined when streak is 0 (not started — no progress to display)", () => {
+    expect(calcTargetStreakPct(0, 30)).toBeUndefined();
+  });
+
+  it("should return 50 when streak is half of target (15/30)", () => {
+    expect(calcTargetStreakPct(15, 30)).toBe(50);
+  });
+
+  it("should return 100 when streak exactly equals target (goal achieved)", () => {
+    expect(calcTargetStreakPct(30, 30)).toBe(100);
+  });
+
+  it("should clamp to 100 when streak exceeds target (streak can temporarily exceed goal via manual edit)", () => {
+    expect(calcTargetStreakPct(35, 30)).toBe(100);
+  });
+
+  it("should return 3 for streak=1, target=30 (Math.round(1/30*100) = Math.round(3.333...) = 3)", () => {
+    expect(calcTargetStreakPct(1, 30)).toBe(3);
+  });
+
+  it("should return 97 for streak=29, target=30 (Math.round(29/30*100) = Math.round(96.666...) = 97)", () => {
+    expect(calcTargetStreakPct(29, 30)).toBe(97);
+  });
+
+  it("should return undefined when targetStreak is negative (invalid goal — same guard as 0)", () => {
+    expect(calcTargetStreakPct(15, -1)).toBeUndefined();
+  });
+
+  it("should return 100 for streak=1, target=1 (single-day goal met immediately)", () => {
+    expect(calcTargetStreakPct(1, 1)).toBe(100);
+  });
+
+  it("should return 100 for streak=7, target=7 (week goal exactly met)", () => {
+    expect(calcTargetStreakPct(7, 7)).toBe(100);
   });
 });

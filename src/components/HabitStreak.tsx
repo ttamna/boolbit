@@ -6,7 +6,7 @@ import type { Habit } from "../types";
 import { fonts, fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
 import { useEditMode } from "../hooks/useEditMode";
-import { calcHabitWeekStats, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo } from "../lib/habits";
+import { calcHabitWeekStats, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct } from "../lib/habits";
 import { calcLastNDays } from "../lib/datePeriods";
 // Re-export the 4 helpers that moved from this file to lib/habits — preserves any existing imports.
 export { getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo };
@@ -387,10 +387,8 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
           const milestone = getMilestone(h.streak);
           const upcoming = getUpcomingMilestone(h.streak);
           const history = h.checkHistory ?? [];
-          // targetPct: progress toward targetStreak goal, clamped to 100%; undefined when no goal or streak is 0
-          const targetPct = (h.targetStreak ?? 0) > 0 && h.streak > 0
-            ? Math.min(100, Math.round(h.streak / h.targetStreak! * 100))
-            : undefined;
+          // targetPct: progress toward targetStreak goal; undefined when no goal or streak is 0 (see calcTargetStreakPct)
+          const targetPct = calcTargetStreakPct(h.streak, h.targetStreak);
           // Weekly stats: cur7/prev7 count + trend derived from last14Days partition (see calcHabitWeekStats).
           const { cur7: checkedCount7, prev7: prevWeekCount7, trend: weekTrend } = calcHabitWeekStats(h.checkHistory, last14Days);
           return (
