@@ -25,6 +25,12 @@ export interface DailyScore {
   score: number;
   /** 'high' ≥75, 'mid' 40–74, 'low' <40 */
   tier: ScoreTier;
+  /** Raw (pre-rounding) contribution of each component — habits 0–50, pomodoro 0–30, intention 0/8/20 */
+  breakdown: {
+    habits: number;
+    pomodoro: number;
+    intention: number;
+  };
 }
 
 /**
@@ -63,7 +69,7 @@ export function calcDailyScore(params: DailyScoreParams): DailyScore {
   const score = Math.round(Math.min(100, Math.max(0, habitsScore + pomodoroScore + intentionScore)));
   const tier: ScoreTier = score >= 75 ? "high" : score >= 40 ? "mid" : "low";
 
-  return { score, tier };
+  return { score, tier, breakdown: { habits: habitsScore, pomodoro: pomodoroScore, intention: intentionScore } };
 }
 
 const MOMENTUM_HISTORY_CAP = 7;

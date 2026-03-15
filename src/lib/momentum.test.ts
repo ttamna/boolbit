@@ -391,3 +391,99 @@ describe("calcMomentumStreak", () => {
     expect(calcMomentumStreak(history, "2026-03-16")).toBe(2);
   });
 });
+
+describe("calcDailyScore — breakdown field", () => {
+  it("includes breakdown with all three components", () => {
+    const result = calcDailyScore({
+      habitsCheckedToday: 2,
+      habitsTotal: 4,
+      pomodoroToday: 1,
+      pomodoroGoal: 3,
+      intentionDone: false,
+      intentionSet: true,
+    });
+    // habits: 2/4 * 50 = 25; pomodoro: 1/3 * 30 = 10; intention: set-not-done = 8
+    expect(result.breakdown.habits).toBe(25);
+    expect(result.breakdown.pomodoro).toBeCloseTo(10, 5);
+    expect(result.breakdown.intention).toBe(8);
+  });
+
+  it("breakdown.habits = 50 when all habits done", () => {
+    const result = calcDailyScore({
+      habitsCheckedToday: 3,
+      habitsTotal: 3,
+      pomodoroToday: 0,
+      intentionDone: false,
+      intentionSet: false,
+    });
+    expect(result.breakdown.habits).toBe(50);
+  });
+
+  it("breakdown.habits = 0 when habitsTotal = 0", () => {
+    const result = calcDailyScore({
+      habitsCheckedToday: 0,
+      habitsTotal: 0,
+      pomodoroToday: 0,
+      intentionDone: false,
+      intentionSet: false,
+    });
+    expect(result.breakdown.habits).toBe(0);
+  });
+
+  it("breakdown.pomodoro = 30 when sessions meet goal", () => {
+    const result = calcDailyScore({
+      habitsCheckedToday: 0,
+      habitsTotal: 0,
+      pomodoroToday: 5,
+      pomodoroGoal: 5,
+      intentionDone: false,
+      intentionSet: false,
+    });
+    expect(result.breakdown.pomodoro).toBe(30);
+  });
+
+  it("breakdown.pomodoro capped at 30 when sessions exceed goal", () => {
+    const result = calcDailyScore({
+      habitsCheckedToday: 0,
+      habitsTotal: 0,
+      pomodoroToday: 10,
+      pomodoroGoal: 5,
+      intentionDone: false,
+      intentionSet: false,
+    });
+    expect(result.breakdown.pomodoro).toBe(30);
+  });
+
+  it("breakdown.intention = 20 when done", () => {
+    const result = calcDailyScore({
+      habitsCheckedToday: 0,
+      habitsTotal: 0,
+      pomodoroToday: 0,
+      intentionDone: true,
+      intentionSet: true,
+    });
+    expect(result.breakdown.intention).toBe(20);
+  });
+
+  it("breakdown.intention = 8 when set but not done", () => {
+    const result = calcDailyScore({
+      habitsCheckedToday: 0,
+      habitsTotal: 0,
+      pomodoroToday: 0,
+      intentionDone: false,
+      intentionSet: true,
+    });
+    expect(result.breakdown.intention).toBe(8);
+  });
+
+  it("breakdown.intention = 0 when not set", () => {
+    const result = calcDailyScore({
+      habitsCheckedToday: 0,
+      habitsTotal: 0,
+      pomodoroToday: 0,
+      intentionDone: false,
+      intentionSet: false,
+    });
+    expect(result.breakdown.intention).toBe(0);
+  });
+});

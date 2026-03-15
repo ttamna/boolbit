@@ -1,5 +1,5 @@
-// ABOUTME: Unit tests for calcDayFraction, formatHour, and Clock component — momentumStreak badge rendering
-// ABOUTME: Validates day progress fraction (out-of-range clamp), 24h/12h hour formatting, edge cases, and streak badge visibility rules
+// ABOUTME: Unit tests for calcDayFraction, formatHour, and Clock component — momentumStreak badge and breakdown bar rendering
+// ABOUTME: Validates day progress fraction (out-of-range clamp), 24h/12h hour formatting, streak badge visibility, and H/P/I breakdown bar presence
 
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -160,5 +160,37 @@ describe("Clock — momentumStreak badge", () => {
     render(<Clock momentumStreak={5} />);
     const badge = document.querySelector("[title='5일 연속 모멘텀 40점 이상']");
     expect(badge).not.toBeNull();
+  });
+});
+
+describe("Clock — breakdown bars", () => {
+  const breakdown = { habits: 25, pomodoro: 10, intention: 8 };
+
+  it("renders H label when dailyScore has breakdown", () => {
+    render(<Clock dailyScore={{ score: 43, tier: "mid", breakdown }} />);
+    expect(screen.getByText("H")).toBeDefined();
+  });
+
+  it("renders P label when dailyScore has breakdown", () => {
+    render(<Clock dailyScore={{ score: 43, tier: "mid", breakdown }} />);
+    expect(screen.getByText("P")).toBeDefined();
+  });
+
+  it("renders I label when dailyScore has breakdown", () => {
+    render(<Clock dailyScore={{ score: 43, tier: "mid", breakdown }} />);
+    expect(screen.getByText("I")).toBeDefined();
+  });
+
+  it("does not render H/P/I labels when dailyScore is absent", () => {
+    render(<Clock />);
+    expect(screen.queryByText("H")).toBeNull();
+    expect(screen.queryByText("P")).toBeNull();
+    expect(screen.queryByText("I")).toBeNull();
+  });
+
+  it("shows tooltip describing breakdown on the container", () => {
+    render(<Clock dailyScore={{ score: 43, tier: "mid", breakdown }} />);
+    const el = document.querySelector("[title='모멘텀 세부: 습관 25/50 · 집중 10/30 · 의도 8/20']");
+    expect(el).not.toBeNull();
   });
 });

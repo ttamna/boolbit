@@ -182,6 +182,33 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
           })}
         </div>
       )}
+      {/* H/P/I breakdown bars — shows each component's contribution when breakdown is available */}
+      {dailyScore?.breakdown && (
+        <div
+          title={`모멘텀 세부: 습관 ${Math.round(dailyScore.breakdown.habits)}/50 · 집중 ${Math.round(dailyScore.breakdown.pomodoro)}/30 · 의도 ${dailyScore.breakdown.intention}/20`}
+          style={{ display: "flex", alignItems: "center", gap: 5, justifyContent: "flex-end", marginTop: 4 }}
+        >
+          {([
+            { key: "H", val: dailyScore.breakdown.habits, max: 50 },
+            { key: "P", val: dailyScore.breakdown.pomodoro, max: 30 },
+            { key: "I", val: dailyScore.breakdown.intention, max: 20 },
+          ] as const).map(({ key, val, max }) => (
+            <div key={key} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <span style={{ ...mono, fontSize: fontSizes.mini, color: colors.textLabel, opacity: 0.4, lineHeight: 1, userSelect: "none" }}>
+                {key}
+              </span>
+              <div style={{ width: 20, height: 2, borderRadius: radius.bar, background: colors.borderSubtle, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%",
+                  width: `${Math.max(0, Math.min(100, val / max * 100))}%`,
+                  background: scoreTierColor(dailyScore.tier, accent),
+                  borderRadius: radius.bar,
+                }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* Today's insight — context-aware one-liner: streak risk, milestone, intention, pomodoro */}
       {insight && (
         <div style={{
