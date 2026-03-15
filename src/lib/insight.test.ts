@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all nine insight types and their priority ordering
+// ABOUTME: Covers all ten insight types and their priority ordering
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -16,8 +16,8 @@ const DAYS_7_AGO = "2024-01-08";
 const DAYS_8_AGO = "2024-01-07";
 
 /** Minimal habit shape used across tests */
-function habit(name: string, streak: number, lastChecked?: string) {
-  return { name, streak, lastChecked };
+function habit(name: string, streak: number, lastChecked?: string, bestStreak?: number) {
+  return { name, streak, lastChecked, bestStreak };
 }
 
 describe("calcTodayInsight", () => {
@@ -1311,5 +1311,177 @@ describe("calcTodayInsight", () => {
       daysLeftQuarter: 7,
     });
     expect(result!.text).toContain("분기 목표");  // quarter goal_expiry wins over project_stale
+  });
+
+  // ── personal_best_streak ──────────────────────────────────────────────────
+  it("shouldReturnPersonalBestWhenHabitReachedMilestoneAndNewBestToday", () => {
+    // streak=30 is a milestone AND equals bestStreak (personal best)
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 30, lastChecked: TODAY, bestStreak: 30 }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("30");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldReturnNullWhenStreakAtMilestoneButBelowBestStreak", () => {
+    // streak=7 IS a milestone, but bestStreak=10 > streak means it's not a new personal best
+    // This specifically tests the streak === bestStreak guard (not just milestone filtering)
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 7, lastChecked: TODAY, bestStreak: 10 }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenNotCheckedInToday", () => {
+    // must have checked in today for the insight to show
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 30, lastChecked: YESTERDAY, bestStreak: 30 }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenBestStreakUndefined", () => {
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 30, lastChecked: TODAY, bestStreak: undefined }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenStreakNotAtMilestone", () => {
+    // streak=10 is not a milestone (milestones are 7/30/100) — fires only at milestone boundaries
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 10, lastChecked: TODAY, bestStreak: 10 }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullAtDayAfterFirstMilestone", () => {
+    // streak=8 is the day after the first milestone (7) — must not re-trigger
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 8, lastChecked: TODAY, bestStreak: 8 }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnPersonalBestAtFirstMilestone7", () => {
+    // 7 days is the first milestone and the minimum threshold.
+    // milestone_near (priority 3) does NOT fire here because it requires lastChecked !== todayStr;
+    // lastChecked=TODAY excludes this habit from milestone_near and routes it to personal_best instead.
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 7, lastChecked: TODAY, bestStreak: 7 }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("독서");
+    expect(result!.text).toContain("7");
+  });
+
+  it("shouldPreferHighestMilestoneStreakWhenMultipleHitsPersonalBest", () => {
+    // Both at milestones: 7 and 30; 30 wins (higher)
+    const result = calcTodayInsight({
+      habits: [
+        { name: "독서", streak: 7, lastChecked: TODAY, bestStreak: 7 },
+        { name: "운동", streak: 30, lastChecked: TODAY, bestStreak: 30 },
+      ],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result!.text).toContain("운동");  // higher milestone wins
+    expect(result!.text).not.toContain("독서");
+  });
+
+  it("shouldPrioritizeProjectStaleOverPersonalBest", () => {
+    // project_stale (priority 9) should still beat personal_best (priority 10)
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 30, lastChecked: TODAY, bestStreak: 30 }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "방치된프로젝트", status: "active", lastFocusDate: DAYS_7_AGO }],
+    });
+    expect(result!.text).toContain("방치된프로젝트");  // project_stale wins
+    expect(result!.level).toBe("info");  // stale is info, not success
+  });
+
+  it("shouldReturnPersonalBestWhenNoOtherInsightTriggers", () => {
+    // Verify personal_best is the fallback when all higher-priority checks return null
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 100, lastChecked: TODAY, bestStreak: 100 }],
+      todayStr: TODAY,
+      nowHour: 14,  // not evening (no streak risk)
+      todayIntentionDate: TODAY,  // intention already set
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      // no projects, no goals
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("100");
+  });
+
+  it("shouldReturnNullWhenBestStreakLessThanStreak", () => {
+    // bestStreak < streak is a data-corruption state (bestStreak should always be ≥ streak).
+    // The filter condition streak === bestStreak correctly rejects this case.
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 30, lastChecked: TODAY, bestStreak: 20 }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > pomodoro > deadline soon > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > project stale
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > pomodoro > deadline soon > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > project stale > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import type { Project } from "../types";
@@ -12,7 +12,7 @@ export interface TodayInsight {
 }
 
 interface InsightParams {
-  habits: Array<{ name: string; streak: number; lastChecked?: string }>;
+  habits: Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>;
   todayStr: string;
   nowHour: number;
   todayIntentionDate: string | undefined;
@@ -47,6 +47,10 @@ interface InsightParams {
   daysLeftYear?: number;
 }
 
+// Habit streak milestones at which a personal-best celebration is shown (mirrors getUpcomingMilestone targets).
+// Restricting to these values prevents the insight from firing every day while on a continuous best-streak run.
+const PERSONAL_BEST_MILESTONES = [7, 30, 100];
+
 // Returns days from todayStr until deadline (0 = today, positive = future). Uses injected todayStr for testability.
 function daysUntil(deadline: string, todayStr: string): number | null {
   if (!deadline || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return null;
@@ -57,7 +61,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > pomodoro_last_one > deadline_soon > goal_expiry > project_stale.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > pomodoro_last_one > deadline_soon > goal_expiry > project_stale > personal_best.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -160,6 +164,21 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     if (stale) {
       return { text: `⊖ ${stale.name} ${stale.days}일째 미집중`, level: "info" };
     }
+  }
+
+  // 10. Personal best streak: habit checked in today, streak hit a milestone (7/30/100d),
+  // and streak equals bestStreak (all-time high). Milestone gate prevents daily repetition
+  // on continuous best-streak runs.
+  const personalBest = habits
+    .filter(h =>
+      h.bestStreak != null &&
+      PERSONAL_BEST_MILESTONES.includes(h.streak) &&
+      h.streak === h.bestStreak &&
+      h.lastChecked === todayStr
+    )
+    .sort((a, b) => b.streak - a.streak)[0];
+  if (personalBest) {
+    return { text: `🏆 ${personalBest.name} 역대 최고! (${personalBest.streak}d)`, level: "success" };
   }
 
   return null;
