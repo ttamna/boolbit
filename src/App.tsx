@@ -17,6 +17,7 @@ import { calcIntentionStreak } from "./lib/intention";
 import { calcHabitsWeekRate } from "./lib/habits";
 import { isoWeekStr, quarterStr } from "./lib/goalPeriods";
 import { calcDirectionBadge } from "./lib/direction";
+import { calcProjectsBadge } from "./lib/projects";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -724,56 +725,16 @@ export default function App() {
       ].filter(Boolean).join(" · ")
     : undefined;
 
-  // Derived: running project count + average progress for Projects section badge.
-  // "active" and "in-progress" are running; "paused" is stalled; "done" is excluded from tracking.
-  // Badge format: "★ <name> · 2/3 · 45% · 🍅N·7d · ⚠N · ✓N·7d" — focus project name, running/total, avg progress, weekly sessions, overdue, recent completions.
-  // When projects have a deadline ≤ today (overdue or due today), appends " · ⚠N" for urgency.
+  // Derived: Projects section badge — focuses on non-done projects; shared with PomodoroTimer via focusProject.
   const projectsArr = data.projects ?? [];
-  const nonDoneProjects = projectsArr.filter(p => p.status !== "done");
-  const runningProjects = nonDoneProjects.filter(p => p.status === "active" || p.status === "in-progress");
-  const runningCount = runningProjects.length;
-  const avgProgress = runningCount > 0
-    ? Math.round(runningProjects.reduce((s, p) => s + p.progress, 0) / runningCount)
-    : null;
-  // Count non-done projects with a deadline today or overdue (days <= 0).
-  // Anchors to todayMidnight (same as all other 7-day windows); DST days count as 0 via Math.floor, consistent with ProjectCard deadlineDays().
-  const overdueCount = nonDoneProjects.filter(p => {
-    if (!p.deadline || !/^\d{4}-\d{2}-\d{2}$/.test(p.deadline)) return false;
-    const ts = new Date(p.deadline + "T00:00:00").getTime();
-    if (isNaN(ts)) return false;
-    return Math.floor((ts - todayMidnight.getTime()) / 86400000) <= 0;
-  }).length;
-  // recentlyDoneCount: projects completed within the last 7 days — weekly completion velocity.
-  // Suppressed in badge when 0 (no completions this week).
-  const recentlyDoneCount = projectsArr.filter(
-    p => p.status === "done" && p.completedDate && last7Days.includes(p.completedDate)
-  ).length;
-  // Weekly pomodoro session count: sum of focus sessions in the last 7 days from pomodoroHistory.
-  // Returns 0 when no history exists; badge suppresses the indicator when 0.
-  const weekPomodoroCount = (() => {
-    const history = data.pomodoroHistory ?? [];
-    if (history.length === 0) return 0;
-    return history.filter(day => last7Days.includes(day.date)).reduce((s, day) => s + day.count, 0);
-  })();
-  // Focus project badge: first word of the focused non-done project name, max 12 chars.
-  // Shown as "★ <name>" prefix so the user can see current priority without expanding the section.
-  // "done" projects are excluded to stay within the badge scope (nonDoneProjects): showing a
-  // done project's name while it is not counted in the N/total would be misleading.
   const focusProject = projectsArr.find(p => p.isFocus && p.status !== "done");
-  const focusBadgeName = focusProject
-    ? (focusProject.name.trim().split(/\s+/)[0].slice(0, 12) || null)
-    : null;
-  const projectsBadge = nonDoneProjects.length > 0
-    ? [
-        focusBadgeName ? `★ ${focusBadgeName}` : null,
-        avgProgress !== null
-          ? `${runningCount}/${nonDoneProjects.length} · ${avgProgress}%`
-          : `${runningCount}/${nonDoneProjects.length}`,
-        weekPomodoroCount > 0 ? `🍅${weekPomodoroCount}·7d` : null,
-        overdueCount > 0 ? `⚠${overdueCount}` : null,
-        recentlyDoneCount > 0 ? `✓${recentlyDoneCount}·7d` : null,
-      ].filter(Boolean).join(" · ")
-    : undefined;
+  const projectsBadge = calcProjectsBadge({
+    projects: projectsArr,
+    last7Days,
+    todayMidnight,
+    pomodoroHistory: data.pomodoroHistory,
+    focusProjectName: focusProject?.name,
+  });
 
   // Derived: Direction badge — shows year/month/week goal + intention status + quote count for quick overview when collapsed.
   // Pure function extracted to src/lib/direction.ts for testability.
