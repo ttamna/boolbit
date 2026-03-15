@@ -1,5 +1,5 @@
 // ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
-// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; pure function
+// ABOUTME: updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg — history management and derived stats
 
 import type { MomentumEntry } from "../types";
 
@@ -89,4 +89,37 @@ export function updateMomentumHistory(
   }
   // Keep only the most recent MOMENTUM_HISTORY_CAP entries (newest last)
   return next.length > MOMENTUM_HISTORY_CAP ? next.slice(next.length - MOMENTUM_HISTORY_CAP) : next;
+}
+
+/**
+ * Returns the count of consecutive "high" tier entries with no date gaps ending at the most recent entry.
+ * "Consecutive" means both tier==="high" AND adjacent dates differ by exactly 1 calendar day.
+ * Returns 0 when: history is empty, the last entry is not "high", or date gaps exist.
+ */
+export function calcMomentumStreak(history: MomentumEntry[]): number {
+  if (history.length === 0) return 0;
+  if (history[history.length - 1].tier !== "high") return 0;
+  let count = 1;
+  for (let i = history.length - 1; i >= 1; i--) {
+    const prev = history[i - 1];
+    const curr = history[i];
+    if (prev.tier !== "high") break;
+    // Dates must be exactly 1 calendar day apart (no gaps allowed in a "consecutive" streak).
+    // UTC midnight avoids DST-related discrepancies on local timezone transitions.
+    const prevTs = new Date(prev.date + "T00:00:00Z").getTime();
+    const currTs = new Date(curr.date + "T00:00:00Z").getTime();
+    if (Math.round((currTs - prevTs) / 86400000) !== 1) break;
+    count++;
+  }
+  return count;
+}
+
+/**
+ * Returns the rounded average score across all entries in history.
+ * Returns null when history is empty.
+ */
+export function calcMomentumWeekAvg(history: MomentumEntry[]): number | null {
+  if (history.length === 0) return null;
+  const sum = history.reduce((acc, e) => acc + e.score, 0);
+  return Math.round(sum / history.length);
 }
