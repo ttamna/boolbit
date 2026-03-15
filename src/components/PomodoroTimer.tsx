@@ -1,11 +1,11 @@
-// ABOUTME: PomodoroTimer component - configurable focus/break timer with desktop notification
-// ABOUTME: Durations, auto-start, notify toggle, daily session goal, long-break interval, section reorder, and 14-day session heatmap are inline-configurable
+// ABOUTME: PomodoroTimer component - configurable focus/break timer with desktop notification and audio cue
+// ABOUTME: Durations, auto-start, notify toggle, sound toggle, daily session goal, long-break interval, section reorder, and 14-day session heatmap are inline-configurable
 
 import { useState, useEffect, useRef, useMemo, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { PomodoroDay } from "../types";
-import { calcLast14Days, calcSessionWeekTrend, calcPomodoroBadge, formatLifetime, phaseAccent, phaseLabel, sessionGoalPct } from "../lib/pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcPomodoroBadge, formatLifetime, phaseAccent, phaseLabel, sessionGoalPct, playPhaseDone } from "../lib/pomodoro";
 import type { Phase } from "../lib/pomodoro";
 
 const DEFAULT_DURATION: Record<Phase, number> = { focus: 25, break: 5, longBreak: 15 };
@@ -45,6 +45,8 @@ interface PomodoroTimerProps {
   onLongBreakIntervalChange?: (n: number) => void; // persist interval
   initialNotify?: boolean;             // persisted notify preference; absent/true = enabled
   onNotifyChange?: (v: boolean) => void; // persist toggle
+  initialSound?: boolean;              // audio cue on phase end; absent/false = disabled
+  onSoundChange?: (v: boolean) => void; // persist toggle
   sessionHistory?: PomodoroDay[];      // rolling 14-day daily session counts for the 14-day heatmap
   lifetimeMins?: number;               // cumulative focus minutes across all sessions; absent = 0
   focusProject?: string;   // name of the ★-marked project; shown in header during focus sessions
@@ -54,7 +56,7 @@ interface PomodoroTimerProps {
   accent?: string;         // theme accent color applied to the focus phase; absent = statusActive (green)
 }
 
-export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, sessionHistory, lifetimeMins, focusProject, todayIntention, onMoveUp, onMoveDown, accent }: PomodoroTimerProps) {
+export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsToday = 0, onSessionComplete, initialAutoStart = false, onAutoStartChange, initialOpen = false, onToggleOpen, sessionGoal, onSessionGoalChange, longBreakInterval, onLongBreakIntervalChange, initialNotify, onNotifyChange, initialSound, onSoundChange, sessionHistory, lifetimeMins, focusProject, todayIntention, onMoveUp, onMoveDown, accent }: PomodoroTimerProps) {
   const [open, setOpen] = useState(initialOpen);
   const [headerHovered, setHeaderHovered] = useState(false);
   // todayStr: refreshed every minute to catch midnight rollover (same pattern as HabitStreak)
@@ -74,6 +76,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const [autoStart, setAutoStart] = useState(initialAutoStart);
   // notifyEnabled: absent/true means notifications on; false means silenced by user
   const [notifyEnabled, setNotifyEnabled] = useState(initialNotify !== false);
+  // soundEnabled: absent/false means audio cue off; true means enabled
+  const [soundEnabled, setSoundEnabled] = useState(initialSound === true);
   // runKey: increment to force a new interval when autoStart transitions phases (running stays true)
   const [runKey, setRunKey] = useState(0);
   // freshStart: when true, the new interval should start from full duration (phase just transitioned)
@@ -98,6 +102,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   autoStartRef.current = autoStart;
   const notifyRef = useRef(notifyEnabled);
   notifyRef.current = notifyEnabled;
+  const soundRef = useRef(soundEnabled);
+  soundRef.current = soundEnabled;
   const onSessionCompleteRef = useRef(onSessionComplete);
   onSessionCompleteRef.current = onSessionComplete;
   // cycleCount: focus sessions completed in the current long-break cycle (resets to 0 at app start and after long break)
@@ -144,12 +150,14 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
             cycleCountRef.current = newCount;
             if (notifyRef.current) notify("Vision Widget", `🍅 포모도로 완료! ${durationsRef.current.break}분 휴식하세요.`);
           }
+          if (soundRef.current) playPhaseDone("focus");
         } else {
           next = "focus";
           const msg = currentPhase === "longBreak"
             ? "💪 긴 휴식 종료! 새 사이클을 시작하세요."
             : "💪 휴식 종료! 다시 집중할 시간.";
           if (notifyRef.current) notify("Vision Widget", msg);
+          if (soundRef.current) playPhaseDone(currentPhase);
         }
         setPhase(next);
         setRemaining(durationsRef.current[next] * 60);
@@ -645,6 +653,24 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               }}
             >
               {notifyEnabled ? "🔔" : "🔕"}
+            </button>
+            {/* Sound toggle: speaker on = audio cue on phase end; speaker-off = silent */}
+            <button
+              onClick={() => {
+                const next = !soundEnabled;
+                setSoundEnabled(next);
+                onSoundChange?.(next);
+              }}
+              title={soundEnabled ? "사운드 켜짐 — 클릭하여 끄기" : "사운드 꺼짐 — 클릭하여 켜기"}
+              style={{
+                padding: "6px 10px", borderRadius: radius.chip,
+                background: soundEnabled ? `${phaseColor}22` : "transparent",
+                border: `1px solid ${soundEnabled ? phaseColor + "44" : colors.borderFaint}`,
+                color: soundEnabled ? phaseColor : colors.textPhantom,
+                fontSize: fontSizes.sm, cursor: "pointer",
+              }}
+            >
+              {soundEnabled ? "🔊" : "🔇"}
             </button>
           </div>
         </div>

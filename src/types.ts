@@ -75,6 +75,7 @@ export interface WidgetData {
   pomodoroSessionGoal?: number;  // optional daily focus session target
   pomodoroLongBreakInterval?: number; // focus sessions per long-break cycle, default 4
   pomodoroNotify?: boolean;           // desktop notification on phase end; absent/true = enabled
+  pomodoroSound?: boolean;            // audio cue on phase end via Web Audio API; absent/false = disabled
   pomodoroHistory?: PomodoroDay[];    // rolling 14-day daily session counts for the 7-day heatmap
   collapsedSections?: SectionKey[];  // section names currently collapsed
   sectionOrder?: SectionKey[];       // display order of sections; absent = default order

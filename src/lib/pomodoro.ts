@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for pomodoro session statistics and phase UI mapping — no side effects
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, lifetime format, and goal-progress percentage
+// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, and audio feedback
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, lifetime format, goal-progress percentage, and session-end audio cue
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -137,4 +137,44 @@ export function calcSessionWeekTrend(
   const prev7 = last14Days.slice(0, 7).reduce((s, d) => s + (histMap.get(d) ?? 0), 0);
   const trend: "↑" | "↓" | "" = cur7 > prev7 ? "↑" : cur7 < prev7 ? "↓" : "";
   return { cur7, prev7, trend, histMap };
+}
+
+// Plays a short audio cue when a Pomodoro phase ends using the Web Audio API.
+// focus done: 3 ascending tones (C5→E5→G5) — celebratory "achievement" feel.
+// break/longBreak done: 2 descending tones (G5→E5) — gentle "back to work" signal.
+// Resolves immediately when AudioContext is unavailable (jsdom, restricted iframe, etc.).
+// Not a pure function — has audio side effects; exported for integration in PomodoroTimer.
+export async function playPhaseDone(phase: Phase): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Ctx = (window as any).AudioContext ?? (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx() as AudioContext;
+    // focus: ascending C5→E5→G5 (523→659→784 Hz); break/longBreak: descending G5→E5 (784→659 Hz)
+    const freqs: number[] = phase === "focus" ? [523, 659, 784] : [784, 659];
+    const toneDuration = 0.12; // seconds per tone
+    const toneGap = 0.04;     // silence between tones
+
+    freqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * (toneDuration + toneGap);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.22, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + toneDuration);
+      osc.start(t);
+      osc.stop(t + toneDuration);
+    });
+
+    // Wait until the last tone finishes: (N-1) gaps between tones + last tone duration + tiny pad.
+    const totalMs = ((freqs.length - 1) * (toneDuration + toneGap) + toneDuration + 0.05) * 1000;
+    await new Promise<void>(resolve => setTimeout(resolve, totalMs));
+    await ctx.close();
+  } catch {
+    // Graceful fallback: AudioContext unavailable or restricted
+  }
 }

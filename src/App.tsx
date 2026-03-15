@@ -496,6 +496,11 @@ export default function App() {
     persist({ ...data, pomodoroNotify: pomodoroNotify ? undefined : false });
   }, [data, persist]);
 
+  const updatePomodoroSound = useCallback((pomodoroSound: boolean) => {
+    // Store true when enabled; coerce false → undefined so absent and false are both "disabled"
+    persist({ ...data, pomodoroSound: pomodoroSound || undefined });
+  }, [data, persist]);
+
   // Batch-refresh GitHub data for all projects that have a repo set.
   // Fetches all repos in parallel, then applies results atomically to avoid
   // parallel-persist races (each updateProject call would overwrite the others).
@@ -798,6 +803,8 @@ export default function App() {
                   onLongBreakIntervalChange={updatePomodoroLongBreakInterval}
                   initialNotify={data.pomodoroNotify}
                   onNotifyChange={updatePomodoroNotify}
+                  initialSound={data.pomodoroSound}
+                  onSoundChange={updatePomodoroSound}
                   sessionHistory={data.pomodoroHistory}
                   lifetimeMins={data.pomodoroLifetimeMins}
                   focusProject={focusProject?.name || undefined}

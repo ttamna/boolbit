@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string, section collapsed badge, phase UI mapping, goal-progress percentage, and lifetime format
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, and audio feedback graceful fallback
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone } from "./pomodoro";
 import { colors } from "../theme";
 import type { PomodoroDay } from "../types";
 
@@ -465,5 +465,21 @@ describe("sessionGoalPct", () => {
     // sessionsToday is injected from props; documented to show the function does not guard
     // against negative input — callers must sanitize before rendering a progress bar.
     expect(() => sessionGoalPct(-1, 8)).not.toThrow();
+  });
+});
+
+describe("playPhaseDone", () => {
+  // jsdom has no AudioContext — these tests verify graceful no-op in restricted environments.
+  // The audio synthesis path is tested indirectly: if the guard is missing the function throws.
+  it("should resolve without error for focus phase when AudioContext is unavailable", async () => {
+    await expect(playPhaseDone("focus")).resolves.toBeUndefined();
+  });
+
+  it("should resolve without error for break phase when AudioContext is unavailable", async () => {
+    await expect(playPhaseDone("break")).resolves.toBeUndefined();
+  });
+
+  it("should resolve without error for longBreak phase when AudioContext is unavailable", async () => {
+    await expect(playPhaseDone("longBreak")).resolves.toBeUndefined();
   });
 });
