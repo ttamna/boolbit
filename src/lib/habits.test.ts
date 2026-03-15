@@ -245,8 +245,28 @@ describe("calcHabitsBadge", () => {
     expect(calcHabitsBadge({ habitCount: 5, doneToday: 3, atRisk: 2, weekRate: 80 })).toBe("3/5 · 7d·80% · ⚠2");
   });
 
-  it("should handle all habits done today (doneToday === habitCount)", () => {
-    expect(calcHabitsBadge({ habitCount: 3, doneToday: 3, atRisk: 0, weekRate: 100 })).toBe("3/3 · 7d·100%");
+  it("should prefix ✓ when all habits done today (doneToday === habitCount)", () => {
+    expect(calcHabitsBadge({ habitCount: 3, doneToday: 3, atRisk: 0, weekRate: 100 })).toBe("✓3/3 · 7d·100%");
+  });
+
+  it("should prefix ✓ when all done and weekRate is null", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 4, atRisk: 0, weekRate: null })).toBe("✓4/4");
+  });
+
+  it("should NOT prefix ✓ when not all habits done", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 3, atRisk: 0, weekRate: null })).toBe("3/4");
+  });
+
+  it("should prefix ✓ when doneToday exceeds habitCount (caller invariant violation — defensive)", () => {
+    // doneToday > habitCount should not occur at runtime (App.tsx computes both from the same array).
+    // Using >= ensures corrupt data still shows ✓ rather than '5/3' without prefix.
+    expect(calcHabitsBadge({ habitCount: 3, doneToday: 5, atRisk: 0, weekRate: null })).toBe("✓5/3");
+  });
+
+  it("should include atRisk warning even when allDone prefix is shown (boundary documentation)", () => {
+    // allDone=true + atRisk>0 is semantically impossible at runtime (done today → not at-risk),
+    // but calcHabitsBadge does not enforce this invariant. Document the output for traceability.
+    expect(calcHabitsBadge({ habitCount: 3, doneToday: 3, atRisk: 1, weekRate: null })).toBe("✓3/3 · ⚠1");
   });
 
   it("should handle zero done today", () => {
