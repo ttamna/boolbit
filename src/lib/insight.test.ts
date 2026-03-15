@@ -1,11 +1,16 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all five insight types and their priority ordering
+// ABOUTME: Covers all seven insight types and their priority ordering
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
 
 const TODAY = "2024-01-15";
 const YESTERDAY = "2024-01-14";
+const TOMORROW = "2024-01-16";
+const IN_3 = "2024-01-18";
+const IN_4 = "2024-01-19";
+const IN_7 = "2024-01-22";
+const IN_8 = "2024-01-23";
 
 /** Minimal habit shape used across tests */
 function habit(name: string, streak: number, lastChecked?: string) {
@@ -377,5 +382,254 @@ describe("calcTodayInsight", () => {
     });
     expect(result!.level).toBe("info");
     expect(result!.text).toContain("의도");
+  });
+
+  // ── deadline_critical ──────────────────────────────────────────────────────
+  it("shouldReturnDeadlineCriticalWhenDeadlineIsToday", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "앱 출시", deadline: TODAY, status: "active" }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("앱 출시");
+    expect(result!.text).toContain("D-Day");
+  });
+
+  it("shouldReturnDeadlineCriticalWhenDeadlineIs1DayAway", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "프로젝트A", deadline: TOMORROW, status: "in-progress" }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("프로젝트A");
+    expect(result!.text).toContain("D-1");
+  });
+
+  it("shouldReturnDeadlineCriticalWhenDeadlineIs3DaysAway", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "프로젝트B", deadline: IN_3, status: "active" }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("D-3");
+  });
+
+  it("shouldNotReturnDeadlineCriticalWhenDeadlineIs4DaysAway", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "프로젝트C", deadline: IN_4, status: "active" }],
+    });
+    // D-4 → deadline_soon (info), not critical (warning)
+    if (result) expect(result.level).not.toBe("warning");
+  });
+
+  // ── deadline_soon ──────────────────────────────────────────────────────────
+  it("shouldReturnDeadlineSoonWhenDeadlineIs4DaysAway", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "프로젝트D", deadline: IN_4, status: "active" }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("프로젝트D");
+    expect(result!.text).toContain("D-4");
+  });
+
+  it("shouldReturnDeadlineSoonWhenDeadlineIs7DaysAway", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "프로젝트E", deadline: IN_7, status: "active" }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("D-7");
+  });
+
+  it("shouldNotReturnDeadlineInsightWhenDeadlineIs8DaysAway", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "프로젝트F", deadline: IN_8, status: "active" }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnDeadlineInsightForDoneProject", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "완료됨", deadline: TOMORROW, status: "done" }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnDeadlineInsightForPausedProject", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "멈춤", deadline: TOMORROW, status: "paused" }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnDeadlineInsightWhenProjectHasNoDeadline", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "무기한", status: "active" }],
+    });
+    expect(result).toBeNull();
+  });
+
+  // Overdue projects (past deadline) return null — handled by desktop notification at startup, not the clock insight.
+  it("shouldNotReturnDeadlineInsightForOverdueProject", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "기한초과", deadline: YESTERDAY, status: "active" }],
+    });
+    // Overdue is surfaced via desktop notification (App.tsx startup), not the clock insight.
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenProjectsArrayIsEmpty", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [],
+    });
+    expect(result).toBeNull();
+  });
+
+  // ── deadline priority ordering ──────────────────────────────────────────────
+  it("shouldPrioritizeStreakAtRiskOverDeadlineCritical", () => {
+    const result = calcTodayInsight({
+      habits: [habit("운동", 10, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 19,  // evening → streak_at_risk active
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "긴급프로젝트", deadline: TOMORROW, status: "active" }],
+    });
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("운동");  // streak_at_risk wins
+  });
+
+  it("shouldPrioritizeDeadlineCriticalOverMilestoneNear", () => {
+    const result = calcTodayInsight({
+      habits: [habit("독서", 6, YESTERDAY)],  // milestone_near
+      todayStr: TODAY,
+      nowHour: 10,  // not evening → streak_at_risk inactive
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "긴급프로젝트", deadline: TOMORROW, status: "active" }],
+    });
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("긴급프로젝트");  // deadline_critical wins
+  });
+
+  it("shouldPrioritizePomodoroLastOneOverDeadlineSoon", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 3,
+      sessionGoal: 4,  // pomodoro_last_one
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "프로젝트G", deadline: IN_4, status: "active" }],  // deadline_soon
+    });
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("1세션");  // pomodoro_last_one wins
+  });
+
+  it("shouldPickNearestDeadlineWhenMultipleCritical", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "프로젝트X", deadline: IN_3, status: "active" },
+        { name: "프로젝트Y", deadline: TOMORROW, status: "active" },
+      ],
+    });
+    expect(result!.text).toContain("프로젝트Y");  // nearer deadline wins
   });
 });

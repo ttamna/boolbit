@@ -641,6 +641,7 @@ export default function App() {
     sessionsToday: pomodoroSessionsToday,
     sessionGoal: data.pomodoroSessionGoal,
     habitsAllDoneDate: data.habitsAllDoneDate,
+    projects: data.projects ?? [],
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 7-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
