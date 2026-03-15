@@ -14,7 +14,7 @@ import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek } from "./lib/intention";
-import { calcHabitsWeekRate, calcHabitsBadge } from "./lib/habits";
+import { calcHabitsWeekRate, calcHabitsBadge, calcPerfectDayStreak } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
@@ -688,11 +688,15 @@ export default function App() {
   // habitsWeekRate: average daily habit completion rate (%) over the last 7 days.
   // Pure functions extracted to src/lib/habits.ts for testability.
   const habitsWeekRate = calcHabitsWeekRate(habitsArr, last7Days);
+  // habitsPerfectStreak: consecutive days all habits completed — same 14-day window as HabitStreak.tsx.
+  const last14Days = calcLastNDays(todayStr, 14);
+  const habitsPerfectStreak = calcPerfectDayStreak(habitsArr, last14Days);
   const habitsBadge = calcHabitsBadge({
     habitCount: habitsArr.length,
     doneToday: habitsDoneToday,
     atRisk: habitsAtRisk,
     weekRate: habitsWeekRate,
+    perfectStreak: habitsPerfectStreak,
   });
 
   // Derived: Projects section badge — focuses on non-done projects; shared with PomodoroTimer via focusProject.

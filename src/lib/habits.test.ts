@@ -298,6 +298,38 @@ describe("calcHabitsBadge", () => {
   it("should handle large atRisk count without truncation", () => {
     expect(calcHabitsBadge({ habitCount: 10, doneToday: 0, atRisk: 10, weekRate: null })).toBe("0/10 · ⚠10");
   });
+
+  it("should omit N🌟 when perfectStreak is absent", () => {
+    const badge = calcHabitsBadge({ habitCount: 3, doneToday: 3, atRisk: 0, weekRate: null });
+    expect(badge).not.toContain("🌟");
+  });
+
+  it("should omit N🌟 when perfectStreak is 0", () => {
+    const badge = calcHabitsBadge({ habitCount: 3, doneToday: 3, atRisk: 0, weekRate: null, perfectStreak: 0 });
+    expect(badge).not.toContain("🌟");
+  });
+
+  it("should omit N🌟 when perfectStreak is 1 (threshold is ≥2)", () => {
+    const badge = calcHabitsBadge({ habitCount: 3, doneToday: 3, atRisk: 0, weekRate: null, perfectStreak: 1 });
+    expect(badge).not.toContain("🌟");
+  });
+
+  it("should append N🌟 when perfectStreak is exactly 2 (threshold met)", () => {
+    expect(calcHabitsBadge({ habitCount: 3, doneToday: 3, atRisk: 0, weekRate: null, perfectStreak: 2 })).toBe("✓3/3 · 2🌟");
+  });
+
+  it("should append N🌟 when perfectStreak is 5", () => {
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 4, atRisk: 0, weekRate: 100, perfectStreak: 5 })).toBe("✓4/4 · 7d·100% · 5🌟");
+  });
+
+  it("should append N🌟 after atRisk when both present", () => {
+    // atRisk + perfectStreak can theoretically coexist: some habits at risk but previous days were all done
+    expect(calcHabitsBadge({ habitCount: 4, doneToday: 2, atRisk: 1, weekRate: null, perfectStreak: 3 })).toBe("2/4 · ⚠1 · 3🌟");
+  });
+
+  it("should include all four parts: count, weekRate, atRisk, perfectStreak", () => {
+    expect(calcHabitsBadge({ habitCount: 5, doneToday: 3, atRisk: 1, weekRate: 80, perfectStreak: 4 })).toBe("3/5 · 7d·80% · ⚠1 · 4🌟");
+  });
 });
 
 const TODAY = "2026-03-15";

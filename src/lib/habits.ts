@@ -30,20 +30,23 @@ export interface HabitsBadgeParams {
   atRisk: number;
   /** Average daily completion rate (%) over the last 7 days; null = no data to show. */
   weekRate: number | null;
+  /** Consecutive days where ALL habits were completed; ≥2 triggers N🌟 suffix. */
+  perfectStreak?: number;
 }
 
 /**
  * Computes the collapsed Streaks section badge string.
  * Returns undefined when there are no habits (habitCount === 0).
  *
- * Format: "[✓]N/M[ · 7d·R%][ · ⚠A]" — parts joined with " · "
+ * Format: "[✓]N/M[ · 7d·R%][ · ⚠A][ · N🌟]" — parts joined with " · "
  * - ✓N/M: all habits done today — prefix signals complete day at a glance when collapsed
  * - N/M: habits done today / total habits (e.g. "3/5"); no prefix when incomplete
  * - 7d·R%: 7-day avg completion rate (e.g. "7d·80%"); omitted when weekRate is null
  * - ⚠A: at-risk habit count (e.g. "⚠2"); omitted when atRisk === 0
+ * - N🌟: consecutive all-habits-done days (e.g. "3🌟"); omitted when perfectStreak < 2
  */
 export function calcHabitsBadge(params: HabitsBadgeParams): string | undefined {
-  const { habitCount, doneToday, atRisk, weekRate } = params;
+  const { habitCount, doneToday, atRisk, weekRate, perfectStreak } = params;
   if (habitCount === 0) return undefined;
   const allDone = doneToday >= habitCount;
   const countStr = allDone ? `✓${doneToday}/${habitCount}` : `${doneToday}/${habitCount}`;
@@ -51,6 +54,7 @@ export function calcHabitsBadge(params: HabitsBadgeParams): string | undefined {
     countStr,
     weekRate !== null ? `7d·${weekRate}%` : null,
     atRisk > 0 ? `⚠${atRisk}` : null,
+    (perfectStreak ?? 0) >= 2 ? `${perfectStreak}🌟` : null,
   ].filter(Boolean).join(" · ");
 }
 
