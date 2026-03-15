@@ -6,6 +6,7 @@ import type { Habit } from "../types";
 import { fonts, fontSizes, colors } from "../theme";
 import { InlineEdit } from "./InlineEdit";
 import { useEditMode } from "../hooks/useEditMode";
+import { calcHabitWeekStats } from "../lib/habits";
 
 const mono: CSSProperties = { fontFamily: fonts.mono };
 
@@ -447,14 +448,8 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
           const targetPct = (h.targetStreak ?? 0) > 0 && h.streak > 0
             ? Math.min(100, Math.round(h.streak / h.targetStreak! * 100))
             : undefined;
-          // Weekly check counts derived from last14Days (oldest→newest):
-          //   checkedCount7: slice(7)  = indices 7–13 = 6daysAgo→today (current 7-day window)
-          //   prevWeekCount7: slice(0,7) = indices 0–6 = 13daysAgo→7daysAgo (previous 7-day window)
-          // Both slices partition last14Days fully; their sum equals the 14-day total (no separate variable needed).
-          const checkedCount7 = last14Days.slice(7).filter(day => history.includes(day)).length;
-          const prevWeekCount7 = last14Days.slice(0, 7).filter(day => history.includes(day)).length;
-          // weekTrend: ↑ improving, ↓ declining, "" stable — suppressed when equal to avoid noise
-          const weekTrend = checkedCount7 > prevWeekCount7 ? "↑" : checkedCount7 < prevWeekCount7 ? "↓" : "";
+          // Weekly stats: cur7/prev7 count + trend derived from last14Days partition (see calcHabitWeekStats).
+          const { cur7: checkedCount7, prev7: prevWeekCount7, trend: weekTrend } = calcHabitWeekStats(h.checkHistory, last14Days);
           return (
             <div key={h.id ?? `h-${i}`} style={{ display: "flex", flexDirection: "column", padding: "4px 0" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
