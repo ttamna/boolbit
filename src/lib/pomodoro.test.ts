@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, header badge string
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr } from "./pomodoro";
 import type { PomodoroDay } from "../types";
 
 // Shared fixture: derived from calcLast14Days so partitioning assumptions stay consistent.
@@ -283,5 +283,39 @@ describe("updatePomodoroHistory", () => {
     const original = [...history];
     updatePomodoroHistory(history, TODAY, 3);
     expect(history).toEqual(original);
+  });
+});
+
+describe("calcSessionCountStr", () => {
+  it("should return null when sessionsToday is 0 and sessionGoal is undefined (nothing to show)", () => {
+    expect(calcSessionCountStr(0, undefined)).toBeNull();
+  });
+
+  it("should return '×0/8' when sessionsToday is 0 and sessionGoal is set (goal set, no progress)", () => {
+    expect(calcSessionCountStr(0, 8)).toBe("×0/8");
+  });
+
+  it("should return '×3' when sessionsToday is 3 and sessionGoal is undefined", () => {
+    expect(calcSessionCountStr(3, undefined)).toBe("×3");
+  });
+
+  it("should return '×3/8' when sessionsToday is 3 and sessionGoal is 8 (in progress)", () => {
+    expect(calcSessionCountStr(3, 8)).toBe("×3/8");
+  });
+
+  it("should return '✓8' when sessionsToday equals sessionGoal (goal exactly reached)", () => {
+    expect(calcSessionCountStr(8, 8)).toBe("✓8");
+  });
+
+  it("should return '✓10' when sessionsToday exceeds sessionGoal (goal exceeded)", () => {
+    expect(calcSessionCountStr(10, 8)).toBe("✓10");
+  });
+
+  it("should return '×1' when sessionsToday is 1 and no goal (minimal non-null case)", () => {
+    expect(calcSessionCountStr(1, undefined)).toBe("×1");
+  });
+
+  it("should return '✓1' when sessionsToday is 1 and sessionGoal is 1 (immediate goal reached)", () => {
+    expect(calcSessionCountStr(1, 1)).toBe("✓1");
   });
 });

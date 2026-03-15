@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for pomodoro session statistics — no side effects
-// ABOUTME: Covers today-count derivation, 14-day history upsert, date range, and week trend calculation
+// ABOUTME: Covers today-count derivation, 14-day history upsert, date range, week trend, and header badge string
 
 import type { PomodoroDay } from "../types";
 
@@ -41,6 +41,25 @@ export function calcLast14Days(todayStr: string): string[] {
     d.setDate(d.getDate() - (13 - i));
     return d.toLocaleDateString("sv");
   });
+}
+
+// Returns the session count badge string for the Pomodoro header, or null when there is nothing to show.
+// null: sessionsToday === 0 and sessionGoal absent — mirrors the JSX visibility guard.
+// "✓N": sessionsToday >= sessionGoal (goal reached or exceeded).
+// "×N/G": sessionGoal set but not yet reached.
+// "×N": no goal; N sessions completed today.
+// Exported for unit testing; pure function with no side effects.
+export function calcSessionCountStr(
+  sessionsToday: number,
+  sessionGoal: number | undefined,
+): string | null {
+  if (sessionsToday === 0 && sessionGoal == null) return null;
+  if (sessionGoal != null) {
+    return sessionsToday >= sessionGoal
+      ? `✓${sessionsToday}`
+      : `×${sessionsToday}/${sessionGoal}`;
+  }
+  return `×${sessionsToday}`;
 }
 
 // Returns prev-7/cur-7 session counts, trend arrow, and histMap for the 14-day heatmap.

@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo, CSSProperties } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { PomodoroDay } from "../types";
-import { calcLast14Days, calcSessionWeekTrend } from "../lib/pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcSessionCountStr } from "../lib/pomodoro";
 
 type Phase = "focus" | "break" | "longBreak";
 
@@ -291,20 +291,13 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const progress = 1 - remaining / (durations[phase] * 60);
   // Timer was started (or resumed) but is currently stopped mid-countdown
   const isPaused = !running && remaining < durations[phase] * 60;
-  // Total focus time today using current duration as approximation (accurate when duration hasn't changed today)
-  const totalFocusMins = sessionsToday * durations.focus;
-  const todayTimeStr = totalFocusMins >= 60
-    ? totalFocusMins % 60 === 0
-      ? `${Math.floor(totalFocusMins / 60)}h`
-      : `${Math.floor(totalFocusMins / 60)}h ${totalFocusMins % 60}m`
-    : `${totalFocusMins}m`;
-  // Session count badge: "×3/8" with goal, "✓8" when goal reached, "×3" without goal
+  // todayTimeStr: total focus time today — reuses formatLifetime to avoid duplicate format logic.
+  const todayTimeStr = formatLifetime(sessionsToday * durations.focus);
+  // Session count badge string — delegated to pure function in lib/pomodoro for testability.
+  const sessionCountStr = calcSessionCountStr(sessionsToday, sessionGoal);
   const goalReached = sessionGoal != null && sessionsToday >= sessionGoal;
   // goalPct: session goal progress percentage; null when no goal set (see sessionGoalPct for edge cases)
   const goalPct = sessionGoalPct(sessionsToday, sessionGoal);
-  const sessionCountStr = sessionGoal != null
-    ? goalReached ? `✓${sessionsToday}` : `×${sessionsToday}/${sessionGoal}`
-    : `×${sessionsToday}`;
   // lt: lifetime minutes — 0 when absent (pre-feature); used for ∑ badge guard and display
   const lt = lifetimeMins ?? 0;
 
@@ -349,7 +342,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               >↓</button>
             </div>
           )}
-          {(sessionsToday > 0 || sessionGoal != null) && (
+          {sessionCountStr !== null && (
             <span style={{ fontSize: fontSizes.mini, color: goalReached ? focusColor : colors.textSubtle }}>
               🍅 {sessionCountStr}{sessionsToday > 0 ? ` · ${todayTimeStr}` : ""}
             </span>
