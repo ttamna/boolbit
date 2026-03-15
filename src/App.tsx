@@ -20,6 +20,7 @@ import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory } from "./lib/pomodoro";
+import { calcDailyScore } from "./lib/momentum";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -621,6 +622,15 @@ export default function App() {
   const habitsDoneToday = habitsArr.filter(h => h.lastChecked === todayStr).length;
   // atRisk: streak > 0, last checked yesterday — semantically equivalent to HabitStreak.tsx:338's !doneToday&&streak>0&&lastChecked===yesterday
   const habitsAtRisk = habitsArr.filter(h => h.streak > 0 && h.lastChecked === yesterdayHabitsStr).length;
+  // dailyScore: 0-100 momentum score combining habits, pomodoro, and intention for today
+  const dailyScore = calcDailyScore({
+    habitsCheckedToday: habitsDoneToday,
+    habitsTotal: habitsArr.length,
+    pomodoroToday: pomodoroSessionsToday,
+    pomodoroGoal: data.pomodoroSessionGoal,
+    intentionDone: !!data.todayIntentionDone,
+    intentionSet: !!data.todayIntention,
+  });
   // intentionConsecutiveDays: consecutive days (including today) on which the user has set an intention.
   // Pure function extracted to src/lib/intention.ts for testability.
   const intentionConsecutiveDays = calcIntentionStreak(
@@ -769,6 +779,7 @@ export default function App() {
           use12h={settings.clockFormat === "12h"}
           accent={themeAccent}
           onToggleFormat={() => updateSettings({ clockFormat: settings.clockFormat === "12h" ? "24h" : "12h" })}
+          dailyScore={dailyScore}
         />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {

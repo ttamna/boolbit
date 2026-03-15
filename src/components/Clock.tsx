@@ -1,8 +1,9 @@
 // ABOUTME: Clock component - displays current time and date with 12h/24h format support
-// ABOUTME: Updates every second via setInterval; onToggleFormat prop enables inline format toggle on the date row
+// ABOUTME: Updates every second via setInterval; onToggleFormat enables format toggle; dailyScore shows momentum badge
 
 import { useState, useEffect } from "react";
 import { fonts, fontSizes, colors, radius } from "../theme";
+import type { DailyScore } from "../lib/momentum";
 
 // Returns the fraction of the calendar day elapsed (0.0 = midnight, 0.5 = noon, 1.0 = end of day).
 // Clamped to [0, 1] so out-of-range inputs (e.g. negative or > 86400 total seconds) stay bounded.
@@ -23,15 +24,24 @@ export function formatHour(rawHour: number, use12h: boolean): { h: string; perio
   return { h, period };
 }
 
+// Maps ScoreTier to a display color — high uses accent, mid uses amber, low is dim
+function scoreTierColor(tier: DailyScore["tier"], accent: string | undefined): string {
+  if (tier === "high") return accent ?? colors.statusActive;
+  if (tier === "mid") return colors.statusProgress;
+  return colors.textLabel;
+}
+
 const mono = { fontFamily: fonts.mono };
 
 interface ClockProps {
   use12h?: boolean;
   accent?: string;
   onToggleFormat?: () => void;
+  /** Optional daily momentum score (0-100) with tier; shown as a subtle badge in the date row */
+  dailyScore?: DailyScore;
 }
 
-export function Clock({ use12h = false, accent, onToggleFormat }: ClockProps) {
+export function Clock({ use12h = false, accent, onToggleFormat, dailyScore }: ClockProps) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -61,25 +71,41 @@ export function Clock({ use12h = false, accent, onToggleFormat }: ClockProps) {
         )}
         <span style={{ opacity: 0.2, fontSize: fontSizes.clockSec, marginLeft: 4 }}>{sec}</span>
       </div>
-      {/* Date row: date string + optional inline format toggle (shows current format; click to switch) */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
+      {/* Date row: date string + optional daily momentum badge + optional format toggle */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, gap: 6 }}>
         <div style={{ fontSize: fontSizes.base, color: colors.textFaint, fontWeight: 300, letterSpacing: 1 }}>
           {dateStr}
         </div>
-        {onToggleFormat && (
-          <button
-            onClick={onToggleFormat}
-            title={use12h ? "12시간 → 24시간 형식으로 전환" : "24시간 → 12시간 형식으로 전환"}
-            style={{
-              background: "transparent", border: "none", cursor: "pointer",
-              color: colors.textPhantom, fontSize: fontSizes.mini,
-              fontFamily: fonts.mono, padding: "0 2px", lineHeight: 1,
-              flexShrink: 0,
-            }}
-          >
-            {use12h ? "24h" : "12h"}
-          </button>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          {dailyScore !== undefined && (
+            <span
+              title={`오늘 모멘텀 ${dailyScore.score}/100 (습관·집중·의도)`}
+              style={{
+                ...mono,
+                fontSize: fontSizes.mini,
+                color: scoreTierColor(dailyScore.tier, accent),
+                opacity: 0.8,
+                cursor: "default",
+                userSelect: "none",
+              }}
+            >
+              {dailyScore.score}
+            </span>
+          )}
+          {onToggleFormat && (
+            <button
+              onClick={onToggleFormat}
+              title={use12h ? "12시간 → 24시간 형식으로 전환" : "24시간 → 12시간 형식으로 전환"}
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: colors.textPhantom, fontSize: fontSizes.mini,
+                fontFamily: fonts.mono, padding: "0 2px", lineHeight: 1,
+              }}
+            >
+              {use12h ? "24h" : "12h"}
+            </button>
+          )}
+        </div>
       </div>
       {/* Day progress bar — shows how much of today has elapsed */}
       <div
