@@ -18,7 +18,7 @@ import { calcHabitsWeekRate, calcHabitsBadge, calcPerfectDayStreak } from "./lib
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
-import { calcProjectsBadge } from "./lib/projects";
+import { calcProjectsBadge, calcProjectMilestone } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
@@ -174,10 +174,25 @@ export default function App() {
 
   const updateProject = useCallback((id: number, patch: Partial<Project>) => {
     const snapshot = dataRef.current;
+    const prev = snapshot.projects.find(p => p.id === id);
     const next = { ...snapshot, projects: snapshot.projects.map(p =>
       p.id === id ? { ...p, ...patch } : p
     )};
     persist(next);
+    // Notify when a progress milestone (25/50/75/100%) is newly crossed
+    if (prev !== undefined && typeof prev.progress === "number" && patch.progress !== undefined) {
+      const ms = calcProjectMilestone(prev.progress, patch.progress);
+      if (ms) {
+        (async () => {
+          try {
+            let ok = await isPermissionGranted();
+            if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+            if (!ok) return;
+            sendNotification({ title: "Vision Widget", body: `${ms.label} ${prev.name}` });
+          } catch { /* not available in browser dev mode */ }
+        })();
+      }
+    }
   }, [persist]);
 
   // Atomic batch update for GitHub polling — applies all results in one persist

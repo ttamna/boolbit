@@ -18,6 +18,7 @@ import {
   dateAfterDays,
   calcScheduleGap,
   calcCompletionForecast,
+  calcProjectMilestone,
 } from "./projects";
 import { colors } from "../theme";
 import type { Project, PomodoroDay } from "../types";
@@ -1128,5 +1129,65 @@ describe("calcCompletionForecast", () => {
     const result = calcCompletionForecast(50, "2020-01-01", undefined);
     // velocity > 0 and elapsed > 3 days → forecast returned
     expect(result).not.toBeNull();
+  });
+});
+
+describe("calcProjectMilestone", () => {
+  it("should return 25 milestone when crossing 25% for the first time", () => {
+    const result = calcProjectMilestone(0, 25);
+    expect(result).not.toBeNull();
+    expect(result!.milestone).toBe(25);
+  });
+
+  it("should return 50 milestone when crossing 50%", () => {
+    const result = calcProjectMilestone(30, 50);
+    expect(result!.milestone).toBe(50);
+  });
+
+  it("should return 75 milestone when crossing 75%", () => {
+    const result = calcProjectMilestone(60, 75);
+    expect(result!.milestone).toBe(75);
+  });
+
+  it("should return 100 milestone when reaching 100%", () => {
+    const result = calcProjectMilestone(80, 100);
+    expect(result!.milestone).toBe(100);
+  });
+
+  it("should return the highest milestone when multiple are crossed at once (0→100)", () => {
+    const result = calcProjectMilestone(0, 100);
+    expect(result!.milestone).toBe(100);
+  });
+
+  it("should return the highest milestone when jumping from 0 to 80 (crosses 25, 50, 75)", () => {
+    const result = calcProjectMilestone(0, 80);
+    expect(result!.milestone).toBe(75);
+  });
+
+  it("should return null when progress stays the same", () => {
+    expect(calcProjectMilestone(50, 50)).toBeNull();
+  });
+
+  it("should return null when progress decreases", () => {
+    expect(calcProjectMilestone(80, 30)).toBeNull();
+  });
+
+  it("should return null when no milestone is crossed (30→40 skips between milestones)", () => {
+    expect(calcProjectMilestone(30, 40)).toBeNull();
+  });
+
+  it("should cross 25 milestone when going from 24 to 25", () => {
+    const result = calcProjectMilestone(24, 25);
+    expect(result!.milestone).toBe(25);
+  });
+
+  it("should not re-cross a milestone already passed (25→30 does not return 25)", () => {
+    expect(calcProjectMilestone(25, 30)).toBeNull();
+  });
+
+  it("should return non-null label string", () => {
+    const result = calcProjectMilestone(0, 50);
+    expect(typeof result!.label).toBe("string");
+    expect(result!.label.length).toBeGreaterThan(0);
   });
 });

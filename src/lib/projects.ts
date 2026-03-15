@@ -302,3 +302,32 @@ export function sortProjects(projects: Project[], today?: Date): Project[] {
   });
   return [...sortedActive, ...done];
 }
+
+const MILESTONE_THRESHOLDS = [25, 50, 75, 100] as const;
+const MILESTONE_LABELS: Record<25 | 50 | 75 | 100, string> = {
+  25:  "🚀 25% 돌파!",
+  50:  "🎯 절반 완료!",
+  75:  "💪 75% 달성!",
+  100: "🎉 100% 달성!",
+};
+
+export interface ProjectMilestone {
+  /** The milestone threshold that was just crossed (25, 50, 75, or 100). */
+  milestone: 25 | 50 | 75 | 100;
+  /** Display label for desktop notification body. */
+  label: string;
+}
+
+// Returns the highest milestone threshold crossed when progress moves from prevProgress to newProgress.
+// A threshold M is "crossed" when prevProgress < M and newProgress >= M.
+// Returns null when progress decreases, stays equal, or no threshold is newly crossed.
+// Exported for unit testing; pure function with no side effects.
+export function calcProjectMilestone(prevProgress: number, newProgress: number): ProjectMilestone | null {
+  if (newProgress <= prevProgress) return null;
+  const crossed = MILESTONE_THRESHOLDS.filter(m => prevProgress < m && newProgress >= m);
+  if (crossed.length === 0) return null;
+  // MILESTONE_THRESHOLDS is declared ascending (25→100), so filter preserves ascending order;
+  // the last element is always the highest crossed threshold.
+  const milestone = crossed[crossed.length - 1];
+  return { milestone, label: MILESTONE_LABELS[milestone] };
+}
