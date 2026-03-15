@@ -1633,10 +1633,9 @@ describe("calcTodayInsight", () => {
     expect(result!.level).toBe("info");
   });
 
-  it("shouldPrioritizeYearOverQuarterOverMonthOverWeekOnJan1", () => {
-    // Jan 1 is simultaneously year + quarter + month + week start.
-    // With no yearGoal: year_start fires first.
-    const resultYear = calcTodayInsight({
+  // Jan 1, 2024 = Monday → year + quarter + month + week start simultaneously.
+  it("shouldReturnYearStartWhenNoYearGoalOnJan1", () => {
+    const result = calcTodayInsight({
       habits: [],
       todayStr: "2024-01-01",
       nowHour: 9,
@@ -1647,10 +1646,11 @@ describe("calcTodayInsight", () => {
       yearGoal: undefined,
       quarterGoal: undefined,
     });
-    expect(resultYear!.text).toContain("새 해");
+    expect(result!.text).toContain("새 해");
+  });
 
-    // With yearGoal set but no quarterGoal: quarter_start fires.
-    const resultQuarter = calcTodayInsight({
+  it("shouldReturnQuarterStartWhenYearGoalSetOnJan1", () => {
+    const result = calcTodayInsight({
       habits: [],
       todayStr: "2024-01-01",
       nowHour: 9,
@@ -1661,10 +1661,11 @@ describe("calcTodayInsight", () => {
       yearGoal: "연간 목표",
       quarterGoal: undefined,
     });
-    expect(resultQuarter!.text).toContain("새 분기");
+    expect(result!.text).toContain("새 분기");
+  });
 
-    // With yearGoal + quarterGoal set but no monthGoal: month_start fires.
-    const resultMonth = calcTodayInsight({
+  it("shouldReturnMonthStartWhenYearAndQuarterGoalSetOnJan1", () => {
+    const result = calcTodayInsight({
       habits: [],
       todayStr: "2024-01-01",
       nowHour: 9,
@@ -1676,10 +1677,11 @@ describe("calcTodayInsight", () => {
       quarterGoal: "분기 목표",
       monthGoal: undefined,
     });
-    expect(resultMonth!.text).toContain("새 달");
+    expect(result!.text).toContain("새 달");
+  });
 
-    // With yearGoal + quarterGoal + monthGoal set but no weekGoal: week_start fires.
-    const resultWeek = calcTodayInsight({
+  it("shouldReturnWeekStartWhenYearQuarterMonthGoalSetOnJan1", () => {
+    const result = calcTodayInsight({
       habits: [],
       todayStr: "2024-01-01",
       nowHour: 9,
@@ -1692,7 +1694,7 @@ describe("calcTodayInsight", () => {
       monthGoal: "월간 목표",
       weekGoal: undefined,
     });
-    expect(resultWeek!.text).toContain("새 주");
+    expect(result!.text).toContain("새 주");
   });
 
   it("shouldPrioritizeMonthStartOverWeekStartWhenBothApply", () => {
