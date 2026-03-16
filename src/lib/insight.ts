@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > personal best > intention streak (≥7d consecutive intention-setting)
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -14,7 +14,7 @@ export interface TodayInsight {
 }
 
 interface InsightParams {
-  habits: Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; checkHistory?: string[] }>;
+  habits: Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; checkHistory?: string[]; targetStreak?: number }>;
   todayStr: string;
   nowHour: number;
   todayIntentionDate: string | undefined;
@@ -125,7 +125,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > almost_perfect_day > momentum_rise > goal_done > goal_streak > project_ahead > project_near_completion > personal_best.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > pomodoro_goal_streak > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > almost_perfect_day > momentum_rise > goal_done > goal_streak > project_ahead > project_near_completion > personal_best > habit_target_near > intention_streak.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -449,6 +449,27 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     .sort((a, b) => b.streak - a.streak)[0];
   if (personalBest) {
     return { text: `🏆 ${personalBest.name} 역대 최고! (${personalBest.streak}d)`, level: "success" };
+  }
+
+  // 11.05. Habit target near: user-defined targetStreak goal within 1–2 days of completion.
+  // Picks the habit closest to its user-defined target (smallest gap) when multiple qualify.
+  // Distinct from milestone_near (priority 3) which covers fixed milestones (7/30/100d);
+  // this fires for any positive targetStreak value set by the user on any habit.
+  // When targetStreak coincides with a fixed milestone (e.g. targetStreak=7) and gap=1,
+  // milestone_near (priority 3) fires first — this is intentionally deferred to that block.
+  // streak >= 1 guard suppresses false positives when streak is 0 (habit not yet started).
+  // Fires after personal_best (11) so a freshly-hit best streak takes precedence over a nudge.
+  const targetNear = habits
+    .filter(h => {
+      const target = h.targetStreak;
+      if (!target || target <= 0 || h.streak < 1) return false;
+      const gap = target - h.streak;
+      return gap >= 1 && gap <= 2;
+    })
+    .sort((a, b) => (a.targetStreak! - a.streak) - (b.targetStreak! - b.streak))[0];
+  if (targetNear) {
+    const gap = targetNear.targetStreak! - targetNear.streak;
+    return { text: `🎯 ${targetNear.name} 목표 ${targetNear.targetStreak}일까지 ${gap}일!`, level: "success" };
   }
 
   // 11.1. Intention streak: 7 consecutive days of setting a daily intention (cap of calcIntentionStreak).

@@ -3927,3 +3927,210 @@ describe("calcTodayInsight — almost_perfect_day (priority 10.3)", () => {
     expect(result!.text).toContain("역대 최고"); // personal_best takes priority
   });
 });
+
+describe("calcTodayInsight — habit_target_near (priority 11.05, between personal_best and intention_streak)", () => {
+  // All tests use nowHour: 11 to suppress almost_perfect_day (requires >= 14h) and streak_at_risk (requires >= 18h).
+  // todayIntentionDate: TODAY suppresses intention_missing (requires todayIntentionDate !== TODAY).
+  // TODAY = "2024-01-15" is a Monday → period_start(6) fires for new-week when weekGoal absent;
+  // tests pass weekGoal: "test" to suppress that nudge so habit_target_near can surface.
+
+  it("shouldReturnHabitTargetNearWhenOneDayAway", () => {
+    // streak=9, targetStreak=10 → gap=1 → 인사이트 발동
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 9, lastChecked: YESTERDAY, targetStreak: 10 }],
+      todayStr: TODAY,
+      nowHour: 11,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("독서");
+    expect(result!.text).toContain("10");
+    expect(result!.text).toContain("1일");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldReturnHabitTargetNearWhenTwoDaysAway", () => {
+    // streak=18, targetStreak=20 → gap=2 → 인사이트 발동
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 18, lastChecked: YESTERDAY, targetStreak: 20 }],
+      todayStr: TODAY,
+      nowHour: 11,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("20");
+    expect(result!.text).toContain("2일");
+  });
+
+  it("shouldNotReturnHabitTargetNearWhenThreeDaysAway", () => {
+    // streak=17, targetStreak=20 → gap=3, 임계값(2) 초과 → null
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 17, lastChecked: YESTERDAY, targetStreak: 20 }],
+      todayStr: TODAY,
+      nowHour: 11,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnHabitTargetNearWhenStreakEqualsTarget", () => {
+    // streak=10, targetStreak=10 → gap=0, 이미 달성 → null
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 10, lastChecked: YESTERDAY, targetStreak: 10 }],
+      todayStr: TODAY,
+      nowHour: 11,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnHabitTargetNearWhenStreakExceedsTarget", () => {
+    // streak=12, targetStreak=10 → 이미 초과 달성 → null
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 12, lastChecked: YESTERDAY, targetStreak: 10 }],
+      todayStr: TODAY,
+      nowHour: 11,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnHabitTargetNearWhenTargetStreakAbsent", () => {
+    // targetStreak 미설정 → null
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 9, lastChecked: YESTERDAY }],
+      todayStr: TODAY,
+      nowHour: 11,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnHabitTargetNearWhenTargetStreakZero", () => {
+    // targetStreak=0 → 목표 없음으로 처리 → null
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 9, lastChecked: YESTERDAY, targetStreak: 0 }],
+      todayStr: TODAY,
+      nowHour: 11,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnHabitTargetNearWhenStreakIsZero", () => {
+    // streak=0, targetStreak=1 → 아직 시작 안 함 → null
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 0, lastChecked: undefined, targetStreak: 1 }],
+      todayStr: TODAY,
+      nowHour: 11,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPickHabitClosestToTarget", () => {
+    // 독서 gap=1, 운동 gap=2 → 독서(gap 최소)가 선택됨
+    const result = calcTodayInsight({
+      habits: [
+        { name: "독서", streak: 9, lastChecked: YESTERDAY, targetStreak: 10 },
+        { name: "운동", streak: 18, lastChecked: YESTERDAY, targetStreak: 20 },
+      ],
+      todayStr: TODAY,
+      nowHour: 11,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("독서"); // 가장 가까운 습관 선택
+    expect(result!.text).toContain("1일");
+  });
+
+  it("shouldReturnPersonalBestOverHabitTargetNear", () => {
+    // streak=7, bestStreak=7, milestone → personal_best (priority 11) fires before habit_target_near (11.05)
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 7, lastChecked: TODAY, bestStreak: 7, targetStreak: 8 }],
+      todayStr: TODAY,
+      nowHour: 11,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("역대 최고"); // personal_best takes priority
+  });
+
+  it("shouldReturnHabitTargetNearOverIntentionStreak", () => {
+    // habit_target_near (11.05) fires before intention_streak (11.1)
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 9, lastChecked: YESTERDAY, targetStreak: 10 }],
+      todayStr: TODAY,
+      nowHour: 11,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+      intentionConsecutiveDays: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("독서"); // habit_target_near fires
+    expect(result!.text).not.toContain("의도"); // intention_streak 미발동 확인
+  });
+
+  it("shouldReturnMilestoneNearOverHabitTargetNearWhenTargetMatchesFixedMilestone", () => {
+    // targetStreak=7 coincides with fixed milestone 🔥; gap=1 and not yet checked today
+    // → milestone_near (priority 3) fires first, not habit_target_near (11.05)
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 6, lastChecked: YESTERDAY, targetStreak: 7 }],
+      todayStr: TODAY,
+      nowHour: 11,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("🎯"); // milestone_near badge
+    expect(result!.text).toContain("🔥"); // fixed milestone badge, not user-target text
+    expect(result!.text).toContain("1일 전"); // milestone_near format
+  });
+});
