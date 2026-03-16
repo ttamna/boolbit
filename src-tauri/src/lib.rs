@@ -262,6 +262,8 @@ pub struct WidgetData {
     pub year_goal_remind_date: Option<String>,
     #[serde(rename = "momentumEveningDigestDate", default, skip_serializing_if = "Option::is_none")]
     pub momentum_evening_digest_date: Option<String>,
+    #[serde(rename = "weeklyMomentumReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub weekly_momentum_report_date: Option<String>,
     #[serde(rename = "habitsSound", default, skip_serializing_if = "Option::is_none")]
     pub habits_sound: Option<bool>,
     #[serde(rename = "pomodoroSound", default, skip_serializing_if = "Option::is_none")]
@@ -429,6 +431,7 @@ fn default_data() -> WidgetData {
         quarter_goal_remind_date: None,
         year_goal_remind_date: None,
         momentum_evening_digest_date: None,
+        weekly_momentum_report_date: None,
         habits_sound: None,
         pomodoro_sound: None,
     }
@@ -835,6 +838,8 @@ fn load_data() -> WidgetData {
     data.year_goal_remind_date = data.year_goal_remind_date.as_deref()
         .filter(|s| is_valid_ymd(s)).map(String::from);
     data.momentum_evening_digest_date = data.momentum_evening_digest_date.as_deref()
+        .filter(|s| is_valid_ymd(s)).map(String::from);
+    data.weekly_momentum_report_date = data.weekly_momentum_report_date.as_deref()
         .filter(|s| is_valid_ymd(s)).map(String::from);
     // Sanitize momentum_history: validate dates, guard NaN, clamp score 0–100, validate tier,
     // sort desc → dedup by date (keeps newest per date) → truncate to 7 → sort asc.

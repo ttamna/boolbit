@@ -20,7 +20,7 @@ import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone } from "./lib/pomodoro";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest } from "./lib/momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
@@ -589,6 +589,34 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.habits, data.weeklyHabitReportDate, loaded, persist]);
+
+  // Monday morning weekly momentum avg + tier distribution report — fires once per Monday at 9:00+.
+  // Reports the previous week's (7 days ending yesterday, Mon–Sun) average score and tier breakdown.
+  // weeklyMomentumReportDate persists the guard so it fires only once per Monday even after restart.
+  // Design: yesterday-ending window mirrors calcWeeklyHabitReport to exclude today's live (incomplete) score.
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.weeklyMomentumReportDate === today) return;
+    if (now.getDay() !== 1) return;   // only Monday (1 = Monday in JS)
+    if (now.getHours() < 9) return;   // after 09:00
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const last7 = calcLastNDays(yesterday.toLocaleDateString("sv"), 7);
+    const msg = calcWeeklyMomentumReport(data.momentumHistory ?? [], last7);
+    if (!msg) return;
+    persist({ ...dataRef.current, weeklyMomentumReportDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.momentumHistory, data.weeklyMomentumReportDate, loaded, persist]);
 
   // End-of-month goal review nudge — fires once per month in the last 2 calendar days at 18:00+.
   // Triggers when monthGoal is set OR when no goal set (generic nudge to plan the next month).

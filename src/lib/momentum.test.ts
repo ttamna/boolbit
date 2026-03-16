@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend — score, tier, history edge cases
-// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, and 3-day trend detection
+// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcWeeklyMomentumReport — score, tier, history edge cases
+// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, 3-day trend detection, and weekly report
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest } from "./momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcWeeklyMomentumReport } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -693,5 +693,180 @@ describe("calcMomentumEveningDigest", () => {
     const msg = calcMomentumEveningDigest(100, "high");
     expect(msg).toContain("100");
     expect(msg).toContain("🔥");
+  });
+});
+
+describe("calcWeeklyMomentumReport", () => {
+  const last7 = ["2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-14", "2026-03-15"];
+
+  it("should return null when history is empty", () => {
+    expect(calcWeeklyMomentumReport([], last7)).toBeNull();
+  });
+
+  it("should return null when fewer than 3 entries fall within last7Days", () => {
+    const history = [
+      { date: "2026-03-09", score: 80, tier: "high" as const },
+      { date: "2026-03-10", score: 70, tier: "mid" as const },
+    ];
+    expect(calcWeeklyMomentumReport(history, last7)).toBeNull();
+  });
+
+  it("should return null when history entries are all outside last7Days", () => {
+    const history = [
+      { date: "2026-03-01", score: 80, tier: "high" as const },
+      { date: "2026-03-02", score: 70, tier: "mid" as const },
+      { date: "2026-03-03", score: 60, tier: "mid" as const },
+      { date: "2026-03-04", score: 50, tier: "mid" as const },
+    ];
+    expect(calcWeeklyMomentumReport(history, last7)).toBeNull();
+  });
+
+  it("should return a message when exactly 3 entries are in last7Days (minimum threshold)", () => {
+    const history = [
+      { date: "2026-03-09", score: 80, tier: "high" as const },
+      { date: "2026-03-10", score: 70, tier: "mid" as const },
+      { date: "2026-03-11", score: 60, tier: "mid" as const },
+    ];
+    const msg = calcWeeklyMomentumReport(history, last7);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("70"); // avg of 80+70+60=210 / 3 = 70
+  });
+
+  it("should compute correct avg score for a full 7-entry window", () => {
+    const history = [
+      { date: "2026-03-09", score: 80, tier: "high" as const },
+      { date: "2026-03-10", score: 75, tier: "high" as const },
+      { date: "2026-03-11", score: 90, tier: "high" as const },
+      { date: "2026-03-12", score: 85, tier: "high" as const },
+      { date: "2026-03-13", score: 70, tier: "mid" as const },
+      { date: "2026-03-14", score: 95, tier: "high" as const },
+      { date: "2026-03-15", score: 60, tier: "mid" as const },
+    ];
+    // avg = (80+75+90+85+70+95+60)/7 = 555/7 = 79.28 → rounds to 79
+    const msg = calcWeeklyMomentumReport(history, last7);
+    expect(msg).toContain("79");
+    expect(msg).toContain("🔥"); // avg ≥75 → high tier lead
+  });
+
+  it("should show 🔥 lead emoji and tier counts for all-high week", () => {
+    const history = last7.map(date => ({ date, score: 80, tier: "high" as const }));
+    const msg = calcWeeklyMomentumReport(history, last7)!;
+    expect(msg).toContain("🔥");
+    expect(msg).toContain("🔥7"); // 7 high days
+    expect(msg).not.toContain("✅");
+    expect(msg).not.toContain("💪");
+  });
+
+  it("should show 💪 lead emoji for avg < 40 (low week)", () => {
+    const history = last7.map(date => ({ date, score: 20, tier: "low" as const }));
+    const msg = calcWeeklyMomentumReport(history, last7)!;
+    expect(msg).toContain("💪");
+    expect(msg).toContain("💪7"); // 7 low days
+  });
+
+  it("should show ✅ lead emoji for mid-tier avg (40–74)", () => {
+    const history = last7.map(date => ({ date, score: 55, tier: "mid" as const }));
+    const msg = calcWeeklyMomentumReport(history, last7)!;
+    expect(msg).toContain("✅");
+    expect(msg).toContain("✅7");
+  });
+
+  it("should include avg score in the message", () => {
+    const history = [
+      { date: "2026-03-09", score: 40, tier: "mid" as const },
+      { date: "2026-03-10", score: 60, tier: "mid" as const },
+      { date: "2026-03-11", score: 50, tier: "mid" as const },
+    ];
+    // avg = 50
+    const msg = calcWeeklyMomentumReport(history, last7)!;
+    expect(msg).toContain("50");
+  });
+
+  it("should ignore entries outside last7Days even if history is non-empty", () => {
+    const history = [
+      { date: "2026-03-01", score: 100, tier: "high" as const }, // outside window
+      { date: "2026-03-09", score: 30, tier: "low" as const },
+      { date: "2026-03-10", score: 20, tier: "low" as const },
+      { date: "2026-03-11", score: 25, tier: "low" as const },
+    ];
+    const msg = calcWeeklyMomentumReport(history, last7)!;
+    // avg of 30+20+25 = 75/3 = 25 → low tier
+    expect(msg).toContain("25");
+    expect(msg).toContain("💪");
+  });
+
+  it("should include mixed tier counts in parentheses", () => {
+    const history = [
+      { date: "2026-03-09", score: 80, tier: "high" as const },
+      { date: "2026-03-10", score: 80, tier: "high" as const },
+      { date: "2026-03-11", score: 55, tier: "mid" as const },
+      { date: "2026-03-12", score: 55, tier: "mid" as const },
+      { date: "2026-03-13", score: 55, tier: "mid" as const },
+      { date: "2026-03-14", score: 20, tier: "low" as const },
+      { date: "2026-03-15", score: 20, tier: "low" as const },
+    ];
+    const msg = calcWeeklyMomentumReport(history, last7)!;
+    expect(msg).toContain("🔥2");
+    expect(msg).toContain("✅3");
+    expect(msg).toContain("💪2");
+  });
+
+  it("should omit tier parts with zero count from the distribution", () => {
+    const history = [
+      { date: "2026-03-09", score: 80, tier: "high" as const },
+      { date: "2026-03-10", score: 60, tier: "mid" as const },
+      { date: "2026-03-11", score: 55, tier: "mid" as const },
+    ];
+    const msg = calcWeeklyMomentumReport(history, last7)!;
+    // no low days → 💪N should not appear in the dist part; avg=65 → ✅ lead so "💪" not in dist
+    expect(msg).toContain("🔥1");
+    expect(msg).toContain("✅2");
+    expect(msg).not.toContain("💪"); // zero low days: 💪 omitted entirely (including dist, only ✅ lead)
+  });
+
+  it("should return 🔥 lead exactly at avg=75 boundary", () => {
+    // avg = (75+75+75)/3 = 75 → 🔥 lead (≥75 threshold)
+    const history = [
+      { date: "2026-03-09", score: 75, tier: "high" as const },
+      { date: "2026-03-10", score: 75, tier: "high" as const },
+      { date: "2026-03-11", score: 75, tier: "high" as const },
+    ];
+    const msg = calcWeeklyMomentumReport(history, last7)!;
+    expect(msg).toMatch(/^🔥/);
+    expect(msg).toContain("75");
+  });
+
+  it("should return ✅ lead exactly at avg=74 (just below 🔥 threshold)", () => {
+    // avg = (74+74+74)/3 = 74 → ✅ lead (<75)
+    const history = [
+      { date: "2026-03-09", score: 74, tier: "mid" as const },
+      { date: "2026-03-10", score: 74, tier: "mid" as const },
+      { date: "2026-03-11", score: 74, tier: "mid" as const },
+    ];
+    const msg = calcWeeklyMomentumReport(history, last7)!;
+    expect(msg).toMatch(/^✅/);
+    expect(msg).toContain("74");
+  });
+
+  it("should return ✅ lead exactly at avg=40 boundary", () => {
+    // avg = (40+40+40)/3 = 40 → ✅ lead (≥40 threshold)
+    const history = [
+      { date: "2026-03-09", score: 40, tier: "mid" as const },
+      { date: "2026-03-10", score: 40, tier: "mid" as const },
+      { date: "2026-03-11", score: 40, tier: "mid" as const },
+    ];
+    const msg = calcWeeklyMomentumReport(history, last7)!;
+    expect(msg).toMatch(/^✅/);
+  });
+
+  it("should return 💪 lead exactly at avg=39 (just below ✅ threshold)", () => {
+    // avg = (39+39+39)/3 = 39 → 💪 lead (<40)
+    const history = [
+      { date: "2026-03-09", score: 39, tier: "low" as const },
+      { date: "2026-03-10", score: 39, tier: "low" as const },
+      { date: "2026-03-11", score: 39, tier: "low" as const },
+    ];
+    const msg = calcWeeklyMomentumReport(history, last7)!;
+    expect(msg).toMatch(/^💪/);
   });
 });

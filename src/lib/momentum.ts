@@ -1,5 +1,5 @@
 // ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
-// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection; calcMomentumEveningDigest — end-of-day score summary notification body
+// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection; calcMomentumEveningDigest — end-of-day score summary notification body; calcWeeklyMomentumReport — Monday morning last-week avg + tier distribution report
 
 import type { MomentumEntry } from "../types";
 
@@ -188,4 +188,37 @@ export function calcMomentumEveningDigest(score: number, tier: "high" | "mid" | 
   if (tier === "high") return `🔥 오늘 모멘텀 ${score}점 — 고점 달성! 이 흐름 유지해요`;
   if (tier === "mid") return `✅ 오늘 모멘텀 ${score}점 — 괜찮은 하루였어요`;
   return `💪 오늘 모멘텀 ${score}점 — 내일은 더 힘내봐요!`;
+}
+
+/**
+ * Returns the Monday morning report for the previous week's average momentum score and tier distribution.
+ * last7Days: 7 YYYY-MM-DD strings ending yesterday — caller's responsibility to build this window.
+ * history: rolling MomentumEntry array; only entries whose date is in last7Days are used.
+ * Returns null when fewer than 3 entries fall within the window (insufficient data for a meaningful report).
+ * Tier distribution format: "🔥N ✅N 💪N" — zero-count tiers are omitted.
+ * Lead emoji mirrors calcMomentumEveningDigest tier thresholds: avg≥75=🔥, avg≥40=✅, else=💪.
+ * Exported for unit testing; pure function with no side effects.
+ */
+export function calcWeeklyMomentumReport(history: MomentumEntry[], last7Days: string[]): string | null {
+  const window = new Set(last7Days);
+  const entries = history.filter(e => window.has(e.date));
+  if (entries.length < 3) return null;
+
+  const avg = Math.round(entries.reduce((s, e) => s + e.score, 0) / entries.length);
+
+  const highDays = entries.filter(e => e.tier === "high").length;
+  const midDays = entries.filter(e => e.tier === "mid").length;
+  const lowDays = entries.filter(e => e.tier === "low").length;
+
+  const tierParts = [
+    highDays > 0 ? `🔥${highDays}` : null,
+    midDays > 0 ? `✅${midDays}` : null,
+    lowDays > 0 ? `💪${lowDays}` : null,
+  ].filter(Boolean).join(" ");
+
+  const dist = tierParts ? ` (${tierParts})` : "";
+
+  if (avg >= 75) return `🔥 지난주 모멘텀 평균 ${avg}점 — 최고의 한 주!${dist}`;
+  if (avg >= 40) return `✅ 지난주 모멘텀 평균 ${avg}점 — 잘 하고 있어요!${dist}`;
+  return `💪 지난주 모멘텀 평균 ${avg}점 — 이번 주엔 더 힘내봐요!${dist}`;
 }
