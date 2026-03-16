@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -106,7 +106,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > momentum_rise > personal_best.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > momentum_rise > goal_done > personal_best.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -318,6 +318,24 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // Fires when calcMomentumTrend returns "rising"; absent/insufficient history → skipped.
   if (momentumHistory && calcMomentumTrend(momentumHistory, todayStr) === "rising") {
     return { text: "📈 3일 연속 모멘텀 상승!", level: "success" };
+  }
+
+  // 10.7. Goal done: a period goal was marked done with time remaining above the expiry-alert threshold.
+  // Fires as a positive reinforcement fallback when no re-engagement or momentum alert is active.
+  // Cascade: year > quarter > month > week — largest period takes precedence (mirrors period_start and goal_midpoint).
+  // Threshold mirrors goal_expiry (priority 9) in reverse: only fires when goal_expiry would NOT fire,
+  // so the two never coexist (goal_expiry requires !done; goal_done requires done).
+  if (yearGoal && yearGoalDone && daysLeftYear != null && daysLeftYear > 14) {
+    return { text: `🎉 연간 목표 달성! (${daysLeftYear}일 남음)`, level: "success" };
+  }
+  if (quarterGoal && quarterGoalDone && daysLeftQuarter != null && daysLeftQuarter > 7) {
+    return { text: `🎉 분기 목표 달성! (${daysLeftQuarter}일 남음)`, level: "success" };
+  }
+  if (monthGoal && monthGoalDone && daysLeftMonth != null && daysLeftMonth > 2) {
+    return { text: `🎉 월간 목표 달성! (${daysLeftMonth}일 남음)`, level: "success" };
+  }
+  if (weekGoal && weekGoalDone && daysLeftWeek != null && daysLeftWeek > 2) {
+    return { text: `🎉 주간 목표 달성! (${daysLeftWeek}일 남음)`, level: "success" };
   }
 
   // 11. Personal best streak: habit checked in today, streak hit a milestone (7/30/100d),

@@ -1510,7 +1510,7 @@ describe("calcTodayInsight", () => {
   });
 
   it("shouldNotReturnGoalMidpointWhenWeekGoalIsDone", () => {
-    // Same params as positive case — only weekGoalDone changes true → null
+    // goal_midpoint must NOT fire when done; goal_done (10.7) fires instead (daysLeftWeek=4 > 2)
     const result = calcTodayInsight({
       habits: [],
       todayStr: TODAY,
@@ -1523,7 +1523,8 @@ describe("calcTodayInsight", () => {
       weekGoalDone: true,   // done: goal_midpoint must NOT fire
       daysLeftWeek: 4,
     });
-    expect(result).toBeNull();
+    expect(result?.text).not.toContain("중반"); // goal_midpoint suppressed
+    expect(result?.text).toContain("달성"); // goal_done surfaces instead
   });
 
   it("shouldNotReturnGoalMidpointWhenDaysLeftWeekIsNotFour", () => {
@@ -1598,6 +1599,7 @@ describe("calcTodayInsight", () => {
   });
 
   it("shouldNotReturnGoalMidpointForMonthGoalWhenDone", () => {
+    // goal_midpoint must NOT fire when done; goal_done (10.7) fires instead (daysLeftMonth=16 > 2)
     const result = calcTodayInsight({
       habits: [],
       todayStr: TODAY,
@@ -1610,7 +1612,8 @@ describe("calcTodayInsight", () => {
       monthGoalDone: true,
       daysLeftMonth: 16,
     });
-    expect(result).toBeNull();
+    expect(result?.text).not.toContain("중반"); // goal_midpoint suppressed
+    expect(result?.text).toContain("달성"); // goal_done surfaces instead
   });
 
   it("shouldReturnGoalMidpointForQuarterGoalWhenFortySixDaysLeft", () => {
@@ -2901,5 +2904,245 @@ describe("calcTodayInsight — no_focus_project (priority 6.5, between period_st
     });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("집중"); // no_focus_project wins over deadline_soon
+  });
+});
+
+describe("calcTodayInsight — goal_done (priority 10.7, after momentum_rise, before personal_best)", () => {
+  // Base params with no higher-priority triggers:
+  // - nowHour=14 avoids streak_at_risk (≥18) and intention_missing/period_start (< 12)
+  // - no habits with streaks at risk, no deadlines, no momentum trend, no missed habits
+  const base = {
+    habits: [],
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined,
+    habitsAllDoneDate: undefined,
+  };
+
+  it("shouldReturnWeekGoalDoneWhenDoneAndDaysRemaining", () => {
+    const result = calcTodayInsight({
+      ...base,
+      weekGoal: "주간 목표",
+      weekGoalDone: true,
+      daysLeftWeek: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("주간 목표 달성");
+    expect(result!.text).toContain("5");
+  });
+
+  it("shouldReturnMonthGoalDoneWhenDoneAndDaysRemaining", () => {
+    const result = calcTodayInsight({
+      ...base,
+      monthGoal: "월간 목표",
+      monthGoalDone: true,
+      daysLeftMonth: 15,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("월간 목표 달성");
+    expect(result!.text).toContain("15");
+  });
+
+  it("shouldReturnQuarterGoalDoneWhenDoneAndDaysRemaining", () => {
+    const result = calcTodayInsight({
+      ...base,
+      quarterGoal: "분기 목표",
+      quarterGoalDone: true,
+      daysLeftQuarter: 30,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("분기 목표 달성");
+    expect(result!.text).toContain("30");
+  });
+
+  it("shouldReturnYearGoalDoneWhenDoneAndDaysRemaining", () => {
+    const result = calcTodayInsight({
+      ...base,
+      yearGoal: "연간 목표",
+      yearGoalDone: true,
+      daysLeftYear: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("연간 목표 달성");
+    expect(result!.text).toContain("100");
+  });
+
+  it("shouldNotReturnWeekGoalDoneWhenDaysLeftAtExpiryThreshold", () => {
+    // daysLeftWeek = 2 → goal_done threshold is > 2, so goal_done itself suppresses at ≤ 2.
+    // (goal_expiry cannot coexist here — it requires !weekGoalDone. The ≤ 2 dead zone is intentional:
+    //  no insight fires when the goal is already done and the period is nearly over.)
+    const result = calcTodayInsight({
+      ...base,
+      weekGoal: "주간 목표",
+      weekGoalDone: true,
+      daysLeftWeek: 2,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnWeekGoalDoneWhenDaysLeftJustAboveThreshold", () => {
+    // daysLeftWeek = 3 → just above expiry threshold; goal_done fires
+    const result = calcTodayInsight({
+      ...base,
+      weekGoal: "주간 목표",
+      weekGoalDone: true,
+      daysLeftWeek: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("주간 목표 달성");
+  });
+
+  it("shouldNotReturnWeekGoalDoneWhenNotMarkedDone", () => {
+    const result = calcTodayInsight({
+      ...base,
+      weekGoal: "주간 목표",
+      weekGoalDone: false,
+      daysLeftWeek: 5,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnWeekGoalDoneWhenGoalTextAbsent", () => {
+    const result = calcTodayInsight({
+      ...base,
+      weekGoalDone: true,
+      daysLeftWeek: 5,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldCascadeYearOverWeekForGoalDone", () => {
+    // year > quarter > month > week: yearGoalDone takes precedence over weekGoalDone
+    const result = calcTodayInsight({
+      ...base,
+      weekGoal: "주간 목표",
+      weekGoalDone: true,
+      daysLeftWeek: 5,
+      yearGoal: "연간 목표",
+      yearGoalDone: true,
+      daysLeftYear: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연간 목표 달성"); // year wins
+  });
+
+  it("shouldCascadeMonthOverWeekForGoalDone", () => {
+    // month > week: monthGoalDone takes precedence when both done
+    const result = calcTodayInsight({
+      ...base,
+      weekGoal: "주간 목표",
+      weekGoalDone: true,
+      daysLeftWeek: 5,
+      monthGoal: "월간 목표",
+      monthGoalDone: true,
+      daysLeftMonth: 15,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("월간 목표 달성"); // month wins
+  });
+
+  it("shouldPrioritizeMomentumRiseOverGoalDone", () => {
+    // momentum_rise (10.5) fires before goal_done (10.7)
+    const result = calcTodayInsight({
+      ...base,
+      weekGoal: "주간 목표",
+      weekGoalDone: true,
+      daysLeftWeek: 5,
+      momentumHistory: RISING_HISTORY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("상승"); // momentum_rise wins
+  });
+
+  it("shouldPrioritizeGoalDoneOverPersonalBest", () => {
+    // goal_done (10.7) fires before personal_best (11)
+    const result = calcTodayInsight({
+      ...base,
+      habits: [{ name: "운동", streak: 7, lastChecked: TODAY, bestStreak: 7 }],
+      weekGoal: "주간 목표",
+      weekGoalDone: true,
+      daysLeftWeek: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("주간 목표 달성"); // goal_done wins over personal_best
+  });
+
+  // ── boundary tests: month / quarter / year thresholds ─────────────────────
+  it("shouldNotReturnMonthGoalDoneWhenDaysLeftAtExpiryThreshold", () => {
+    // daysLeftMonth = 2 → goal_done threshold is > 2; silent null (dead zone, intentional)
+    const result = calcTodayInsight({
+      ...base,
+      monthGoal: "월간 목표",
+      monthGoalDone: true,
+      daysLeftMonth: 2,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnMonthGoalDoneWhenDaysLeftJustAboveThreshold", () => {
+    // daysLeftMonth = 3 → first value above month threshold (> 2); goal_done fires
+    const result = calcTodayInsight({
+      ...base,
+      monthGoal: "월간 목표",
+      monthGoalDone: true,
+      daysLeftMonth: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("월간 목표 달성");
+    expect(result!.text).toContain("3");
+  });
+
+  it("shouldNotReturnQuarterGoalDoneWhenDaysLeftAtExpiryThreshold", () => {
+    // daysLeftQuarter = 7 → goal_done threshold is > 7; silent null
+    const result = calcTodayInsight({
+      ...base,
+      quarterGoal: "분기 목표",
+      quarterGoalDone: true,
+      daysLeftQuarter: 7,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnQuarterGoalDoneWhenDaysLeftJustAboveThreshold", () => {
+    // daysLeftQuarter = 8 → first value above quarter threshold (> 7); goal_done fires
+    const result = calcTodayInsight({
+      ...base,
+      quarterGoal: "분기 목표",
+      quarterGoalDone: true,
+      daysLeftQuarter: 8,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("분기 목표 달성");
+    expect(result!.text).toContain("8");
+  });
+
+  it("shouldNotReturnYearGoalDoneWhenDaysLeftAtExpiryThreshold", () => {
+    // daysLeftYear = 14 → goal_done threshold is > 14; silent null
+    const result = calcTodayInsight({
+      ...base,
+      yearGoal: "연간 목표",
+      yearGoalDone: true,
+      daysLeftYear: 14,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnYearGoalDoneWhenDaysLeftJustAboveThreshold", () => {
+    // daysLeftYear = 15 → first value above year threshold (> 14); goal_done fires
+    const result = calcTodayInsight({
+      ...base,
+      yearGoal: "연간 목표",
+      yearGoalDone: true,
+      daysLeftYear: 15,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연간 목표 달성");
+    expect(result!.text).toContain("15");
   });
 });
