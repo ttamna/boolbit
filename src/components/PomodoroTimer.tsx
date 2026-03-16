@@ -651,8 +651,14 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
             </button>
             {/* Notify toggle: bell on = desktop notification on phase end; bell-off = silenced */}
             <button
-              onClick={() => {
+              onClick={async () => {
                 const next = !notifyEnabled;
+                if (next) {
+                  try {
+                    const granted = await isPermissionGranted();
+                    if (!granted) await requestPermission();
+                  } catch { /* not available in browser dev mode */ }
+                }
                 setNotifyEnabled(next);
                 onNotifyChange?.(next);
               }}
