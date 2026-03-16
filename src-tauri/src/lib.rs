@@ -252,6 +252,8 @@ pub struct WidgetData {
     pub weekly_review_remind_date: Option<String>,
     #[serde(rename = "weeklyGoalMorningRemindDate", default, skip_serializing_if = "Option::is_none")]
     pub weekly_goal_morning_remind_date: Option<String>,
+    #[serde(rename = "weeklyHabitReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub weekly_habit_report_date: Option<String>,
     #[serde(rename = "monthGoalRemindDate", default, skip_serializing_if = "Option::is_none")]
     pub month_goal_remind_date: Option<String>,
     #[serde(rename = "quarterGoalRemindDate", default, skip_serializing_if = "Option::is_none")]
@@ -420,6 +422,7 @@ fn default_data() -> WidgetData {
         habit_milestone_approach_date: None,
         weekly_review_remind_date: None,
         weekly_goal_morning_remind_date: None,
+        weekly_habit_report_date: None,
         month_goal_remind_date: None,
         quarter_goal_remind_date: None,
         year_goal_remind_date: None,
@@ -819,6 +822,8 @@ fn load_data() -> WidgetData {
     data.weekly_review_remind_date = data.weekly_review_remind_date.as_deref()
         .filter(|s| is_valid_ymd(s)).map(String::from);
     data.weekly_goal_morning_remind_date = data.weekly_goal_morning_remind_date.as_deref()
+        .filter(|s| is_valid_ymd(s)).map(String::from);
+    data.weekly_habit_report_date = data.weekly_habit_report_date.as_deref()
         .filter(|s| is_valid_ymd(s)).map(String::from);
     data.month_goal_remind_date = data.month_goal_remind_date.as_deref()
         .filter(|s| is_valid_ymd(s)).map(String::from);

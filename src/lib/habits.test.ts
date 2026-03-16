@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, and calcPerfectDayMilestoneNotify pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, and perfect-day streak milestone notifications
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, and calcWeeklyHabitReport pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, and Monday morning weekly habit completion rate report
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -1133,5 +1133,99 @@ describe("calcPerfectDayMilestoneNotify", () => {
     expect(msg).not.toBeNull();
     expect(msg).toContain("100");
     expect(msg).toContain("완벽한 날");
+  });
+});
+
+// Fixed 7-day window: 7 consecutive days ending 2026-03-15 (yesterday when today = 2026-03-16 Monday).
+// Represents the sliding calcLastNDays(yesterday, 7) window used by the App.tsx hook.
+const REPORT_WINDOW = [
+  "2026-03-09",
+  "2026-03-10",
+  "2026-03-11",
+  "2026-03-12",
+  "2026-03-13",
+  "2026-03-14",
+  "2026-03-15",
+];
+
+describe("calcWeeklyHabitReport", () => {
+  it("shouldReturnNullWhenHabitsIsEmpty", () => {
+    expect(calcWeeklyHabitReport([], REPORT_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenNoCheckHistoryInWindow", () => {
+    const h = makeHabit({ checkHistory: ["2026-01-01"] }); // outside window
+    expect(calcWeeklyHabitReport([h], REPORT_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenHabitHasNoCheckHistory", () => {
+    const h = makeHabit(); // checkHistory absent
+    expect(calcWeeklyHabitReport([h], REPORT_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturn100PctMessageWhenAllHabitsCompletedEveryDay", () => {
+    // 1 habit checked all 7 days → rate = 100%
+    const h = makeHabit({ checkHistory: [...REPORT_WINDOW] });
+    const msg = calcWeeklyHabitReport([h], REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("100");
+    expect(msg).toContain("완벽한 한 주");
+  });
+
+  it("shouldReturnHighTierMessageWhenRateAtLeast80", () => {
+    // 1 habit, 6/7 days → round(6/7 * 100) = 86% (≥80, <100)
+    const h = makeHabit({ checkHistory: REPORT_WINDOW.slice(0, 6) });
+    const msg = calcWeeklyHabitReport([h], REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("86");
+    expect(msg).not.toContain("이번 주엔 더 해봐요");
+    expect(msg).not.toContain("다시 도전해봐요");
+  });
+
+  it("shouldReturnMidTierMessageWhenRateBetween60And80", () => {
+    // 1 habit, 5/7 days → round(5/7 * 100) = 71% (≥60, <80)
+    const h = makeHabit({ checkHistory: REPORT_WINDOW.slice(0, 5) });
+    const msg = calcWeeklyHabitReport([h], REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("71");
+    expect(msg).toContain("이번 주엔 더 해봐요");
+  });
+
+  it("shouldReturnLowTierMessageWhenRateBelow60", () => {
+    // 1 habit, 4/7 days → round(4/7 * 100) = 57% (<60)
+    const h = makeHabit({ checkHistory: REPORT_WINDOW.slice(0, 4) });
+    const msg = calcWeeklyHabitReport([h], REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("57");
+    expect(msg).toContain("다시 도전해봐요");
+  });
+
+  it("shouldHandleMultipleHabitsAllComplete", () => {
+    // 2 habits both checked all 7 days → 100%
+    const h1 = makeHabit({ checkHistory: [...REPORT_WINDOW] });
+    const h2 = makeHabit({ checkHistory: [...REPORT_WINDOW] });
+    const msg = calcWeeklyHabitReport([h1, h2], REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("100");
+  });
+
+  it("shouldReturnHighTierMessageAtExactly80Pct", () => {
+    // 1 habit, 4/5 days → round(4/5 * 100) = 80% — boundary of ≥80 (high tier)
+    const window5 = REPORT_WINDOW.slice(2); // 5 days: 2026-03-11 through 2026-03-15
+    const h = makeHabit({ checkHistory: window5.slice(0, 4) });
+    const msg = calcWeeklyHabitReport([h], window5);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("80");
+    expect(msg).not.toContain("이번 주엔 더 해봐요"); // must not fall to mid tier at 80%
+  });
+
+  it("shouldReturnMidTierMessageAtExactly60Pct", () => {
+    // 1 habit, 3/5 days → round(3/5 * 100) = 60% — boundary of ≥60 (mid tier)
+    const window5 = REPORT_WINDOW.slice(2); // 5 days: 2026-03-11 through 2026-03-15
+    const h = makeHabit({ checkHistory: window5.slice(0, 3) });
+    const msg = calcWeeklyHabitReport([h], window5);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("60");
+    expect(msg).toContain("이번 주엔 더 해봐요"); // must not fall to low tier at 60%
   });
 });

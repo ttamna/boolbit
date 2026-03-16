@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, evening reminder, and perfect-day streak milestone notifications
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, evening reminder, perfect-day streak milestone notifications, and Monday morning weekly habit completion rate report
 
 import type { Habit } from "../types";
 
@@ -286,6 +286,21 @@ const PERFECT_DAY_MILESTONES: number[] = [7, 14, 30, 50, 100];
 export function calcPerfectDayMilestoneNotify(streak: number): string | null {
   if (!PERFECT_DAY_MILESTONES.includes(streak)) return null;
   return `🌟 완벽한 날 ${streak}일 연속! 모든 습관을 ${streak}일 달성했어요`;
+}
+
+// Returns a Monday morning desktop notification body with last week's habit completion rate.
+// last7Days: 7 consecutive date strings ending with yesterday (the completed Sun–Sat week).
+// Thresholds: 100% → 완벽한 한 주; ≥80% → 훌륭해요; ≥60% → 이번 주엔 더 해봐요; <60% → 다시 도전해봐요.
+// Returns null when habits is empty or no habit has any check within the window (no data to report).
+// Delegates rate calculation to calcHabitsWeekRate for consistency with the habits badge.
+// Exported for unit testing; pure function with no side effects.
+export function calcWeeklyHabitReport(habits: Habit[], last7Days: string[]): string | null {
+  const rate = calcHabitsWeekRate(habits, last7Days);
+  if (rate === null) return null;
+  if (rate === 100) return `🌟 지난주 습관 완료율 100% — 완벽한 한 주!`;
+  if (rate >= 80) return `✅ 지난주 습관 완료율 ${rate}% — 훌륭해요!`;
+  if (rate >= 60) return `📊 지난주 습관 완료율 ${rate}% — 이번 주엔 더 해봐요!`;
+  return `⚠️ 지난주 습관 완료율 ${rate}% — 다시 도전해봐요!`;
 }
 
 // Plays a short audio cue when a habit is checked in using the Web Audio API.
