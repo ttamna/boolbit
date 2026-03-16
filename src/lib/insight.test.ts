@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_done)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -5521,4 +5521,84 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     expect(result!.text).toContain("방치됨");
     expect(result!.text).not.toContain("전환");
   });
+
+  // ── intention_done ─────────────────────────────────────────────────────────
+  describe("intention_done (priority 4.5)", () => {
+    function intentionBase() {
+      return {
+        habits: [],
+        todayStr: TODAY,
+        nowHour: 15,
+        todayIntentionDate: TODAY,
+        sessionsToday: 0,
+        sessionGoal: undefined as number | undefined,
+        habitsAllDoneDate: undefined as string | undefined,
+      };
+    }
+
+    it("shouldReturnIntentionDoneWhenDoneAndDateMatchesToday", () => {
+      const result = calcTodayInsight({ ...intentionBase(), todayIntentionDone: true });
+      expect(result).not.toBeNull();
+      expect(result!.level).toBe("success");
+      expect(result!.text).toContain("의도 달성");
+    });
+
+    it("shouldNotReturnIntentionDoneWhenNotDone", () => {
+      // intentionBase() has no active high-priority triggers — result is null when not done
+      const result = calcTodayInsight({ ...intentionBase(), todayIntentionDone: false });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotReturnIntentionDoneWhenUndefined", () => {
+      // absent todayIntentionDone behaves identically to false — no badge fires
+      const result = calcTodayInsight({ ...intentionBase(), todayIntentionDone: undefined });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotReturnIntentionDoneWhenDateMismatch", () => {
+      // stale todayIntentionDone from previous day — date guard must block it; no triggers active → null
+      const result = calcTodayInsight({ ...intentionBase(), todayIntentionDone: true, todayIntentionDate: YESTERDAY });
+      expect(result).toBeNull();
+    });
+
+    it("shouldReturnIntentionDoneInMorningBeforeLowerPriorityInsights", () => {
+      // morning (nowHour < 12) + done today → intention_done (4.5) fires even when period_start / intention_streak could fire
+      const result = calcTodayInsight({
+        ...intentionBase(),
+        nowHour: 9,
+        todayIntentionDone: true,
+        intentionConsecutiveDays: 7,
+        daysLeftWeek: 7,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.level).toBe("success");
+      expect(result!.text).toContain("의도 달성");
+    });
+
+    it("shouldPreferPerfectDayOverIntentionDone", () => {
+      // perfect_day (priority 4) must preempt intention_done (4.5)
+      const result = calcTodayInsight({
+        ...intentionBase(),
+        todayIntentionDone: true,
+        habits: [{ name: "운동", streak: 1, lastChecked: TODAY }],
+        habitsAllDoneDate: TODAY,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("완벽한 습관");
+      expect(result!.text).not.toContain("의도 달성");
+    });
+
+    it("shouldReturnIntentionDoneBeforeLowerPriorityInsight", () => {
+      // intention_done (4.5) must fire instead of lower-priority intention_streak (11.1)
+      const result = calcTodayInsight({
+        ...intentionBase(),
+        todayIntentionDone: true,
+        intentionConsecutiveDays: 7,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("의도 달성");
+      expect(result!.text).not.toContain("연속");
+    });
+  });
+
 });

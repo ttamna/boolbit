@@ -1238,6 +1238,7 @@ export default function App() {
     todayStr,
     nowHour: renderDate.getHours(),
     todayIntentionDate: data.todayIntentionDate,
+    todayIntentionDone: data.todayIntentionDone,
     sessionsToday: pomodoroSessionsToday,
     sessionGoal: data.pomodoroSessionGoal,
     habitsAllDoneDate: data.habitsAllDoneDate,
