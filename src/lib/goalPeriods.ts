@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, goal streaks, success rate, and goal heatmaps
-// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, history panels, and goal heatmap dot rows
+// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, goal streaks, success rate, goal heatmaps, and end-of-period review reminders
+// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, history panels, goal heatmap dot rows, and monthly/quarterly review nudges
 
 import type { GoalEntry } from "../types";
 
@@ -375,4 +375,40 @@ export function calcYearGoalHeatmap(
   const setCount = years.filter(y => y.set).length;
   const doneCount = years.filter(y => y.set && y.done).length;
   return { years, setCount, doneCount };
+}
+
+// Returns the desktop notification body for the end-of-month goal review nudge.
+// Three variants based on monthGoal state:
+//   - no goal (absent/empty/whitespace): generic "review + plan next month" nudge
+//   - goal set, not done (monthGoalDone absent or false): includes goal text, prompts reflection
+//   - goal set, done (monthGoalDone === true): congratulates achievement, nudges next-month planning
+// Hour/day guards (last 2 days of the month, getHours() >= 18) live in the caller (App.tsx useEffect).
+// Callers check monthGoalRemindDate before invoking to ensure once-per-month-end delivery.
+// Exported for unit testing; pure function with no side effects.
+export function calcMonthlyGoalReminder(
+  monthGoal: string | undefined,
+  monthGoalDone: boolean | undefined,
+): string {
+  const trimmed = monthGoal?.trim();
+  if (!trimmed) return "📅 월간 회고: 이번 달을 정리하고 다음 달 목표를 세워보세요!";
+  if (monthGoalDone) return `✅ 월간 회고: '${trimmed}' 달성! 다음 달 목표도 세워보세요.`;
+  return `📅 월간 회고: '${trimmed}' — 이번 달을 마무리해보세요.`;
+}
+
+// Returns the desktop notification body for the end-of-quarter goal review nudge.
+// Three variants based on quarterGoal state:
+//   - no goal (absent/empty/whitespace): generic "review + plan next quarter" nudge
+//   - goal set, not done (quarterGoalDone absent or false): includes goal text, prompts reflection
+//   - goal set, done (quarterGoalDone === true): congratulates achievement, nudges next-quarter planning
+// Hour/day guards (last 3 days of the quarter, getHours() >= 18) live in the caller (App.tsx useEffect).
+// Callers check quarterGoalRemindDate before invoking to ensure once-per-quarter-end delivery.
+// Exported for unit testing; pure function with no side effects.
+export function calcQuarterlyGoalReminder(
+  quarterGoal: string | undefined,
+  quarterGoalDone: boolean | undefined,
+): string {
+  const trimmed = quarterGoal?.trim();
+  if (!trimmed) return "📋 분기 회고: 이번 분기를 정리하고 다음 분기 목표를 세워보세요!";
+  if (quarterGoalDone) return `✅ 분기 회고: '${trimmed}' 달성! 다음 분기 목표도 세워보세요.`;
+  return `📋 분기 회고: '${trimmed}' — 이번 분기를 마무리해보세요.`;
 }

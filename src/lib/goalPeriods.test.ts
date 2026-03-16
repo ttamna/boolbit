@@ -1,8 +1,8 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, and calcYearGoalHeatmap
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap } from "./goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder } from "./goalPeriods";
 import type { GoalEntry } from "../types";
 
 describe("isoWeekStr", () => {
@@ -1067,5 +1067,89 @@ describe("calcYearGoalHeatmap", () => {
     const cur = result.years.find(y => y.year === CURRENT_Y)!;
     expect(cur.set).toBe(false);
     expect(cur.done).toBe(false);
+  });
+});
+
+const MONTH_GENERIC = "📅 월간 회고: 이번 달을 정리하고 다음 달 목표를 세워보세요!";
+
+describe("calcMonthlyGoalReminder", () => {
+  it("should return exact generic nudge when monthGoal is absent", () => {
+    expect(calcMonthlyGoalReminder(undefined, undefined)).toBe(MONTH_GENERIC);
+  });
+
+  it("should return exact generic nudge when monthGoal is empty string", () => {
+    // empty string trims to "" (falsy) → generic branch, not goal branch
+    expect(calcMonthlyGoalReminder("", undefined)).toBe(MONTH_GENERIC);
+  });
+
+  it("should return exact generic nudge when monthGoal is whitespace only", () => {
+    expect(calcMonthlyGoalReminder("   ", undefined)).toBe(MONTH_GENERIC);
+  });
+
+  it("should return exact generic nudge when done=true but monthGoal is absent", () => {
+    // stale persisted data: done=true but no goal text — generic branch takes precedence
+    expect(calcMonthlyGoalReminder(undefined, true)).toBe(MONTH_GENERIC);
+  });
+
+  it("should return exact not-done message when goal is set but monthGoalDone is absent", () => {
+    expect(calcMonthlyGoalReminder("매일 운동 20회", undefined))
+      .toBe("📅 월간 회고: '매일 운동 20회' — 이번 달을 마무리해보세요.");
+  });
+
+  it("should return exact not-done message when goal is set and monthGoalDone is false", () => {
+    expect(calcMonthlyGoalReminder("블로그 5편", false))
+      .toBe("📅 월간 회고: '블로그 5편' — 이번 달을 마무리해보세요.");
+  });
+
+  it("should return exact done message when monthGoalDone is true", () => {
+    expect(calcMonthlyGoalReminder("신규 기능 출시", true))
+      .toBe("✅ 월간 회고: '신규 기능 출시' 달성! 다음 달 목표도 세워보세요.");
+  });
+
+  it("should trim whitespace from monthGoal in message", () => {
+    expect(calcMonthlyGoalReminder("  PR 완료  ", false))
+      .toBe("📅 월간 회고: 'PR 완료' — 이번 달을 마무리해보세요.");
+  });
+});
+
+const QUARTER_GENERIC = "📋 분기 회고: 이번 분기를 정리하고 다음 분기 목표를 세워보세요!";
+
+describe("calcQuarterlyGoalReminder", () => {
+  it("should return exact generic nudge when quarterGoal is absent", () => {
+    expect(calcQuarterlyGoalReminder(undefined, undefined)).toBe(QUARTER_GENERIC);
+  });
+
+  it("should return exact generic nudge when quarterGoal is empty string", () => {
+    // empty string trims to "" (falsy) → generic branch, not goal branch
+    expect(calcQuarterlyGoalReminder("", undefined)).toBe(QUARTER_GENERIC);
+  });
+
+  it("should return exact generic nudge when quarterGoal is whitespace only", () => {
+    expect(calcQuarterlyGoalReminder("   ", undefined)).toBe(QUARTER_GENERIC);
+  });
+
+  it("should return exact generic nudge when done=true but quarterGoal is absent", () => {
+    // stale persisted data: done=true but no goal text — generic branch takes precedence
+    expect(calcQuarterlyGoalReminder(undefined, true)).toBe(QUARTER_GENERIC);
+  });
+
+  it("should return exact not-done message when goal is set but quarterGoalDone is absent", () => {
+    expect(calcQuarterlyGoalReminder("Q1 매출 목표 달성", undefined))
+      .toBe("📋 분기 회고: 'Q1 매출 목표 달성' — 이번 분기를 마무리해보세요.");
+  });
+
+  it("should return exact not-done message when goal is set and quarterGoalDone is false", () => {
+    expect(calcQuarterlyGoalReminder("신제품 론칭", false))
+      .toBe("📋 분기 회고: '신제품 론칭' — 이번 분기를 마무리해보세요.");
+  });
+
+  it("should return exact done message when quarterGoalDone is true", () => {
+    expect(calcQuarterlyGoalReminder("팀 확장 3명", true))
+      .toBe("✅ 분기 회고: '팀 확장 3명' 달성! 다음 분기 목표도 세워보세요.");
+  });
+
+  it("should trim whitespace from quarterGoal in message", () => {
+    expect(calcQuarterlyGoalReminder("  분기 목표  ", false))
+      .toBe("📋 분기 회고: '분기 목표' — 이번 분기를 마무리해보세요.");
   });
 });
