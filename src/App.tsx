@@ -15,7 +15,7 @@ import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder } from "./lib/habits";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder } from "./lib/goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify } from "./lib/projects";
@@ -583,6 +583,33 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.quarterGoal, data.quarterGoalDone, data.quarterGoalRemindDate, loaded, persist]);
+
+  // End-of-year goal review nudge — fires once per year in the last 7 calendar days (Dec 25-31) at 18:00+.
+  // Triggers when yearGoal is set OR when no goal set (generic nudge to plan the next year).
+  // yearGoalRemindDate persists the guard so it fires only once per year-end even after restart.
+  // Design: date is persisted before the async send (same pattern as quarterGoalRemindDate) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.yearGoalRemindDate === today) return;
+    if (now.getHours() < 18) return;
+    // Last 7 days of December: lastDayOfYear - 6 through 31 (Dec 25-31)
+    const todayMidnight = new Date(today + "T00:00:00");
+    const lastDayOfYear = new Date(todayMidnight.getFullYear(), 12, 0).getDate();
+    const isDecember = todayMidnight.getMonth() === 11;
+    if (!isDecember || todayMidnight.getDate() < lastDayOfYear - 6) return;
+    persist({ ...dataRef.current, yearGoalRemindDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        const msg = calcYearlyGoalReminder(data.yearGoal, data.yearGoalDone);
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.yearGoal, data.yearGoalDone, data.yearGoalRemindDate, loaded, persist]);
 
   // At-risk streak notification — fires once per app startup when habits are about to lose their streak.
   // "At risk" = streak > 0, last checked yesterday (midnight reset will zero the streak if not checked today).

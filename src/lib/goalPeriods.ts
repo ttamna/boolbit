@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, goal streaks, success rate, goal heatmaps, and end-of-period review reminders
-// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, history panels, goal heatmap dot rows, and monthly/quarterly review nudges
+// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, history panels, goal heatmap dot rows, and monthly/quarterly/yearly review nudges
 
 import type { GoalEntry } from "../types";
 
@@ -411,4 +411,22 @@ export function calcQuarterlyGoalReminder(
   if (!trimmed) return "📋 분기 회고: 이번 분기를 정리하고 다음 분기 목표를 세워보세요!";
   if (quarterGoalDone) return `✅ 분기 회고: '${trimmed}' 달성! 다음 분기 목표도 세워보세요.`;
   return `📋 분기 회고: '${trimmed}' — 이번 분기를 마무리해보세요.`;
+}
+
+// Returns the desktop notification body for the end-of-year goal review nudge.
+// Three variants based on yearGoal state:
+//   - no goal (absent/empty/whitespace): generic "review + plan next year" nudge
+//   - goal set, not done (yearGoalDone absent or false): includes goal text, prompts reflection
+//   - goal set, done (yearGoalDone === true): congratulates achievement, nudges next-year planning
+// Hour/day guards (last 7 days of December, getHours() >= 18) live in the caller (App.tsx useEffect).
+// Callers check yearGoalRemindDate before invoking to ensure once-per-year-end delivery.
+// Exported for unit testing; pure function with no side effects.
+export function calcYearlyGoalReminder(
+  yearGoal: string | undefined,
+  yearGoalDone: boolean | undefined,
+): string {
+  const trimmed = yearGoal?.trim();
+  if (!trimmed) return "🗓️ 연간 회고: 올해를 정리하고 내년 목표를 세워보세요!";
+  if (yearGoalDone) return `✅ 연간 회고: '${trimmed}' 달성! 내년 목표도 세워보세요.`;
+  return `🗓️ 연간 회고: '${trimmed}' — 올해를 마무리해보세요.`;
 }

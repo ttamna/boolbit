@@ -115,6 +115,7 @@ export interface WidgetData {
   weeklyReviewRemindDate?: string;     // YYYY-MM-DD (Sunday) when the weekly review nudge was last sent; absent = not sent
   monthGoalRemindDate?: string;        // YYYY-MM-DD when the end-of-month goal review nudge was last sent; absent = not sent
   quarterGoalRemindDate?: string;      // YYYY-MM-DD when the end-of-quarter goal review nudge was last sent; absent = not sent
+  yearGoalRemindDate?: string;         // YYYY-MM-DD when the end-of-year goal review nudge was last sent; absent = not sent
   weekGoalHistory?: GoalEntry[];   // rolling log of past weekly goals; newest last; capped at 8 entries; absent = no history
   monthGoalHistory?: GoalEntry[];  // rolling log of past monthly goals; newest last; capped at 12 entries; absent = no history
   quarterGoalHistory?: GoalEntry[]; // rolling log of past quarterly goals; newest last; capped at 8 entries; absent = no history
