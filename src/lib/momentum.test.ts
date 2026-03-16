@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg — score, tier, history edge cases
-// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, and 7-day average
+// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend — score, tier, history edge cases
+// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, and 3-day trend detection
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg } from "./momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -552,5 +552,106 @@ describe("calcMomentumWeekAvg", () => {
     ];
     // (90+50)/2 = 70
     expect(calcMomentumWeekAvg(history)).toBe(70);
+  });
+});
+
+describe("calcMomentumTrend", () => {
+  it("should return null for empty history", () => {
+    expect(calcMomentumTrend([], "2026-03-16")).toBeNull();
+  });
+
+  it("should return null for a single entry", () => {
+    const history = [{ date: "2026-03-16", score: 50, tier: "mid" as const }];
+    expect(calcMomentumTrend(history, "2026-03-16")).toBeNull();
+  });
+
+  it("should return null for two entries (need 3 consecutive days)", () => {
+    const history = [
+      { date: "2026-03-15", score: 80, tier: "high" as const },
+      { date: "2026-03-16", score: 60, tier: "mid" as const },
+    ];
+    expect(calcMomentumTrend(history, "2026-03-16")).toBeNull();
+  });
+
+  it("should return 'declining' when 3 consecutive days are strictly decreasing", () => {
+    const history = [
+      { date: "2026-03-14", score: 80, tier: "high" as const },
+      { date: "2026-03-15", score: 60, tier: "mid" as const },
+      { date: "2026-03-16", score: 40, tier: "mid" as const },
+    ];
+    expect(calcMomentumTrend(history, "2026-03-16")).toBe("declining");
+  });
+
+  it("should return 'rising' when 3 consecutive days are strictly increasing", () => {
+    const history = [
+      { date: "2026-03-14", score: 40, tier: "mid" as const },
+      { date: "2026-03-15", score: 60, tier: "mid" as const },
+      { date: "2026-03-16", score: 80, tier: "high" as const },
+    ];
+    expect(calcMomentumTrend(history, "2026-03-16")).toBe("rising");
+  });
+
+  it("should return 'stable' when scores are flat (plateau)", () => {
+    const history = [
+      { date: "2026-03-14", score: 60, tier: "mid" as const },
+      { date: "2026-03-15", score: 60, tier: "mid" as const },
+      { date: "2026-03-16", score: 60, tier: "mid" as const },
+    ];
+    expect(calcMomentumTrend(history, "2026-03-16")).toBe("stable");
+  });
+
+  it("should return 'stable' when trend is mixed (not strictly mono)", () => {
+    const history = [
+      { date: "2026-03-14", score: 80, tier: "high" as const },
+      { date: "2026-03-15", score: 60, tier: "mid" as const },
+      { date: "2026-03-16", score: 70, tier: "mid" as const },
+    ];
+    expect(calcMomentumTrend(history, "2026-03-16")).toBe("stable");
+  });
+
+  it("should return null when yesterday's entry is missing (gap)", () => {
+    const history = [
+      { date: "2026-03-14", score: 80, tier: "high" as const },
+      // 2026-03-15 missing
+      { date: "2026-03-16", score: 50, tier: "mid" as const },
+    ];
+    expect(calcMomentumTrend(history, "2026-03-16")).toBeNull();
+  });
+
+  it("should return null when 2-days-ago entry is missing", () => {
+    const history = [
+      // 2026-03-14 missing
+      { date: "2026-03-15", score: 70, tier: "mid" as const },
+      { date: "2026-03-16", score: 50, tier: "mid" as const },
+    ];
+    expect(calcMomentumTrend(history, "2026-03-16")).toBeNull();
+  });
+
+  it("should return 'stable' when rising only 2 days then flat", () => {
+    const history = [
+      { date: "2026-03-14", score: 40, tier: "mid" as const },
+      { date: "2026-03-15", score: 60, tier: "mid" as const },
+      { date: "2026-03-16", score: 60, tier: "mid" as const },
+    ];
+    expect(calcMomentumTrend(history, "2026-03-16")).toBe("stable");
+  });
+
+  it("should handle month boundary correctly (Mar 1 looks back to Feb 27/28)", () => {
+    const history = [
+      { date: "2026-02-27", score: 90, tier: "high" as const },
+      { date: "2026-02-28", score: 70, tier: "mid" as const },
+      { date: "2026-03-01", score: 50, tier: "mid" as const },
+    ];
+    expect(calcMomentumTrend(history, "2026-03-01")).toBe("declining");
+  });
+
+  it("should ignore extra entries outside the 3-day window", () => {
+    const history = [
+      { date: "2026-03-10", score: 20, tier: "low" as const }, // outside window
+      { date: "2026-03-14", score: 80, tier: "high" as const },
+      { date: "2026-03-15", score: 60, tier: "mid" as const },
+      { date: "2026-03-16", score: 40, tier: "mid" as const },
+    ];
+    expect(calcMomentumTrend(history, "2026-03-16")).toBe("declining");
   });
 });

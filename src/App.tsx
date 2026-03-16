@@ -673,6 +673,7 @@ export default function App() {
     yearGoal: data.yearGoal,
     yearGoalDone: data.yearGoalDone,
     daysLeftYear,
+    momentumHistory: data.momentumHistory,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 7-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes

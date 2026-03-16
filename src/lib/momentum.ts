@@ -1,5 +1,5 @@
 // ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
-// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score
+// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection
 
 import type { MomentumEntry } from "../types";
 
@@ -145,4 +145,36 @@ export function calcMomentumWeekAvg(history: MomentumEntry[]): number | null {
   if (history.length < 2) return null;
   const total = history.reduce((sum, e) => sum + e.score, 0);
   return Math.round(total / history.length);
+}
+
+/** "declining" = 3 consecutive days each strictly lower than the day before; "rising" = strictly higher. */
+export type MomentumTrend = "declining" | "rising" | "stable";
+
+/**
+ * Detects the recent momentum trend by comparing the last 3 consecutive calendar days.
+ * Returns null when any of the 3 calendar days lacks a history entry (insufficient data).
+ * todayStr is injected for testability (YYYY-MM-DD, local time).
+ *
+ * Design note: today's live in-progress score is intentionally included (today < yesterday < 2-days-ago
+ * = "declining"). An early-morning low score may trigger a transient "declining" that resolves as the
+ * day progresses. This is the same trade-off as the sparkline score: real-time feedback over stability.
+ * Contrast: calcMomentumStreak falls back to yesterday when today's score is not yet qualifying,
+ * because a session count of 0 is discrete ("nothing done"), whereas a momentum score of 10 at 9 AM
+ * is a continuous live value ("day not over").
+ */
+export function calcMomentumTrend(history: MomentumEntry[], todayStr: string): MomentumTrend | null {
+  const scoreMap = new Map<string, number>(history.map(e => [e.date, e.score]));
+  const [yr, mo, day] = todayStr.split("-").map(Number);
+  const scores: number[] = [];
+  for (let back = 2; back >= 0; back--) {
+    const d = new Date(yr, mo - 1, day - back); // local calendar arithmetic — DST-safe
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const score = scoreMap.get(key);
+    if (score === undefined) return null;
+    scores.push(score);
+  }
+  // scores[0]=2daysAgo, scores[1]=yesterday, scores[2]=today
+  if (scores[2] < scores[1] && scores[1] < scores[0]) return "declining";
+  if (scores[2] > scores[1] && scores[1] > scores[0]) return "rising";
+  return "stable";
 }

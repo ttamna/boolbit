@@ -1,8 +1,9 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > pomodoro > deadline soon > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > project stale > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > pomodoro > deadline soon > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > personal best
 
 import { getUpcomingMilestone } from "./habits";
-import type { Project } from "../types";
+import { calcMomentumTrend } from "./momentum";
+import type { Project, MomentumEntry } from "../types";
 
 export type InsightLevel = "success" | "warning" | "info";
 
@@ -45,6 +46,8 @@ interface InsightParams {
   yearGoalDone?: boolean;
   /** Days remaining in the current calendar year (including today); 1 = last day of the year. */
   daysLeftYear?: number;
+  /** Rolling 7-day momentum score history; used to detect a 3-consecutive-day decline. */
+  momentumHistory?: MomentumEntry[];
 }
 
 // Habit streak milestones at which a personal-best celebration is shown (mirrors getUpcomingMilestone targets).
@@ -61,7 +64,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > pomodoro_last_one > deadline_soon > goal_expiry > project_stale > personal_best.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > pomodoro_last_one > deadline_soon > goal_expiry > momentum_decline > project_stale > personal_best.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -69,6 +72,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     monthGoal, monthGoalDone, daysLeftMonth,
     quarterGoal, quarterGoalDone, daysLeftQuarter,
     yearGoal, yearGoalDone, daysLeftYear,
+    momentumHistory,
   } = params;
 
   // 1. Streak at risk: evening (≥ 18h) + high streak (≥ 7) + not yet checked today
@@ -168,6 +172,12 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   if (yearGoal && !yearGoalDone && daysLeftYear != null && daysLeftYear <= 14) {
     const suffix = daysLeftYear <= 1 ? "오늘 마감" : `${daysLeftYear}일`;
     return { text: `📋 연간 목표 마감 임박 (${suffix})`, level: "warning" };
+  }
+
+  // 9.5. Momentum decline: 3 consecutive days each strictly lower than the day before — pattern signals a systemic productivity slide.
+  // Fires when calcMomentumTrend returns "declining"; absent/insufficient history → skipped.
+  if (momentumHistory && calcMomentumTrend(momentumHistory, todayStr) === "declining") {
+    return { text: "📉 3일 연속 모멘텀 하락 — 루틴 점검", level: "warning" };
   }
 
   // 10. Project stale: active/in-progress project not focused via pomodoro in 7+ days

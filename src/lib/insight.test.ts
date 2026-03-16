@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all eleven insight types and their priority ordering
+// ABOUTME: Covers all twelve insight types and their priority ordering (including momentum_decline)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -1730,5 +1730,139 @@ describe("calcTodayInsight", () => {
     });
     expect(result!.text).toContain("의도"); // intention_missing, not week_start
     expect(result!.text).not.toContain("새 주");
+  });
+});
+
+// Helper: 3-day declining momentum history anchored to TODAY
+const DECLINING_HISTORY = [
+  { date: "2024-01-13", score: 80, tier: "high" as const },
+  { date: "2024-01-14", score: 60, tier: "mid" as const },
+  { date: "2024-01-15", score: 40, tier: "mid" as const },
+];
+
+describe("calcTodayInsight — momentum_decline (priority 9.5, before project_stale)", () => {
+  it("shouldReturnMomentumDeclineWhenThreeDayDeclineAndNoHigherPriorityInsight", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      momentumHistory: DECLINING_HISTORY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("하락");
+    expect(result!.level).toBe("warning");
+  });
+
+  it("shouldReturnNullWhenMomentumHistoryAbsent", () => {
+    // All other conditions are inert (nowHour=15 skips streak_at_risk, no habits/projects/goals/sessions).
+    // The only potential insight would be momentum_decline, but no history → null.
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      // no momentumHistory
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenMomentumIsRisingNotDeclining", () => {
+    const rising = [
+      { date: "2024-01-13", score: 40, tier: "mid" as const },
+      { date: "2024-01-14", score: 60, tier: "mid" as const },
+      { date: "2024-01-15", score: 80, tier: "high" as const },
+    ];
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      momentumHistory: rising,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenOnlyTwoHistoryEntries", () => {
+    const twoEntries = [
+      { date: "2024-01-14", score: 70, tier: "mid" as const },
+      { date: "2024-01-15", score: 50, tier: "mid" as const },
+    ];
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      momentumHistory: twoEntries,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPrioritizePerfectDayOverMomentumDecline", () => {
+    // perfect_day (priority 4) > momentum_decline (priority 9.5)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY, // all habits done today
+      momentumHistory: DECLINING_HISTORY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽");
+  });
+
+  it("shouldPrioritizeMomentumDeclineOverProjectStaleWhenBothPresent", () => {
+    // momentum_decline (9.5) fires BEFORE project_stale (10):
+    // project neglected 8 days but 3-day decline exists → decline wins
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "SideProject", deadline: undefined, status: "active", lastFocusDate: "2024-01-07" }],
+      momentumHistory: DECLINING_HISTORY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("하락"); // decline beats stale
+  });
+
+  it("shouldShowProjectStaleWhenNoDecline", () => {
+    // No momentum decline → project_stale surfaces
+    const stable = [
+      { date: "2024-01-13", score: 60, tier: "mid" as const },
+      { date: "2024-01-14", score: 60, tier: "mid" as const },
+      { date: "2024-01-15", score: 60, tier: "mid" as const },
+    ];
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "SideProject", deadline: undefined, status: "active", lastFocusDate: "2024-01-07" }],
+      momentumHistory: stable,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("SideProject"); // project_stale
   });
 });
