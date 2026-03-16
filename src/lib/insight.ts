@@ -499,7 +499,8 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // Fires when no earlier project insight has returned (project_behind ≤ -20%, project_ahead ≥ +20%,
   // project_near_completion ≥ 90%) — by priority ordering those cases are already handled above.
   // Requires: deadline > 7 days (shorter deadlines are covered by deadline_critical/deadline_soon),
-  // createdDate + progress (1–99%) so calcCompletionForecast can establish a velocity.
+  // createdDate + progress < 90 so calcCompletionForecast can establish a velocity.
+  // Note: progress=0 passes this filter but is rejected inside calcCompletionForecast (progress ≤ 0 guard).
   // Picks the project with the smallest daysVsDeadline (ascending sort) — most urgent first:
   //   negative = forecast past deadline (warning); positive = still ahead (info).
   // today is injected from todayStr for deterministic testing.

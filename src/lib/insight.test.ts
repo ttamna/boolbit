@@ -4496,7 +4496,8 @@ describe("calcTodayInsight — project_forecast (priority 10.87, at-current-pace
   });
 
   it("shouldReturnProjectForecastExactlyOnDeadline", () => {
-    // 80 days elapsed, 80 days to deadline, progress=50 → velocity=50/80=0.625, daysToComplete=80 exactly
+    // 80 days elapsed, 80 days to deadline, progress=50 → velocity=50/80=0.625, daysToComplete=50/0.625=80.0 exactly.
+    // Integer cancellation: 50/(50/80) = 80 — no floating-point rounding. Math.round(80.0-80.0)=0.
     // forecastDate = 2024-04-05 = deadline → daysVsDeadline = 0 → "D-0"
     const result = calcTodayInsight({
       ...base(),
@@ -4540,12 +4541,14 @@ describe("calcTodayInsight — project_forecast (priority 10.87, at-current-pace
   });
 
   it("shouldNotReturnProjectForecastWhenDeadlineWithin7Days", () => {
-    // deadline_soon fires at priority 8; project_forecast filter also excludes deadline ≤ 7 days
+    // deadline_soon (priority 8) fires first; project_forecast filter also excludes deadline ≤ 7 days.
+    // "2024-01-21" is 5 days from TODAY_F → deadline_soon produces "D-5"; project_forecast never reached.
     const result = calcTodayInsight({
       ...base(),
       projects: [{ ...onTrack(), deadline: "2024-01-21" }], // 5 days away
     });
-    expect(result?.text).not.toContain("예상 완료");
+    expect(result?.text).toContain("D-5");     // deadline_soon fired
+    expect(result?.text).not.toContain("예상 완료"); // project_forecast did not fire
   });
 
   it("shouldNotReturnProjectForecastWhenCalcCompletionForecastReturnsNull", () => {
