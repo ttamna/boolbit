@@ -451,6 +451,29 @@ export function calcGoalCompletionNotify(
   return trimmed ? `${emoji} ${label} — ${trimmed}` : `${emoji} ${label}`;
 }
 
+/**
+ * Returns the Monday morning retrospective for the previous ISO week's goal.
+ * lastWeekStr: ISO week key "YYYY-Www" for the week just ended.
+ * history: rolling GoalEntry array; only the entry matching lastWeekStr is used.
+ * Returns null when no goal was set last week (no history entry for lastWeekStr).
+ * done === true → achievement congratulations; done absent/false → gentle miss nudge.
+ * Hour/day guards (Monday, getHours() >= 9) live in the caller (App.tsx useEffect).
+ * Callers check weeklyGoalReportDate before invoking to ensure once-per-Monday delivery.
+ * Exported for unit testing; pure function with no side effects.
+ */
+export function calcWeeklyGoalReport(
+  lastWeekStr: string,
+  history: GoalEntry[],
+): string | null {
+  const entry = history.find(e => e.date === lastWeekStr);
+  if (!entry) return null;
+  const text = entry.text?.trim();
+  if (entry.done === true) {
+    return text ? `✅ 지난주 목표 달성! — ${text}` : "✅ 지난주 목표 달성!";
+  }
+  return text ? `📋 지난주 목표 미달성 — ${text}` : "📋 지난주 목표 미달성";
+}
+
 // Returns the desktop notification body for the Monday-morning weekly-goal nudge.
 // Fires when weekGoalDate is absent or does not match currentWeekStr (goal not yet set for this ISO week).
 // Returns null when weekGoalDate === currentWeekStr — goal is already set, no nudge needed.
