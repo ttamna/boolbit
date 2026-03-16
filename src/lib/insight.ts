@@ -1,10 +1,10 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
+// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
 import { calcScheduleGap, calcCompletionForecast } from "./projects";
-import type { Project, MomentumEntry } from "../types";
+import type { Project, MomentumEntry, GitHubData } from "../types";
 
 export type InsightLevel = "success" | "warning" | "info";
 
@@ -22,11 +22,11 @@ interface InsightParams {
   sessionGoal: number | undefined;
   habitsAllDoneDate: string | undefined;
   /**
-   * Active/in-progress projects to surface deadline warnings, behind-schedule alerts, stale-focus alerts, and focus-selection nudge; absent = no project context.
-   * `createdDate`, `progress`, and `isFocus` are optional for backwards compatibility with test fixtures that omit them;
+   * Active/in-progress projects to surface deadline warnings, ci_failure alerts, behind-schedule alerts, stale-focus alerts, and focus-selection nudge; absent = no project context.
+   * `createdDate`, `progress`, `isFocus`, and `githubData` are optional for backwards compatibility with test fixtures that omit them;
    * projects without createdDate+progress are explicitly excluded from the behind-schedule check (not silently skipped).
    */
-  projects?: Array<Pick<Project, "name" | "deadline" | "status" | "lastFocusDate"> & { createdDate?: string; progress?: number; isFocus?: boolean }>;
+  projects?: Array<Pick<Project, "name" | "deadline" | "status" | "lastFocusDate"> & { createdDate?: string; progress?: number; isFocus?: boolean; githubData?: Pick<GitHubData, "ciStatus"> }>;
   /** Weekly goal text; absent/empty = no goal set. */
   weekGoal?: string;
   /** True when weekly goal has been marked done; absent/false = not done. */
@@ -155,7 +155,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > weak_day_ahead > pomodoro_last_one > pomodoro_goal_streak > pomodoro_day_record > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > almost_perfect_day > momentum_rise > goal_done > goal_streak > month_goal_streak > project_ahead > project_near_completion > project_forecast > personal_best > habit_target_near > intention_streak.
+// Priority order: streak_at_risk > deadline_critical > ci_failure > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > weak_day_ahead > pomodoro_last_one > pomodoro_goal_streak > pomodoro_day_record > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > almost_perfect_day > momentum_rise > goal_done > goal_streak > month_goal_streak > project_ahead > project_near_completion > project_forecast > personal_best > habit_target_near > intention_streak.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -193,6 +193,21 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     if (critical) {
       const label = critical.days === 0 ? "D-Day" : `D-${critical.days}`;
       return { text: `⚡ ${critical.name} ${label}`, level: "warning" };
+    }
+  }
+
+  // 2.5. GitHub CI failure: active/in-progress project with a failing CI run.
+  // Fires between deadline_critical (2) and milestone_near (3): a broken build is an actionable
+  // blocker that warrants prompt attention but does not carry the same time-pressure as an imminent deadline.
+  // ciStatus "failure" is the only error state; "pending" (in-progress) and null (CI not configured) are skipped.
+  // Picks the first failing project in user-defined project order — the topmost project in the list is
+  // treated as highest priority, which matches the user's own ranking in the ProjectList UI.
+  if (projects && projects.length > 0) {
+    const failing = projects.find(
+      p => p.status !== "done" && p.status !== "paused" && p.githubData?.ciStatus === "failure"
+    );
+    if (failing) {
+      return { text: `⚠️ ${failing.name} CI 실패 — 빌드 확인`, level: "warning" };
     }
   }
 

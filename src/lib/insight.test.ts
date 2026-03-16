@@ -667,6 +667,176 @@ describe("calcTodayInsight", () => {
     if (result) expect(result.level).not.toBe("warning");
   });
 
+  // ── ci_failure ─────────────────────────────────────────────────────────────
+  it("shouldReturnCiFailureWhenActiveProjectHasFailingCi", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "앱서버", status: "active", githubData: { ciStatus: "failure" } }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("앱서버");
+    expect(result!.text).toContain("CI");
+  });
+
+  it("shouldReturnCiFailureWhenInProgressProjectHasFailingCi", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "백엔드", status: "in-progress", githubData: { ciStatus: "failure" } }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("백엔드");
+  });
+
+  it("shouldNotReturnCiFailureWhenProjectIsPaused", () => {
+    // Active project alongside paused: only the active one should trigger ci_failure
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "중단프로젝트", status: "paused", githubData: { ciStatus: "failure" } },
+        { name: "활성프로젝트", status: "active", githubData: { ciStatus: "failure" } },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("활성프로젝트"); // paused project is skipped; active fires
+    expect(result!.text).not.toContain("중단프로젝트");
+  });
+
+  it("shouldNotReturnCiFailureWhenProjectIsDone", () => {
+    // Active project alongside done: only the active one should trigger ci_failure
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "완료프로젝트", status: "done", githubData: { ciStatus: "failure" } },
+        { name: "진행중프로젝트", status: "in-progress", githubData: { ciStatus: "failure" } },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("진행중프로젝트"); // done project is skipped; in-progress fires
+    expect(result!.text).not.toContain("완료프로젝트");
+  });
+
+  it("shouldNotReturnCiFailureWhenCiStatusIsSuccess", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "정상프로젝트", status: "active", githubData: { ciStatus: "success" } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnCiFailureWhenCiStatusIsPending", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "빌드중프로젝트", status: "active", githubData: { ciStatus: "pending" } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnCiFailureWhenCiStatusIsNull", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "CI없음프로젝트", status: "active", githubData: { ciStatus: null } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnDeadlineCriticalBeforeCiFailure", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "긴급마감", status: "active", deadline: TODAY, githubData: { ciStatus: "failure" } },
+        { name: "CI고장", status: "active", githubData: { ciStatus: "failure" } },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("긴급마감"); // deadline_critical (2) beats ci_failure (2.5)
+  });
+
+  it("shouldReturnStreakAtRiskBeforeCiFailure", () => {
+    // streak_at_risk (priority 1) must preempt ci_failure (2.5) in the evening
+    const result = calcTodayInsight({
+      habits: [habit("운동", 10, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 19,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "CI고장", status: "active", githubData: { ciStatus: "failure" } }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동"); // streak_at_risk fires first
+    expect(result!.text).not.toContain("CI");
+  });
+
+  it("shouldReturnFirstFailingProjectInUserOrderWhenMultipleCiFailures", () => {
+    // With multiple failing CI projects, the first in user-defined order is surfaced
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "프로젝트A", status: "active", githubData: { ciStatus: "failure" } },
+        { name: "프로젝트B", status: "active", githubData: { ciStatus: "failure" } },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("프로젝트A"); // first project in user-defined order
+  });
+
   // ── deadline_soon ──────────────────────────────────────────────────────────
   it("shouldReturnDeadlineSoonWhenDeadlineIs4DaysAway", () => {
     const result = calcTodayInsight({
