@@ -3374,3 +3374,109 @@ describe("calcTodayInsight — project_ahead (priority 10.8, after goal_done)", 
     expect(result!.text).toContain("월간 목표 달성"); // goal_done wins
   });
 });
+
+// ── goal_streak (priority 10.75, after goal_done, before project_ahead) ──────
+describe("calcTodayInsight — goal_streak (priority 10.75, morning, past done week streak)", () => {
+  // Base params: morning, no higher-priority triggers, week goal set but not done
+  const base = {
+    habits: [],
+    todayStr: TODAY,
+    nowHour: 9, // morning
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined,
+    habitsAllDoneDate: undefined,
+    weekGoal: "이번 주 목표",
+    weekGoalDone: false as boolean | undefined,
+    daysLeftWeek: 5,
+  };
+
+  it("shouldReturnGoalStreakWhenPastDoneStreakIs1", () => {
+    const result = calcTodayInsight({ ...base, weekGoalPastDoneStreak: 1 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("1주 연속");
+    expect(result!.text).toContain("이번 주도");
+  });
+
+  it("shouldReturnGoalStreakWhenPastDoneStreakIs3", () => {
+    const result = calcTodayInsight({ ...base, weekGoalPastDoneStreak: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("3주 연속");
+  });
+
+  it("shouldNotReturnGoalStreakWhenPastDoneStreakIs0", () => {
+    const result = calcTodayInsight({ ...base, weekGoalPastDoneStreak: 0 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGoalStreakWhenPastDoneStreakAbsent", () => {
+    const result = calcTodayInsight({ ...base, weekGoalPastDoneStreak: undefined });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGoalStreakWhenWeekGoalAlreadyDone", () => {
+    // weekGoalDone=true → goal_done (10.7) fires instead (daysLeftWeek=5 > 2)
+    const result = calcTodayInsight({ ...base, weekGoalDone: true, daysLeftWeek: 5, weekGoalPastDoneStreak: 2 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("주간 목표 달성"); // goal_done wins
+    expect(result!.text).not.toContain("연속 달성 중");
+  });
+
+  it("shouldNotReturnGoalStreakWhenNotMorning", () => {
+    // goal_streak is morning-only (nowHour < 12); nowHour=14 (afternoon) should not fire
+    const result = calcTodayInsight({ ...base, nowHour: 14, weekGoalPastDoneStreak: 2 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnGoalStreakAtHour11ButNotAtHour12", () => {
+    // nowHour=11 is still morning (< 12) → fires; nowHour=12 is the boundary → does not fire
+    const at11 = calcTodayInsight({ ...base, nowHour: 11, weekGoalPastDoneStreak: 1 });
+    expect(at11).not.toBeNull();
+    expect(at11!.text).toContain("연속 달성 중");
+
+    const at12 = calcTodayInsight({ ...base, nowHour: 12, weekGoalPastDoneStreak: 1 });
+    expect(at12).toBeNull();
+  });
+
+  it("shouldNotReturnGoalStreakWhenNoWeekGoal", () => {
+    // todayStr="2024-01-16" (Tuesday) avoids period_start (fires only on the first day of a new period);
+    // TODAY ("2024-01-15") is a Monday so period_start would fire for the new week.
+    // todayIntentionDate must also match todayStr to suppress intention_missing (priority 5).
+    const result = calcTodayInsight({
+      ...base,
+      todayStr: TOMORROW,
+      todayIntentionDate: TOMORROW,
+      weekGoal: undefined,
+      weekGoalPastDoneStreak: 2,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldGoalDoneFireBeforeGoalStreak", () => {
+    // goal_done (10.7) < goal_streak (10.75) in priority
+    const result = calcTodayInsight({
+      ...base,
+      weekGoalDone: true,
+      daysLeftWeek: 4,
+      weekGoalPastDoneStreak: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("주간 목표 달성"); // goal_done (10.7) fires
+  });
+
+  it("shouldGoalStreakFireBeforeProjectAhead", () => {
+    // goal_streak (10.75) fires before project_ahead (10.8)
+    // isFocus: true to avoid no_focus_project (6.5) firing first
+    const result = calcTodayInsight({
+      ...base,
+      weekGoalPastDoneStreak: 2,
+      projects: [
+        { name: "앞서가는프로젝트", status: "active", deadline: "2024-02-22", createdDate: DAYS_7_AGO, progress: 70, isFocus: true },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연속 달성 중"); // goal_streak wins over project_ahead
+  });
+});

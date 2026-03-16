@@ -1127,6 +1127,16 @@ export default function App() {
     yearGoalDone: data.yearGoalDone,
     daysLeftYear,
     momentumHistory: data.momentumHistory,
+    // Past consecutive done weeks (excludes current week): calcWeekGoalStreak counts current week as 1,
+    // so subtracting 1 gives the number of completed past weeks; filter to done===true entries only.
+    // Math.max(0, ...) clamps to ≥ 0 — calcWeekGoalStreak returns 0 when no current-week goal is set,
+    // which would produce -1 without clamping and violate the ≥ 0 contract in InsightParams.
+    weekGoalPastDoneStreak: Math.max(0, calcWeekGoalStreak(
+      data.weekGoal,
+      data.weekGoalDate,
+      (data.weekGoalHistory ?? []).filter(e => e.done === true),
+      renderDate,
+    ) - 1),
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 7-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes

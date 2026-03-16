@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > project ahead (≥20% ahead of schedule) > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -55,6 +55,12 @@ interface InsightParams {
   daysLeftYear?: number;
   /** Rolling 7-day momentum score history; used to detect a 3-consecutive-day decline. */
   momentumHistory?: MomentumEntry[];
+  /**
+   * Number of consecutive PAST ISO weeks (excluding current) where the weekly goal was marked done.
+   * A value ≥ 1 with weekGoalDone === false triggers a morning streak-encouragement nudge.
+   * Absent/undefined = no streak data available.
+   */
+  weekGoalPastDoneStreak?: number;
 }
 
 // Habit streak milestones at which a personal-best celebration is shown (mirrors getUpcomingMilestone targets).
@@ -106,7 +112,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > momentum_rise > goal_done > personal_best.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > momentum_rise > goal_done > goal_streak > project_ahead > personal_best.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -115,6 +121,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     quarterGoal, quarterGoalDone, daysLeftQuarter,
     yearGoal, yearGoalDone, daysLeftYear,
     momentumHistory,
+    weekGoalPastDoneStreak,
   } = params;
 
   // 1. Streak at risk: evening (≥ 18h) + high streak (≥ 7) + not yet checked today
@@ -345,6 +352,14 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   }
   if (weekGoal && weekGoalDone && daysLeftWeek != null && daysLeftWeek > 2) {
     return { text: `🎉 주간 목표 달성! (${daysLeftWeek}일 남음)`, level: "success" };
+  }
+
+  // 10.75. Goal streak: weekly goal achieved for ≥1 consecutive past week AND not yet done this week.
+  // Morning-only (< 12h) motivational nudge to sustain a winning streak.
+  // Uses past-done streak (excluding current week) so it never fires the same moment as goal_done.
+  if (nowHour < 12 && weekGoal && !weekGoalDone && weekGoalPastDoneStreak != null && weekGoalPastDoneStreak >= 1) {
+    const streak = weekGoalPastDoneStreak;
+    return { text: `✅ 주간 목표 ${streak}주 연속 달성 중! 이번 주도 화이팅`, level: "success" };
   }
 
   // 10.8. Project ahead of schedule: active/in-progress project >7 days from deadline with ≥20% schedule surplus.
