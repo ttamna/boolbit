@@ -1195,6 +1195,13 @@ export default function App() {
   const pomodoroGoalStreak = data.pomodoroSessionGoal != null && data.pomodoroSessionGoal > 0
     ? calcPomodoroGoalStreak(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, todayStr)
     : undefined;
+  // intentionConsecutiveDays: consecutive days (including today) on which the user has set an intention.
+  // Pure function extracted to src/lib/intention.ts for testability.
+  const intentionConsecutiveDays = calcIntentionStreak(
+    data.todayIntention,
+    todayStr,
+    data.intentionHistory ?? [],
+  );
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1229,6 +1236,7 @@ export default function App() {
       renderDate,
     ) - 1),
     pomodoroGoalStreak,
+    intentionConsecutiveDays,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 7-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
@@ -1265,13 +1273,6 @@ export default function App() {
     })();
   }, [dailyScore.score, dailyScore.tier, data.momentumEveningDigestDate, loaded, persist]);
 
-  // intentionConsecutiveDays: consecutive days (including today) on which the user has set an intention.
-  // Pure function extracted to src/lib/intention.ts for testability.
-  const intentionConsecutiveDays = calcIntentionStreak(
-    data.todayIntention,
-    todayStr,
-    data.intentionHistory ?? [],
-  );
   // weekGoalStreak: consecutive ISO weeks (including current) for which a weekly goal was set.
   // Mirrors intentionConsecutiveDays pattern; shown as "N🔥" when ≥ 2 to reward consistent goal-setting.
   const weekGoalStreak = calcWeekGoalStreak(

@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > personal best > intention streak (≥7d consecutive intention-setting)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -67,6 +67,13 @@ interface InsightParams {
    * Absent/undefined = no streak data or sessionGoal not set.
    */
   pomodoroGoalStreak?: number;
+  /**
+   * Consecutive days (including today) on which the user has set a daily intention.
+   * Capped at 7 by calcIntentionStreak (today + 6 history days).
+   * A value ≥ 7 with todayIntentionDate === todayStr triggers an intention-streak badge.
+   * Absent/undefined = streak unknown; 0 = no streak.
+   */
+  intentionConsecutiveDays?: number;
 }
 
 // Habit streak milestones at which a personal-best celebration is shown (mirrors getUpcomingMilestone targets).
@@ -129,6 +136,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     momentumHistory,
     weekGoalPastDoneStreak,
     pomodoroGoalStreak,
+    intentionConsecutiveDays,
   } = params;
 
   // 1. Streak at risk: evening (≥ 18h) + high streak (≥ 7) + not yet checked today
@@ -441,6 +449,15 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     .sort((a, b) => b.streak - a.streak)[0];
   if (personalBest) {
     return { text: `🏆 ${personalBest.name} 역대 최고! (${personalBest.streak}d)`, level: "success" };
+  }
+
+  // 11.1. Intention streak: 7 consecutive days of setting a daily intention (cap of calcIntentionStreak).
+  // Fires as a persistent "you're consistent" badge when today's intention is already set.
+  // calcIntentionStreak is capped at 7 (today + 6 history days), so this fires every day the user
+  // maintains a full 7-day window — a reliable signal of genuine daily-intention habit formation.
+  // Placed after personal_best so habit milestones take precedence on the same day.
+  if (intentionConsecutiveDays != null && intentionConsecutiveDays >= 7 && todayIntentionDate === todayStr) {
+    return { text: `✍️ 의도 ${intentionConsecutiveDays}일 연속 설정 중!`, level: "success" };
   }
 
   return null;

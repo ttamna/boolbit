@@ -3842,4 +3842,88 @@ describe("calcTodayInsight — almost_perfect_day (priority 10.3)", () => {
     expect(result!.text).toContain("연속 미완료"); // habit_consecutive_miss fires
     expect(result!.text).not.toContain("완벽한 하루까지");
   });
+
+  // ── intention_streak ──────────────────────────────────────────────────────
+  it("shouldReturnIntentionStreakInsightWhen7DayStreakAndIntentionSetToday", () => {
+    // All higher-priority conditions absent; intentionConsecutiveDays === 7 → fires.
+    // nowHour:14 bypasses period_start (requires < 12), avoiding false "new week/month" insight
+    // on test date 2024-01-15 (a Monday). Habit checked today → no streak_at_risk, almost_perfect_day
+    // remaining=0 (1 habit checked), no pomodoro goal, no momentum history.
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)], // checked today — 0 remaining, no streak_at_risk/milestone_near
+      todayStr: TODAY,
+      nowHour: 14, // afternoon — bypasses period_start and intention_missing (both < 12)
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      intentionConsecutiveDays: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("7일");
+  });
+
+  it("shouldNotReturnIntentionStreakInsightWhenStreakBelow7", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      intentionConsecutiveDays: 6,
+    });
+    // No higher-priority insight fires with empty habits, no goals, no pomodoro → result is null
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnIntentionStreakInsightWhenIntentionNotSetToday", () => {
+    // intentionConsecutiveDays >= 7 but today's intention is not set → no insight
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: YESTERDAY, // not today
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      intentionConsecutiveDays: 7,
+    });
+    // No higher-priority insight fires → result is null (intention_streak blocked by todayIntentionDate check)
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnIntentionStreakInsightWhenConsecutiveDaysUndefined", () => {
+    // intentionConsecutiveDays absent (undefined) → no intention_streak badge fires
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      // intentionConsecutiveDays omitted
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnPersonalBestOverIntentionStreak", () => {
+    // personal_best (priority 11) fires first when habit hits milestone bestStreak today
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 7, lastChecked: TODAY, bestStreak: 7 }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      intentionConsecutiveDays: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("역대 최고"); // personal_best takes priority
+  });
 });
