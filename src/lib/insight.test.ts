@@ -574,6 +574,177 @@ describe("calcTodayInsight", () => {
     expect(result).toBeNull();
   });
 
+  // ── project_behind ─────────────────────────────────────────────────────────
+  // createdDate 30 days ago, deadline 30 days from NOW → timePct=50%; progress=10% → gap=-40 (fires)
+  // TODAY="2024-01-15", DAYS_30_AGO="2023-12-16", IN_30="2024-02-14", IN_14="2024-01-29"
+  const DAYS_30_AGO = "2023-12-16";
+  const IN_30 = "2024-02-14";
+  const IN_14 = "2024-01-29";
+
+  it("shouldReturnProjectBehindWhenGapExceeds20Percent", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      // timePct=50%, progress=10% → gap=-40 → fires
+      projects: [{ name: "앱개발", status: "active", deadline: IN_30, createdDate: DAYS_30_AGO, progress: 10 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("앱개발");
+    expect(result!.text).toContain("40");
+  });
+
+  it("shouldNotReturnProjectBehindWhenGapBelow20Percent", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      // timePct=50%, progress=35% → gap=-15 → does not fire
+      projects: [{ name: "순탄한프로젝트", status: "active", deadline: IN_30, createdDate: DAYS_30_AGO, progress: 35 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectBehindForDoneProject", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "완료됨", status: "done", deadline: IN_30, createdDate: DAYS_30_AGO, progress: 10 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectBehindForPausedProject", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "일시중지", status: "paused", deadline: IN_30, createdDate: DAYS_30_AGO, progress: 10 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectBehindWhenCreatedDateAbsent", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      // No createdDate → calcScheduleGap returns null
+      projects: [{ name: "신규프로젝트", status: "active", deadline: IN_30, progress: 10 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectBehindWhenProgressAbsent", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      // No progress → treated as absent, skips calcScheduleGap
+      projects: [{ name: "진행불명", status: "active", deadline: IN_30, createdDate: DAYS_30_AGO }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectBehindWhenTimePctTooLow", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      // createdDate=yesterday → 1/31 days elapsed = ~3% timePct < 10 → calcScheduleGap returns null
+      projects: [{ name: "막시작프로젝트", status: "active", deadline: IN_30, createdDate: YESTERDAY, progress: 0 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectBehindWhenDeadlineWithin7Days", () => {
+    // deadline_soon fires for IN_7 (7 days away); project_behind filters to > 7 days only
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "임박한프로젝트", status: "active", deadline: IN_7, createdDate: DAYS_30_AGO, progress: 10 }],
+    });
+    // deadline_soon fires (D-7), not project_behind
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("D-7");
+    expect(result!.text).not.toContain("뒤처짐");
+  });
+
+  it("shouldReturnProjectBehindWhenDeadlineIs8DaysAway", () => {
+    // IN_8 = 8 days away → NOT caught by deadline_soon (4-7d) → project_behind fires
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      // 8 days to deadline, 30 days elapsed out of 38 → timePct=79%, progress=10% → gap=-69 → fires
+      projects: [{ name: "마감근접뒤처짐", status: "active", deadline: IN_8, createdDate: DAYS_30_AGO, progress: 10 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("마감근접뒤처짐");
+    expect(result!.text).toContain("69"); // 30 days elapsed / 38 total → timePct=79%, gap=10-79=-69
+    expect(result!.text).toContain("뒤처짐");
+  });
+
+  it("shouldPrioritizeProjectBehindOverProjectStaleWhenBothPresent", () => {
+    // project_behind (8.5) fires before project_stale (10)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "뒤처진프로젝트", status: "active", deadline: IN_14, createdDate: DAYS_30_AGO, progress: 10 },
+        { name: "방치된프로젝트", status: "active", lastFocusDate: DAYS_7_AGO },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("뒤처진프로젝트");
+    expect(result!.text).toContain("뒤처짐");
+  });
+
   // ── project_stale ──────────────────────────────────────────────────────────
   it("shouldReturnProjectStaleWhenActiveProjectNotFocusedIn7Days", () => {
     const result = calcTodayInsight({

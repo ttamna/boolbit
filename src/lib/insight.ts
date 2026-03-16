@@ -1,8 +1,9 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > pomodoro > deadline soon > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > momentum rise > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > momentum rise > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
+import { calcScheduleGap } from "./projects";
 import type { Project, MomentumEntry } from "../types";
 
 export type InsightLevel = "success" | "warning" | "info";
@@ -20,8 +21,12 @@ interface InsightParams {
   sessionsToday: number;
   sessionGoal: number | undefined;
   habitsAllDoneDate: string | undefined;
-  /** Active/in-progress projects to surface deadline warnings and stale-focus alerts; absent = no project context */
-  projects?: Pick<Project, "name" | "deadline" | "status" | "lastFocusDate">[];
+  /**
+   * Active/in-progress projects to surface deadline warnings, behind-schedule alerts, and stale-focus alerts; absent = no project context.
+   * `createdDate` and `progress` are optional for backwards compatibility with test fixtures that omit them;
+   * projects without both are explicitly excluded from the behind-schedule check (not silently skipped).
+   */
+  projects?: Array<Pick<Project, "name" | "deadline" | "status" | "lastFocusDate"> & { createdDate?: string; progress?: number }>;
   /** Weekly goal text; absent/empty = no goal set. */
   weekGoal?: string;
   /** True when weekly goal has been marked done; absent/false = not done. */
@@ -152,6 +157,26 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
       .sort((a, b) => a.days - b.days)[0];
     if (soon) {
       return { text: `📅 ${soon.name} D-${soon.days}`, level: "info" };
+    }
+  }
+
+  // 8.5. Project behind schedule: deadline > 7 days away but progress is ≥ 20% behind timeline plan.
+  // Uses calcScheduleGap (gap = progress% - timePct%); fires when gap ≤ -20.
+  // Skipped when deadline ≤ 7 days — deadline_critical/deadline_soon already cover those urgent cases.
+  // today injected via todayStr for deterministic testing.
+  if (projects && projects.length > 0) {
+    const todayForSchedule = new Date(todayStr + "T00:00:00");
+    const behind = projects
+      .filter(p => p.status !== "done" && p.status !== "paused" && p.deadline && p.progress != null && p.createdDate)
+      .filter(p => { const days = daysUntil(p.deadline!, todayStr); return days !== null && days > 7; })
+      .map(p => {
+        const sg = calcScheduleGap(p.progress!, p.createdDate, p.deadline, todayForSchedule);
+        return sg !== null && sg.gap <= -20 ? { name: p.name, gap: sg.gap } : null;
+      })
+      .filter((p): p is { name: string; gap: number } => p !== null)
+      .sort((a, b) => a.gap - b.gap)[0]; // most behind first
+    if (behind) {
+      return { text: `⏳ ${behind.name} 일정 ${Math.abs(behind.gap)}% 뒤처짐`, level: "warning" };
     }
   }
 
