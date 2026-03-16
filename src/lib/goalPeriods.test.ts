@@ -1,8 +1,8 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder } from "./goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify } from "./goalPeriods";
 import type { GoalEntry } from "../types";
 
 describe("isoWeekStr", () => {
@@ -1193,5 +1193,100 @@ describe("calcYearlyGoalReminder", () => {
   it("should trim whitespace from yearGoal in message", () => {
     expect(calcYearlyGoalReminder("  연간 목표  ", false))
       .toBe("🗓️ 연간 회고: '연간 목표' — 올해를 마무리해보세요.");
+  });
+});
+
+describe("calcGoalCompletionNotify", () => {
+  // ── week ──────────────────────────────────────────────────────────────────
+
+  it("should return week completion message with goal text when goalText is present", () => {
+    expect(calcGoalCompletionNotify("week", "운동 3회"))
+      .toBe("🎉 이번 주 목표 달성! — 운동 3회");
+  });
+
+  it("should return week completion message without suffix when goalText is absent", () => {
+    expect(calcGoalCompletionNotify("week", undefined))
+      .toBe("🎉 이번 주 목표 달성!");
+  });
+
+  it("should return week completion message without suffix when goalText is empty string", () => {
+    expect(calcGoalCompletionNotify("week", ""))
+      .toBe("🎉 이번 주 목표 달성!");
+  });
+
+  it("should return week completion message without suffix when goalText is whitespace only", () => {
+    expect(calcGoalCompletionNotify("week", "   "))
+      .toBe("🎉 이번 주 목표 달성!");
+  });
+
+  it("should trim whitespace from goalText in week message", () => {
+    expect(calcGoalCompletionNotify("week", "  운동 3회  "))
+      .toBe("🎉 이번 주 목표 달성! — 운동 3회");
+  });
+
+  // ── month ─────────────────────────────────────────────────────────────────
+
+  it("should return month completion message with goal text when goalText is present", () => {
+    expect(calcGoalCompletionNotify("month", "책 2권 읽기"))
+      .toBe("🏆 이번 달 목표 달성! — 책 2권 읽기");
+  });
+
+  it("should return month completion message without suffix when goalText is absent", () => {
+    expect(calcGoalCompletionNotify("month", undefined))
+      .toBe("🏆 이번 달 목표 달성!");
+  });
+
+  it("should return month completion message without suffix when goalText is empty string", () => {
+    expect(calcGoalCompletionNotify("month", ""))
+      .toBe("🏆 이번 달 목표 달성!");
+  });
+
+  it("should return month completion message without suffix when goalText is whitespace only", () => {
+    expect(calcGoalCompletionNotify("month", "   "))
+      .toBe("🏆 이번 달 목표 달성!");
+  });
+
+  // ── quarter ───────────────────────────────────────────────────────────────
+
+  it("should return quarter completion message with goal text when goalText is present", () => {
+    expect(calcGoalCompletionNotify("quarter", "매출 20% 성장"))
+      .toBe("🌟 이번 분기 목표 달성! — 매출 20% 성장");
+  });
+
+  it("should return quarter completion message without suffix when goalText is absent", () => {
+    expect(calcGoalCompletionNotify("quarter", undefined))
+      .toBe("🌟 이번 분기 목표 달성!");
+  });
+
+  it("should return quarter completion message without suffix when goalText is empty string", () => {
+    expect(calcGoalCompletionNotify("quarter", ""))
+      .toBe("🌟 이번 분기 목표 달성!");
+  });
+
+  it("should return quarter completion message without suffix when goalText is whitespace only", () => {
+    expect(calcGoalCompletionNotify("quarter", "   "))
+      .toBe("🌟 이번 분기 목표 달성!");
+  });
+
+  // ── year ──────────────────────────────────────────────────────────────────
+
+  it("should return year completion message with goal text when goalText is present", () => {
+    expect(calcGoalCompletionNotify("year", "사업 3개국 진출"))
+      .toBe("💎 올해 목표 달성! — 사업 3개국 진출");
+  });
+
+  it("should return year completion message without suffix when goalText is absent", () => {
+    expect(calcGoalCompletionNotify("year", undefined))
+      .toBe("💎 올해 목표 달성!");
+  });
+
+  it("should return year completion message without suffix when goalText is empty string", () => {
+    expect(calcGoalCompletionNotify("year", ""))
+      .toBe("💎 올해 목표 달성!");
+  });
+
+  it("should return year completion message without suffix when goalText is whitespace only", () => {
+    expect(calcGoalCompletionNotify("year", "   "))
+      .toBe("💎 올해 목표 달성!");
   });
 });

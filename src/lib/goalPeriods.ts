@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, goal streaks, success rate, goal heatmaps, and end-of-period review reminders
-// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, history panels, goal heatmap dot rows, and monthly/quarterly/yearly review nudges
+// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, goal streaks, success rate, goal heatmaps, end-of-period review reminders, and goal completion notifications
+// ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, history panels, goal heatmap dot rows, monthly/quarterly/yearly review nudges, and goal-done desktop notifications
 
 import type { GoalEntry } from "../types";
 
@@ -429,4 +429,24 @@ export function calcYearlyGoalReminder(
   if (!trimmed) return "🗓️ 연간 회고: 올해를 정리하고 내년 목표를 세워보세요!";
   if (yearGoalDone) return `✅ 연간 회고: '${trimmed}' 달성! 내년 목표도 세워보세요.`;
   return `🗓️ 연간 회고: '${trimmed}' — 올해를 마무리해보세요.`;
+}
+
+// Returns the desktop notification body when a personal goal period is marked done for the first time.
+// Includes goalText so the user knows which goal was achieved (period label + text suffix).
+// type: "week" | "month" | "quarter" | "year" — determines emoji and period label.
+// goalText: the current goal text; absent/empty/whitespace = omit suffix.
+// Exported for unit testing; pure function with no side effects.
+export function calcGoalCompletionNotify(
+  type: "week" | "month" | "quarter" | "year",
+  goalText: string | undefined,
+): string {
+  const CONFIG = {
+    week:    { emoji: "🎉", label: "이번 주 목표 달성!" },
+    month:   { emoji: "🏆", label: "이번 달 목표 달성!" },
+    quarter: { emoji: "🌟", label: "이번 분기 목표 달성!" },
+    year:    { emoji: "💎", label: "올해 목표 달성!" },
+  } as const;
+  const { emoji, label } = CONFIG[type];
+  const trimmed = goalText?.trim();
+  return trimmed ? `${emoji} ${label} — ${trimmed}` : `${emoji} ${label}`;
 }

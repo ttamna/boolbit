@@ -15,7 +15,7 @@ import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder } from "./lib/habits";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder } from "./lib/goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify } from "./lib/projects";
@@ -718,7 +718,7 @@ export default function App() {
         let ok = await isPermissionGranted();
         if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
         if (!ok) return;
-        sendNotification({ title: "Vision Widget", body: "🎉 이번 주 목표 달성!" });
+        sendNotification({ title: "Vision Widget", body: calcGoalCompletionNotify("week", dataRef.current.weekGoal) });
       } catch { /* Notification not available in browser dev mode */ }
     })();
   }, [persist]);
@@ -738,7 +738,7 @@ export default function App() {
         let ok = await isPermissionGranted();
         if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
         if (!ok) return;
-        sendNotification({ title: "Vision Widget", body: "🏆 이번 달 목표 달성!" });
+        sendNotification({ title: "Vision Widget", body: calcGoalCompletionNotify("month", dataRef.current.monthGoal) });
       } catch { /* Notification not available in browser dev mode */ }
     })();
   }, [persist]);
@@ -758,7 +758,7 @@ export default function App() {
         let ok = await isPermissionGranted();
         if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
         if (!ok) return;
-        sendNotification({ title: "Vision Widget", body: "🌟 이번 분기 목표 달성!" });
+        sendNotification({ title: "Vision Widget", body: calcGoalCompletionNotify("quarter", dataRef.current.quarterGoal) });
       } catch { /* Notification not available in browser dev mode */ }
     })();
   }, [persist]);
@@ -778,7 +778,7 @@ export default function App() {
         let ok = await isPermissionGranted();
         if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
         if (!ok) return;
-        sendNotification({ title: "Vision Widget", body: "💎 올해 목표 달성!" });
+        sendNotification({ title: "Vision Widget", body: calcGoalCompletionNotify("year", dataRef.current.yearGoal) });
       } catch { /* Notification not available in browser dev mode */ }
     })();
   }, [persist]);
