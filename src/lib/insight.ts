@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > habit consecutive miss (≥3d) > momentum rise > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > habit consecutive miss (≥3d) > momentum rise > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -22,11 +22,11 @@ interface InsightParams {
   sessionGoal: number | undefined;
   habitsAllDoneDate: string | undefined;
   /**
-   * Active/in-progress projects to surface deadline warnings, behind-schedule alerts, and stale-focus alerts; absent = no project context.
-   * `createdDate` and `progress` are optional for backwards compatibility with test fixtures that omit them;
-   * projects without both are explicitly excluded from the behind-schedule check (not silently skipped).
+   * Active/in-progress projects to surface deadline warnings, behind-schedule alerts, stale-focus alerts, and focus-selection nudge; absent = no project context.
+   * `createdDate`, `progress`, and `isFocus` are optional for backwards compatibility with test fixtures that omit them;
+   * projects without createdDate+progress are explicitly excluded from the behind-schedule check (not silently skipped).
    */
-  projects?: Array<Pick<Project, "name" | "deadline" | "status" | "lastFocusDate"> & { createdDate?: string; progress?: number }>;
+  projects?: Array<Pick<Project, "name" | "deadline" | "status" | "lastFocusDate"> & { createdDate?: string; progress?: number; isFocus?: boolean }>;
   /** Weekly goal text; absent/empty = no goal set. */
   weekGoal?: string;
   /** True when weekly goal has been marked done; absent/false = not done. */
@@ -104,7 +104,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > pomodoro_last_one > deadline_soon > goal_expiry > momentum_decline > project_stale > momentum_rise > personal_best.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > deadline_soon > goal_expiry > momentum_decline > project_stale > habit_consecutive_miss > momentum_rise > personal_best.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -175,6 +175,18 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     }
     if (wday === 1 && !weekGoal) {
       return { text: "🗓️ 새 주! 주간 목표를 세워보세요", level: "info" };
+    }
+  }
+
+  // 6.5. No focus project: morning (< noon) + intention already set + active/in-progress projects + none starred.
+  // Requires todayIntentionDate === todayStr (mirrors period_start gate at 6) so the nudge only fires
+  // after the user has set their daily intention — preserving the intention → goal → focus planning sequence.
+  // isFocus === true is the only "focused" state; undefined and false both mean "not focused"
+  // (Project type has no explicit "user removed focus" state — see src/types.ts).
+  if (nowHour < 12 && todayIntentionDate === todayStr && projects && projects.length > 0) {
+    const active = projects.filter(p => p.status !== "done" && p.status !== "paused");
+    if (active.length > 0 && !active.some(p => p.isFocus === true)) {
+      return { text: `🎯 오늘 집중 프로젝트를 선택하세요 · ${active.length}개 진행 중`, level: "info" };
     }
   }
 

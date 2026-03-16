@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all thirteen insight types and their priority ordering (including momentum_decline + momentum_rise)
+// ABOUTME: Covers all fourteen insight types and their priority ordering (including no_focus_project, momentum_decline + momentum_rise)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -2273,5 +2273,208 @@ describe("calcTodayInsight — momentum_rise (priority 10.5, after project_stale
     });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("운동"); // consecutive miss wins over momentum rise
+  });
+});
+
+describe("calcTodayInsight — no_focus_project (priority 6.5, between period_start and pomodoro)", () => {
+  it("shouldReturnNoFocusProjectWhenMorningActiveProjectNoFocusSet", () => {
+    // Tuesday morning, intention set, one active project with no isFocus → nudge fires
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW, // "2024-01-16" (Tuesday, non-period-start day)
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "앱개발", status: "active" }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("집중");
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldNotReturnNoFocusProjectWhenFocusAlreadySet", () => {
+    // Focus project is starred → specific nudge should not appear
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "앱개발", status: "active", isFocus: true }],
+    });
+    expect(result?.text ?? "").not.toContain("집중 프로젝트를 선택");
+  });
+
+  it("shouldNotReturnNoFocusProjectWhenIntentionNotSet", () => {
+    // Intention not set → intention_missing (priority 5) fires; no_focus_project should not surface
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: undefined, // intention NOT set
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "앱개발", status: "active" }],
+    });
+    expect(result?.text ?? "").not.toContain("집중 프로젝트를 선택"); // intention_missing fires instead
+    expect(result?.text ?? "").toContain("의도"); // intention_missing wins
+  });
+
+  it("shouldNotReturnNoFocusProjectWhenAfternoon", () => {
+    // nowHour >= 12 → afternoon nudge skipped
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW,
+      nowHour: 13,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "앱개발", status: "active" }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnNoFocusProjectWhenAllProjectsDoneOrPaused", () => {
+    // No active/in-progress projects → nudge irrelevant
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "완료됨", status: "done" },
+        { name: "멈춤", status: "paused" },
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnNoFocusProjectWhenProjectsAbsent", () => {
+    // No projects at all → nudge should not fire
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnNoFocusProjectWhenProjectsEmpty", () => {
+    // Empty projects array → nudge should not fire
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldShowActiveProjectCountInText", () => {
+    // Two active projects, no focus → count appears in text
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW,
+      nowHour: 8,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "앱개발", status: "active" },
+        { name: "블로그", status: "in-progress" },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("2");
+  });
+
+  it("shouldExcludeDoneAndPausedFromActiveCount", () => {
+    // 2 active + 1 done + 1 paused → count shows 2
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW,
+      nowHour: 8,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "앱개발", status: "active" },
+        { name: "블로그", status: "in-progress" },
+        { name: "완료됨", status: "done" },
+        { name: "멈춤", status: "paused" },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("2");
+    expect(result!.text).not.toContain("4");
+  });
+
+  it("shouldPrioritizePeriodStartOverNoFocusProject", () => {
+    // Monday morning + intention set + no weekGoal → period_start (6) fires before no_focus_project (6.5)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY, // "2024-01-15" (Monday)
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: undefined,
+      projects: [{ name: "앱개발", status: "active" }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("새 주"); // period_start wins
+  });
+
+  it("shouldFireNoFocusProjectOnMondayWhenWeekGoalAlreadySet", () => {
+    // Monday morning + weekGoal set → period_start suppressed → no_focus_project fires
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY, // Monday
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "주간 목표",
+      projects: [{ name: "앱개발", status: "active" }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("집중"); // no_focus_project fires since period_start is suppressed
+  });
+
+  it("shouldPrioritizeNoFocusProjectOverDeadlineSoon", () => {
+    // Morning + no focus project + project deadline in 6 days (TOMORROW→IN_7) → no_focus_project (6.5) beats deadline_soon (8)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW, // Tuesday
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "앱개발", status: "active", deadline: IN_7 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("집중"); // no_focus_project wins over deadline_soon
   });
 });
