@@ -1278,6 +1278,15 @@ export default function App() {
       (data.monthGoalHistory ?? []).filter(e => e.done === true),
       renderDate,
     ) - 1),
+    // Past consecutive done quarters (excludes current quarter): mirrors monthGoalPastDoneStreak pattern.
+    // calcQuarterGoalStreak counts quarters a goal was SET; filtering history to done===true repurposes
+    // it to count quarters a goal was ACHIEVED. Subtract 1 to exclude the current (not-yet-done) quarter.
+    quarterGoalPastDoneStreak: Math.max(0, calcQuarterGoalStreak(
+      data.quarterGoal,
+      data.quarterGoalDate,
+      (data.quarterGoalHistory ?? []).filter(e => e.done === true),
+      renderDate,
+    ) - 1),
     pomodoroGoalStreak,
     pomodoroSessionBest,
     intentionConsecutiveDays,

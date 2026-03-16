@@ -5140,6 +5140,131 @@ describe("calcTodayInsight — month_goal_streak (priority 10.76, between goal_s
   });
 });
 
+describe("calcTodayInsight — quarter_goal_streak (priority 10.77, between month_goal_streak and project_ahead)", () => {
+  // Base params: morning, quarterly goal set, not yet done, 2 past done quarters → streak fires.
+  // Uses TOMORROW ("2024-01-16", Tuesday) to avoid period_start(week/month/quarter) edge cases.
+  // daysLeftQuarter=20 avoids expiry (≤7) and midpoint (46/47) checks.
+  function base() {
+    return {
+      habits: [],
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      quarterGoal: "이번 분기 사이드 프로젝트 런칭",
+      quarterGoalDone: false,
+      daysLeftQuarter: 20,
+      quarterGoalPastDoneStreak: 2,
+    };
+  }
+
+  it("shouldReturnQuarterGoalStreakWhenMorningAndStreakAtLeast2", () => {
+    const result = calcTodayInsight(base());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("분기 목표");
+    expect(result!.text).toContain("분기 연속");
+    expect(result!.text).toContain("2");
+  });
+
+  it("shouldIncludeStreakCountInText", () => {
+    const result = calcTodayInsight({ ...base(), quarterGoalPastDoneStreak: 4 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("4");
+  });
+
+  it("shouldNotReturnQuarterGoalStreakWhenStreakIs1", () => {
+    // streak=1 means only 1 past quarter done — not yet a "streak" worth celebrating
+    const result = calcTodayInsight({ ...base(), quarterGoalPastDoneStreak: 1 });
+    expect(result?.text ?? "").not.toContain("분기 연속");
+  });
+
+  it("shouldNotReturnQuarterGoalStreakWhenStreakIs0", () => {
+    const result = calcTodayInsight({ ...base(), quarterGoalPastDoneStreak: 0 });
+    expect(result?.text ?? "").not.toContain("분기 연속");
+  });
+
+  it("shouldNotReturnQuarterGoalStreakWhenStreakAbsent", () => {
+    const params = { ...base() };
+    delete (params as Record<string, unknown>)["quarterGoalPastDoneStreak"];
+    const result = calcTodayInsight(params);
+    expect(result?.text ?? "").not.toContain("분기 연속");
+  });
+
+  it("shouldNotReturnQuarterGoalStreakWhenQuarterGoalAbsent", () => {
+    const result = calcTodayInsight({ ...base(), quarterGoal: undefined, quarterGoalPastDoneStreak: 3 });
+    expect(result?.text ?? "").not.toContain("분기 연속");
+  });
+
+  it("shouldNotReturnQuarterGoalStreakWhenQuarterGoalAlreadyDone", () => {
+    // goal_done (10.7) fires first when quarterGoalDone=true with days remaining; quarter_goal_streak never fires
+    const result = calcTodayInsight({ ...base(), quarterGoalDone: true, daysLeftQuarter: 20 });
+    expect(result?.text ?? "").not.toContain("분기 연속");
+  });
+
+  it("shouldNotReturnQuarterGoalStreakInAfternoon", () => {
+    // quarter_goal_streak is a morning-only motivational nudge (like goal_streak and month_goal_streak)
+    const result = calcTodayInsight({ ...base(), nowHour: 14 });
+    expect(result?.text ?? "").not.toContain("분기 연속");
+  });
+
+  it("shouldNotReturnQuarterGoalStreakAtExactNoon", () => {
+    const result = calcTodayInsight({ ...base(), nowHour: 12 });
+    expect(result?.text ?? "").not.toContain("분기 연속");
+  });
+
+  it("shouldReturnGoalDoneOverQuarterGoalStreakWhenGoalDoneAndStreakBothApply", () => {
+    // goal_done (10.7) beats quarter_goal_streak (10.77) when quarterGoalDone=true with days remaining
+    const result = calcTodayInsight({
+      ...base(),
+      quarterGoalDone: true,
+      daysLeftQuarter: 20,
+      quarterGoalPastDoneStreak: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("분기 목표 달성"); // goal_done fires, not streak
+    expect(result!.text).not.toContain("분기 연속");
+  });
+
+  it("shouldReturnQuarterGoalStreakOverProjectAheadWhenBothApply", () => {
+    // quarter_goal_streak (10.77) beats project_ahead (10.8).
+    // Project: createdDate 2024-01-01, deadline 2024-06-01, todayStr 2024-01-16 → timePct≈11%.
+    // progress=40% → gap=29% ≥ 20 → project_ahead qualifies.
+    // isFocus=true prevents no_focus_project (6.5) from firing first.
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [{
+        name: "앱개발",
+        status: "active",
+        isFocus: true,
+        createdDate: "2024-01-01",
+        progress: 40,
+        deadline: "2024-06-01",
+      }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("분기 연속"); // quarter_goal_streak wins over project_ahead
+    expect(result!.text).not.toContain("앞서가는");
+  });
+
+  it("shouldReturnMonthGoalStreakOverQuarterGoalStreakWhenBothApply", () => {
+    // month_goal_streak (10.76) beats quarter_goal_streak (10.77).
+    // daysLeftMonth=10 avoids goal_expiry (≤2) and midpoint (15/16).
+    const result = calcTodayInsight({
+      ...base(),
+      monthGoal: "월간 독서",
+      monthGoalDone: false,
+      daysLeftMonth: 10,
+      monthGoalPastDoneStreak: 2,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("월간 목표"); // month_goal_streak wins
+    expect(result!.text).not.toContain("분기 연속");
+  });
+});
+
 describe("calcTodayInsight — pomodoro_day_record (priority 7.49, between pomodoro_goal_streak and pomodoro_goal_reached)", () => {
   // Base: afternoon, intention set, no habits, no goal, no competing insights
   const base = () => ({

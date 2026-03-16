@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (active project has open PRs awaiting review) > github_drought (active project >7 days since last commit) > open_issues (active project ≥5 open GitHub issues) > perfect day > intention_done (today's intention marked done) > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > habit_comeback (bestStreak≥14, streak 3+, checked today = recovering from broken long streak) > pomodoro_last_one > focus_streak_milestone (7/14/30 consecutive focus days, sessionsToday > 0) > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > project context switching (≥4 active projects all focused within 7 days) > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
+// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (active project has open PRs awaiting review) > github_drought (active project >7 days since last commit) > open_issues (active project ≥5 open GitHub issues) > perfect day > intention_done (today's intention marked done) > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > habit_comeback (bestStreak≥14, streak 3+, checked today = recovering from broken long streak) > pomodoro_last_one > focus_streak_milestone (7/14/30 consecutive focus days, sessionsToday > 0) > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > project context switching (≥4 active projects all focused within 7 days) > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > quarter_goal_streak (past ≥2 consecutive done quarters, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -82,6 +82,17 @@ interface InsightParams {
    * Absent/undefined = no streak data available.
    */
   monthGoalPastDoneStreak?: number;
+  /**
+   * Number of consecutive PAST calendar quarters (excluding the current quarter) where the quarterly goal was achieved.
+   * Derived by filtering quarterGoalHistory to done===true entries, calling calcQuarterGoalStreak, then subtracting 1.
+   * Note: the done===true filter applies to the history array (past quarters) only; the current quarter's
+   * goal presence is determined by quarterGoal/quarterGoalDate in calcQuarterGoalStreak, not by this filter.
+   * Requires data.quarterGoalDate === currentQuarter; collapses to 0 when the current-quarter goal is not active
+   * (same behaviour as monthGoalPastDoneStreak — the insight is a "keep going this quarter" nudge).
+   * A value ≥ 2 with quarterGoalDone === false triggers a morning streak-encouragement nudge.
+   * Absent/undefined = no streak data available.
+   */
+  quarterGoalPastDoneStreak?: number;
   /**
    * Number of consecutive PAST days (not including today) where the daily pomodoro sessionGoal was met or exceeded.
    * A value ≥ 2 with today's sessions < sessionGoal triggers a goal-streak nudge.
@@ -204,6 +215,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     momentumHistory,
     weekGoalPastDoneStreak,
     monthGoalPastDoneStreak,
+    quarterGoalPastDoneStreak,
     pomodoroGoalStreak,
     pomodoroSessionBest,
     intentionConsecutiveDays,
@@ -648,6 +660,14 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // monthGoalPastDoneStreak excludes the current month, so this never fires at the same moment as goal_done (10.7).
   if (nowHour < 12 && monthGoal && !monthGoalDone && monthGoalPastDoneStreak != null && monthGoalPastDoneStreak >= 2) {
     return { text: `✅ 월간 목표 ${monthGoalPastDoneStreak}달 연속 달성 중! 이번 달도 화이팅`, level: "success" };
+  }
+
+  // 10.77. Quarterly goal streak: ≥2 consecutive past quarters where the quarterly goal was achieved AND not yet done this quarter.
+  // Morning-only (< 12h) motivational nudge, mirrors month_goal_streak (10.76) for a quarterly cadence.
+  // quarterGoalPastDoneStreak excludes the current quarter, so this never fires at the same moment as goal_done (10.7).
+  // Threshold ≥ 2: mirrors month_goal_streak — two past quarters forms a meaningful multi-quarter pattern.
+  if (nowHour < 12 && quarterGoal && !quarterGoalDone && quarterGoalPastDoneStreak != null && quarterGoalPastDoneStreak >= 2) {
+    return { text: `✅ 분기 목표 ${quarterGoalPastDoneStreak}분기 연속 달성 중! 이번 분기도 화이팅`, level: "success" };
   }
 
   // 10.8. Project ahead of schedule: active/in-progress project >7 days from deadline with ≥20% schedule surplus.
