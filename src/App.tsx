@@ -21,7 +21,7 @@ import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg } from "./lib/momentum";
-import { calcTodayInsight } from "./lib/insight";
+import { calcTodayInsight, calcWeeklyReviewReminder } from "./lib/insight";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -474,6 +474,39 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.habits, data.habitMilestoneApproachDate, loaded, persist]);
+
+  // Weekly review reminder — fires once per Sunday after 20:00, summarising habits%, intention done count, and pomodoro sessions.
+  // weeklyReviewRemindDate persists the guard as the Sunday YYYY-MM-DD date so it fires only once per week even after restart.
+  // Design: date is persisted before the async send (same pattern as habitEveningRemindDate) to prevent duplicates on rapid re-renders.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    if (now.getDay() !== 0) return; // Sunday only
+    if (now.getHours() < 20) return; // after 20:00
+    const today = now.toLocaleDateString("sv");
+    if (data.weeklyReviewRemindDate === today) return;
+    const last7 = calcLastNDays(today, 7);
+    const habitsRate = calcHabitsWeekRate(dataRef.current.habits ?? [], last7);
+    const { doneCount: intentionDone7 } = calcIntentionWeek(
+      last7, today,
+      dataRef.current.todayIntention, dataRef.current.todayIntentionDone,
+      dataRef.current.intentionHistory ?? [],
+    );
+    const pomodoroWeekSessions = (dataRef.current.pomodoroHistory ?? [])
+      .filter(e => last7.includes(e.date))
+      .reduce((sum, e) => sum + e.count, 0);
+    const msg = calcWeeklyReviewReminder(habitsRate, intentionDone7, pomodoroWeekSessions);
+    if (!msg) return;
+    persist({ ...dataRef.current, weeklyReviewRemindDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.habits, data.pomodoroHistory, data.intentionHistory, data.todayIntention, data.todayIntentionDone, data.weeklyReviewRemindDate, loaded, persist]);
 
   // At-risk streak notification — fires once per app startup when habits are about to lose their streak.
   // "At risk" = streak > 0, last checked yesterday (midnight reset will zero the streak if not checked today).

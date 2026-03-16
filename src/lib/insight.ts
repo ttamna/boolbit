@@ -1,5 +1,6 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
 // ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > pomodoro > deadline soon > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > momentum rise > personal best
+// ABOUTME: calcWeeklyReviewReminder — Sunday evening weekly summary notification (habits%, intention done count, pomodoro sessions)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -218,4 +219,25 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   }
 
   return null;
+}
+
+// Returns the desktop notification body for the Sunday evening weekly review summary.
+// Summarizes the past 7 days: habits completion rate, intention done count, and pomodoro sessions.
+// null: nothing tracked this week (habitsWeekRate absent, no intentions done, no pomodoro sessions).
+// habitsWeekRate: 0–100 integer (calcHabitsWeekRate output) or null when no habits/check-ins this week.
+// intentionDoneCount7: 0–7 days with intention done this week; 0 suppresses the intention part.
+// pomodoroWeekSessions: total sessions in last 7 days (≥0); 0 suppresses the pomodoro part.
+// Hour/weekday/date guards live in the caller (App.tsx useEffect) — fires on Sundays after 20:00 via weeklyReviewRemindDate guard.
+// Callers should check weeklyReviewRemindDate before invoking to ensure once-per-week delivery.
+export function calcWeeklyReviewReminder(
+  habitsWeekRate: number | null,
+  intentionDoneCount7: number,
+  pomodoroWeekSessions: number,
+): string | null {
+  const parts: string[] = [];
+  if (habitsWeekRate !== null) parts.push(`습관 ${habitsWeekRate}%`);
+  if (intentionDoneCount7 > 0) parts.push(`의도 ${intentionDoneCount7}/7`);
+  if (pomodoroWeekSessions > 0) parts.push(`포모도로 ${pomodoroWeekSessions}세션`);
+  if (parts.length === 0) return null;
+  return `📊 주간 회고: ${parts.join("·")}`;
 }

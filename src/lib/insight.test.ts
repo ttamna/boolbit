@@ -1,8 +1,9 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
 // ABOUTME: Covers all thirteen insight types and their priority ordering (including momentum_decline + momentum_rise)
+// ABOUTME: Also covers calcWeeklyReviewReminder — Sunday evening weekly summary notification
 
 import { describe, it, expect } from "vitest";
-import { calcTodayInsight } from "./insight";
+import { calcTodayInsight, calcWeeklyReviewReminder } from "./insight";
 
 const TODAY = "2024-01-15";
 const YESTERDAY = "2024-01-14";
@@ -1964,5 +1965,55 @@ describe("calcTodayInsight — momentum_rise (priority 10.5, after project_stale
     });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("상승"); // rise beats personal_best
+  });
+});
+
+// ── calcWeeklyReviewReminder ────────────────────────────────────────────────
+describe("calcWeeklyReviewReminder", () => {
+  it("shouldReturnNullWhenAllDimensionsEmpty", () => {
+    // null habits + 0 intentions done + 0 pomodoro sessions → nothing tracked this week
+    expect(calcWeeklyReviewReminder(null, 0, 0)).toBeNull();
+  });
+
+  it("shouldIncludeHabitsRateWhenNotNull", () => {
+    const result = calcWeeklyReviewReminder(85, 0, 0);
+    expect(result).not.toBeNull();
+    expect(result).toContain("습관 85%");
+  });
+
+  it("shouldIncludeHabitsRateZeroWhenNotNull", () => {
+    // habitsWeekRate=0 means habits tracked but nothing done this week — still reportable
+    const result = calcWeeklyReviewReminder(0, 0, 0);
+    expect(result).not.toBeNull();
+    expect(result).toContain("습관 0%");
+  });
+
+  it("shouldIncludeIntentionCountWhenDoneCountPositive", () => {
+    const result = calcWeeklyReviewReminder(null, 5, 0);
+    expect(result).not.toBeNull();
+    expect(result).toContain("의도 5/7");
+  });
+
+  it("shouldIncludePomodoroSessionsWhenPositive", () => {
+    const result = calcWeeklyReviewReminder(null, 0, 12);
+    expect(result).not.toBeNull();
+    expect(result).toContain("포모도로 12세션");
+  });
+
+  it("shouldIncludeAllThreeDimensionsWhenAllPopulated", () => {
+    const result = calcWeeklyReviewReminder(72, 5, 8);
+    expect(result).not.toBeNull();
+    expect(result).toContain("습관 72%");
+    expect(result).toContain("의도 5/7");
+    expect(result).toContain("포모도로 8세션");
+    expect(result).toMatch(/^📊 주간 회고:/);
+  });
+
+  it("shouldIncludeOnlyHabitsAndPomodoroWhenIntentionDoneIsZero", () => {
+    const result = calcWeeklyReviewReminder(60, 0, 6);
+    expect(result).not.toBeNull();
+    expect(result).toContain("습관 60%");
+    expect(result).toContain("포모도로 6세션");
+    expect(result).not.toContain("의도");
   });
 });
