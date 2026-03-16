@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > pomodoro > deadline soon > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > pomodoro > deadline soon > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > momentum rise > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -64,7 +64,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > pomodoro_last_one > deadline_soon > goal_expiry > momentum_decline > project_stale > personal_best.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > pomodoro_last_one > deadline_soon > goal_expiry > momentum_decline > project_stale > momentum_rise > personal_best.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -194,6 +194,12 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     if (stale) {
       return { text: `⊖ ${stale.name} ${stale.days}일째 미집중`, level: "info" };
     }
+  }
+
+  // 10.5. Momentum rise: 3 consecutive days each strictly higher than the day before — positive feedback for a productivity upswing.
+  // Fires when calcMomentumTrend returns "rising"; absent/insufficient history → skipped.
+  if (momentumHistory && calcMomentumTrend(momentumHistory, todayStr) === "rising") {
+    return { text: "📈 3일 연속 모멘텀 상승!", level: "success" };
   }
 
   // 11. Personal best streak: habit checked in today, streak hit a milestone (7/30/100d),
