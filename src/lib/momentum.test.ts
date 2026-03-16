@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, and calcMomentumStreak — score, tier, history edge cases
-// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, and streak counting
+// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg — score, tier, history edge cases
+// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, and 7-day average
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak } from "./momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -485,5 +485,72 @@ describe("calcDailyScore — breakdown field", () => {
       intentionSet: false,
     });
     expect(result.breakdown.intention).toBe(0);
+  });
+});
+
+describe("calcMomentumWeekAvg", () => {
+  it("should return null when history is empty", () => {
+    expect(calcMomentumWeekAvg([])).toBeNull();
+  });
+
+  it("should return null when history has only one entry (not enough for a meaningful average)", () => {
+    expect(calcMomentumWeekAvg([{ date: "2026-03-10", score: 80, tier: "high" as const }])).toBeNull();
+  });
+
+  it("should return the rounded average of two entries", () => {
+    const history = [
+      { date: "2026-03-09", score: 60, tier: "mid" as const },
+      { date: "2026-03-10", score: 80, tier: "high" as const },
+    ];
+    expect(calcMomentumWeekAvg(history)).toBe(70);
+  });
+
+  it("should return rounded average of seven entries", () => {
+    const history = [
+      { date: "2026-03-04", score: 40, tier: "mid" as const },
+      { date: "2026-03-05", score: 50, tier: "mid" as const },
+      { date: "2026-03-06", score: 60, tier: "mid" as const },
+      { date: "2026-03-07", score: 70, tier: "mid" as const },
+      { date: "2026-03-08", score: 80, tier: "high" as const },
+      { date: "2026-03-09", score: 90, tier: "high" as const },
+      { date: "2026-03-10", score: 100, tier: "high" as const },
+    ];
+    // (40+50+60+70+80+90+100) / 7 = 490/7 = 70
+    expect(calcMomentumWeekAvg(history)).toBe(70);
+  });
+
+  it("should round the average to nearest integer", () => {
+    const history = [
+      { date: "2026-03-09", score: 33, tier: "low" as const },
+      { date: "2026-03-10", score: 34, tier: "low" as const },
+    ];
+    // (33+34)/2 = 33.5 → 34
+    expect(calcMomentumWeekAvg(history)).toBe(34);
+  });
+
+  it("should return 0 when all entries have score 0", () => {
+    const history = [
+      { date: "2026-03-09", score: 0, tier: "low" as const },
+      { date: "2026-03-10", score: 0, tier: "low" as const },
+    ];
+    expect(calcMomentumWeekAvg(history)).toBe(0);
+  });
+
+  it("should return 100 when all entries are at max score", () => {
+    const history = [
+      { date: "2026-03-09", score: 100, tier: "high" as const },
+      { date: "2026-03-10", score: 100, tier: "high" as const },
+      { date: "2026-03-11", score: 100, tier: "high" as const },
+    ];
+    expect(calcMomentumWeekAvg(history)).toBe(100);
+  });
+
+  it("should compute average without regard to date order", () => {
+    const history = [
+      { date: "2026-03-10", score: 90, tier: "high" as const },
+      { date: "2026-03-08", score: 50, tier: "mid" as const },
+    ];
+    // (90+50)/2 = 70
+    expect(calcMomentumWeekAvg(history)).toBe(70);
   });
 });

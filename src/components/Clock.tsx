@@ -47,9 +47,12 @@ interface ClockProps {
   insight?: TodayInsight;
   /** Consecutive days with momentum score ≥ 40; shown as 🔥Nd when ≥ 2 */
   momentumStreak?: number;
+  /** Rounded average momentum score over the 7-day history window; shown as "7d·N" badge
+   *  inside the sparkline row — only visible when sparkline is rendered (momentumHistory ≥ 2 entries). */
+  weekAvg?: number;
 }
 
-export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight, momentumStreak }: ClockProps) {
+export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight, momentumStreak, weekAvg }: ClockProps) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -156,6 +159,14 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
       {/* 7-day momentum sparkline — past 6 days as colored dots; shown when ≥2 history entries */}
       {showSparkline && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3, marginTop: 5 }}>
+          {weekAvg !== undefined && (
+            <span
+              title={`최근 7일 모멘텀 평균 ${weekAvg}/100`}
+              style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginRight: 2, opacity: 0.7 }}
+            >
+              7d·{weekAvg}
+            </span>
+          )}
           {sparklineDays.map((day, di) => {
             const entry = histMap.get(day);
             const daysAgo = 6 - di;

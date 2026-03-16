@@ -1,5 +1,5 @@
 // ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
-// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; calcMomentumStreak — consecutive qualifying days (score≥40)
+// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score
 
 import type { MomentumEntry } from "../types";
 
@@ -132,4 +132,17 @@ export function calcMomentumStreak(history: MomentumEntry[], todayStr: string): 
     daysBack++;
   }
   return streak;
+}
+
+/**
+ * Returns the rounded average momentum score across the provided history window.
+ * history is expected to be the rolling 7-day array managed by updateMomentumHistory
+ * (capped at MOMENTUM_HISTORY_CAP=7) — the "Week" in the name reflects that contract.
+ * Returns null when there are fewer than 2 entries — a single data point does not
+ * constitute a meaningful window average.
+ */
+export function calcMomentumWeekAvg(history: MomentumEntry[]): number | null {
+  if (history.length < 2) return null;
+  const total = history.reduce((sum, e) => sum + e.score, 0);
+  return Math.round(total / history.length);
 }

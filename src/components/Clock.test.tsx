@@ -1,5 +1,5 @@
-// ABOUTME: Unit tests for calcDayFraction, formatHour, and Clock component — momentumStreak badge and breakdown bar rendering
-// ABOUTME: Validates day progress fraction (out-of-range clamp), 24h/12h hour formatting, streak badge visibility, and H/P/I breakdown bar presence
+// ABOUTME: Unit tests for calcDayFraction, formatHour, and Clock component — momentumStreak badge, breakdown bar, and weekAvg badge rendering
+// ABOUTME: Validates day progress fraction (out-of-range clamp), 24h/12h hour formatting, streak badge visibility, H/P/I breakdown bar presence, and 7-day average badge
 
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -192,5 +192,46 @@ describe("Clock — breakdown bars", () => {
     render(<Clock dailyScore={{ score: 43, tier: "mid", breakdown }} />);
     const el = document.querySelector("[title='모멘텀 세부: 습관 25/50 · 집중 10/30 · 의도 8/20']");
     expect(el).not.toBeNull();
+  });
+});
+
+// weekAvg badge requires sparkline to be shown (momentumHistory ≥ 2 entries)
+const sparklineHistory = [
+  { date: "2026-03-09", score: 60, tier: "mid" as const },
+  { date: "2026-03-10", score: 80, tier: "high" as const },
+];
+
+describe("Clock — weekAvg badge", () => {
+  it("should not render weekAvg badge when weekAvg is absent", () => {
+    render(<Clock momentumHistory={sparklineHistory} />);
+    expect(document.querySelector("[title*='평균']")).toBeNull();
+  });
+
+  it("should render '7d·70' badge when weekAvg is 70 and sparkline is shown", () => {
+    render(<Clock momentumHistory={sparklineHistory} weekAvg={70} />);
+    expect(screen.getByText("7d·70")).toBeDefined();
+  });
+
+  // weekAvg=0 is intentionally shown (not hidden) — suppressing 0 would be deceptive
+  // since it signals a genuinely poor week, not missing data.
+  it("should render '7d·0' badge when weekAvg is 0", () => {
+    render(<Clock momentumHistory={sparklineHistory} weekAvg={0} />);
+    expect(screen.getByText("7d·0")).toBeDefined();
+  });
+
+  it("should render '7d·100' badge when weekAvg is 100", () => {
+    render(<Clock momentumHistory={sparklineHistory} weekAvg={100} />);
+    expect(screen.getByText("7d·100")).toBeDefined();
+  });
+
+  it("should show tooltip with weekAvg score on the badge", () => {
+    render(<Clock momentumHistory={sparklineHistory} weekAvg={63} />);
+    const badge = document.querySelector("[title='최근 7일 모멘텀 평균 63/100']");
+    expect(badge).not.toBeNull();
+  });
+
+  it("should not render weekAvg badge when sparkline is hidden (history < 2 entries)", () => {
+    render(<Clock momentumHistory={[sparklineHistory[0]]} weekAvg={60} />);
+    expect(screen.queryByText("7d·60")).toBeNull();
   });
 });

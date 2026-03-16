@@ -20,7 +20,7 @@ import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory } from "./lib/pomodoro";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak } from "./lib/momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
@@ -649,6 +649,8 @@ export default function App() {
   });
   // momentumStreak: consecutive days with momentum score ≥ 40; shown as 🔥Nd badge when ≥ 2
   const momentumStreak = calcMomentumStreak(data.momentumHistory ?? [], todayStr);
+  // momentumWeekAvg: rounded average of the 7-day momentum history; null when < 2 entries
+  const momentumWeekAvg = calcMomentumWeekAvg(data.momentumHistory ?? []);
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -847,6 +849,7 @@ export default function App() {
           momentumHistory={data.momentumHistory}
           insight={todayInsight ?? undefined}
           momentumStreak={momentumStreak}
+          weekAvg={momentumWeekAvg ?? undefined}
         />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {
