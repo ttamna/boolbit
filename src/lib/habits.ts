@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, and habit check-in audio cue
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, and evening reminder
 
 import type { Habit } from "../types";
 
@@ -223,6 +223,20 @@ export function calcHabitWeekStats(
   const prev7 = last14Days.slice(0, 7).filter(day => history.includes(day)).length;
   const trend = cur7 > prev7 ? "↑" : cur7 < prev7 ? "↓" : "";
   return { cur7, prev7, trend };
+}
+
+// Returns the list of habits not yet checked today, or null when all are done or no habits exist.
+// Used to trigger a one-per-day evening desktop notification reminding the user to check in.
+// Input shape uses only the fields relevant for the reminder — callers pass full Habit objects.
+// Exported for unit testing; pure function with no side effects.
+export function calcEveningHabitReminder(
+  habits: Array<{ name: string; lastChecked?: string }>,
+  todayStr: string,
+): { uncheckedCount: number; uncheckedNames: string[] } | null {
+  if (habits.length === 0) return null;
+  const unchecked = habits.filter(h => h.lastChecked !== todayStr);
+  if (unchecked.length === 0) return null;
+  return { uncheckedCount: unchecked.length, uncheckedNames: unchecked.map(h => h.name) };
 }
 
 // Plays a short audio cue when a habit is checked in using the Web Audio API.

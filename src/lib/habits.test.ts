@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, and playHabitCheck pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, and audio feedback
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, and calcEveningHabitReminder pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, and evening reminder result
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -903,5 +903,72 @@ describe("playHabitCheck", () => {
 
   it("should resolve without error when allDone=false (explicit partial check)", async () => {
     await expect(playHabitCheck(false)).resolves.toBeUndefined();
+  });
+});
+
+describe("calcEveningHabitReminder", () => {
+  // Separate constant to avoid shadowing the module-level TODAY = "2026-03-15" used by other tests
+  const EVE_TODAY = "2026-03-16";
+
+  it("should return null for empty habits array", () => {
+    expect(calcEveningHabitReminder([], EVE_TODAY)).toBeNull();
+  });
+
+  it("should return null when all habits are checked today", () => {
+    const habits = [
+      { name: "운동", lastChecked: EVE_TODAY },
+      { name: "독서", lastChecked: EVE_TODAY },
+    ];
+    expect(calcEveningHabitReminder(habits, EVE_TODAY)).toBeNull();
+  });
+
+  it("should return unchecked habit when one habit has no lastChecked", () => {
+    const habits = [
+      { name: "운동" },
+      { name: "독서", lastChecked: EVE_TODAY },
+    ];
+    const result = calcEveningHabitReminder(habits, EVE_TODAY);
+    expect(result).toEqual({ uncheckedCount: 1, uncheckedNames: ["운동"] });
+  });
+
+  it("should return unchecked habit when lastChecked is yesterday", () => {
+    const habits = [
+      { name: "운동", lastChecked: "2026-03-15" },
+      { name: "독서", lastChecked: EVE_TODAY },
+    ];
+    const result = calcEveningHabitReminder(habits, EVE_TODAY);
+    expect(result).toEqual({ uncheckedCount: 1, uncheckedNames: ["운동"] });
+  });
+
+  it("should return all habits when none are checked today", () => {
+    const habits = [
+      { name: "운동" },
+      { name: "독서" },
+      { name: "명상", lastChecked: "2026-03-10" },
+    ];
+    const result = calcEveningHabitReminder(habits, EVE_TODAY);
+    expect(result).toEqual({ uncheckedCount: 3, uncheckedNames: ["운동", "독서", "명상"] });
+  });
+
+  it("should return only unchecked habits when some are checked today", () => {
+    const habits = [
+      { name: "운동", lastChecked: EVE_TODAY },
+      { name: "독서" },
+      { name: "명상", lastChecked: EVE_TODAY },
+    ];
+    const result = calcEveningHabitReminder(habits, EVE_TODAY);
+    expect(result).toEqual({ uncheckedCount: 1, uncheckedNames: ["독서"] });
+  });
+
+  it("should return null for single habit that is checked today", () => {
+    const habits = [{ name: "운동", lastChecked: EVE_TODAY }];
+    expect(calcEveningHabitReminder(habits, EVE_TODAY)).toBeNull();
+  });
+
+  it("should treat empty string lastChecked as unchecked (not equal to todayStr)", () => {
+    // lastChecked="" is not a valid date; must not be treated as "done today"
+    const habits = [{ name: "운동", lastChecked: "" }];
+    const result = calcEveningHabitReminder(habits, EVE_TODAY);
+    expect(result).toEqual({ uncheckedCount: 1, uncheckedNames: ["운동"] });
   });
 });

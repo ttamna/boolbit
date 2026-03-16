@@ -14,7 +14,7 @@ import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend } from "./lib/intention";
-import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak } from "./lib/habits";
+import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
@@ -331,6 +331,31 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.habits, data.habitsAllDoneDate, loaded, persist]);
+
+  // Evening habit reminder — fires once per calendar day after 18:00 whenever habit state changes or the app loads.
+  // Covers habits with no streak yet (not caught by at-risk which requires lastChecked === yesterday).
+  // habitEveningRemindDate persists the guard so it fires only once per calendar day even after restart.
+  // Design: date is persisted before the async send (same pattern as habitsAllDoneDate) — if permission is
+  // denied, the reminder is skipped for the day, which is preferable to spamming on every reload.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.habitEveningRemindDate === today) return;
+    if (now.getHours() < 18) return;
+    const habits = data.habits ?? [];
+    const reminder = calcEveningHabitReminder(habits, today);
+    if (!reminder) return;
+    persist({ ...dataRef.current, habitEveningRemindDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: `🌙 미완료 습관 ${reminder.uncheckedCount}개: ${reminder.uncheckedNames.join(", ")}` });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.habits, data.habitEveningRemindDate, loaded, persist]);
 
   // At-risk streak notification — fires once per app startup when habits are about to lose their streak.
   // "At risk" = streak > 0, last checked yesterday (midnight reset will zero the streak if not checked today).
