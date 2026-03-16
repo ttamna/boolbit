@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for intention streak, 7-day heatmap, week-over-week trend, and done-notification logic
-// ABOUTME: todayStr anchors all date arithmetic for DST safety; calcIntentionDoneNotify guards duplicate notifications
+// ABOUTME: Pure helpers for intention streak, 7-day heatmap, week-over-week trend, done-notification, and morning reminder logic
+// ABOUTME: todayStr anchors all date arithmetic for DST safety; notification helpers guard duplicate sends via caller-managed date fields
 
 import type { IntentionEntry } from "../types";
 
@@ -92,6 +92,16 @@ export function calcIntentionWeekTrend(
   if (diff >= 10) return "↑";
   if (diff <= -10) return "↓";
   return "→";
+}
+
+// Returns the desktop notification body when todayIntention is absent or empty (not yet set), null when already set.
+// Hour/date guards live in the caller (App.tsx useEffect) — this function is pure and stateless.
+// Callers should check intentionMorningRemindDate before invoking to ensure once-per-day delivery.
+export function calcMorningIntentionReminder(
+  todayIntention: string | undefined,
+): string | null {
+  if (todayIntention?.trim()) return null;
+  return "☀️ 오늘의 의도를 설정해보세요!";
 }
 
 // Returns the desktop notification body when todayIntentionDone transitions from falsy to true, null otherwise.

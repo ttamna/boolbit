@@ -13,7 +13,7 @@ import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify } from "./lib/intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
@@ -356,6 +356,29 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.habits, data.habitEveningRemindDate, loaded, persist]);
+
+  // Morning intention reminder — fires once per calendar day at 09:00+ when today's intention is not yet set.
+  // intentionMorningRemindDate persists the guard so it fires only once per calendar day even after restart.
+  // Design: date is persisted before the async send (same pattern as habitEveningRemindDate) to prevent duplicates
+  // even when permission is denied.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.intentionMorningRemindDate === today) return;
+    if (now.getHours() < 9) return;
+    const msg = calcMorningIntentionReminder(data.todayIntention);
+    if (!msg) return;
+    persist({ ...dataRef.current, intentionMorningRemindDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.todayIntention, data.intentionMorningRemindDate, loaded, persist]);
 
   // At-risk streak notification — fires once per app startup when habits are about to lose their streak.
   // "At risk" = streak > 0, last checked yesterday (midnight reset will zero the streak if not checked today).
