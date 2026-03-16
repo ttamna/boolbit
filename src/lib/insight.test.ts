@@ -4968,3 +4968,165 @@ describe("calcTodayInsight — project_forecast (priority 10.87, at-current-pace
     expect(result).toBeNull();
   });
 });
+
+describe("calcTodayInsight — project_context_switching (priority 10.05, between project_stale and streak_recession)", () => {
+  // Suppress all higher-priority insights:
+  // - no high-streak habits (streak_at_risk)
+  // - no deadlines (deadline_critical/soon)
+  // - no CI failure, no open PRs, no perfect day
+  // - nowHour=14 and todayIntentionDate=TODAY suppresses intention_missing/period_start/no_focus_project
+  // - no pomodoro goal, no momentum decline, no goal expiry
+  // - all projects recently focused (≤6 days) so project_stale (priority 10) does NOT fire
+  function base() {
+    return {
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    };
+  }
+
+  function active(name: string, lastFocusDate?: string) {
+    return { name, status: "active" as const, lastFocusDate };
+  }
+
+  it("shouldReturnProjectContextSwitchingWhen4ProjectsFocusedInLast7Days", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [
+        active("앱", DAYS_2_AGO),
+        active("웹", DAYS_3_AGO),
+        active("라이브러리", DAYS_4_AGO),
+        active("CLI", DAYS_5_AGO),
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("4");
+    expect(result!.text).toContain("집중");
+  });
+
+  it("shouldReturnProjectContextSwitchingWith5ProjectsAndShowCorrectCount", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [
+        active("앱", TODAY),
+        active("웹", DAYS_2_AGO),
+        active("라이브러리", DAYS_3_AGO),
+        active("CLI", DAYS_4_AGO),
+        active("서버", DAYS_5_AGO),
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("5");
+  });
+
+  it("shouldNotReturnProjectContextSwitchingWhenOnly3ProjectsFocused", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [
+        active("앱", DAYS_2_AGO),
+        active("웹", DAYS_3_AGO),
+        active("라이브러리", DAYS_4_AGO),
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotCountDoneProjectsInContextSwitchingTotal", () => {
+    // 3 active + 2 done = only 3 count → below threshold
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [
+        active("앱", DAYS_2_AGO),
+        active("웹", DAYS_3_AGO),
+        active("라이브러리", DAYS_4_AGO),
+        { name: "완료1", status: "done" as const, lastFocusDate: TODAY },
+        { name: "완료2", status: "done" as const, lastFocusDate: DAYS_2_AGO },
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotCountPausedProjectsInContextSwitchingTotal", () => {
+    // 3 active + 1 paused = only 3 count → below threshold
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [
+        active("앱", DAYS_2_AGO),
+        active("웹", DAYS_3_AGO),
+        active("라이브러리", DAYS_4_AGO),
+        { name: "멈춤", status: "paused" as const, lastFocusDate: TODAY },
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotCountProjectsWithoutLastFocusDate", () => {
+    // 3 with lastFocusDate + 1 without = only 3 count → below threshold
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [
+        active("앱", DAYS_2_AGO),
+        active("웹", DAYS_3_AGO),
+        active("라이브러리", DAYS_4_AGO),
+        active("신규"),  // no lastFocusDate
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldCountProjectFocusedExactly6DaysAgoAsRecentlyFocused", () => {
+    // 6 days ago = daysAgo=6 → boundary: included in "last 7 days" (daysAgo ≤ 6)
+    // 3 projects within range + 1 at exactly 6 days ago = 4 total → fires
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [
+        active("앱", DAYS_2_AGO),
+        active("웹", DAYS_3_AGO),
+        active("라이브러리", DAYS_4_AGO),
+        active("6일전", DAYS_6_AGO),  // daysAgo=6: exactly at boundary → included
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("4");
+    expect(result!.text).toContain("전환");
+  });
+
+  it("shouldNotCountProjectsWithFutureFocusDate", () => {
+    // Future lastFocusDate (daysAgo < 0) must be excluded — not a "recently focused" signal.
+    // 3 within range + 1 future = only 3 count → below threshold
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [
+        active("앱", DAYS_2_AGO),
+        active("웹", DAYS_3_AGO),
+        active("라이브러리", DAYS_4_AGO),
+        active("미래", TOMORROW),  // future date → daysAgo = -1 → excluded
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnProjectStaleBeforeProjectContextSwitching", () => {
+    // 4 recently-focused projects + 1 stale (7 days) → project_stale (10) fires before context_switching (10.05)
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [
+        active("앱", DAYS_2_AGO),
+        active("웹", DAYS_3_AGO),
+        active("라이브러리", DAYS_4_AGO),
+        active("CLI", DAYS_5_AGO),
+        active("방치됨", DAYS_7_AGO),  // stale → project_stale wins
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("방치됨");
+    expect(result!.text).not.toContain("전환");
+  });
+});
