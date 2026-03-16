@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, and calcMorningIntentionReminder helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, and calcIntentionEveningReminder helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder } from "./intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder } from "./intention";
 import type { IntentionEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
@@ -345,5 +345,48 @@ describe("calcMorningIntentionReminder", () => {
 
   it("should return null when todayIntention is non-empty string with spaces", () => {
     expect(calcMorningIntentionReminder("  독서 30분  ")).toBeNull();
+  });
+});
+
+describe("calcIntentionEveningReminder", () => {
+  it("should return reminder body when intention is set today and not done", () => {
+    expect(calcIntentionEveningReminder("운동하기", false, TODAY, TODAY)).toBe(
+      "🌙 오늘의 의도를 달성했나요? \"운동하기\""
+    );
+  });
+
+  it("should return null when intention is already done", () => {
+    expect(calcIntentionEveningReminder("운동하기", true, TODAY, TODAY)).toBeNull();
+  });
+
+  it("should return reminder body when done is undefined (absent)", () => {
+    expect(calcIntentionEveningReminder("운동하기", undefined, TODAY, TODAY)).toBe(
+      "🌙 오늘의 의도를 달성했나요? \"운동하기\""
+    );
+  });
+
+  it("should return null when intention is undefined", () => {
+    expect(calcIntentionEveningReminder(undefined, false, TODAY, TODAY)).toBeNull();
+  });
+
+  it("should return null when intention is empty string", () => {
+    expect(calcIntentionEveningReminder("", false, TODAY, TODAY)).toBeNull();
+  });
+
+  it("should return null when intention is whitespace only", () => {
+    expect(calcIntentionEveningReminder("   ", false, TODAY, TODAY)).toBeNull();
+  });
+
+  it("should return null when intention was set on a different day", () => {
+    expect(calcIntentionEveningReminder("운동하기", false, "2026-03-14", TODAY)).toBeNull();
+  });
+
+  it("should return null when intentionDate is undefined (not set today)", () => {
+    expect(calcIntentionEveningReminder("운동하기", false, undefined, TODAY)).toBeNull();
+  });
+
+  it("should include intention text in quotes in the notification body", () => {
+    const result = calcIntentionEveningReminder("독서 30분", false, TODAY, TODAY);
+    expect(result).toContain("\"독서 30분\"");
   });
 });
