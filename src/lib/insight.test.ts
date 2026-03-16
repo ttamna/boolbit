@@ -3146,3 +3146,124 @@ describe("calcTodayInsight — goal_done (priority 10.7, after momentum_rise, be
     expect(result!.text).toContain("15");
   });
 });
+
+// ── project_ahead (priority 10.8, after goal_done, before personal_best) ────
+// TODAY="2024-01-15"; DAYS_7_AGO="2024-01-08"; IN_8="2024-01-23"; IN_7="2024-01-22"
+// Fixture A: totalDays=15 (Jan08→Jan23), elapsedDays=7 → timePct≈47%; progress=70% → gap=+23 ≥20 → fires
+// Fixture B: totalDays=15 (Jan08→Jan23), elapsedDays=7 → timePct≈47%; progress=65% → gap=+18 < 20 → silent
+// Fixture C: deadline=IN_7 (7 days away, ≤7) → excluded regardless of gap
+describe("calcTodayInsight — project_ahead (priority 10.8, after goal_done)", () => {
+  const TODAY_PA = "2024-01-15";
+  const DAYS_7_AGO_PA = "2024-01-08";
+  const IN_8_PA = "2024-01-23";
+  const IN_7_PA = "2024-01-22";
+  const DAYS_30_AGO_PA = "2023-12-16";
+  const IN_30_PA = "2024-02-14";
+
+  const base = {
+    habits: [],
+    todayStr: TODAY_PA,
+    nowHour: 14,
+    todayIntentionDate: TODAY_PA,
+    sessionsToday: 0,
+    sessionGoal: undefined as undefined,
+    habitsAllDoneDate: undefined as undefined,
+  };
+
+  it("shouldReturnProjectAheadWhenGapExceeds20Percent", () => {
+    // createdDate=DAYS_7_AGO, deadline=IN_8 → totalDays=15, elapsed=7 → timePct≈47%; progress=70 → gap=+23
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "빠른프로젝트", status: "active", deadline: IN_8_PA, createdDate: DAYS_7_AGO_PA, progress: 70 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("빠른프로젝트");
+    expect(result!.text).toContain("23");
+  });
+
+  it("shouldNotReturnProjectAheadWhenGapBelow20Percent", () => {
+    // gap = 65 - 47 ≈ +18 < 20 → silent
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "보통프로젝트", status: "active", deadline: IN_8_PA, createdDate: DAYS_7_AGO_PA, progress: 65 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectAheadForDoneProject", () => {
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "완료됨", status: "done", deadline: IN_8_PA, createdDate: DAYS_7_AGO_PA, progress: 70 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectAheadForPausedProject", () => {
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "일시중지", status: "paused", deadline: IN_8_PA, createdDate: DAYS_7_AGO_PA, progress: 70 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectAheadWhenCreatedDateAbsent", () => {
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "신규프로젝트", status: "active", deadline: IN_8_PA, progress: 70 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectAheadWhenDeadlineWithin7Days", () => {
+    // deadline=IN_7 (exactly 7 days away → ≤7 → project_ahead excluded; deadline_soon fires instead)
+    // createdDate=DAYS_7_AGO, totalDays=14, elapsed=7 → timePct=50%; progress=100% → gap=+50 but excluded
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "임박프로젝트", status: "active", deadline: IN_7_PA, createdDate: DAYS_7_AGO_PA, progress: 100 }],
+    });
+    // deadline_soon fires (D-7), not project_ahead
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("앞서가는"); // project_ahead text absent
+    expect(result!.text).toContain("임박프로젝트");  // deadline_soon fires
+  });
+
+  it("shouldNotReturnProjectAheadWhenTimePctTooLow", () => {
+    // createdDate=yesterday(2024-01-14), deadline=2024-02-22 → elapsed=1/39 days ≈ 2.6% < 10
+    // calcScheduleGap returns null for early projects (timePct < 10 guard) — mirrors shouldNotReturnProjectBehindWhenTimePctTooLow
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "막시작프로젝트", status: "active", deadline: "2024-02-22", createdDate: "2024-01-14", progress: 100 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnMostAheadProjectWhenMultipleAhead", () => {
+    // Both ahead; picks the most ahead (higher gap first)
+    const result = calcTodayInsight({
+      ...base,
+      projects: [
+        // gap≈+23 (progress=70)
+        { name: "프로젝트A", status: "active", deadline: IN_8_PA, createdDate: DAYS_7_AGO_PA, progress: 70 },
+        // timePct=50%, gap=+40 (progress=90) — more ahead
+        { name: "프로젝트B", status: "active", deadline: IN_30_PA, createdDate: DAYS_30_AGO_PA, progress: 90 },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("프로젝트B"); // 가장 앞선 프로젝트
+  });
+
+  it("shouldProjectAheadFireAfterGoalDone", () => {
+    // goal_done (10.7) fires before project_ahead (10.8) — month goal done with 15d remaining
+    const result = calcTodayInsight({
+      ...base,
+      monthGoal: "이번 달 목표",
+      monthGoalDone: true,
+      daysLeftMonth: 15,
+      projects: [{ name: "빠른프로젝트", status: "active", deadline: IN_8_PA, createdDate: DAYS_7_AGO_PA, progress: 70 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("월간 목표 달성"); // goal_done wins
+  });
+});

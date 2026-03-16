@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > project ahead (≥20% ahead of schedule) > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -336,6 +336,26 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   }
   if (weekGoal && weekGoalDone && daysLeftWeek != null && daysLeftWeek > 2) {
     return { text: `🎉 주간 목표 달성! (${daysLeftWeek}일 남음)`, level: "success" };
+  }
+
+  // 10.8. Project ahead of schedule: active/in-progress project >7 days from deadline with ≥20% schedule surplus.
+  // Mirrors project_behind (8.5) as positive reinforcement — fires when gap = progress% - timePct% ≥ +20.
+  // Picks the most ahead project (highest gap) when multiple qualify.
+  // Fires after goal_done (10.7) so goal achievements take precedence over schedule observations.
+  if (projects && projects.length > 0) {
+    const todayForSchedule = new Date(todayStr + "T00:00:00");
+    const ahead = projects
+      .filter(p => p.status !== "done" && p.status !== "paused" && p.deadline && p.progress != null && p.createdDate)
+      .filter(p => { const days = daysUntil(p.deadline!, todayStr); return days !== null && days > 7; })
+      .map(p => {
+        const sg = calcScheduleGap(p.progress!, p.createdDate, p.deadline, todayForSchedule);
+        return sg !== null && sg.gap >= 20 ? { name: p.name, gap: sg.gap } : null;
+      })
+      .filter((p): p is { name: string; gap: number } => p !== null)
+      .sort((a, b) => b.gap - a.gap)[0]; // most ahead first
+    if (ahead) {
+      return { text: `⚡ ${ahead.name} 일정 ${ahead.gap}% 앞서가는 중!`, level: "success" };
+    }
   }
 
   // 11. Personal best streak: habit checked in today, streak hit a milestone (7/30/100d),
