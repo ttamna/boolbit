@@ -1213,6 +1213,15 @@ export default function App() {
   const pomodoroGoalStreak = data.pomodoroSessionGoal != null && data.pomodoroSessionGoal > 0
     ? calcPomodoroGoalStreak(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, todayStr)
     : undefined;
+  // pomodoroSessionBest: max session count on any PAST calendar day in the 14-day rolling history.
+  // Today's entry is excluded — compare against past days only to detect a genuine new daily record.
+  // undefined when no past-day history exists (first use or all entries are today's date).
+  const pomodoroSessionBest = (() => {
+    const pastCounts = (data.pomodoroHistory ?? [])
+      .filter(d => d.date !== todayStr)
+      .map(d => d.count);
+    return pastCounts.length > 0 ? Math.max(...pastCounts) : undefined;
+  })();
   // intentionConsecutiveDays: consecutive days (including today) on which the user has set an intention.
   // Pure function extracted to src/lib/intention.ts for testability.
   const intentionConsecutiveDays = calcIntentionStreak(
@@ -1266,6 +1275,7 @@ export default function App() {
       renderDate,
     ) - 1),
     pomodoroGoalStreak,
+    pomodoroSessionBest,
     intentionConsecutiveDays,
     // todayIsWeakHabitDay: true when today's weekday is the user's historically weakest habit day.
     // Uses last28Days (4 full weeks) so each weekday has exactly 4 data points.

@@ -4338,3 +4338,93 @@ describe("calcTodayInsight — month_goal_streak (priority 10.76, between goal_s
     expect(result!.text).not.toContain("달 연속");
   });
 });
+
+describe("calcTodayInsight — pomodoro_day_record (priority 7.49, between pomodoro_goal_streak and pomodoro_goal_reached)", () => {
+  // Base: afternoon, intention set, no habits, no goal, no competing insights
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldReturnPomodoroDayRecordWhenNoGoalAndSessionsExceedHistoricalBest", () => {
+    const result = calcTodayInsight({ ...base(), sessionsToday: 5, pomodoroSessionBest: 4 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록");
+    expect(result!.text).toContain("5");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldReturnPomodoroDayRecordWhenGoalReachedAndRecordBeaten", () => {
+    const result = calcTodayInsight({
+      ...base(), sessionsToday: 6, sessionGoal: 4, pomodoroSessionBest: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록");
+    expect(result!.text).toContain("6");
+  });
+
+  it("shouldNotReturnPomodoroDayRecordWhenSessionsEqualHistoricalBest", () => {
+    const result = calcTodayInsight({ ...base(), sessionsToday: 4, pomodoroSessionBest: 4 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnPomodoroDayRecordWhenSessionsBelowHistoricalBest", () => {
+    const result = calcTodayInsight({ ...base(), sessionsToday: 3, pomodoroSessionBest: 4 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnPomodoroDayRecordWhenPomodoroSessionBestAbsent", () => {
+    const result = calcTodayInsight({ ...base(), sessionsToday: 5 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnPomodoroDayRecordWhenGoalSetButNotReachedEvenIfRecordBeaten", () => {
+    // sessionsToday (3) > pomodoroSessionBest (2) — record beaten, but sessionGoal (5) not yet reached
+    const result = calcTodayInsight({
+      ...base(), sessionsToday: 3, sessionGoal: 5, pomodoroSessionBest: 2,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnPomodoroDayRecordWhenHistoricalBestIsZeroAndSessionsGt0", () => {
+    // First real session day — 1 session beats a recorded 0-session past day
+    const result = calcTodayInsight({ ...base(), sessionsToday: 1, pomodoroSessionBest: 0 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록");
+  });
+
+  it("shouldReturnPomodoroDayRecordInsteadOfGoalReachedWhenBothConditionsMet", () => {
+    // record (7.49) preempts goal_reached (7.5): sessions beat both record and goal
+    const result = calcTodayInsight({
+      ...base(), sessionsToday: 6, sessionGoal: 4, pomodoroSessionBest: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록"); // day record wins
+    expect(result!.text).not.toContain("목표 달성"); // goal_reached not shown
+  });
+
+  it("shouldReturnPomodoroDayRecordWhenSessionGoalIsZeroAndSessionsExceedBest", () => {
+    // sessionGoal=0 is treated as "no goal" — mirrors the > 0 guard in pomodoro_goal_reached
+    const result = calcTodayInsight({ ...base(), sessionsToday: 3, sessionGoal: 0, pomodoroSessionBest: 2 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록");
+  });
+
+  it("shouldReturnGoalStreakOverDayRecordWhenGoalNotYetReached", () => {
+    // goal_streak (7.45) and day_record (7.49) are mutually exclusive when sessionGoal > 0:
+    // goal_streak needs sessionsToday < sessionGoal; day_record needs sessionsToday >= sessionGoal.
+    // With sessionGoal=4 and sessionsToday=2 (< 4), day_record cannot fire (goal not reached).
+    // pomodoroSessionBest=1 (record would be beaten) — but record guard prevents it.
+    const result = calcTodayInsight({
+      ...base(), sessionsToday: 2, sessionGoal: 4, pomodoroGoalStreak: 3, pomodoroSessionBest: 1,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("포모도로 목표"); // goal_streak fires
+    expect(result!.text).not.toContain("신기록");
+  });
+});
