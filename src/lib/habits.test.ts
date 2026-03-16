@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, and calcWeakDayOfWeek pure helpers
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, and calcBestDayOfWeek pure helpers
 // ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, and per-weekday habit completion rate analysis
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -1365,5 +1365,69 @@ describe("calcWeakDayOfWeek", () => {
       0: 80, 1: 40, 2: 40, 3: 85, 4: 75, 5: 70, 6: 80,
     };
     expect(calcWeakDayOfWeek(rates)).toBe(1); // Monday returned (lower dow number)
+  });
+});
+
+describe("calcBestDayOfWeek", () => {
+  it("shouldReturnWeekdayWithHighestRateAboveThreshold", () => {
+    // Wednesday (3) at 100% is the strongest day at or above the 80% threshold
+    const rates: Record<number, number | null> = {
+      0: 50, 1: 60, 2: 70, 3: 100, 4: 75, 5: 65, 6: 55,
+    };
+    expect(calcBestDayOfWeek(rates)).toBe(3); // Wednesday
+  });
+
+  it("shouldReturnNullWhenAllRatesBelowThreshold", () => {
+    const rates: Record<number, number | null> = {
+      0: 50, 1: 60, 2: 70, 3: 75, 4: 55, 5: 65, 6: 70,
+    };
+    expect(calcBestDayOfWeek(rates)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenAllRatesAreNull", () => {
+    const rates: Record<number, number | null> = {
+      0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null,
+    };
+    expect(calcBestDayOfWeek(rates)).toBeNull();
+  });
+
+  it("shouldSkipNullRatesWhenFindingBestDay", () => {
+    // Friday (5) at 90% is above threshold; Sunday (0) is null (skip)
+    const rates: Record<number, number | null> = {
+      0: null, 1: 60, 2: 70, 3: 75, 4: 65, 5: 90, 6: 55,
+    };
+    expect(calcBestDayOfWeek(rates)).toBe(5); // Friday
+  });
+
+  it("shouldReturnDayWithAbsoluteHighestRateWhenMultipleAboveThreshold", () => {
+    // Wednesday (3) at 95% beats Monday (1) at 85% — both above 80%
+    const rates: Record<number, number | null> = {
+      0: 60, 1: 85, 2: 70, 3: 95, 4: 75, 5: 65, 6: 60,
+    };
+    expect(calcBestDayOfWeek(rates)).toBe(3); // Wednesday
+  });
+
+  it("shouldReturnNullAtOneBelow80Threshold", () => {
+    // 79% should NOT be considered a best day
+    const rates: Record<number, number | null> = {
+      0: 60, 1: 79, 2: 70, 3: 75, 4: 65, 5: 70, 6: 60,
+    };
+    expect(calcBestDayOfWeek(rates)).toBeNull(); // 79% is below threshold
+  });
+
+  it("shouldReturnBestDayAtExact80Threshold", () => {
+    // Exactly at threshold (80%) should be considered a best day
+    const rates: Record<number, number | null> = {
+      0: 60, 1: 80, 2: 70, 3: 75, 4: 65, 5: 70, 6: 60,
+    };
+    expect(calcBestDayOfWeek(rates)).toBe(1); // Monday at exactly 80%
+  });
+
+  it("shouldReturnLowerDowNumberWhenTwoWeekdaysShareMaximumRate", () => {
+    // Mon(1) and Wed(3) both at 90% — lowest weekday number (1) wins for stability
+    const rates: Record<number, number | null> = {
+      0: 60, 1: 90, 2: 70, 3: 90, 4: 65, 5: 70, 6: 60,
+    };
+    expect(calcBestDayOfWeek(rates)).toBe(1); // Monday returned (lower dow number)
   });
 });

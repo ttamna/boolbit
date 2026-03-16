@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -97,6 +97,13 @@ interface InsightParams {
    * Absent/false = today is not a weak day or insufficient data; no nudge is shown.
    */
   todayIsWeakHabitDay?: boolean;
+  /**
+   * True when today's weekday is the user's historically strongest habit day (at or above 80% avg completion).
+   * Caller derives this via calcBestDayOfWeek(calcDayOfWeekHabitRates(habits, last28Days)) === todayDow.
+   * Absent/false = today is not a best day or insufficient data; no nudge is shown.
+   * When todayIsWeakHabitDay is also true (edge case), weak_day_ahead (6.8) fires first — warnings preempt positive nudges.
+   */
+  todayIsBestHabitDay?: boolean;
 }
 
 // Habit streak milestones at which a personal-best celebration is shown (mirrors getUpcomingMilestone targets).
@@ -163,6 +170,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     pomodoroSessionBest,
     intentionConsecutiveDays,
     todayIsWeakHabitDay,
+    todayIsBestHabitDay,
   } = params;
 
   // 1. Streak at risk: evening (≥ 18h) + high streak (≥ 7) + not yet checked today
@@ -246,6 +254,15 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // Requires at least one habit — meaningless nudge with no habits to track.
   if (nowHour < 12 && todayIsWeakHabitDay === true && habits.length > 0) {
     return { text: "📅 오늘은 습관 완료율이 낮은 약한 요일이에요. 의식적으로 챙겨봐요!", level: "info" };
+  }
+
+  // 6.82. Best day ahead: morning + today is user's historically strongest habit day (at or above 80% avg completion).
+  // Fires a positive reinforcement nudge so the user can capitalise on their natural rhythm.
+  // Morning-only (< 12h): mirrors the weak_day_ahead gate for symmetry.
+  // Placed after weak_day_ahead (6.8) so warnings always preempt positive nudges.
+  // Requires at least one habit — meaningless nudge with no habits to track.
+  if (nowHour < 12 && todayIsBestHabitDay === true && habits.length > 0) {
+    return { text: "💪 오늘은 역대 습관 완료율이 높은 강한 요일이에요!", level: "success" };
   }
 
   // 7. Pomodoro: one session away from daily goal
