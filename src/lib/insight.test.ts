@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_done)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_done, pomodoro_today_above_avg)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -5951,6 +5951,115 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
       expect(result).not.toBeNull();
       expect(result!.text).toContain("회복");
       expect(result!.text).not.toContain("포모도로");
+    });
+  });
+
+  describe("calcTodayInsight — pomodoro_today_above_avg (priority 10.45, between almost_perfect_day and momentum_rise)", () => {
+    // Base: afternoon, intention set, no habits, no session goal, no competing insights
+    const base = () => ({
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+    });
+
+    it("shouldReturnAboveAvgWhenSessionsExceedAverageByAtLeastTwo", () => {
+      const result = calcTodayInsight({ ...base(), sessionsToday: 5, pomodoroRecentAvg: 3 });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("평소보다");
+      expect(result!.text).toContain("2");
+      expect(result!.level).toBe("success");
+    });
+
+    it("shouldReturnAboveAvgWithCorrectExtraCountWhenDifferenceIsLarger", () => {
+      const result = calcTodayInsight({ ...base(), sessionsToday: 7, pomodoroRecentAvg: 2 });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("5");
+    });
+
+    it("shouldNotFireWhenDifferenceIsExactlyOne", () => {
+      const result = calcTodayInsight({ ...base(), sessionsToday: 4, pomodoroRecentAvg: 3 });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotFireWhenFractionalDifferenceIsBelowTwo", () => {
+      // avg=3.1, sessionsToday=5 → diff=1.9 < 2 → no badge (fractional boundary)
+      const result = calcTodayInsight({ ...base(), sessionsToday: 5, pomodoroRecentAvg: 3.1 });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotFireWhenDifferenceIsExactlyOnePointFive", () => {
+      // avg=2.5, sessionsToday=4 → diff=1.5 < 2 → no badge
+      const result = calcTodayInsight({ ...base(), sessionsToday: 4, pomodoroRecentAvg: 2.5 });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotFireWhenPomodoroRecentAvgAbsent", () => {
+      const result = calcTodayInsight({ ...base(), sessionsToday: 10 });
+      expect(result).toBeNull();
+    });
+
+    it("shouldFireWhenAvgIsZeroAndSessionsTodayAtLeastTwo", () => {
+      // new user with no history — avg=0, sessionsToday=2 → fires
+      const result = calcTodayInsight({ ...base(), sessionsToday: 2, pomodoroRecentAvg: 0 });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("평소보다");
+    });
+
+    it("shouldBePreemptedByPomodoroGoalReached", () => {
+      // pomodoro_goal_reached (7.5) fires before pomodoro_today_above_avg (10.45)
+      const result = calcTodayInsight({
+        ...base(),
+        sessionsToday: 5, sessionGoal: 4, pomodoroRecentAvg: 2,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("목표 달성");
+      expect(result!.text).not.toContain("평소보다");
+    });
+
+    it("shouldBePreemptedByPomodoroDayRecord", () => {
+      // pomodoro_day_record (7.49) fires before pomodoro_today_above_avg (10.45)
+      const result = calcTodayInsight({
+        ...base(),
+        sessionsToday: 6, pomodoroSessionBest: 5, pomodoroRecentAvg: 2,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("신기록");
+      expect(result!.text).not.toContain("평소보다");
+    });
+
+    it("shouldBePreemptedByAlmostPerfectDay", () => {
+      // almost_perfect_day (10.3) fires before pomodoro_today_above_avg (10.45)
+      // 2 habits remain unchecked in the afternoon → almost_perfect_day fires
+      const result = calcTodayInsight({
+        ...base(),
+        nowHour: 14,
+        habits: [
+          { name: "운동", streak: 1, lastChecked: TODAY },
+          { name: "독서", streak: 1, lastChecked: YESTERDAY },
+          { name: "명상", streak: 1, lastChecked: YESTERDAY },
+        ],
+        sessionsToday: 5, pomodoroRecentAvg: 2,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("완벽한 하루");
+      expect(result!.text).not.toContain("평소보다");
+    });
+
+    it("shouldYieldToMomentumRise", () => {
+      // momentum_rise (10.5) fires AFTER pomodoro_today_above_avg (10.45)
+      // When both conditions are true, pomodoro_today_above_avg fires first (lower priority number)
+      const result = calcTodayInsight({
+        ...base(),
+        sessionsToday: 5, pomodoroRecentAvg: 2,
+        momentumHistory: RISING_HISTORY,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("평소보다");
+      expect(result!.text).not.toContain("상승");
     });
   });
 

@@ -1,5 +1,5 @@
 // ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, and lifetime milestone notifications
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, and goal-streak consecutive past days
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, goal-streak consecutive past days, and recent rolling average sessions (today excluded)
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -302,6 +302,23 @@ export function calcPomodoroGoalStreak(
     daysBack++;
   }
   return streak;
+}
+
+// Returns the average sessions per calendar day across all past entries in history (today excluded).
+// Only days present in the history array are counted — absent days are not treated as zero.
+// Zero-count entries (days with count=0) are included in the average, pulling the baseline down;
+// this is intentional — a day with zero sessions is a valid low-productivity data point.
+// History is capped at 14 days by updatePomodoroHistory; today is typically present in the array
+// (written by the pomodoro session-complete handler), so today-exclusion via todayStr is load-bearing.
+// Returns 0 when history has no past-day entries (first use or all entries are from today).
+// Exported for unit testing; pure function with no side effects.
+export function calcPomodoroRecentAvg(
+  history: PomodoroDay[],
+  todayStr: string,
+): number {
+  const past = history.filter(d => d.date !== todayStr);
+  if (past.length === 0) return 0;
+  return past.reduce((sum, d) => sum + d.count, 0) / past.length;
 }
 
 // Returns the desktop notification body when the daily pomodoro goal has not been reached by evening.

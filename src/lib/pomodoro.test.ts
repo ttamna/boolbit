@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, and goal-streak consecutive past days
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, goal-streak consecutive past days, and recent rolling average sessions (today excluded)
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg } from "./pomodoro";
 import { colors } from "../theme";
 import type { PomodoroDay } from "../types";
 
@@ -906,6 +906,54 @@ describe("calcPomodoroGoalStreak", () => {
       { date: "2026-02-27", count: 4 },
     ];
     expect(calcPomodoroGoalStreak(history, 4, today)).toBe(2);
+  });
+});
+
+describe("calcPomodoroRecentAvg", () => {
+  const TODAY = "2026-03-15";
+
+  it("shouldReturnZeroForEmptyHistory", () => {
+    expect(calcPomodoroRecentAvg([], TODAY)).toBe(0);
+  });
+
+  it("shouldReturnZeroWhenHistoryContainsOnlyToday", () => {
+    const history: PomodoroDay[] = [{ date: TODAY, count: 5 }];
+    expect(calcPomodoroRecentAvg(history, TODAY)).toBe(0);
+  });
+
+  it("shouldAveragePastEntriesExcludingToday", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-13", count: 2 },
+      { date: "2026-03-14", count: 4 },
+      { date: TODAY, count: 10 }, // today — excluded
+    ];
+    expect(calcPomodoroRecentAvg(history, TODAY)).toBe(3); // (2+4)/2
+  });
+
+  it("shouldReturnAverageForSinglePastEntry", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-14", count: 6 },
+    ];
+    expect(calcPomodoroRecentAvg(history, TODAY)).toBe(6);
+  });
+
+  it("shouldIncludeAllPastDaysWhenTodayNotInHistory", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-12", count: 3 },
+      { date: "2026-03-13", count: 5 },
+      { date: "2026-03-14", count: 4 },
+    ];
+    expect(calcPomodoroRecentAvg(history, TODAY)).toBe(4); // (3+5+4)/3
+  });
+
+  it("shouldIncludeZeroCountPastEntriesInAverage", () => {
+    // A day with 0 sessions is a valid low-productivity data point — it is included, not skipped.
+    // This lowers the average baseline, making the pomodoro_today_above_avg threshold easier to reach.
+    const history: PomodoroDay[] = [
+      { date: "2026-03-13", count: 0 },
+      { date: "2026-03-14", count: 4 },
+    ];
+    expect(calcPomodoroRecentAvg(history, TODAY)).toBe(2); // (0+4)/2
   });
 });
 

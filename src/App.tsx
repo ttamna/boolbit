@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -1235,6 +1235,11 @@ export default function App() {
   // focusStreak: consecutive days (including today when sessions > 0) with ≥1 pomodoro session.
   // Passed to calcTodayInsight for focus_streak_milestone badge (7/14/30-day milestones).
   const focusStreak = calcFocusStreak(data.pomodoroHistory ?? [], todayStr);
+  // pomodoroRecentAvg: average sessions per day across all past history entries (today excluded).
+  // pomodoroHistory includes today's entry (written by the session-complete handler); today is
+  // excluded inside calcPomodoroRecentAvg via the todayStr filter — this exclusion is load-bearing.
+  // Passed to calcTodayInsight for the pomodoro_today_above_avg badge (priority 10.45).
+  const pomodoroRecentAvg = calcPomodoroRecentAvg(data.pomodoroHistory ?? [], todayStr);
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1289,6 +1294,7 @@ export default function App() {
     ) - 1),
     pomodoroGoalStreak,
     pomodoroSessionBest,
+    pomodoroRecentAvg,
     intentionConsecutiveDays,
     focusStreak,
     // todayIsWeakHabitDay / todayIsBestHabitDay: derived from the same per-weekday rates computed once.
