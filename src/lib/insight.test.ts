@@ -5230,6 +5230,98 @@ describe("calcTodayInsight — pomodoro_day_record (priority 7.49, between pomod
   });
 });
 
+describe("calcTodayInsight — focus_streak_milestone (priority 7.42, between pomodoro_last_one and pomodoro_goal_streak)", () => {
+  // Base: Monday afternoon, intention set, no habits, no pomodoro goal, no competing insights.
+  // TODAY = "2024-01-15" is a Monday — afternoon hour avoids all morning-only gates.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldReturnFocusStreakMilestoneOn7DayStreak", () => {
+    // 7-day consecutive focus milestone: celebratory badge when today's sessions count
+    const result = calcTodayInsight({ ...base(), sessionsToday: 3, focusStreak: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("7");
+    expect(result!.text).toContain("연속 집중");
+  });
+
+  it("shouldReturnFocusStreakMilestoneOn14DayStreak", () => {
+    const result = calcTodayInsight({ ...base(), sessionsToday: 1, focusStreak: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14");
+    expect(result!.text).toContain("연속 집중");
+  });
+
+  it("shouldReturnFocusStreakMilestoneOn30DayStreak", () => {
+    const result = calcTodayInsight({ ...base(), sessionsToday: 2, focusStreak: 30 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("30");
+    expect(result!.text).toContain("연속 집중");
+  });
+
+  it("shouldNotReturnFocusStreakMilestoneOnNonMilestoneStreak", () => {
+    // streak=8 is not a milestone (7, 14, 30 only); sessionGoal=undefined so no pomodoro_goal_reached
+    // or pomodoro_day_record fires either → overall result is null
+    const result = calcTodayInsight({ ...base(), sessionsToday: 3, focusStreak: 8 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnFocusStreakMilestoneWhenNoSessionsToday", () => {
+    // sessionsToday=0: today's session hasn't been counted yet — guard prevents premature milestone
+    const result = calcTodayInsight({ ...base(), sessionsToday: 0, focusStreak: 7 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnFocusStreakMilestoneWhenFocusStreakAbsent", () => {
+    // absent focusStreak → skipped silently
+    const result = calcTodayInsight({ ...base(), sessionsToday: 5 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPomodoroLastOnePreemptFocusStreakMilestone", () => {
+    // pomodoro_last_one (7) fires before focus_streak_milestone (7.42)
+    // sessionsToday=2, sessionGoal=3 → one away from goal
+    const result = calcTodayInsight({ ...base(), sessionsToday: 2, sessionGoal: 3, focusStreak: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("1세션"); // pomodoro_last_one wins
+    expect(result!.text).not.toContain("연속 집중");
+  });
+
+  it("shouldFocusStreakMilestonePreemptPomodoroGoalStreak", () => {
+    // focus_streak_milestone (7.42) fires before pomodoro_goal_streak (7.45)
+    // pomodoroGoalStreak=5 and sessionsToday=1 < sessionGoal=4 — goal_streak condition met,
+    // but focus_streak_milestone has higher priority on a milestone day
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 1,
+      sessionGoal: 4,
+      pomodoroGoalStreak: 5,
+      focusStreak: 7,
+      weekGoal: "임시 목표",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7");
+    expect(result!.text).toContain("연속 집중"); // milestone wins
+    expect(result!.text).not.toContain("목표"); // goal_streak not shown
+  });
+
+  it("shouldFocusStreakMilestonePreemptGoalReachedOnMilestoneDay", () => {
+    // focus_streak_milestone (7.42) also fires before pomodoro_goal_reached (7.5)
+    // sessionsToday=4 === sessionGoal=4 — goal reached, but milestone fires first
+    const result = calcTodayInsight({ ...base(), sessionsToday: 4, sessionGoal: 4, focusStreak: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연속 집중"); // milestone wins
+    expect(result!.text).not.toContain("목표 달성"); // goal_reached not shown
+  });
+});
+
 describe("calcTodayInsight — project_forecast (priority 10.87, at-current-pace completion date)", () => {
   // Tuesday 2024-01-16: not Monday, not 1st of month/quarter/year — no period_start triggers
   const TODAY_F = "2024-01-16";

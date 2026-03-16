@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -1232,6 +1232,9 @@ export default function App() {
   // last28Days: 4-week window used for per-weekday habit completion rate (calcDayOfWeekHabitRates).
   // 28 days = 4 full weeks so each weekday has exactly 4 data points — well above MIN_DOW_APPEARANCES=2.
   const last28Days = calcLastNDays(todayStr, 28);
+  // focusStreak: consecutive days (including today when sessions > 0) with ≥1 pomodoro session.
+  // Passed to calcTodayInsight for focus_streak_milestone badge (7/14/30-day milestones).
+  const focusStreak = calcFocusStreak(data.pomodoroHistory ?? [], todayStr);
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1278,6 +1281,7 @@ export default function App() {
     pomodoroGoalStreak,
     pomodoroSessionBest,
     intentionConsecutiveDays,
+    focusStreak,
     // todayIsWeakHabitDay / todayIsBestHabitDay: derived from the same per-weekday rates computed once.
     // Uses last28Days (4 full weeks) so each weekday has exactly 4 data points.
     ...(() => {
