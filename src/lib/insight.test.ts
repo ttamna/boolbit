@@ -5693,4 +5693,140 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     });
   });
 
+  // ── habit_comeback ──────────────────────────────────────────────────────────
+  describe("habit_comeback", () => {
+    /**
+     * Base params for habit_comeback tests — designed so no other insight triggers:
+     * - nowHour: 14  → past intention_missing window (< 12h) and below almost_perfect_day's
+     *   "1-2 remaining" threshold (habits is [], remaining=0 → not 1 or 2)
+     * - todayIntentionDate: undefined  → intention_missing would require nowHour < 12, which is false
+     * - sessionsToday: 0, sessionGoal: undefined → all pomodoro checks silently skipped
+     * Individual tests that need habits or different hours override these fields inline.
+     */
+    function comebackBase() {
+      return {
+        habits: [] as ReturnType<typeof habit>[],
+        todayStr: TODAY,
+        nowHour: 14,
+        todayIntentionDate: undefined as string | undefined,
+        sessionsToday: 0,
+        sessionGoal: undefined as number | undefined,
+        habitsAllDoneDate: undefined as string | undefined,
+      };
+    }
+
+    it("shouldReturnHabitComebackWhenLongStreakBrokenAndRecovering", () => {
+      const result = calcTodayInsight({
+        ...comebackBase(),
+        habits: [habit("독서", 3, TODAY, 20)],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.level).toBe("success");
+      expect(result!.text).toContain("독서");
+      expect(result!.text).toContain("회복");
+      expect(result!.text).toContain("3");
+    });
+
+    it("shouldNotReturnHabitComebackWhenBestStreakBelow14", () => {
+      // bestStreak=13 is below the threshold — short historical streaks are common noise
+      const result = calcTodayInsight({
+        ...comebackBase(),
+        habits: [habit("독서", 3, TODAY, 13)],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotReturnHabitComebackWhenStreakBelow3", () => {
+      // streak=2 is not yet a meaningful recovery signal
+      const result = calcTodayInsight({
+        ...comebackBase(),
+        habits: [habit("독서", 2, TODAY, 20)],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotReturnHabitComebackWhenStreakEqualsBestStreak", () => {
+      // streak === bestStreak: user is back at peak; personal_best covers this milestone
+      const result = calcTodayInsight({
+        ...comebackBase(),
+        habits: [habit("독서", 20, TODAY, 20)],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotReturnHabitComebackWhenNotCheckedInToday", () => {
+      // lastChecked is yesterday — today's check-in hasn't happened yet; no badge
+      // nowHour: 13 to avoid almost_perfect_day: with lastChecked=YESTERDAY, remaining=1 which
+      // satisfies the "1-2 habits left" condition — nowHour=14 would trigger it; 13 stays safe.
+      const result = calcTodayInsight({
+        ...comebackBase(),
+        nowHour: 13,
+        habits: [habit("독서", 3, YESTERDAY, 20)],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldReturnHabitComebackWhenBestStreakExactly14", () => {
+      // bestStreak=14 is the minimum qualifying value; boundary inclusion test
+      const result = calcTodayInsight({
+        ...comebackBase(),
+        habits: [habit("독서", 3, TODAY, 14)],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("회복");
+    });
+
+    it("shouldNotReturnHabitComebackWhenBestStreakAbsent", () => {
+      // no bestStreak recorded at all — can't confirm a long past streak was broken
+      const result = calcTodayInsight({
+        ...comebackBase(),
+        habits: [habit("독서", 3, TODAY, undefined)],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldPickHabitWithHighestStreakWhenMultipleQualify", () => {
+      // two qualifying habits: "운동" (5일) and "독서" (3일) → shows 운동 (higher streak)
+      const result = calcTodayInsight({
+        ...comebackBase(),
+        habits: [
+          habit("독서", 3, TODAY, 20),
+          habit("운동", 5, TODAY, 30),
+        ],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("운동");
+      expect(result!.text).toContain("5");
+    });
+
+    it("shouldPreferBestDayAheadOverHabitComeback", () => {
+      // best_day_ahead (6.82) fires before habit_comeback (6.9) — morning + todayIsBestHabitDay preempts
+      // Uses TOMORROW (Tuesday) + todayIntentionDate: TOMORROW to prevent intention_missing (priority 5) from firing
+      const result = calcTodayInsight({
+        ...comebackBase(),
+        todayStr: TOMORROW,
+        todayIntentionDate: TOMORROW,
+        nowHour: 9,
+        habits: [habit("독서", 3, TOMORROW, 20)],
+        todayIsBestHabitDay: true,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("강한 요일");
+      expect(result!.text).not.toContain("회복");
+    });
+
+    it("shouldPreferHabitComebackOverPomodoroLastOne", () => {
+      // habit_comeback (6.9) fires before pomodoro_last_one (7) — comeback preempts one-session-away nudge
+      const result = calcTodayInsight({
+        ...comebackBase(),
+        habits: [habit("독서", 3, TODAY, 20)],
+        sessionsToday: 2,
+        sessionGoal: 3,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("회복");
+      expect(result!.text).not.toContain("포모도로");
+    });
+  });
+
 });
