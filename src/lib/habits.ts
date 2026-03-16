@@ -239,6 +239,24 @@ export function calcEveningHabitReminder(
   return { uncheckedCount: unchecked.length, uncheckedNames: unchecked.map(h => h.name) };
 }
 
+// Returns the Sunday evening weekly review notification body.
+// Three variants based on weekGoal state:
+//   - no goal (absent/empty/whitespace): generic "review + plan next week" nudge
+//   - goal set, not done: includes goal text, prompts reflection on progress
+//   - goal set, done: congratulates achievement, nudges next-week planning
+// Hour/day guard (Sunday, getHours() >= 18) lives in the caller (App.tsx useEffect).
+// Callers check weeklyReviewRemindDate before invoking to ensure once-per-Sunday delivery.
+// Exported for unit testing; pure function with no side effects.
+export function calcWeeklyReviewReminder(
+  weekGoal: string | undefined,
+  weekGoalDone: boolean | undefined,
+): string {
+  const trimmed = weekGoal?.trim();
+  if (!trimmed) return "📋 주간 회고: 이번 주를 정리하고 다음 주 목표를 세워보세요!";
+  if (weekGoalDone) return `✅ 주간 회고: '${trimmed}' 달성! 다음 주 목표도 세워보세요.`;
+  return `📋 주간 회고: '${trimmed}' — 이번 주를 마무리해보세요.`;
+}
+
 // Returns approach alerts for habits within threshold days of their next streak milestone (7🔥/30⭐/100💎).
 // Maps getUpcomingMilestone over all habits; only habits within threshold (default 3) appear.
 // Returns empty array when habits is empty or no habits are approaching a milestone — use .length to gate notification.

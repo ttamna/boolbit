@@ -112,6 +112,7 @@ export interface WidgetData {
   pomodoroMorningRemindDate?: string;  // YYYY-MM-DD date when the morning pomodoro start nudge was sent; absent = not sent
   pomodoroEveningRemindDate?: string;  // YYYY-MM-DD date when the evening pomodoro goal-gap nudge was sent; absent = not sent
   habitMilestoneApproachDate?: string; // YYYY-MM-DD date when the habit milestone approach nudge was sent; absent = not sent
+  weeklyReviewRemindDate?: string;     // YYYY-MM-DD (Sunday) when the weekly review nudge was last sent; absent = not sent
   weekGoalHistory?: GoalEntry[];   // rolling log of past weekly goals; newest last; capped at 8 entries; absent = no history
   monthGoalHistory?: GoalEntry[];  // rolling log of past monthly goals; newest last; capped at 12 entries; absent = no history
   quarterGoalHistory?: GoalEntry[]; // rolling log of past quarterly goals; newest last; capped at 8 entries; absent = no history

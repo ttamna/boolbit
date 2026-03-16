@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, and calcHabitMilestoneApproachNotify pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, and multi-habit milestone approach alerts
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, and calcWeeklyReviewReminder pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, and Sunday weekly review nudge
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -1037,5 +1037,53 @@ describe("calcHabitMilestoneApproachNotify", () => {
 
   it("should exclude streak=25 with default threshold=3 (days=5 > 3)", () => {
     expect(calcHabitMilestoneApproachNotify([{ name: "운동", streak: 25 }])).toEqual([]);
+  });
+});
+
+describe("calcWeeklyReviewReminder", () => {
+  it("should return generic review message when no weekGoal is set", () => {
+    const msg = calcWeeklyReviewReminder(undefined, undefined);
+    expect(msg).toContain("주간 회고");
+    expect(msg).toContain("다음 주");
+  });
+
+  it("should return generic review message when weekGoal is empty string", () => {
+    const msg = calcWeeklyReviewReminder("", undefined);
+    expect(msg).toContain("주간 회고");
+    expect(msg).toContain("다음 주");
+  });
+
+  it("should return generic review message when weekGoal is whitespace only", () => {
+    const msg = calcWeeklyReviewReminder("   ", undefined);
+    expect(msg).toContain("주간 회고");
+    expect(msg).toContain("다음 주");
+  });
+
+  it("should include weekGoal text in message when goal is set but not done", () => {
+    const msg = calcWeeklyReviewReminder("블로그 3편 발행", undefined);
+    expect(msg).toContain("블로그 3편 발행");
+  });
+
+  it("should include weekGoal text when goal is set and weekGoalDone is false", () => {
+    const msg = calcWeeklyReviewReminder("코드 리뷰 완료", false);
+    expect(msg).toContain("코드 리뷰 완료");
+  });
+
+  it("should include weekGoal text and congratulate when weekGoalDone is true", () => {
+    const msg = calcWeeklyReviewReminder("운동 5회", true);
+    expect(msg).toContain("운동 5회");
+    expect(msg).toContain("달성");
+  });
+
+  it("should trim whitespace from weekGoal in message", () => {
+    const msg = calcWeeklyReviewReminder("  PR 완료  ", false);
+    expect(msg).toContain("PR 완료");
+    expect(msg).not.toContain("  PR 완료  ");
+  });
+
+  it("should always return a non-empty string", () => {
+    expect(calcWeeklyReviewReminder(undefined, undefined)).toBeTruthy();
+    expect(calcWeeklyReviewReminder("목표", true)).toBeTruthy();
+    expect(calcWeeklyReviewReminder("목표", false)).toBeTruthy();
   });
 });
