@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, and calcWeeklyReviewReminder pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, and Sunday weekly review nudge
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, and calcPerfectDayMilestoneNotify pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, and perfect-day streak milestone notifications
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -1085,5 +1085,53 @@ describe("calcWeeklyReviewReminder", () => {
     expect(calcWeeklyReviewReminder(undefined, undefined)).toBeTruthy();
     expect(calcWeeklyReviewReminder("목표", true)).toBeTruthy();
     expect(calcWeeklyReviewReminder("목표", false)).toBeTruthy();
+  });
+});
+
+describe("calcPerfectDayMilestoneNotify", () => {
+  it("shouldReturnNullForNonMilestoneStreaks", () => {
+    expect(calcPerfectDayMilestoneNotify(0)).toBeNull();
+    expect(calcPerfectDayMilestoneNotify(1)).toBeNull();
+    expect(calcPerfectDayMilestoneNotify(6)).toBeNull();
+    expect(calcPerfectDayMilestoneNotify(8)).toBeNull();
+    expect(calcPerfectDayMilestoneNotify(10)).toBeNull();
+    expect(calcPerfectDayMilestoneNotify(13)).toBeNull();
+    expect(calcPerfectDayMilestoneNotify(101)).toBeNull();
+    expect(calcPerfectDayMilestoneNotify(200)).toBeNull();
+  });
+
+  it("shouldReturnMessageAt7DayMilestone", () => {
+    const msg = calcPerfectDayMilestoneNotify(7);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("7");
+    expect(msg).toContain("완벽한 날");
+  });
+
+  it("shouldReturnMessageAt14DayMilestone", () => {
+    const msg = calcPerfectDayMilestoneNotify(14);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("14");
+    expect(msg).toContain("완벽한 날");
+  });
+
+  it("shouldReturnMessageAt30DayMilestone", () => {
+    const msg = calcPerfectDayMilestoneNotify(30);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("30");
+    expect(msg).toContain("완벽한 날");
+  });
+
+  it("shouldReturnMessageAt50DayMilestone", () => {
+    const msg = calcPerfectDayMilestoneNotify(50);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("50");
+    expect(msg).toContain("완벽한 날");
+  });
+
+  it("shouldReturnMessageAt100DayMilestone", () => {
+    const msg = calcPerfectDayMilestoneNotify(100);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("100");
+    expect(msg).toContain("완벽한 날");
   });
 });

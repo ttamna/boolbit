@@ -14,7 +14,7 @@ import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder } from "./lib/intention";
-import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder } from "./lib/habits";
+import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
@@ -355,12 +355,20 @@ export default function App() {
     if (!allDone) return;
     // Mark today as notified and send the celebration notification.
     persist({ ...dataRef.current, habitsAllDoneDate: today });
+    // Recompute perfect-day streak from data.habits (same source as render-scope habitsPerfectStreak).
+    // calcCheckInPatch always updates checkHistory alongside lastChecked, so the allDone guard above
+    // implies today is present in every habit's checkHistory — perfectStreak reflects the full streak.
+    const last14 = calcLastNDays(today, 14);
+    const perfectStreak = calcPerfectDayStreak(habits, last14);
+    const milestoneMsg = calcPerfectDayMilestoneNotify(perfectStreak);
     (async () => {
       try {
         let ok = await isPermissionGranted();
         if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
         if (!ok) return;
         sendNotification({ title: "Vision Widget", body: `✓ 오늘의 습관 ${habits.length}개 모두 완료!` });
+        // Separate milestone notification when the perfect-day streak hits 7/14/30/50/100 days.
+        if (milestoneMsg) sendNotification({ title: "Vision Widget", body: milestoneMsg });
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.habits, data.habitsAllDoneDate, loaded, persist]);

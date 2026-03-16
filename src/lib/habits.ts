@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, and evening reminder
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, evening reminder, and perfect-day streak milestone notifications
 
 import type { Habit } from "../types";
 
@@ -271,6 +271,21 @@ export function calcHabitMilestoneApproachNotify(
     if (!upcoming) return [];
     return [{ name: habit.name, daysLeft: upcoming.days, badge: upcoming.badge }];
   });
+}
+
+// Perfect-day consecutive streak milestones: 7, 14, 30, 50, 100 days.
+// Each value marks a significant sustained commitment threshold worth a dedicated notification.
+const PERFECT_DAY_MILESTONES: number[] = [7, 14, 30, 50, 100];
+
+// Returns the desktop notification body when the perfect-day streak hits a significant milestone.
+// A "perfect day" means all habits were completed on that calendar day.
+// Fires on exact milestone values (7, 14, 30, 50, 100); returns null for all other streak lengths.
+// Callers should invoke this inside the habitsAllDoneDate effect — once-per-day delivery is already
+// guaranteed by that guard, so no additional persistent state is needed here.
+// Exported for unit testing; pure function with no side effects.
+export function calcPerfectDayMilestoneNotify(streak: number): string | null {
+  if (!PERFECT_DAY_MILESTONES.includes(streak)) return null;
+  return `🌟 완벽한 날 ${streak}일 연속! 모든 습관을 ${streak}일 달성했어요`;
 }
 
 // Plays a short audio cue when a habit is checked in using the Web Audio API.
