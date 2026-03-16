@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, and lifetime milestone crossing
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, and weekly pomodoro session report
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport } from "./pomodoro";
 import { colors } from "../theme";
 import type { PomodoroDay } from "../types";
 
@@ -714,5 +714,116 @@ describe("calcPomodoroLifetimeMilestone", () => {
   it("should return null when both values equal the same milestone", () => {
     // prevMins already AT the milestone — no crossing occurred
     expect(calcPomodoroLifetimeMilestone(300, 325)).toBeNull();
+  });
+});
+
+describe("calcWeeklyPomodoroReport", () => {
+  // last7 = Mon–Sun of the previous week (ending 2026-03-15 Sunday)
+  const last7 = [
+    "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12",
+    "2026-03-13", "2026-03-14", "2026-03-15",
+  ];
+
+  it("should return null when history is empty", () => {
+    expect(calcWeeklyPomodoroReport([], last7)).toBeNull();
+  });
+
+  it("should return null when fewer than 3 active days in window", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-09", count: 5 },
+      { date: "2026-03-10", count: 3 },
+    ];
+    expect(calcWeeklyPomodoroReport(history, last7)).toBeNull();
+  });
+
+  it("should return null when entries are outside the last7 window", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-01", count: 5 },
+      { date: "2026-03-02", count: 5 },
+      { date: "2026-03-03", count: 5 },
+    ];
+    expect(calcWeeklyPomodoroReport(history, last7)).toBeNull();
+  });
+
+  it("should return null for count=0 entries (not counted as active days)", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-09", count: 0 },
+      { date: "2026-03-10", count: 5 },
+      { date: "2026-03-11", count: 5 },
+    ];
+    // only 2 active days (count>0) → null
+    expect(calcWeeklyPomodoroReport(history, last7)).toBeNull();
+  });
+
+  it("should return 🔥 message when totalSessions >= 25", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-09", count: 5 },
+      { date: "2026-03-10", count: 5 },
+      { date: "2026-03-11", count: 5 },
+      { date: "2026-03-12", count: 5 },
+      { date: "2026-03-13", count: 5 },
+    ];
+    const result = calcWeeklyPomodoroReport(history, last7);
+    expect(result).toContain("🔥");
+    expect(result).toContain("25세션");
+    expect(result).toContain("5일 활성");
+  });
+
+  it("should return 🔥 at boundary (totalSessions === 25)", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-09", count: 9 },
+      { date: "2026-03-10", count: 8 },
+      { date: "2026-03-11", count: 8 },
+    ];
+    const result = calcWeeklyPomodoroReport(history, last7);
+    expect(result).toContain("🔥");
+    expect(result).toContain("25세션");
+  });
+
+  it("should return ✅ message when totalSessions is between 10 and 24", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-09", count: 6 },
+      { date: "2026-03-10", count: 5 },
+      { date: "2026-03-11", count: 4 },
+    ];
+    const result = calcWeeklyPomodoroReport(history, last7);
+    expect(result).toContain("✅");
+    expect(result).toContain("15세션");
+    expect(result).toContain("3일 활성");
+  });
+
+  it("should return ✅ at lower boundary (totalSessions === 10)", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-09", count: 4 },
+      { date: "2026-03-10", count: 3 },
+      { date: "2026-03-11", count: 3 },
+    ];
+    const result = calcWeeklyPomodoroReport(history, last7);
+    expect(result).toContain("✅");
+    expect(result).toContain("10세션");
+  });
+
+  it("should return 💪 message when totalSessions < 10", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-09", count: 2 },
+      { date: "2026-03-10", count: 2 },
+      { date: "2026-03-11", count: 2 },
+    ];
+    const result = calcWeeklyPomodoroReport(history, last7);
+    expect(result).toContain("💪");
+    expect(result).toContain("6세션");
+    expect(result).toContain("3일 활성");
+  });
+
+  it("should ignore entries outside the last7 window in total count", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-01", count: 10 }, // outside window — must not count
+      { date: "2026-03-09", count: 5 },
+      { date: "2026-03-10", count: 5 },
+      { date: "2026-03-11", count: 5 },
+    ];
+    const result = calcWeeklyPomodoroReport(history, last7);
+    expect(result).toContain("15세션"); // only 5+5+5, not 10+5+5+5
+    expect(result).toContain("3일 활성");
   });
 });

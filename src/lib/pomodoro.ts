@@ -242,6 +242,30 @@ export function calcPomodoroLifetimeMilestone(
   return `🎉 누적 집중 ${LIFETIME_MILESTONE_LABELS[crossed]} 달성!`;
 }
 
+/**
+ * Returns the Monday morning report for the previous week's total pomodoro sessions and active-day count.
+ * last7Days: 7 YYYY-MM-DD strings ending yesterday — caller's responsibility to build this window.
+ * history: rolling PomodoroDay array; only entries whose date is in last7Days and count > 0 are used.
+ * Returns null when fewer than 3 days with sessions fall within the window (insufficient data for a report).
+ * Lead emoji mirrors calcMomentumEveningDigest tier thresholds for consistency: ≥25 sessions=🔥, ≥10=✅, else=💪.
+ * Exported for unit testing; pure function with no side effects.
+ */
+export function calcWeeklyPomodoroReport(
+  history: PomodoroDay[],
+  last7Days: string[],
+): string | null {
+  const dateWindow = new Set(last7Days);
+  const active = history.filter(e => dateWindow.has(e.date) && e.count > 0);
+  if (active.length < 3) return null;
+
+  const total = active.reduce((s, e) => s + e.count, 0);
+  const days = active.length;
+
+  if (total >= 25) return `🔥 지난주 포모도로 ${total}세션 — 집중력 최고! (${days}일 활성)`;
+  if (total >= 10) return `✅ 지난주 포모도로 ${total}세션 — 잘 집중했어요 (${days}일 활성)`;
+  return `💪 지난주 포모도로 ${total}세션 — 이번 주엔 더 집중해봐요 (${days}일 활성)`;
+}
+
 // Returns the desktop notification body when no pomodoro sessions have been completed today, null otherwise.
 // Hour/date guards live in the caller (App.tsx useEffect) — fires after 10:00 via pomodoroMorningRemindDate guard.
 // Callers should check pomodoroMorningRemindDate before invoking to ensure once-per-day delivery.
