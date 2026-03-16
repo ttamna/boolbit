@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
+// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (focus project has open PRs awaiting review) > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -22,11 +22,13 @@ interface InsightParams {
   sessionGoal: number | undefined;
   habitsAllDoneDate: string | undefined;
   /**
-   * Active/in-progress projects to surface deadline warnings, ci_failure alerts, behind-schedule alerts, stale-focus alerts, and focus-selection nudge; absent = no project context.
+   * Active/in-progress projects to surface deadline warnings, ci_failure alerts, open_prs alerts, behind-schedule alerts, stale-focus alerts, and focus-selection nudge; absent = no project context.
    * `createdDate`, `progress`, `isFocus`, and `githubData` are optional for backwards compatibility with test fixtures that omit them;
    * projects without createdDate+progress are explicitly excluded from the behind-schedule check (not silently skipped).
+   * `githubData.openPrs` is optional here (vs required in GitHubData) so existing test fixtures that only provide ciStatus
+   * remain valid — githubData?.openPrs ?? 0 is used at call-sites so absent openPrs is treated as 0.
    */
-  projects?: Array<Pick<Project, "name" | "deadline" | "status" | "lastFocusDate"> & { createdDate?: string; progress?: number; isFocus?: boolean; githubData?: Pick<GitHubData, "ciStatus"> }>;
+  projects?: Array<Pick<Project, "name" | "deadline" | "status" | "lastFocusDate"> & { createdDate?: string; progress?: number; isFocus?: boolean; githubData?: Pick<GitHubData, "ciStatus"> & { openPrs?: number } }>;
   /** Weekly goal text; absent/empty = no goal set. */
   weekGoal?: string;
   /** True when weekly goal has been marked done; absent/false = not done. */
@@ -155,7 +157,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > ci_failure > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > weak_day_ahead > pomodoro_last_one > pomodoro_goal_streak > pomodoro_day_record > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > almost_perfect_day > momentum_rise > goal_done > goal_streak > month_goal_streak > project_ahead > project_near_completion > project_forecast > personal_best > habit_target_near > intention_streak.
+// Priority order: streak_at_risk > deadline_critical > ci_failure > milestone_near > open_prs > perfect_day > intention_missing > period_start > no_focus_project > weak_day_ahead > pomodoro_last_one > pomodoro_goal_streak > pomodoro_day_record > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > almost_perfect_day > momentum_rise > goal_done > goal_streak > month_goal_streak > project_ahead > project_near_completion > project_forecast > personal_best > habit_target_near > intention_streak.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -219,6 +221,21 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   if (milestoneCandidate && milestoneCandidate.ms) {
     const { habit, ms } = milestoneCandidate;
     return { text: `🎯 ${habit.name} ${ms.badge} 1일 전!`, level: "info" };
+  }
+
+  // 3.5. Open pull requests: active/in-progress project has one or more open PRs awaiting review or merge.
+  // Fires after milestone_near (3) — a habit milestone 1 day away is more time-sensitive than a code review queue.
+  // Fires before perfect_day (4) — an open PR backlog is an actionable developer workflow blocker.
+  // Picks the project with the most open PRs when multiple qualify (highest review burden surfaces first).
+  // openPrs absent/undefined or 0 → no PR context; skipped.
+  if (projects && projects.length > 0) {
+    const withPrs = projects
+      .filter(p => p.status !== "done" && p.status !== "paused" && (p.githubData?.openPrs ?? 0) > 0)
+      .sort((a, b) => (b.githubData?.openPrs ?? 0) - (a.githubData?.openPrs ?? 0))[0];
+    if (withPrs) {
+      const count = withPrs.githubData?.openPrs ?? 0;
+      return { text: `🔀 ${withPrs.name} PR ${count}개 대기 중`, level: "info" };
+    }
   }
 
   // 4. Perfect day: all habits completed today

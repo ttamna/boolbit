@@ -837,6 +837,166 @@ describe("calcTodayInsight", () => {
     expect(result!.text).toContain("프로젝트A"); // first project in user-defined order
   });
 
+  // ── open_prs ────────────────────────────────────────────────────────────────
+  it("shouldReturnOpenPrsWhenActiveProjectHasOpenPrs", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "백엔드", status: "active", githubData: { ciStatus: null, openPrs: 3 } }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("백엔드");
+    expect(result!.text).toContain("PR");
+    expect(result!.text).toContain("3");
+  });
+
+  it("shouldReturnOpenPrsWhenInProgressProjectHasOpenPrs", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "프론트엔드", status: "in-progress", githubData: { ciStatus: null, openPrs: 1 } }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("프론트엔드");
+    expect(result!.text).toContain("PR");
+  });
+
+  it("shouldNotReturnOpenPrsWhenProjectIsDone", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "완료프로젝트", status: "done", githubData: { ciStatus: null, openPrs: 5 } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnOpenPrsWhenProjectIsPaused", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "중단프로젝트", status: "paused", githubData: { ciStatus: null, openPrs: 2 } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnOpenPrsWhenOpenPrsIsZero", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "클린프로젝트", status: "active", githubData: { ciStatus: "success", openPrs: 0 } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnOpenPrsWhenGithubDataAbsent", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "GitHub없음", status: "active" }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPickProjectWithMostOpenPrsWhenMultipleQualify", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "적은PR", status: "active", githubData: { ciStatus: null, openPrs: 1 } },
+        { name: "많은PR", status: "active", githubData: { ciStatus: null, openPrs: 5 } },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("많은PR");
+    expect(result!.text).toContain("5");
+    expect(result!.text).not.toContain("적은PR");
+  });
+
+  it("shouldReturnCiFailureBeforeOpenPrs", () => {
+    // ci_failure (2.5) must preempt open_prs (3.5)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "CI고장", status: "active", githubData: { ciStatus: "failure", openPrs: 3 } }],
+    });
+    expect(result!.text).toContain("CI 실패");
+    expect(result!.text).not.toContain("PR");
+  });
+
+  it("shouldReturnMilestoneNearBeforeOpenPrs", () => {
+    // milestone_near (3) must preempt open_prs (3.5) — streak 6 + unchecked = 1 day before milestone 7
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 6, lastChecked: YESTERDAY, bestStreak: 6 }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "프로젝트", status: "active", githubData: { ciStatus: null, openPrs: 3 } }],
+    });
+    expect(result!.text).toContain("운동");
+    expect(result!.text).not.toContain("PR");
+  });
+
+  it("shouldReturnOpenPrsBeforePerfectDay", () => {
+    // open_prs (3.5) must preempt perfect_day (4)
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 5, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY, // all habits done = perfect_day would fire
+      projects: [{ name: "백엔드", status: "active", githubData: { ciStatus: null, openPrs: 2 } }],
+    });
+    expect(result!.text).toContain("백엔드");
+    expect(result!.text).toContain("PR");
+    expect(result!.text).not.toContain("완벽한");
+  });
+
   // ── deadline_soon ──────────────────────────────────────────────────────────
   it("shouldReturnDeadlineSoonWhenDeadlineIs4DaysAway", () => {
     const result = calcTodayInsight({
