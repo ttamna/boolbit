@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, evening reminder, perfect-day streak milestone notifications, and Monday morning weekly habit completion rate report
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, and per-weekday best/weak day detection
 
 import type { Habit } from "../types";
 
@@ -351,6 +351,10 @@ const MIN_DOW_APPEARANCES = 2;
 // per-weekday averages rather than weekly aggregates — coincidental, not a shared dependency.
 const WEAK_DAY_THRESHOLD = 60;
 
+// Minimum average completion rate (%) at or above which a weekday is considered the user's "best" day.
+// Neutral zone (60–79%) between weak and best thresholds prevents alert fatigue on average days.
+const BEST_DAY_THRESHOLD = 80;
+
 // Computes average habit completion rate per weekday (0=Sun … 6=Sat) over the given day window.
 // Rate is the mean of (habits checked / total habits) across all occurrences of that weekday.
 // Returns null for weekdays with fewer than MIN_DOW_APPEARANCES occurrences — insufficient data.
@@ -406,4 +410,26 @@ export function calcWeakDayOfWeek(
   }
 
   return weakestDow;
+}
+
+// Returns the weekday (0–6) with the highest non-null rate at or above BEST_DAY_THRESHOLD (80%).
+// When multiple weekdays share the maximum rate, returns the lowest weekday number for stability.
+// Returns null when no weekday has a non-null rate at or above the threshold.
+// Exported for unit testing; pure function with no side effects.
+export function calcBestDayOfWeek(
+  rates: Record<number, number | null>,
+): number | null {
+  let bestDow: number | null = null;
+  let bestRate: number | null = null;
+
+  for (let dow = 0; dow <= 6; dow++) {
+    const rate = rates[dow];
+    if (rate === null || rate < BEST_DAY_THRESHOLD) continue;
+    if (bestRate === null || rate > bestRate) {
+      bestRate = rate;
+      bestDow = dow;
+    }
+  }
+
+  return bestDow;
 }

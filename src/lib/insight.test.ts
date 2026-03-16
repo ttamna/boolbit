@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -4216,6 +4216,79 @@ describe("calcTodayInsight — weak_day_ahead (priority 6.8, between no_focus_pr
     expect(result).not.toBeNull();
     // weak_day_ahead text should appear, not the pomodoro "1세션 남았어요" text
     expect(result!.text).not.toContain("1세션");
+  });
+});
+
+describe("calcTodayInsight — best_day_ahead (priority 6.82, between weak_day_ahead and pomodoro)", () => {
+  // Base params: morning, one habit, today is the user's historically strongest habit day.
+  // Uses TOMORROW ("2024-01-16", Tuesday) to avoid period_start(week) firing on Monday.
+  function baseBest() {
+    return {
+      habits: [{ name: "운동", streak: 3, lastChecked: TODAY }],
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      todayIsBestHabitDay: true,
+    };
+  }
+
+  it("shouldReturnBestDayAheadWhenMorningAndTodayIsBestDay", () => {
+    const result = calcTodayInsight(baseBest());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("강한 요일"); // best_day_ahead insight
+  });
+
+  it("shouldNotReturnBestDayAheadWhenTodayIsNotBestDay", () => {
+    const result = calcTodayInsight({ ...baseBest(), todayIsBestHabitDay: false });
+    expect(result?.text ?? "").not.toContain("강한 요일");
+  });
+
+  it("shouldNotReturnBestDayAheadWhenFlagAbsent", () => {
+    const params = { ...baseBest() };
+    delete (params as Record<string, unknown>)["todayIsBestHabitDay"];
+    const result = calcTodayInsight(params);
+    expect(result?.text ?? "").not.toContain("강한 요일");
+  });
+
+  it("shouldNotReturnBestDayAheadInAfternoon", () => {
+    // Afternoon → best_day_ahead is suppressed (morning-only insight)
+    const result = calcTodayInsight({ ...baseBest(), nowHour: 14 });
+    expect(result?.text ?? "").not.toContain("강한 요일");
+  });
+
+  it("shouldNotReturnBestDayAheadAtExactNoon", () => {
+    const result = calcTodayInsight({ ...baseBest(), nowHour: 12 });
+    expect(result?.text ?? "").not.toContain("강한 요일");
+  });
+
+  it("shouldNotReturnBestDayAheadWhenNoHabits", () => {
+    const result = calcTodayInsight({ ...baseBest(), habits: [] });
+    expect(result?.text ?? "").not.toContain("강한 요일");
+  });
+
+  it("shouldReturnWeakDayAheadOverBestDayAheadWhenBothApply", () => {
+    // weak_day_ahead (6.8) beats best_day_ahead (6.82) — warnings preempt positive nudges
+    const result = calcTodayInsight({
+      ...baseBest(),
+      todayIsWeakHabitDay: true, // both flags set simultaneously
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("약한 요일"); // weak_day_ahead wins
+  });
+
+  it("shouldReturnBestDayAheadOverPomodoroLastOneWhenBothApply", () => {
+    // best_day_ahead (6.82) beats pomodoro_last_one (7) — tested via priority ordering
+    const result = calcTodayInsight({
+      ...baseBest(),
+      sessionsToday: 3,
+      sessionGoal: 4, // 3/4 → one session left = pomodoro_last_one condition
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("강한 요일"); // best_day_ahead wins
   });
 });
 
