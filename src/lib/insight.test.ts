@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -1179,6 +1179,213 @@ describe("calcTodayInsight", () => {
       projects: [{ name: "백엔드", status: "active", githubData: { ciStatus: null, lastCommitAt: DAYS_8_AGO + "T00:00:00Z" } }],
     });
     expect(result!.text).toContain("커밋"); // github_drought fires
+    expect(result!.text).not.toContain("완벽한"); // not perfect_day
+  });
+
+  // ── open_issues ─────────────────────────────────────────────────────────────
+  it("shouldReturnOpenIssuesWhenActiveProjectHasFiveOrMoreIssues", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "백엔드", status: "active", githubData: { ciStatus: null, openIssues: 5 } }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("백엔드");
+    expect(result!.text).toContain("5");
+    expect(result!.text).toContain("이슈");
+  });
+
+  it("shouldReturnOpenIssuesWhenInProgressProjectHasFiveOrMoreIssues", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "프론트엔드", status: "in-progress", githubData: { ciStatus: null, openIssues: 8 } }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("프론트엔드");
+    expect(result!.text).toContain("이슈");
+  });
+
+  it("shouldNotReturnOpenIssuesWhenIssueCountIsFour", () => {
+    // boundary: 4 is below threshold of 5 — must NOT fire
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "경계프로젝트", status: "active", githubData: { ciStatus: null, openIssues: 4 } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnOpenIssuesWhenIssueCountIsExactlyFive", () => {
+    // boundary: 5 is exactly the threshold — must fire
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "경계프로젝트", status: "active", githubData: { ciStatus: null, openIssues: 5 } }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이슈");
+  });
+
+  it("shouldNotReturnOpenIssuesWhenProjectIsDone", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "완료프로젝트", status: "done", githubData: { ciStatus: null, openIssues: 10 } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnOpenIssuesWhenProjectIsPaused", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "중단프로젝트", status: "paused", githubData: { ciStatus: null, openIssues: 7 } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnOpenIssuesWhenOpenIssuesAbsent", () => {
+    // absent openIssues treated as 0 — no insight
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "클린프로젝트", status: "active", githubData: { ciStatus: "success" } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnOpenIssuesWhenOpenIssuesIsZero", () => {
+    // explicit 0 must be treated identically to absent — both collapse to 0 via ?? 0
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "이슈없는프로젝트", status: "active", githubData: { ciStatus: null, openIssues: 0 } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPickProjectWithMostIssuesWhenMultipleQualify", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "적은이슈", status: "active", githubData: { ciStatus: null, openIssues: 5 } },
+        { name: "많은이슈", status: "active", githubData: { ciStatus: null, openIssues: 12 } },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("많은이슈"); // highest-count project surfaces first
+    expect(result!.text).toContain("12");
+  });
+
+  it("shouldCiFailurePreemptOpenIssues", () => {
+    // ci_failure (2.5) must preempt open_issues (3.9)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "CI고장", status: "active", githubData: { ciStatus: "failure", openIssues: 8 } }],
+    });
+    expect(result!.text).toContain("CI"); // ci_failure fires
+    expect(result!.text).not.toContain("이슈"); // not open_issues
+  });
+
+  it("shouldOpenPrsPreemptOpenIssues", () => {
+    // open_prs (3.5) must preempt open_issues (3.9)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "백엔드", status: "active", githubData: { ciStatus: null, openPrs: 2, openIssues: 8 } }],
+    });
+    expect(result!.text).toContain("PR"); // open_prs fires
+    expect(result!.text).not.toContain("이슈"); // not open_issues
+  });
+
+  it("shouldGithubDroughtPreemptOpenIssues", () => {
+    // github_drought (3.7) must preempt open_issues (3.9)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "백엔드", status: "active", githubData: { ciStatus: null, lastCommitAt: DAYS_8_AGO + "T00:00:00Z", openIssues: 8 } }],
+    });
+    expect(result!.text).toContain("커밋"); // github_drought fires
+    expect(result!.text).not.toContain("이슈"); // not open_issues
+  });
+
+  it("shouldOpenIssuesPreemptPerfectDay", () => {
+    // open_issues (3.9) must preempt perfect_day (4)
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 5, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY, // all habits done = perfect_day would fire
+      projects: [{ name: "백엔드", status: "active", githubData: { ciStatus: null, openIssues: 6 } }],
+    });
+    expect(result!.text).toContain("이슈"); // open_issues fires
     expect(result!.text).not.toContain("완벽한"); // not perfect_day
   });
 
