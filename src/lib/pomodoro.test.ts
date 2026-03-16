@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, and audio feedback graceful fallback
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, and morning start nudge
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder } from "./pomodoro";
 import { colors } from "../theme";
 import type { PomodoroDay } from "../types";
 
@@ -589,5 +589,23 @@ describe("playPhaseDone", () => {
 
   it("should resolve without error for longBreak phase when AudioContext is unavailable", async () => {
     await expect(playPhaseDone("longBreak")).resolves.toBeUndefined();
+  });
+});
+
+describe("calcPomodoroMorningReminder", () => {
+  it("should return nudge body when sessionsToday is 0", () => {
+    expect(calcPomodoroMorningReminder(0)).toBe("🍅 오늘 집중 세션을 시작해보세요!");
+  });
+
+  it("should return null when sessionsToday is 1", () => {
+    expect(calcPomodoroMorningReminder(1)).toBeNull();
+  });
+
+  it("should return null when sessionsToday is greater than 1", () => {
+    expect(calcPomodoroMorningReminder(5)).toBeNull();
+  });
+
+  it("should return nudge body when sessionsToday is negative (caller guarantees ≥0; negative treated as no sessions)", () => {
+    expect(calcPomodoroMorningReminder(-1)).toBe("🍅 오늘 집중 세션을 시작해보세요!");
   });
 });

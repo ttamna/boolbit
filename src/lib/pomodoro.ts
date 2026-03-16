@@ -1,5 +1,5 @@
-// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, and audio feedback
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, and session-end audio cue
+// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, and morning start nudge
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, and morning reminder
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -212,4 +212,15 @@ export async function playPhaseDone(phase: Phase): Promise<void> {
   } catch {
     // Graceful fallback: AudioContext unavailable or restricted
   }
+}
+
+// Returns the desktop notification body when no pomodoro sessions have been completed today, null otherwise.
+// Hour/date guards live in the caller (App.tsx useEffect) — fires after 10:00 via pomodoroMorningRemindDate guard.
+// Callers should check pomodoroMorningRemindDate before invoking to ensure once-per-day delivery.
+// sessionsToday: caller guarantees ≥0 (derived from calcTodaySessionCount or direct ?? 0 guard); negative treated as 0.
+export function calcPomodoroMorningReminder(
+  sessionsToday: number,
+): string | null {
+  if (sessionsToday > 0) return null;
+  return "🍅 오늘 집중 세션을 시작해보세요!";
 }

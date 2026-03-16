@@ -108,6 +108,7 @@ export interface WidgetData {
   habitsAllDoneDate?: string;   // YYYY-MM-DD date when the "all habits done today" notification was sent; absent = not sent
   habitEveningRemindDate?: string; // YYYY-MM-DD date when the evening unchecked-habits reminder was sent; absent = not sent
   intentionMorningRemindDate?: string; // YYYY-MM-DD date when the morning intention-setter reminder was sent; absent = not sent
+  pomodoroMorningRemindDate?: string;  // YYYY-MM-DD date when the morning pomodoro start nudge was sent; absent = not sent
   weekGoalHistory?: GoalEntry[];   // rolling log of past weekly goals; newest last; capped at 8 entries; absent = no history
   monthGoalHistory?: GoalEntry[];  // rolling log of past monthly goals; newest last; capped at 12 entries; absent = no history
   quarterGoalHistory?: GoalEntry[]; // rolling log of past quarterly goals; newest last; capped at 8 entries; absent = no history

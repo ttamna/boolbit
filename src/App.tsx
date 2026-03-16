@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -379,6 +379,30 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.todayIntention, data.intentionMorningRemindDate, loaded, persist]);
+
+  // Morning pomodoro start nudge — fires once per calendar day at 10:00+ when no sessions completed today.
+  // pomodoroMorningRemindDate persists the guard so it fires only once per calendar day even after restart.
+  // Design: date is persisted before the async send (same pattern as intentionMorningRemindDate) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.pomodoroMorningRemindDate === today) return;
+    if (now.getHours() < 10) return;
+    const sessionsToday = data.pomodoroSessionsDate === today ? (data.pomodoroSessions ?? 0) : 0;
+    const msg = calcPomodoroMorningReminder(sessionsToday);
+    if (!msg) return;
+    persist({ ...dataRef.current, pomodoroMorningRemindDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.pomodoroSessionsDate, data.pomodoroSessions, data.pomodoroMorningRemindDate, loaded, persist]);
+
 
   // At-risk streak notification — fires once per app startup when habits are about to lose their streak.
   // "At risk" = streak > 0, last checked yesterday (midnight reset will zero the streak if not checked today).
