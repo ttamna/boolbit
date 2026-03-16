@@ -592,7 +592,12 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           {/* Controls */}
           <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={() => setRunning(r => !r)}
+              onClick={async () => {
+                if (!running && !isPaused && phase === "focus" && notifyRef.current) {
+                  await notify("Vision Widget", "🎯 집중 시작!");
+                }
+                setRunning(r => !r);
+              }}
               style={{
                 flex: 1, padding: "6px 0", borderRadius: radius.chip,
                 background: running ? `${phaseColor}22` : `${phaseColor}33`,
