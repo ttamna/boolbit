@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -451,6 +451,29 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.pomodoroSessionsDate, data.pomodoroSessions, data.pomodoroMorningRemindDate, loaded, persist]);
+
+  // pomodoroEveningRemindDate persists the guard so it fires only once per calendar day even after restart.
+  // Fires after 17:00 when the user has not yet met their daily session goal (or has 0 sessions when no goal set).
+  // Design: date is persisted before the async send (same pattern as pomodoroMorningRemindDate) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.pomodoroEveningRemindDate === today) return;
+    if (now.getHours() < 17) return;
+    const sessionsToday = data.pomodoroSessionsDate === today ? (data.pomodoroSessions ?? 0) : 0;
+    const msg = calcPomodoroEveningReminder(sessionsToday, data.pomodoroSessionGoal);
+    if (!msg) return;
+    persist({ ...dataRef.current, pomodoroEveningRemindDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.pomodoroSessionsDate, data.pomodoroSessions, data.pomodoroSessionGoal, data.pomodoroEveningRemindDate, loaded, persist]);
 
   // Habit milestone approach nudge — fires once per calendar day at 09:00+ (same window as intention reminder)
   // when any habit is within 3 days of its next streak milestone (7🔥/30⭐/100💎).

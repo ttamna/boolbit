@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, and morning start nudge
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, and evening goal-gap nudge
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder } from "./pomodoro";
 import { colors } from "../theme";
 import type { PomodoroDay } from "../types";
 
@@ -607,5 +607,47 @@ describe("calcPomodoroMorningReminder", () => {
 
   it("should return nudge body when sessionsToday is negative (caller guarantees ≥0; negative treated as no sessions)", () => {
     expect(calcPomodoroMorningReminder(-1)).toBe("🍅 오늘 집중 세션을 시작해보세요!");
+  });
+});
+
+describe("calcPomodoroEveningReminder", () => {
+  it("should return reminder body when no goal and 0 sessions today", () => {
+    expect(calcPomodoroEveningReminder(0, undefined)).toBe("🍅 오늘 아직 집중 세션이 없어요!");
+  });
+
+  it("should return null when no goal and 1 session done", () => {
+    expect(calcPomodoroEveningReminder(1, undefined)).toBeNull();
+  });
+
+  it("should return null when no goal and multiple sessions done", () => {
+    expect(calcPomodoroEveningReminder(4, undefined)).toBeNull();
+  });
+
+  it("should return reminder with full gap when goal set and 0 sessions done", () => {
+    expect(calcPomodoroEveningReminder(0, 4)).toBe("🍅 목표까지 4세션 남았어요! (0/4)");
+  });
+
+  it("should return reminder with partial gap when goal set and partially done", () => {
+    expect(calcPomodoroEveningReminder(2, 4)).toBe("🍅 목표까지 2세션 남았어요! (2/4)");
+  });
+
+  it("should return null when goal exactly reached", () => {
+    expect(calcPomodoroEveningReminder(4, 4)).toBeNull();
+  });
+
+  it("should return null when sessions exceed goal", () => {
+    expect(calcPomodoroEveningReminder(5, 4)).toBeNull();
+  });
+
+  it("should treat sessionGoal=0 as no goal (returns reminder when 0 sessions)", () => {
+    expect(calcPomodoroEveningReminder(0, 0)).toBe("🍅 오늘 아직 집중 세션이 없어요!");
+  });
+
+  it("should return reminder body when sessionsToday is negative and no goal (clamped to 0)", () => {
+    expect(calcPomodoroEveningReminder(-1, undefined)).toBe("🍅 오늘 아직 집중 세션이 없어요!");
+  });
+
+  it("should return reminder body when sessionsToday is negative with goal set (clamped to 0, displays 0/goal)", () => {
+    expect(calcPomodoroEveningReminder(-1, 4)).toBe("🍅 목표까지 4세션 남았어요! (0/4)");
   });
 });

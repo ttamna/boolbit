@@ -1,5 +1,5 @@
-// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, and morning start nudge
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, and morning reminder
+// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, and evening goal-gap nudge
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, and evening reminder
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -223,4 +223,26 @@ export function calcPomodoroMorningReminder(
 ): string | null {
   if (sessionsToday > 0) return null;
   return "🍅 오늘 집중 세션을 시작해보세요!";
+}
+
+// Returns the desktop notification body when the daily pomodoro goal has not been reached by evening.
+// When sessionGoal is set (>0): returns null once sessions >= sessionGoal; otherwise returns the remaining-session count with progress context.
+// When sessionGoal is absent/0: returns null once any session has been completed; otherwise returns a generic no-session nudge.
+// Hour/date guards live in the caller (App.tsx useEffect) — fires after 17:00 via pomodoroEveningRemindDate guard.
+// Callers should check pomodoroEveningRemindDate before invoking to ensure once-per-day delivery.
+// sessionsToday: caller guarantees ≥0; negative values are clamped to 0 in both goal-set and no-goal paths.
+// sessionGoal: absent/0 = no daily goal (1-session threshold applies); positive integer = explicit goal.
+export function calcPomodoroEveningReminder(
+  sessionsToday: number,
+  sessionGoal: number | undefined,
+): string | null {
+  const sessions = Math.max(0, sessionsToday); // clamp: negative values treated as 0 — caller guarantees ≥0
+  const hasGoal = sessionGoal != null && sessionGoal > 0;
+  if (hasGoal) {
+    if (sessions >= sessionGoal!) return null;
+    const remaining = sessionGoal! - sessions;
+    return `🍅 목표까지 ${remaining}세션 남았어요! (${sessions}/${sessionGoal})`;
+  }
+  if (sessions > 0) return null;
+  return "🍅 오늘 아직 집중 세션이 없어요!";
 }
