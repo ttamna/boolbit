@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, and calcIntentionDoneNotify helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, and calcMorningIntentionReminder helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify } from "./intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder } from "./intention";
 import type { IntentionEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
@@ -323,5 +323,27 @@ describe("calcIntentionDoneNotify", () => {
 
   it("should return null when prevDone is already true (no duplicate notify)", () => {
     expect(calcIntentionDoneNotify(true, true, "운동하기")).toBeNull();
+  });
+});
+
+describe("calcMorningIntentionReminder", () => {
+  it("should return reminder body when todayIntention is undefined", () => {
+    expect(calcMorningIntentionReminder(undefined)).toBe("☀️ 오늘의 의도를 설정해보세요!");
+  });
+
+  it("should return reminder body when todayIntention is empty string", () => {
+    expect(calcMorningIntentionReminder("")).toBe("☀️ 오늘의 의도를 설정해보세요!");
+  });
+
+  it("should return reminder body when todayIntention is whitespace only", () => {
+    expect(calcMorningIntentionReminder("   ")).toBe("☀️ 오늘의 의도를 설정해보세요!");
+  });
+
+  it("should return null when todayIntention is set", () => {
+    expect(calcMorningIntentionReminder("운동하기")).toBeNull();
+  });
+
+  it("should return null when todayIntention is non-empty string with spaces", () => {
+    expect(calcMorningIntentionReminder("  독서 30분  ")).toBeNull();
   });
 });
