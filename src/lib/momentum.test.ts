@@ -2,7 +2,7 @@
 // ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, and 3-day trend detection
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend } from "./momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -653,5 +653,45 @@ describe("calcMomentumTrend", () => {
       { date: "2026-03-16", score: 40, tier: "mid" as const },
     ];
     expect(calcMomentumTrend(history, "2026-03-16")).toBe("declining");
+  });
+});
+
+describe("calcMomentumEveningDigest", () => {
+  it("should return null when score is zero", () => {
+    expect(calcMomentumEveningDigest(0, "low")).toBeNull();
+  });
+
+  it("should return null when score is negative (defensive guard)", () => {
+    expect(calcMomentumEveningDigest(-1, "low")).toBeNull();
+  });
+
+  it("should return low tier message for minimum non-zero score", () => {
+    const msg = calcMomentumEveningDigest(1, "low");
+    expect(msg).toContain("1");
+    expect(msg).toContain("💪");
+  });
+
+  it("should return high tier message with score for high tier", () => {
+    const msg = calcMomentumEveningDigest(82, "high");
+    expect(msg).toContain("82");
+    expect(msg).toContain("🔥");
+  });
+
+  it("should return mid tier message with score for mid tier", () => {
+    const msg = calcMomentumEveningDigest(50, "mid");
+    expect(msg).toContain("50");
+    expect(msg).toContain("✅");
+  });
+
+  it("should return low tier message with score for low tier", () => {
+    const msg = calcMomentumEveningDigest(20, "low");
+    expect(msg).toContain("20");
+    expect(msg).toContain("💪");
+  });
+
+  it("should return high tier message for perfect score", () => {
+    const msg = calcMomentumEveningDigest(100, "high");
+    expect(msg).toContain("100");
+    expect(msg).toContain("🔥");
   });
 });

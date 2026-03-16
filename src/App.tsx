@@ -20,7 +20,7 @@ import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone } from "./lib/pomodoro";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg } from "./lib/momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
@@ -1055,6 +1055,29 @@ export default function App() {
     persist({ ...current, momentumHistory: updated });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dailyScore.score, dailyScore.tier, todayStr]);
+
+  // Evening momentum score digest — fires once per calendar day at 21:00+ when today's score > 0.
+  // Gives the user end-of-day closure by surfacing their momentum score with a tier-appropriate message.
+  // momentumEveningDigestDate persists the guard so it fires only once per calendar day even after restart.
+  // Design: date is persisted before the async send (same pattern as habitEveningRemindDate) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.momentumEveningDigestDate === today) return;
+    if (now.getHours() < 21) return;
+    const msg = calcMomentumEveningDigest(dailyScore.score, dailyScore.tier);
+    if (!msg) return;
+    persist({ ...dataRef.current, momentumEveningDigestDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [dailyScore.score, dailyScore.tier, data.momentumEveningDigestDate, loaded, persist]);
 
   // intentionConsecutiveDays: consecutive days (including today) on which the user has set an intention.
   // Pure function extracted to src/lib/intention.ts for testability.

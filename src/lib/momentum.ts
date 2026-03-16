@@ -1,5 +1,5 @@
 // ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
-// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection
+// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection; calcMomentumEveningDigest — end-of-day score summary notification body
 
 import type { MomentumEntry } from "../types";
 
@@ -177,4 +177,15 @@ export function calcMomentumTrend(history: MomentumEntry[], todayStr: string): M
   if (scores[2] < scores[1] && scores[1] < scores[0]) return "declining";
   if (scores[2] > scores[1] && scores[1] > scores[0]) return "rising";
   return "stable";
+}
+
+// Returns the evening digest notification body summarising today's momentum score.
+// score 0 → null (user had no activity; avoids a demoralising "0점" push at end of day).
+// Tier determines the tone: high=🔥 celebratory, mid=✅ positive, low=💪 encouraging.
+// Exported for unit testing; pure function with no side effects.
+export function calcMomentumEveningDigest(score: number, tier: "high" | "mid" | "low"): string | null {
+  if (score <= 0) return null;
+  if (tier === "high") return `🔥 오늘 모멘텀 ${score}점 — 고점 달성! 이 흐름 유지해요`;
+  if (tier === "mid") return `✅ 오늘 모멘텀 ${score}점 — 괜찮은 하루였어요`;
+  return `💪 오늘 모멘텀 ${score}점 — 내일은 더 힘내봐요!`;
 }
