@@ -13,15 +13,15 @@
   /* Colors - text hierarchy */
   --color-text-primary: rgba(255, 255, 255, 0.95);
   --color-text-high: rgba(255, 255, 255, 0.88);
-  --color-text-mid: rgba(255, 255, 255, 0.5);
-  --color-text-low: rgba(255, 255, 255, 0.45);
-  --color-text-muted: rgba(255, 255, 255, 0.4);
-  --color-text-faint: rgba(255, 255, 255, 0.35);
-  --color-text-dim: rgba(255, 255, 255, 0.3);
-  --color-text-subtle: rgba(255, 255, 255, 0.25);
-  --color-text-ghost: rgba(255, 255, 255, 0.2);
-  --color-text-phantom: rgba(255, 255, 255, 0.15);
-  --color-text-label: rgba(255, 255, 255, 0.12);
+  --color-text-mid: rgba(255, 255, 255, 0.72);
+  --color-text-low: rgba(255, 255, 255, 0.65);
+  --color-text-muted: rgba(255, 255, 255, 0.62);
+  --color-text-faint: rgba(255, 255, 255, 0.55);
+  --color-text-dim: rgba(255, 255, 255, 0.50);
+  --color-text-subtle: rgba(255, 255, 255, 0.44);
+  --color-text-ghost: rgba(255, 255, 255, 0.36);
+  --color-text-phantom: rgba(255, 255, 255, 0.30);
+  --color-text-label: rgba(255, 255, 255, 0.24);
 
   /* Colors - surfaces */
   --color-surface-faint: rgba(255, 255, 255, 0.04);
@@ -41,7 +41,7 @@
   --fs-clock-sec: 32px;
   --fs-lg: 14px;
   --fs-base: 13px;
-  --fs-sm: 12px;
+  --fs-sm: 13px;
   --fs-xs: 11px;
   --fs-label: 10px;
   --fs-mini: 9px;
