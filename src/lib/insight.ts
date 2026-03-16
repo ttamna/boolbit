@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -61,6 +61,12 @@ interface InsightParams {
    * Absent/undefined = no streak data available.
    */
   weekGoalPastDoneStreak?: number;
+  /**
+   * Number of consecutive PAST days (not including today) where the daily pomodoro sessionGoal was met or exceeded.
+   * A value ≥ 2 with today's sessions < sessionGoal triggers a goal-streak nudge.
+   * Absent/undefined = no streak data or sessionGoal not set.
+   */
+  pomodoroGoalStreak?: number;
 }
 
 // Habit streak milestones at which a personal-best celebration is shown (mirrors getUpcomingMilestone targets).
@@ -122,6 +128,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     yearGoal, yearGoalDone, daysLeftYear,
     momentumHistory,
     weekGoalPastDoneStreak,
+    pomodoroGoalStreak,
   } = params;
 
   // 1. Streak at risk: evening (≥ 18h) + high streak (≥ 7) + not yet checked today
@@ -202,6 +209,19 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // 7. Pomodoro: one session away from daily goal
   if (sessionGoal !== undefined && sessionsToday === sessionGoal - 1) {
     return { text: "🍅 포모도로 목표까지 1세션!", level: "info" };
+  }
+
+  // 7.45. Pomodoro goal streak: consecutive past days where sessionGoal was met — motivational nudge to sustain the streak.
+  // Fires when pomodoroGoalStreak ≥ 2 and today's goal is not yet met (sessionsToday < sessionGoal).
+  // Threshold ≥ 2: "연속 달성 중" (ongoing streak) requires at least two past days; streak=1 (only yesterday) is
+  //   not yet a meaningful pattern worth surfacing. Once streak ≥ 2, every additional day reinforces the habit.
+  // No nowHour gate (unlike goal_streak at 10.75): this sits in the pomodoro-urgency priority range (7.x)
+  //   where time-of-day filtering is not used — it provides useful all-day motivation until the goal is met.
+  //   streak_at_risk (priority 1, nowHour ≥ 18) will preempt this if a habit streak is at risk in the evening.
+  // sessionGoal > 0 guard prevents degenerate zero-goal firing.
+  // Placed before pomodoro_goal_reached (7.5) so the streak message yields once the goal is met today.
+  if (pomodoroGoalStreak !== undefined && pomodoroGoalStreak >= 2 && sessionGoal !== undefined && sessionGoal > 0 && sessionsToday < sessionGoal) {
+    return { text: `🍅 포모도로 목표 ${pomodoroGoalStreak}일 연속 달성 중! 오늘도 화이팅`, level: "success" };
   }
 
   // 7.5. Pomodoro goal reached: daily session goal met or exceeded — positive reinforcement.

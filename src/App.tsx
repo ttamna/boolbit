@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -1190,6 +1190,11 @@ export default function App() {
   const momentumStreak = calcMomentumStreak(data.momentumHistory ?? [], todayStr);
   // momentumWeekAvg: rounded average of the 7-day momentum history; null when < 2 entries
   const momentumWeekAvg = calcMomentumWeekAvg(data.momentumHistory ?? []);
+  // pomodoroGoalStreak: consecutive PAST days (not today) where sessionGoal was met or exceeded.
+  // undefined when sessionGoal is not set (no goal means streak is meaningless).
+  const pomodoroGoalStreak = data.pomodoroSessionGoal != null && data.pomodoroSessionGoal > 0
+    ? calcPomodoroGoalStreak(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, todayStr)
+    : undefined;
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1223,6 +1228,7 @@ export default function App() {
       (data.weekGoalHistory ?? []).filter(e => e.done === true),
       renderDate,
     ) - 1),
+    pomodoroGoalStreak,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 7-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes

@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all fifteen insight types and their priority ordering (including no_focus_project, pomodoro_goal_reached, momentum_decline + momentum_rise)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -422,6 +422,108 @@ describe("calcTodayInsight", () => {
     });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("완벽한"); // perfect_day wins
+  });
+
+  // ── pomodoro_goal_streak ────────────────────────────────────────────────────
+  it("shouldReturnPomodoroGoalStreakWhenStreakGe2AndGoalNotYetMet", () => {
+    // TODAY = "2024-01-15" is a Monday — pass weekGoal to prevent period_start (6) from firing
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: 4,
+      habitsAllDoneDate: undefined,
+      pomodoroGoalStreak: 2,
+      weekGoal: "임시 목표",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("포모도로");
+    expect(result!.text).toContain("2");
+  });
+
+  it("shouldReturnPomodoroGoalStreakWith5DayStreak", () => {
+    // weekGoal set to prevent period_start (6) firing on TODAY=Monday; afternoon hour avoids morning-only insights
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 1,
+      sessionGoal: 4,
+      habitsAllDoneDate: undefined,
+      pomodoroGoalStreak: 5,
+      weekGoal: "임시 목표",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("5");
+  });
+
+  it("shouldNotReturnPomodoroGoalStreakWhenStreakLessThan2", () => {
+    // Use afternoon hour to avoid period_start (morning-only, nowHour < 12); weekGoal set as well
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: 4,
+      habitsAllDoneDate: undefined,
+      pomodoroGoalStreak: 1,
+      weekGoal: "임시 목표",
+    });
+    // streak=1 is not enough to fire; expect null (no other insight matches)
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnPomodoroGoalStreakWhenGoalAlreadyMetToday", () => {
+    // When today's goal is met, pomodoro_goal_reached (7.5) fires instead
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: undefined,
+      pomodoroGoalStreak: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("목표 달성"); // pomodoro_goal_reached wins
+  });
+
+  it("shouldNotReturnPomodoroGoalStreakWhenSessionGoalUndefined", () => {
+    // Use afternoon hour to avoid period_start (morning-only) and weekGoal to prevent period_start at all
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      pomodoroGoalStreak: 5,
+      weekGoal: "임시 목표",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPomodoroLastOneFireBeforePomodoroGoalStreak", () => {
+    // pomodoro_last_one (7) fires before pomodoro_goal_streak (7.45)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 3,   // one away from goal=4
+      sessionGoal: 4,
+      habitsAllDoneDate: undefined,
+      pomodoroGoalStreak: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("1세션"); // pomodoro_last_one wins
   });
 
   // ── null baseline ──────────────────────────────────────────────────────────

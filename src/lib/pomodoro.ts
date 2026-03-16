@@ -1,5 +1,5 @@
 // ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, and lifetime milestone notifications
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, and cumulative focus milestone crossing
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, and goal-streak consecutive past days
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -275,6 +275,33 @@ export function calcPomodoroMorningReminder(
 ): string | null {
   if (sessionsToday > 0) return null;
   return "🍅 오늘 집중 세션을 시작해보세요!";
+}
+
+// Returns the number of consecutive PAST days (not including today) where sessions met or exceeded sessionGoal.
+// Absent history entries are treated as 0 sessions (goal not met — same convention as calcFocusStreak).
+// Returns 0 when sessionGoal ≤ 0 or yesterday did not meet the goal.
+// Only past days are counted — today's sessions are intentionally excluded so this is stable until end-of-day.
+// Loop termination: any absent date → count=0 < sessionGoal → immediate break; history is capped at 14 days
+// (via updatePomodoroHistory) so in practice the loop runs at most 14 iterations. Same pattern as calcFocusStreak.
+export function calcPomodoroGoalStreak(
+  history: PomodoroDay[],
+  sessionGoal: number,
+  todayStr: string,
+): number {
+  if (sessionGoal <= 0) return 0;
+  const dateMap = new Map<string, number>(history.map(e => [e.date, e.count]));
+  const [yr, mo, day] = todayStr.split("-").map(Number);
+  let streak = 0;
+  let daysBack = 1; // start from yesterday; today is excluded
+  while (true) {
+    const cur = new Date(yr, mo - 1, day - daysBack); // local time — no TZ shift risk
+    const dateKey = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+    const count = dateMap.get(dateKey) ?? 0;
+    if (count < sessionGoal) break;
+    streak++;
+    daysBack++;
+  }
+  return streak;
 }
 
 // Returns the desktop notification body when the daily pomodoro goal has not been reached by evening.
