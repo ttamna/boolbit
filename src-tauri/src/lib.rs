@@ -31,6 +31,8 @@ pub struct WidgetSettings {
     pub github_pat: Option<String>,
     #[serde(rename = "githubRefreshInterval", default, skip_serializing_if = "Option::is_none")]
     pub github_refresh_interval: Option<u32>,
+    #[serde(rename = "pinned", default, skip_serializing_if = "Option::is_none")]
+    pub pinned: Option<bool>,
 }
 
 const VALID_THEMES: &[&str] = &["void", "nebula", "forest", "ember", "midnight", "aurora", "rose"];
@@ -224,6 +226,33 @@ pub struct WidgetData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "yearGoalHistory")]
     pub year_goal_history: Option<Vec<GoalEntry>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "pomodoroSound", default)]
+    pub pomodoro_sound: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "habitsSound", default)]
+    pub habits_sound: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "momentumHistory", default)]
+    pub momentum_history: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "habitEveningRemindDate", default)]
+    pub habit_evening_remind_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "intentionMorningRemindDate", default)]
+    pub intention_morning_remind_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "intentionEveningRemindDate", default)]
+    pub intention_evening_remind_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "pomodoroMorningRemindDate", default)]
+    pub pomodoro_morning_remind_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "pomodoroEveningRemindDate", default)]
+    pub pomodoro_evening_remind_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "habitMilestoneApproachDate", default)]
+    pub habit_milestone_approach_date: Option<String>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -247,6 +276,7 @@ fn default_settings() -> WidgetSettings {
         clock_format: "24h".to_string(),
         github_pat: None,
         github_refresh_interval: None,
+        pinned: None,
     }
 }
 
@@ -372,7 +402,29 @@ fn default_data() -> WidgetData {
         month_goal_history: None,
         quarter_goal_history: None,
         year_goal_history: None,
+        pomodoro_sound: None,
+        habits_sound: None,
+        momentum_history: None,
+        habit_evening_remind_date: None,
+        intention_morning_remind_date: None,
+        intention_evening_remind_date: None,
+        pomodoro_morning_remind_date: None,
+        pomodoro_evening_remind_date: None,
+        habit_milestone_approach_date: None,
     }
+}
+
+/// Validates an optional YYYY-MM-DD date string; returns None for any invalid value.
+pub(crate) fn sanitize_ymd_date(d: Option<String>) -> Option<String> {
+    d.as_deref()
+        .filter(|s| {
+            let b = s.as_bytes();
+            s.len() == 10
+                && b.iter().all(|&x| x.is_ascii_digit() || x == b'-')
+                && b[4] == b'-'
+                && b[7] == b'-'
+        })
+        .map(String::from)
 }
 
 #[tauri::command]
@@ -458,20 +510,8 @@ fn load_data() -> WidgetData {
     if data.today_intention.as_deref() == Some("") {
         data.today_intention = None;
     }
-    // Sanitize today_intention_date: must be YYYY-MM-DD format (length 10, digit/dash chars, hyphens at positions 4 and 7)
-    match &data.today_intention_date {
-        Some(d) => {
-            let bytes = d.as_bytes();
-            let valid = d.len() == 10
-                && bytes.iter().all(|&b| b.is_ascii_digit() || b == b'-')
-                && bytes[4] == b'-'
-                && bytes[7] == b'-';
-            if !valid {
-                data.today_intention_date = None;
-            }
-        }
-        None => {}
-    }
+    // Sanitize today_intention_date: must be YYYY-MM-DD format
+    data.today_intention_date = sanitize_ymd_date(data.today_intention_date);
     // Sanitize today_intention_done: clear if intention is absent (done without an intention is meaningless)
     if data.today_intention.is_none() {
         data.today_intention_done = None;
@@ -752,46 +792,21 @@ fn load_data() -> WidgetData {
             .filter(|s| !s.is_empty())
             .map(String::from);
         // last_focus_date: must be strict YYYY-MM-DD format; any other value → None
-        project.last_focus_date = project.last_focus_date.as_deref()
-            .filter(|s| {
-                let b = s.as_bytes();
-                s.len() == 10
-                    && b.iter().all(|&x| x.is_ascii_digit() || x == b'-')
-                    && b[4] == b'-'
-                    && b[7] == b'-'
-            })
-            .map(String::from);
+        project.last_focus_date = sanitize_ymd_date(project.last_focus_date.take());
         // completed_date: must be strict YYYY-MM-DD format; any other value → None
-        project.completed_date = project.completed_date.as_deref()
-            .filter(|s| {
-                let b = s.as_bytes();
-                s.len() == 10
-                    && b.iter().all(|&x| x.is_ascii_digit() || x == b'-')
-                    && b[4] == b'-'
-                    && b[7] == b'-'
-            })
-            .map(String::from);
+        project.completed_date = sanitize_ymd_date(project.completed_date.take());
         // created_date: must be strict YYYY-MM-DD format; any other value → None
-        project.created_date = project.created_date.as_deref()
-            .filter(|s| {
-                let b = s.as_bytes();
-                s.len() == 10
-                    && b.iter().all(|&x| x.is_ascii_digit() || x == b'-')
-                    && b[4] == b'-'
-                    && b[7] == b'-'
-            })
-            .map(String::from);
+        project.created_date = sanitize_ymd_date(project.created_date.take());
     }
     // Sanitize habits_all_done_date: must be strict YYYY-MM-DD format; any other value → None
-    data.habits_all_done_date = data.habits_all_done_date.as_deref()
-        .filter(|s| {
-            let b = s.as_bytes();
-            s.len() == 10
-                && b.iter().all(|&x| x.is_ascii_digit() || x == b'-')
-                && b[4] == b'-'
-                && b[7] == b'-'
-        })
-        .map(String::from);
+    data.habits_all_done_date = sanitize_ymd_date(data.habits_all_done_date);
+    // Sanitize remind/milestone date fields: must be strict YYYY-MM-DD format; any other value → None
+    data.habit_evening_remind_date = sanitize_ymd_date(data.habit_evening_remind_date);
+    data.intention_morning_remind_date = sanitize_ymd_date(data.intention_morning_remind_date);
+    data.intention_evening_remind_date = sanitize_ymd_date(data.intention_evening_remind_date);
+    data.pomodoro_morning_remind_date = sanitize_ymd_date(data.pomodoro_morning_remind_date);
+    data.pomodoro_evening_remind_date = sanitize_ymd_date(data.pomodoro_evening_remind_date);
+    data.habit_milestone_approach_date = sanitize_ymd_date(data.habit_milestone_approach_date);
     data
 }
 
@@ -853,6 +868,8 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+mod widget_data_fields_test;
 
 fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
     use tauri::{
