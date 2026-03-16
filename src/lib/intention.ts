@@ -1,5 +1,5 @@
-// ABOUTME: Pure helpers for intention streak, 7-day heatmap, and week-over-week trend calculation — no side effects
-// ABOUTME: todayStr anchors all date arithmetic for DST safety; calcIntentionWeekTrend compares prev-7/cur-7 done rates
+// ABOUTME: Pure helpers for intention streak, 7-day heatmap, week-over-week trend, and done-notification logic
+// ABOUTME: todayStr anchors all date arithmetic for DST safety; calcIntentionDoneNotify guards duplicate notifications
 
 import type { IntentionEntry } from "../types";
 
@@ -92,4 +92,18 @@ export function calcIntentionWeekTrend(
   if (diff >= 10) return "↑";
   if (diff <= -10) return "↓";
   return "→";
+}
+
+// Returns the desktop notification body when todayIntentionDone transitions from falsy to true, null otherwise.
+// Includes the intention text in quotes when non-empty; falls back to bare message for absent/whitespace-only text.
+// Callers should pass the PREVIOUS value of todayIntentionDone to detect the false→true transition.
+// Exported for unit testing; pure function with no side effects.
+export function calcIntentionDoneNotify(
+  done: boolean,
+  prevDone: boolean | undefined,
+  intentionText: string | undefined,
+): string | null {
+  if (!done || prevDone) return null;
+  const trimmed = intentionText?.trim();
+  return trimmed ? `✨ 오늘의 의도 달성! "${trimmed}"` : "✨ 오늘의 의도 달성!";
 }

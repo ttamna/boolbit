@@ -13,7 +13,7 @@ import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend } from "./lib/intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
@@ -430,11 +430,23 @@ export default function App() {
       updatedHistory = history;
     }
     // Only meaningful when an intention exists; false is stored as absent to keep JSON lean
+    // Capture prevDone before persist so the false→true transition can be detected below.
+    const prevDone = snapshot.todayIntentionDone;
     persist({
       ...snapshot,
       todayIntentionDone: done || undefined,
       intentionHistory: updatedHistory.length > 0 ? updatedHistory : undefined,
     });
+    // Notify on false→true transition only (prevDone captured before persist, safer than re-reading dataRef).
+    const notifyBody = calcIntentionDoneNotify(done, prevDone, snapshot.todayIntention);
+    if (notifyBody) (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: notifyBody });
+      } catch { /* Notification not available in browser dev mode */ }
+    })();
   }, [persist]);
 
   const updateWeekGoal = useCallback((weekGoal: string) => {

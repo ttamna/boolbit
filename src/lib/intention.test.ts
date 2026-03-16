@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, and calcIntentionWeekTrend pure helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, and calcIntentionDoneNotify helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend } from "./intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify } from "./intention";
 import type { IntentionEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
@@ -293,5 +293,35 @@ describe("calcIntentionWeekTrend", () => {
       { date: "2026-03-04", text: "d", done: true },
     ];
     expect(calcIntentionWeekTrend(LAST_14, TODAY, "오늘의도", true, history)).toBe("→");
+  });
+});
+
+describe("calcIntentionDoneNotify", () => {
+  it("should return notification body with quoted intention when done transitions to true", () => {
+    expect(calcIntentionDoneNotify(true, undefined, "운동하기")).toBe('✨ 오늘의 의도 달성! "운동하기"');
+  });
+
+  it("should return notification body with quoted intention when prevDone is false", () => {
+    expect(calcIntentionDoneNotify(true, false, "독서 30분")).toBe('✨ 오늘의 의도 달성! "독서 30분"');
+  });
+
+  it("should return bare notification body when intention text is undefined", () => {
+    expect(calcIntentionDoneNotify(true, undefined, undefined)).toBe("✨ 오늘의 의도 달성!");
+  });
+
+  it("should return bare notification body when intention text is empty string", () => {
+    expect(calcIntentionDoneNotify(true, undefined, "")).toBe("✨ 오늘의 의도 달성!");
+  });
+
+  it("should return bare notification body when intention text is whitespace only", () => {
+    expect(calcIntentionDoneNotify(true, undefined, "   ")).toBe("✨ 오늘의 의도 달성!");
+  });
+
+  it("should return null when done is false", () => {
+    expect(calcIntentionDoneNotify(false, undefined, "운동하기")).toBeNull();
+  });
+
+  it("should return null when prevDone is already true (no duplicate notify)", () => {
+    expect(calcIntentionDoneNotify(true, true, "운동하기")).toBeNull();
   });
 });
