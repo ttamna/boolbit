@@ -452,6 +452,52 @@ export function calcGoalCompletionNotify(
 }
 
 /**
+ * Returns the quarter-start morning retrospective for the previous calendar quarter's goal.
+ * lastQuarterStr: "YYYY-QN" for the quarter just ended (e.g. "2025-Q4").
+ * history: rolling GoalEntry array; only the entry matching lastQuarterStr is used.
+ * Returns null when no goal was set last quarter (no history entry for lastQuarterStr).
+ * done === true → achievement congratulations; done absent/false → gentle miss nudge.
+ * Hour/day guards (quarter-start day 1 = Jan/Apr/Jul/Oct 1, getHours() >= 9) live in the caller (App.tsx useEffect).
+ * Callers check quarterlyGoalReportDate before invoking to ensure once-per-quarter delivery.
+ * Exported for unit testing; pure function with no side effects.
+ */
+export function calcQuarterlyGoalReport(
+  lastQuarterStr: string,
+  history: GoalEntry[],
+): string | null {
+  const entry = history.find(e => e.date === lastQuarterStr);
+  if (!entry) return null;
+  const text = entry.text?.trim();
+  if (entry.done === true) {
+    return text ? `✅ 지난 분기 목표 달성! — ${text}` : "✅ 지난 분기 목표 달성!";
+  }
+  return text ? `📊 지난 분기 목표 미달성 — ${text}` : "📊 지난 분기 목표 미달성";
+}
+
+/**
+ * Returns the New Year's morning retrospective for the previous calendar year's goal.
+ * lastYearStr: "YYYY" for the year just ended (e.g. "2025").
+ * history: rolling GoalEntry array; only the entry matching lastYearStr is used.
+ * Returns null when no goal was set last year (no history entry for lastYearStr).
+ * done === true → achievement congratulations; done absent/false → gentle miss nudge.
+ * Hour/day guards (Jan 1, getHours() >= 9) live in the caller (App.tsx useEffect).
+ * Callers check yearlyGoalReportDate before invoking to ensure once-per-year delivery.
+ * Exported for unit testing; pure function with no side effects.
+ */
+export function calcYearlyGoalReport(
+  lastYearStr: string,
+  history: GoalEntry[],
+): string | null {
+  const entry = history.find(e => e.date === lastYearStr);
+  if (!entry) return null;
+  const text = entry.text?.trim();
+  if (entry.done === true) {
+    return text ? `🎊 지난해 목표 달성! — ${text}` : "🎊 지난해 목표 달성!";
+  }
+  return text ? `📋 지난해 목표 미달성 — ${text}` : "📋 지난해 목표 미달성";
+}
+
+/**
  * Returns the Monday morning retrospective for the previous ISO week's goal.
  * lastWeekStr: ISO week key "YYYY-Www" for the week just ended.
  * history: rolling GoalEntry array; only the entry matching lastWeekStr is used.

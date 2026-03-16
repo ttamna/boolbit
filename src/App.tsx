@@ -15,7 +15,7 @@ import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport } from "./lib/habits";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport } from "./lib/goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify } from "./lib/projects";
@@ -701,6 +701,64 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.monthGoalHistory, data.monthlyGoalReportDate, loaded, persist]);
+
+  // Quarter-start morning quarterly goal achievement retrospective — fires once per quarter at 9:00+.
+  // Reports whether the previous calendar quarter's goal was achieved (done === true) or missed.
+  // quarterlyGoalReportDate persists the guard so it fires only once per quarter-start even after restart.
+  // Design: yesterday's quarterStr gives the previous quarter key when firing on the 1st of a new quarter.
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.quarterlyGoalReportDate === today) return;
+    if (now.getHours() < 9) return;   // after 09:00
+    // Quarter starts on Jan 1, Apr 1, Jul 1, Oct 1
+    const month = now.getMonth() + 1; // 1-based
+    if (!((month === 1 || month === 4 || month === 7 || month === 10) && now.getDate() === 1)) return;
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const lastQuarterStr = quarterStr(yesterday);
+    const msg = calcQuarterlyGoalReport(lastQuarterStr, data.quarterGoalHistory ?? []);
+    if (!msg) return;
+    persist({ ...dataRef.current, quarterlyGoalReportDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.quarterGoalHistory, data.quarterlyGoalReportDate, loaded, persist]);
+
+  // New Year's morning yearly goal achievement retrospective — fires once per year on Jan 1 at 9:00+.
+  // Reports whether the previous calendar year's goal was achieved (done === true) or missed.
+  // yearlyGoalReportDate persists the guard so it fires only once per Jan 1 even after restart.
+  // Design: yesterday's year string (slice(0,4)) gives the previous year key when firing on Jan 1.
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.yearlyGoalReportDate === today) return;
+    if (now.getHours() < 9) return;   // after 09:00
+    if (now.getMonth() !== 0 || now.getDate() !== 1) return;  // only Jan 1
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const lastYearStr = yesterday.toLocaleDateString("sv").slice(0, 4); // "YYYY" of prev year
+    const msg = calcYearlyGoalReport(lastYearStr, data.yearGoalHistory ?? []);
+    if (!msg) return;
+    persist({ ...dataRef.current, yearlyGoalReportDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.yearGoalHistory, data.yearlyGoalReportDate, loaded, persist]);
 
   // End-of-month goal review nudge — fires once per month in the last 2 calendar days at 18:00+.
   // Triggers when monthGoal is set OR when no goal set (generic nudge to plan the next month).
