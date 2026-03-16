@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, and evening goal-gap nudge
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, and lifetime milestone crossing
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone } from "./pomodoro";
 import { colors } from "../theme";
 import type { PomodoroDay } from "../types";
 
@@ -649,5 +649,70 @@ describe("calcPomodoroEveningReminder", () => {
 
   it("should return reminder body when sessionsToday is negative with goal set (clamped to 0, displays 0/goal)", () => {
     expect(calcPomodoroEveningReminder(-1, 4)).toBe("🍅 목표까지 4세션 남았어요! (0/4)");
+  });
+});
+
+describe("calcPomodoroLifetimeMilestone", () => {
+  it("should return null when no milestone is crossed (both values in same band)", () => {
+    expect(calcPomodoroLifetimeMilestone(65, 90)).toBeNull();
+  });
+
+  it("should return null when newMins equals prevMins (no change)", () => {
+    expect(calcPomodoroLifetimeMilestone(60, 60)).toBeNull();
+  });
+
+  it("should return null when newMins is less than prevMins (regression guard)", () => {
+    expect(calcPomodoroLifetimeMilestone(100, 60)).toBeNull();
+  });
+
+  it("should return null when both values are below the first milestone", () => {
+    expect(calcPomodoroLifetimeMilestone(0, 25)).toBeNull();
+  });
+
+  it("should fire 1시간 milestone when crossing 60 mins exactly", () => {
+    expect(calcPomodoroLifetimeMilestone(55, 60)).toBe("🎉 누적 집중 1시간 달성!");
+  });
+
+  it("should fire 1시간 milestone when crossing 60 mins by more than one session", () => {
+    expect(calcPomodoroLifetimeMilestone(35, 85)).toBe("🎉 누적 집중 1시간 달성!");
+  });
+
+  it("should fire 5시간 milestone when crossing 300 mins", () => {
+    expect(calcPomodoroLifetimeMilestone(275, 325)).toBe("🎉 누적 집중 5시간 달성!");
+  });
+
+  it("should fire 10시간 milestone when crossing 600 mins", () => {
+    expect(calcPomodoroLifetimeMilestone(595, 625)).toBe("🎉 누적 집중 10시간 달성!");
+  });
+
+  it("should fire 25시간 milestone when crossing 1500 mins", () => {
+    expect(calcPomodoroLifetimeMilestone(1495, 1525)).toBe("🎉 누적 집중 25시간 달성!");
+  });
+
+  it("should fire 50시간 milestone when crossing 3000 mins", () => {
+    expect(calcPomodoroLifetimeMilestone(2995, 3025)).toBe("🎉 누적 집중 50시간 달성!");
+  });
+
+  it("should fire 100시간 milestone when crossing 6000 mins", () => {
+    expect(calcPomodoroLifetimeMilestone(5995, 6025)).toBe("🎉 누적 집중 100시간 달성!");
+  });
+
+  it("should fire the highest milestone when multiple are crossed in one jump (mid range)", () => {
+    // Skipping from 0 to 700 crosses 60, 300, 600 — highest is 600 (10시간)
+    expect(calcPomodoroLifetimeMilestone(0, 700)).toBe("🎉 누적 집중 10시간 달성!");
+  });
+
+  it("should fire the highest milestone when all milestones are crossed at once", () => {
+    // Skipping from 0 to 7000 crosses all milestones — highest is 6000 (100시간)
+    expect(calcPomodoroLifetimeMilestone(0, 7000)).toBe("🎉 누적 집중 100시간 달성!");
+  });
+
+  it("should return null when already past milestone (1시간 already crossed)", () => {
+    expect(calcPomodoroLifetimeMilestone(60, 85)).toBeNull();
+  });
+
+  it("should return null when both values equal the same milestone", () => {
+    // prevMins already AT the milestone — no crossing occurred
+    expect(calcPomodoroLifetimeMilestone(300, 325)).toBeNull();
   });
 });

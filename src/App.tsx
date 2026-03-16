@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -826,18 +826,33 @@ export default function App() {
           i === focusIdx ? { ...p, pomodoroSessions: (p.pomodoroSessions ?? 0) + 1, lastFocusDate: today } : p
         )
       : snapshot.projects;
-    persist({ ...snapshot, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects, pomodoroLifetimeMins: (snapshot.pomodoroLifetimeMins ?? 0) + focusMins });
-    // Notify when the daily session goal is hit exactly (not on every subsequent session).
-    // Respects pomodoroNotify: absent/true = enabled, false = disabled.
-    if (snapshot.pomodoroSessionGoal !== undefined && snapshot.pomodoroSessionGoal > 0 && count === snapshot.pomodoroSessionGoal && snapshot.pomodoroNotify !== false) {
-      (async () => {
-        try {
-          let ok = await isPermissionGranted();
-          if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
-          if (!ok) return;
-          sendNotification({ title: "Vision Widget", body: `🎯 오늘의 집중 목표 ${count}세션 달성!` });
-        } catch { /* not available in browser dev mode */ }
-      })();
+    const prevLifetime = snapshot.pomodoroLifetimeMins ?? 0;
+    const newLifetime = prevLifetime + Math.max(0, focusMins); // guard: negative focusMins must not shrink cumulative total
+    persist({ ...snapshot, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects, pomodoroLifetimeMins: newLifetime });
+    if (snapshot.pomodoroNotify !== false) {
+      // Notify when the daily session goal is hit exactly (not on every subsequent session).
+      if (snapshot.pomodoroSessionGoal !== undefined && snapshot.pomodoroSessionGoal > 0 && count === snapshot.pomodoroSessionGoal) {
+        (async () => {
+          try {
+            let ok = await isPermissionGranted();
+            if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+            if (!ok) return;
+            sendNotification({ title: "Vision Widget", body: `🎯 오늘의 집중 목표 ${count}세션 달성!` });
+          } catch { /* not available in browser dev mode */ }
+        })();
+      }
+      // Notify when cumulative lifetime focus time crosses a major milestone (1h/5h/10h/25h/50h/100h).
+      const lifetimeMilestoneMsg = calcPomodoroLifetimeMilestone(prevLifetime, newLifetime);
+      if (lifetimeMilestoneMsg) {
+        (async () => {
+          try {
+            let ok = await isPermissionGranted();
+            if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+            if (!ok) return;
+            sendNotification({ title: "Vision Widget", body: lifetimeMilestoneMsg });
+          } catch { /* not available in browser dev mode */ }
+        })();
+      }
     }
   }, [persist]);
 

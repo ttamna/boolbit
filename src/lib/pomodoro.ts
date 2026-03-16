@@ -1,5 +1,5 @@
-// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, and evening goal-gap nudge
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, and evening reminder
+// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, and lifetime milestone notifications
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, and cumulative focus milestone crossing
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -212,6 +212,34 @@ export async function playPhaseDone(phase: Phase): Promise<void> {
   } catch {
     // Graceful fallback: AudioContext unavailable or restricted
   }
+}
+
+// Cumulative focus time milestones in minutes: 1h, 5h, 10h, 25h, 50h, 100h.
+const LIFETIME_MILESTONE_MINS = [60, 300, 600, 1500, 3000, 6000] as const;
+type LifetimeMilestone = (typeof LIFETIME_MILESTONE_MINS)[number];
+const LIFETIME_MILESTONE_LABELS: Record<LifetimeMilestone, string> = {
+  60:   "1시간",
+  300:  "5시간",
+  600:  "10시간",
+  1500: "25시간",
+  3000: "50시간",
+  6000: "100시간",
+};
+
+// Returns the desktop notification body when cumulative focus time crosses a major milestone.
+// Compares prevMins (before the session) to newMins (after) and fires on the highest threshold crossed.
+// Returns null when no milestone was crossed (prevMins >= newMins, or both in the same milestone band).
+// Exported for unit testing; pure function with no side effects.
+export function calcPomodoroLifetimeMilestone(
+  prevMins: number,
+  newMins: number,
+): string | null {
+  if (newMins <= prevMins) return null;
+  const crossed = LIFETIME_MILESTONE_MINS
+    .filter(m => prevMins < m && newMins >= m)
+    .sort((a, b) => b - a)[0];
+  if (crossed == null) return null;
+  return `🎉 누적 집중 ${LIFETIME_MILESTONE_LABELS[crossed]} 달성!`;
 }
 
 // Returns the desktop notification body when no pomodoro sessions have been completed today, null otherwise.
