@@ -1,8 +1,8 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport } from "./goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport } from "./goalPeriods";
 import type { GoalEntry } from "../types";
 
 describe("isoWeekStr", () => {
@@ -1377,5 +1377,70 @@ describe("calcWeeklyGoalReport", () => {
       { date: LAST_WEEK, text: GOAL_TEXT, done: false },
     ];
     expect(calcWeeklyGoalReport(LAST_WEEK, history)).toBe(`📋 지난주 목표 미달성 — ${GOAL_TEXT}`);
+  });
+});
+
+describe("calcMonthlyGoalReport", () => {
+  const LAST_MONTH = "2026-02";
+  const OTHER_MONTH = "2026-01";
+  const GOAL_TEXT = "매일 운동 20회";
+
+  it("should return null when history is empty (no goal ever set)", () => {
+    expect(calcMonthlyGoalReport(LAST_MONTH, [])).toBeNull();
+  });
+
+  it("should return null when lastMonthStr is not in history (no goal set that month)", () => {
+    const history: GoalEntry[] = [{ date: OTHER_MONTH, text: GOAL_TEXT, done: true }];
+    expect(calcMonthlyGoalReport(LAST_MONTH, history)).toBeNull();
+  });
+
+  it("should return achievement message with text when done === true and text is present", () => {
+    const history: GoalEntry[] = [{ date: LAST_MONTH, text: GOAL_TEXT, done: true }];
+    expect(calcMonthlyGoalReport(LAST_MONTH, history)).toBe(`✅ 지난달 목표 달성! — ${GOAL_TEXT}`);
+  });
+
+  it("should return achievement message without suffix when done === true and text is empty", () => {
+    const history: GoalEntry[] = [{ date: LAST_MONTH, text: "", done: true }];
+    expect(calcMonthlyGoalReport(LAST_MONTH, history)).toBe("✅ 지난달 목표 달성!");
+  });
+
+  it("should return achievement message without suffix when done === true and text is whitespace only", () => {
+    const history: GoalEntry[] = [{ date: LAST_MONTH, text: "   ", done: true }];
+    expect(calcMonthlyGoalReport(LAST_MONTH, history)).toBe("✅ 지난달 목표 달성!");
+  });
+
+  it("should return miss message with text when done is absent (goal set but not marked done)", () => {
+    const history: GoalEntry[] = [{ date: LAST_MONTH, text: GOAL_TEXT }];
+    expect(calcMonthlyGoalReport(LAST_MONTH, history)).toBe(`📅 지난달 목표 미달성 — ${GOAL_TEXT}`);
+  });
+
+  it("should return miss message with text when done === false", () => {
+    const history: GoalEntry[] = [{ date: LAST_MONTH, text: GOAL_TEXT, done: false }];
+    expect(calcMonthlyGoalReport(LAST_MONTH, history)).toBe(`📅 지난달 목표 미달성 — ${GOAL_TEXT}`);
+  });
+
+  it("should return miss message without suffix when done is absent and text is empty", () => {
+    const history: GoalEntry[] = [{ date: LAST_MONTH, text: "" }];
+    expect(calcMonthlyGoalReport(LAST_MONTH, history)).toBe("📅 지난달 목표 미달성");
+  });
+
+  it("should return miss message without suffix when done is absent and text is whitespace only", () => {
+    const history: GoalEntry[] = [{ date: LAST_MONTH, text: "   " }];
+    expect(calcMonthlyGoalReport(LAST_MONTH, history)).toBe("📅 지난달 목표 미달성");
+  });
+
+  it("should match only the exact lastMonthStr entry when history has multiple months", () => {
+    const history: GoalEntry[] = [
+      { date: OTHER_MONTH, text: "다른 달 목표", done: true },
+      { date: LAST_MONTH, text: GOAL_TEXT, done: false },
+    ];
+    expect(calcMonthlyGoalReport(LAST_MONTH, history)).toBe(`📅 지난달 목표 미달성 — ${GOAL_TEXT}`);
+  });
+
+  it("should handle year-boundary key: Jan 1st caller derives lastMonthStr='YYYY-12' from yesterday (Dec 31)", () => {
+    // Simulates calling on Jan 1 2026: yesterday = Dec 31 2025, lastMonthStr = "2025-12"
+    const DECEMBER = "2025-12";
+    const history: GoalEntry[] = [{ date: DECEMBER, text: "연말 목표", done: true }];
+    expect(calcMonthlyGoalReport(DECEMBER, history)).toBe("✅ 지난달 목표 달성! — 연말 목표");
   });
 });

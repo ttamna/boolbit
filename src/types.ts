@@ -115,6 +115,7 @@ export interface WidgetData {
   weeklyReviewRemindDate?: string;     // YYYY-MM-DD (Sunday) when the weekly review nudge was last sent; absent = not sent
   weeklyGoalMorningRemindDate?: string; // YYYY-MM-DD (Monday) when the weekly goal-setting morning nudge was last sent; absent = not sent
   weeklyGoalReportDate?: string;         // YYYY-MM-DD (Monday) when the weekly goal achievement report was last sent; absent = not sent
+  monthlyGoalReportDate?: string;        // YYYY-MM-DD (1st of month) when the monthly goal achievement report was last sent; absent = not sent
   weeklyHabitReportDate?: string;      // YYYY-MM-DD (Monday) when the weekly habit completion rate report was last sent; absent = not sent
   momentumEveningDigestDate?: string;  // YYYY-MM-DD when the evening momentum score digest notification was last sent; absent = not sent
   weeklyMomentumReportDate?: string;   // YYYY-MM-DD (Monday) when the weekly momentum avg+tier report was last sent; absent = not sent

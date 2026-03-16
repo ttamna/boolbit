@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, goal streaks, success rate, goal heatmaps, end-of-period review reminders, and goal completion notifications
+// ABOUTME: Pure helpers for goal period key generation — ISO week string, quarter string, goal streaks, success rate, goal heatmaps, end-of-period review reminders, goal completion notifications, and monthly goal report
 // ABOUTME: Exported for unit testing; used by App.tsx to anchor goal expiry, date stamps, streak display, history panels, goal heatmap dot rows, monthly/quarterly/yearly review nudges, and goal-done desktop notifications
 
 import type { GoalEntry } from "../types";
@@ -472,6 +472,29 @@ export function calcWeeklyGoalReport(
     return text ? `✅ 지난주 목표 달성! — ${text}` : "✅ 지난주 목표 달성!";
   }
   return text ? `📋 지난주 목표 미달성 — ${text}` : "📋 지난주 목표 미달성";
+}
+
+/**
+ * Returns the 1st-of-month morning retrospective for the previous calendar month's goal.
+ * lastMonthStr: "YYYY-MM" for the calendar month just ended.
+ * history: rolling GoalEntry array; only the entry matching lastMonthStr is used.
+ * Returns null when no goal was set last month (no history entry for lastMonthStr).
+ * done === true → achievement congratulations; done absent/false → gentle miss nudge.
+ * Hour/day guards (1st of month, getHours() >= 9) live in the caller (App.tsx useEffect).
+ * Callers check monthlyGoalReportDate before invoking to ensure once-per-month delivery.
+ * Exported for unit testing; pure function with no side effects.
+ */
+export function calcMonthlyGoalReport(
+  lastMonthStr: string,
+  history: GoalEntry[],
+): string | null {
+  const entry = history.find(e => e.date === lastMonthStr);
+  if (!entry) return null;
+  const text = entry.text?.trim();
+  if (entry.done === true) {
+    return text ? `✅ 지난달 목표 달성! — ${text}` : "✅ 지난달 목표 달성!";
+  }
+  return text ? `📅 지난달 목표 미달성 — ${text}` : "📅 지난달 목표 미달성";
 }
 
 // Returns the desktop notification body for the Monday-morning weekly-goal nudge.
