@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -112,7 +112,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > momentum_rise > goal_done > goal_streak > project_ahead > project_near_completion > personal_best.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > almost_perfect_day > momentum_rise > goal_done > goal_streak > project_ahead > project_near_completion > personal_best.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -328,6 +328,19 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const habitMiss = calcHabitConsecutiveMiss(habits, todayStr);
   if (habitMiss) {
     return { text: `🔄 ${habitMiss.name} ${habitMiss.missedDays}일 연속 미완료`, level: "warning" };
+  }
+
+  // 10.3. Almost perfect day: afternoon (≥ 14h) + exactly 1–2 habits remain unchecked — near-completion nudge.
+  // Fires after habit_consecutive_miss (10.2): re-engagement urgency for a specific habit takes precedence.
+  // The primary gate is `remaining === 1 || remaining === 2`; habitsAllDoneDate !== todayStr is a
+  // defensive early-exit — when it equals todayStr, perfect_day (priority 4) has already returned above
+  // and this block is unreachable in practice. It makes the invariant explicit and avoids computing remaining.
+  // Threshold: 1–2 remaining signals a real "almost there" moment; ≥3 remaining means the day is still mostly unfinished.
+  if (nowHour >= 14 && habitsAllDoneDate !== todayStr && habits.length > 0) {
+    const remaining = habits.filter(h => h.lastChecked !== todayStr).length;
+    if (remaining === 1 || remaining === 2) {
+      return { text: `💪 완벽한 하루까지 ${remaining}개 남았어요!`, level: "success" };
+    }
   }
 
   // 10.5. Momentum rise: 3 consecutive days each strictly higher than the day before — positive feedback for a productivity upswing.

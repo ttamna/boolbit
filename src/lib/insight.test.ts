@@ -1925,10 +1925,11 @@ describe("calcTodayInsight", () => {
 
   it("shouldReturnNullWhenNotCheckedInToday", () => {
     // must have checked in today for the insight to show
+    // nowHour:12 prevents almost_perfect_day (≥14h gate) from also firing on this single-habit fixture
     const result = calcTodayInsight({
       habits: [{ name: "운동", streak: 30, lastChecked: YESTERDAY, bestStreak: 30 }],
       todayStr: TODAY,
-      nowHour: 14,
+      nowHour: 12,
       todayIntentionDate: TODAY,
       sessionsToday: 0,
       sessionGoal: undefined,
@@ -2329,10 +2330,11 @@ describe("calcTodayInsight", () => {
 
   it("shouldNotReturnStreakRecessionWhenLastCheckedYesterday", () => {
     // Yesterday checked — streak still intact; recession condition requires lastChecked === 2 days ago
+    // nowHour:12 prevents almost_perfect_day (≥14h) from firing on this single-habit fixture
     const result = calcTodayInsight({
       habits: [habit("운동", 10, YESTERDAY)],
       todayStr: TODAY,
-      nowHour: 14,
+      nowHour: 12,
       todayIntentionDate: TODAY,
       sessionsToday: 0,
       sessionGoal: undefined,
@@ -2357,10 +2359,11 @@ describe("calcTodayInsight", () => {
 
   it("shouldNotReturnStreakRecessionWhenStreakBelow7", () => {
     // streak=5 (below the 7-day significance threshold) — recession does not fire
+    // nowHour:12 prevents almost_perfect_day (≥14h) from firing on this single-habit fixture
     const result = calcTodayInsight({
       habits: [habit("운동", 5, DAYS_2_AGO)],
       todayStr: TODAY,
-      nowHour: 14,
+      nowHour: 12,
       todayIntentionDate: TODAY,
       sessionsToday: 0,
       sessionGoal: undefined,
@@ -2429,10 +2432,11 @@ describe("calcTodayInsight", () => {
     // Day 3 of a broken streak: lastChecked === DAYS_3_AGO (not 2 days ago).
     // streak_recession condition (lastChecked === dayBeforeYesterday) is false → does not fire.
     // habit_consecutive_miss handles this via checkHistory; without checkHistory it returns null.
+    // nowHour:12 prevents almost_perfect_day (≥14h) from firing on this single-habit fixture
     const result = calcTodayInsight({
       habits: [habit("운동", 9, DAYS_3_AGO)],
       todayStr: TODAY,
-      nowHour: 14,
+      nowHour: 12,
       todayIntentionDate: TODAY,
       sessionsToday: 0,
       sessionGoal: undefined,
@@ -2700,10 +2704,11 @@ describe("calcTodayInsight — momentum_rise (priority 10.5, after project_stale
 
   it("shouldNotReturnHabitConsecutiveMissWhenMissedOnly2Days", () => {
     // last check 3 days ago → yesterday + DAYS_2_AGO missing = 2 consecutive misses, below threshold
+    // nowHour:12 prevents almost_perfect_day (≥14h) from firing on this single-habit fixture
     const result = calcTodayInsight({
       habits: [{ name: "운동", streak: 0, checkHistory: [DAYS_3_AGO] }],
       todayStr: TODAY,
-      nowHour: 14,
+      nowHour: 12,
       todayIntentionDate: TODAY,
       sessionsToday: 0,
       sessionGoal: undefined,
@@ -2714,10 +2719,11 @@ describe("calcTodayInsight — momentum_rise (priority 10.5, after project_stale
 
   it("shouldNotReturnHabitConsecutiveMissWhenCheckedYesterday", () => {
     // habit checked yesterday → i=1 hits history immediately, count stays 0
+    // nowHour:12 prevents almost_perfect_day (≥14h) from firing on this single-habit fixture
     const result = calcTodayInsight({
       habits: [{ name: "운동", streak: 5, checkHistory: [YESTERDAY] }],
       todayStr: TODAY,
-      nowHour: 14,
+      nowHour: 12,
       todayIntentionDate: TODAY,
       sessionsToday: 0,
       sessionGoal: undefined,
@@ -2764,10 +2770,11 @@ describe("calcTodayInsight — momentum_rise (priority 10.5, after project_stale
 
   it("shouldNotReturnHabitConsecutiveMissWhenCheckHistoryAbsent", () => {
     // undefined checkHistory = no data available → skip, never counts as missed
+    // nowHour:12 prevents almost_perfect_day (≥14h) from firing on this single-habit fixture
     const result = calcTodayInsight({
       habits: [{ name: "운동", streak: 0 }],  // checkHistory field absent
       todayStr: TODAY,
-      nowHour: 14,
+      nowHour: 12,
       todayIntentionDate: TODAY,
       sessionsToday: 0,
       sessionGoal: undefined,
@@ -3604,5 +3611,133 @@ describe("calcTodayInsight — project_near_completion (priority 10.85, after pr
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
     expect(result!.text).toContain("진행중프로젝트");
+  });
+});
+
+// ── almost_perfect_day (priority 10.3, after habit_consecutive_miss, before momentum_rise) ──
+describe("calcTodayInsight — almost_perfect_day (priority 10.3)", () => {
+  it("shouldReturnAlmostPerfectDayWhenAfternoonAndOneHabitRemaining", () => {
+    const result = calcTodayInsight({
+      habits: [habit("독서", 3, TODAY), habit("운동", 5, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("1개");
+    expect(result!.text).toContain("완벽한 하루");
+  });
+
+  it("shouldReturnAlmostPerfectDayWhenAfternoonAndTwoHabitsRemaining", () => {
+    const result = calcTodayInsight({
+      habits: [habit("독서", 3, YESTERDAY), habit("운동", 5, YESTERDAY), habit("명상", 2, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("2개");
+    expect(result!.text).toContain("완벽한 하루");
+  });
+
+  it("shouldNotReturnAlmostPerfectDayBeforeAfternoon", () => {
+    const result = calcTodayInsight({
+      habits: [habit("독서", 3, TODAY), habit("운동", 5, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 13,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    // Before 14h — almost_perfect_day must not fire; returns null (no other insight matches)
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnAlmostPerfectDayWhenAllHabitsDoneToday", () => {
+    // perfect_day fires at priority 4; almost_perfect_day must not fire
+    const result = calcTodayInsight({
+      habits: [habit("독서", 3, TODAY), habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 16,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY, // all habits done today
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽한 습관 달성"); // perfect_day
+    expect(result!.text).not.toContain("완벽한 하루까지");
+  });
+
+  it("shouldNotReturnAlmostPerfectDayWhenThreeOrMoreHabitsRemaining", () => {
+    const result = calcTodayInsight({
+      habits: [
+        habit("독서", 3, YESTERDAY),
+        habit("운동", 5, YESTERDAY),
+        habit("명상", 2, YESTERDAY),
+      ],
+      todayStr: TODAY,
+      nowHour: 16,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    // 3 remaining — not "almost" done; must not fire (returns null — no other insight matches)
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnAlmostPerfectDayWhenZeroHabits", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 16,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    // No habits at all — must not fire (returns null)
+    expect(result).toBeNull();
+  });
+
+  it("shouldPrioritizeHabitConsecutiveMissOverAlmostPerfectDay", () => {
+    // habit_consecutive_miss (10.2) must fire before almost_perfect_day (10.3)
+    // Scenario: 운동 has no lastChecked (never tracked via streak) + checkHistory shows last done on DAYS_7_AGO.
+    // Backward scan: i=1(YESTERDAY)..i=6(DAYS_6_AGO) all miss history → missedDays=6 ≥ MIN_MISS_DAYS(3).
+    // lastChecked is absent (not YESTERDAY) so checkHistory and lastChecked are consistent.
+    // 독서 is checked today → remaining=1 (only 운동 unchecked) → almost_perfect_day would fire if not blocked.
+    const result = calcTodayInsight({
+      habits: [
+        {
+          name: "운동",
+          streak: 0,
+          checkHistory: [DAYS_7_AGO, DAYS_8_AGO], // last done DAYS_7_AGO; 6 consecutive misses (YESTERDAY back to DAYS_6_AGO)
+        },
+        {
+          name: "독서",
+          streak: 3,
+          lastChecked: TODAY,
+        },
+      ],
+      todayStr: TODAY,
+      nowHour: 16,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연속 미완료"); // habit_consecutive_miss fires
+    expect(result!.text).not.toContain("완벽한 하루까지");
   });
 });
