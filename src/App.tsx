@@ -18,7 +18,7 @@ import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDa
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
-import { calcProjectsBadge, calcProjectMilestone } from "./lib/projects";
+import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
@@ -179,16 +179,24 @@ export default function App() {
       p.id === id ? { ...p, ...patch } : p
     )};
     persist(next);
-    // Notify when a progress milestone (25/50/75/100%) is newly crossed
-    if (prev !== undefined && typeof prev.progress === "number" && patch.progress !== undefined) {
-      const ms = calcProjectMilestone(prev.progress, patch.progress);
-      if (ms) {
+    // Notify on progress milestone and/or project completion in a single permission-check block.
+    // Both can fire in the same update (e.g. progress=100 + status="done" simultaneously) — this is
+    // intentional: milestone celebrates the numerical achievement; completion celebrates the deliberate decision.
+    if (prev !== undefined) {
+      const ms = (typeof prev.progress === "number" && patch.progress !== undefined)
+        ? calcProjectMilestone(prev.progress, patch.progress)
+        : null;
+      const completionMsg = patch.status !== undefined
+        ? calcProjectCompletionNotify(prev.status, patch.status, prev.name)
+        : null;
+      if (ms || completionMsg) {
         (async () => {
           try {
             let ok = await isPermissionGranted();
             if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
             if (!ok) return;
-            sendNotification({ title: "Vision Widget", body: `${ms.label} ${prev.name}` });
+            if (ms) sendNotification({ title: "Vision Widget", body: `${ms.label} ${prev.name}` });
+            if (completionMsg) sendNotification({ title: "Vision Widget", body: completionMsg });
           } catch { /* not available in browser dev mode */ }
         })();
       }

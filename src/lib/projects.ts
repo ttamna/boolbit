@@ -318,6 +318,21 @@ export interface ProjectMilestone {
   label: string;
 }
 
+// Returns the desktop notification body when a project transitions to "done" status for the first time.
+// Returns null when prevStatus is already "done", when newStatus is not "done", or when newStatus is absent.
+// Returns null when projectName is empty to avoid a meaningless notification body.
+// Exported for unit testing; pure function with no side effects.
+export function calcProjectCompletionNotify(
+  prevStatus: Project["status"] | undefined,
+  newStatus: Project["status"] | undefined,
+  projectName: string,
+): string | null {
+  if (newStatus !== "done") return null;
+  if (prevStatus === "done") return null;
+  if (!projectName.trim()) return null;
+  return `✅ ${projectName} 완료! 수고하셨습니다 🎉`;
+}
+
 // Returns the highest milestone threshold crossed when progress moves from prevProgress to newProgress.
 // A threshold M is "crossed" when prevProgress < M and newProgress >= M.
 // Returns null when progress decreases, stays equal, or no threshold is newly crossed.

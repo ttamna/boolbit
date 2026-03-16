@@ -19,6 +19,7 @@ import {
   calcScheduleGap,
   calcCompletionForecast,
   calcProjectMilestone,
+  calcProjectCompletionNotify,
 } from "./projects";
 import { colors } from "../theme";
 import type { Project, PomodoroDay } from "../types";
@@ -1189,5 +1190,55 @@ describe("calcProjectMilestone", () => {
     const result = calcProjectMilestone(0, 50);
     expect(typeof result!.label).toBe("string");
     expect(result!.label.length).toBeGreaterThan(0);
+  });
+});
+
+describe("calcProjectCompletionNotify", () => {
+  it("should return a message when active project becomes done", () => {
+    const result = calcProjectCompletionNotify("active", "done", "My App");
+    expect(result).not.toBeNull();
+    expect(result).toContain("My App");
+  });
+
+  it("should return a message when in-progress project becomes done", () => {
+    const result = calcProjectCompletionNotify("in-progress", "done", "Side Project");
+    expect(result).not.toBeNull();
+    expect(result).toContain("Side Project");
+  });
+
+  it("should return a message when paused project becomes done", () => {
+    const result = calcProjectCompletionNotify("paused", "done", "Archive");
+    expect(result).not.toBeNull();
+    expect(result).toContain("Archive");
+  });
+
+  it("should return null when projectName is empty string", () => {
+    expect(calcProjectCompletionNotify("active", "done", "")).toBeNull();
+  });
+
+  it("should return null when projectName is whitespace only", () => {
+    expect(calcProjectCompletionNotify("active", "done", "   ")).toBeNull();
+  });
+
+  it("should return null when project was already done before", () => {
+    expect(calcProjectCompletionNotify("done", "done", "My App")).toBeNull();
+  });
+
+  it("should return null when status changes to non-done (active→paused)", () => {
+    expect(calcProjectCompletionNotify("active", "paused", "My App")).toBeNull();
+  });
+
+  it("should return null when status changes to active from done (un-completing)", () => {
+    expect(calcProjectCompletionNotify("done", "active", "My App")).toBeNull();
+  });
+
+  it("should return null when newStatus is undefined", () => {
+    expect(calcProjectCompletionNotify("active", undefined, "My App")).toBeNull();
+  });
+
+  it("should return a message when prevStatus is undefined and newStatus is done", () => {
+    const result = calcProjectCompletionNotify(undefined, "done", "New Project");
+    expect(result).not.toBeNull();
+    expect(result).toContain("New Project");
   });
 });
