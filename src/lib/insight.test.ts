@@ -3591,6 +3591,102 @@ describe("calcTodayInsight — goal_streak (priority 10.75, morning, past done w
   });
 });
 
+// ── month_goal_streak (priority 10.77, after goal_streak, before project_ahead) ──────
+describe("calcTodayInsight — month_goal_streak (priority 10.77, morning, past done month streak)", () => {
+  // Base params: morning, no higher-priority triggers, month goal set but not done
+  const base = {
+    habits: [],
+    todayStr: TOMORROW, // 2024-01-16 (Tuesday, not 1st of month → period_start doesn't fire)
+    nowHour: 9, // morning
+    todayIntentionDate: TOMORROW,
+    sessionsToday: 0,
+    sessionGoal: undefined,
+    habitsAllDoneDate: undefined,
+    weekGoal: "이번 주 목표",
+    weekGoalDone: false as boolean | undefined,
+    daysLeftWeek: 5,
+    monthGoal: "이번 달 목표",
+    monthGoalDone: false as boolean | undefined,
+    daysLeftMonth: 10, // avoids goal_midpoint (fires at 15/16) and goal_expiry (fires at ≤2)
+  };
+
+  it("shouldReturnMonthGoalStreakWhenPastDoneStreakIs1", () => {
+    const result = calcTodayInsight({ ...base, monthGoalPastDoneStreak: 1 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("1개월 연속");
+    expect(result!.text).toContain("이번 달도");
+  });
+
+  it("shouldReturnMonthGoalStreakWhenPastDoneStreakIs3", () => {
+    const result = calcTodayInsight({ ...base, monthGoalPastDoneStreak: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("3개월 연속");
+  });
+
+  it("shouldNotReturnMonthGoalStreakWhenPastDoneStreakIs0", () => {
+    const result = calcTodayInsight({ ...base, monthGoalPastDoneStreak: 0 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnMonthGoalStreakWhenPastDoneStreakAbsent", () => {
+    const result = calcTodayInsight({ ...base, monthGoalPastDoneStreak: undefined });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnMonthGoalStreakWhenMonthGoalAlreadyDone", () => {
+    // monthGoalDone=true → goal_done (10.7) fires instead (daysLeftMonth=10 > 2)
+    const result = calcTodayInsight({ ...base, monthGoalDone: true, daysLeftMonth: 10, monthGoalPastDoneStreak: 2 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("월간 목표 달성"); // goal_done wins
+    expect(result!.text).not.toContain("개월 연속 달성 중");
+  });
+
+  it("shouldNotReturnMonthGoalStreakWhenNotMorning", () => {
+    const result = calcTodayInsight({ ...base, nowHour: 14, monthGoalPastDoneStreak: 2 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnMonthGoalStreakAtHour11ButNotAtHour12", () => {
+    const at11 = calcTodayInsight({ ...base, nowHour: 11, monthGoalPastDoneStreak: 1 });
+    expect(at11).not.toBeNull();
+    expect(at11!.text).toContain("개월 연속 달성 중");
+
+    const at12 = calcTodayInsight({ ...base, nowHour: 12, monthGoalPastDoneStreak: 1 });
+    expect(at12).toBeNull();
+  });
+
+  it("shouldNotReturnMonthGoalStreakWhenNoMonthGoal", () => {
+    const result = calcTodayInsight({ ...base, monthGoal: undefined, monthGoalPastDoneStreak: 2 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldGoalStreakFireBeforeMonthGoalStreak", () => {
+    // goal_streak (10.75) fires before month_goal_streak (10.77)
+    const result = calcTodayInsight({
+      ...base,
+      weekGoalPastDoneStreak: 2,
+      monthGoalPastDoneStreak: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("주 연속 달성 중"); // weekly goal_streak (10.75) wins
+  });
+
+  it("shouldMonthGoalStreakFireBeforeProjectAhead", () => {
+    // month_goal_streak (10.77) fires before project_ahead (10.8)
+    const result = calcTodayInsight({
+      ...base,
+      monthGoalPastDoneStreak: 2,
+      projects: [
+        { name: "앞서가는프로젝트", status: "active", deadline: "2024-02-22", createdDate: DAYS_7_AGO, progress: 70, isFocus: true },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("개월 연속 달성 중"); // month_goal_streak wins over project_ahead
+  });
+});
+
 // ── project_near_completion (priority 10.85, after project_ahead, before personal_best) ────
 describe("calcTodayInsight — project_near_completion (priority 10.85, after project_ahead)", () => {
   const base = {

@@ -14,7 +14,7 @@ import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder } from "./lib/intention";
-import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport } from "./lib/habits";
+import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
@@ -1220,6 +1220,10 @@ export default function App() {
     todayStr,
     data.intentionHistory ?? [],
   );
+  // last28Days: 4-week window used for per-weekday habit rate (calcDayOfWeekHabitRates).
+  // Declared here (before calcTodayInsight) so todayIsWeakHabitDay can use it inside the call.
+  // The render-phase last7Days/last14Days consts below serve the heatmap/badge subsystems.
+  const last28Days = calcLastNDays(todayStr, 28);
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1253,8 +1257,26 @@ export default function App() {
       (data.weekGoalHistory ?? []).filter(e => e.done === true),
       renderDate,
     ) - 1),
+    // Past consecutive done months (excludes current month): mirrors weekGoalPastDoneStreak pattern.
+    // calcMonthGoalStreak is designed to count "months a goal was SET"; by filtering history to
+    // done===true entries only we repurpose it to count "months a goal was ACHIEVED" — the same
+    // intentional reuse as weekGoalPastDoneStreak (see App.tsx:1250). Subtract 1 to exclude the
+    // current month (which by construction is not yet done when this insight fires).
+    monthGoalPastDoneStreak: Math.max(0, calcMonthGoalStreak(
+      data.monthGoal,
+      data.monthGoalDate,
+      (data.monthGoalHistory ?? []).filter(e => e.done === true),
+      renderDate,
+    ) - 1),
     pomodoroGoalStreak,
     intentionConsecutiveDays,
+    // todayIsWeakHabitDay: true when today's weekday is the user's historically lowest habit-completion day.
+    // Uses last28Days (4 full weeks) so each weekday has exactly 4 data points — well above MIN_DOW_APPEARANCES=2.
+    todayIsWeakHabitDay: (() => {
+      const rates = calcDayOfWeekHabitRates(habitsArr, last28Days);
+      const weakestDow = calcWeakDayOfWeek(rates);
+      return weakestDow !== null && new Date(todayStr + "T00:00:00").getDay() === weakestDow;
+    })(),
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 7-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
