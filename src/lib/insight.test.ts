@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all fourteen insight types and their priority ordering (including no_focus_project, momentum_decline + momentum_rise)
+// ABOUTME: Covers all fifteen insight types and their priority ordering (including no_focus_project, pomodoro_goal_reached, momentum_decline + momentum_rise)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -315,6 +315,113 @@ describe("calcTodayInsight", () => {
       habitsAllDoneDate: undefined,
     });
     expect(result).toBeNull();
+  });
+
+  // ── pomodoro_goal_reached ───────────────────────────────────────────────────
+  it("shouldReturnPomodoroGoalReachedWhenSessionsEqualGoal", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 3,
+      sessionGoal: 3,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("포모도로");
+    expect(result!.text).toContain("달성");
+    expect(result!.text).toContain("3/3"); // pins down the (sessionsToday/sessionGoal) format
+  });
+
+  it("shouldReturnPomodoroGoalReachedWhenSessionsExceedGoal", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 5,
+      sessionGoal: 3,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("포모도로");
+    expect(result!.text).toContain("달성");
+    expect(result!.text).toContain("5/3"); // sessionsToday shown even when exceeding goal
+  });
+
+  it("shouldNotReturnPomodoroGoalReachedWhenGoalUndefined", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 3,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnPomodoroGoalReachedWhenGoalNotYetMet", () => {
+    // sessionsToday=1, sessionGoal=4 → 1<4 and 1!==3(last_one) → neither fires
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 1,
+      sessionGoal: 4,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnPomodoroGoalReachedWhenGoalIsZero", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 3,
+      sessionGoal: 0,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPomodoroGoalReachedFireBeforeDeadlineSoon", () => {
+    // goal_reached (7.5) fires before deadline_soon (8) — project with D-4 deadline
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 3,
+      sessionGoal: 3,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "D4프로젝트", status: "active", deadline: IN_4 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("포모도로"); // goal_reached wins over deadline_soon
+  });
+
+  it("shouldNotReturnPomodoroGoalReachedWhenPerfectDayActive", () => {
+    // perfect_day (priority 4) fires before pomodoro_goal_reached (7.5)
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 3,
+      sessionGoal: 3,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽한"); // perfect_day wins
   });
 
   // ── null baseline ──────────────────────────────────────────────────────────

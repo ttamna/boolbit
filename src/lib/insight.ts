@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > project ahead (≥20% ahead of schedule) > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > project ahead (≥20% ahead of schedule) > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -106,7 +106,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > momentum_rise > goal_done > personal_best.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > momentum_rise > goal_done > personal_best.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -195,6 +195,15 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // 7. Pomodoro: one session away from daily goal
   if (sessionGoal !== undefined && sessionsToday === sessionGoal - 1) {
     return { text: "🍅 포모도로 목표까지 1세션!", level: "info" };
+  }
+
+  // 7.5. Pomodoro goal reached: daily session goal met or exceeded — positive reinforcement.
+  // Complements pomodoro_last_one (7): last_one fires when sessionsToday === sessionGoal - 1,
+  // goal_reached fires when sessionsToday >= sessionGoal — the two conditions are mutually exclusive.
+  // Fires before deadline_soon (8) so goal achievement takes precedence over upcoming deadlines.
+  // sessionGoal > 0 guard mirrors the pomodoro_last_one guard; prevents firing on degenerate zero goals.
+  if (sessionGoal !== undefined && sessionGoal > 0 && sessionsToday >= sessionGoal) {
+    return { text: `🍅 오늘 포모도로 목표 달성! (${sessionsToday}/${sessionGoal})`, level: "success" };
   }
 
   // 8. Deadline soon: active/in-progress project deadline within 4–7 days
