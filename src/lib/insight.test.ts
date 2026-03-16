@@ -1489,6 +1489,297 @@ describe("calcTodayInsight", () => {
     expect(result!.text).toContain("분기 목표");  // quarter goal_expiry wins over project_stale
   });
 
+  // ── goal_midpoint ─────────────────────────────────────────────────────────
+  it("shouldReturnGoalMidpointForWeekGoalOnThursday", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "이번 주 독서",
+      weekGoalDone: false,
+      daysLeftWeek: 4,   // Thursday — 3 days elapsed, 4 remaining → mid-week
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("주간 목표");
+    expect(result!.text).toContain("중반");
+  });
+
+  it("shouldNotReturnGoalMidpointWhenWeekGoalIsDone", () => {
+    // Same params as positive case — only weekGoalDone changes true → null
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "이번 주 독서",
+      weekGoalDone: true,   // done: goal_midpoint must NOT fire
+      daysLeftWeek: 4,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGoalMidpointWhenDaysLeftWeekIsNotFour", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "이번 주 독서",
+      weekGoalDone: false,
+      daysLeftWeek: 5,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnGoalMidpointForMonthGoalWhenSixteenDaysLeft", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: "이번 달 운동 20회",
+      monthGoalDone: false,
+      daysLeftMonth: 16,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("월간 목표");
+    expect(result!.text).toContain("중반");
+  });
+
+  it("shouldReturnGoalMidpointForMonthGoalWhenFifteenDaysLeft", () => {
+    // 15 covers shorter months (28–29 days) at their midpoint
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: "이번 달 목표",
+      monthGoalDone: false,
+      daysLeftMonth: 15,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("월간 목표");
+    expect(result!.text).toContain("중반");
+  });
+
+  it("shouldNotReturnGoalMidpointForMonthGoalWhenNotAtMidpoint", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: "이번 달 운동 20회",
+      monthGoalDone: false,
+      daysLeftMonth: 20,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGoalMidpointForMonthGoalWhenDone", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: "이번 달 목표",
+      monthGoalDone: true,
+      daysLeftMonth: 16,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnGoalMidpointForQuarterGoalWhenFortySixDaysLeft", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      quarterGoal: "이번 분기 목표",
+      quarterGoalDone: false,
+      daysLeftQuarter: 46,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("분기 목표");
+    expect(result!.text).toContain("중반");
+  });
+
+  it("shouldReturnGoalMidpointForQuarterGoalWhenFortySevenDaysLeft", () => {
+    // 47 covers 92-day quarters (Q3/Q4) at midpoint
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      quarterGoal: "이번 분기 목표",
+      quarterGoalDone: false,
+      daysLeftQuarter: 47,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("분기 목표");
+    expect(result!.text).toContain("중반");
+  });
+
+  it("shouldNotReturnGoalMidpointForQuarterGoalWhenFortyEightDaysLeft", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      quarterGoal: "이번 분기 목표",
+      quarterGoalDone: false,
+      daysLeftQuarter: 48,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnGoalMidpointForYearGoalWhenOneHundredEightyThreeDaysLeft", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "올해 목표",
+      yearGoalDone: false,
+      daysLeftYear: 183,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("연간 목표");
+    expect(result!.text).toContain("중반");
+  });
+
+  it("shouldReturnGoalMidpointForYearGoalWhenOneHundredEightyFourDaysLeft", () => {
+    // 184 = day 183 of a 366-day leap year (exact midpoint day); also covered by daysLeft=183 for plain years
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "올해 목표",
+      yearGoalDone: false,
+      daysLeftYear: 184,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("연간 목표");
+    expect(result!.text).toContain("중반");
+  });
+
+  it("shouldNotReturnGoalMidpointForYearGoalWhenOneHundredEightyFiveDaysLeft", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      yearGoal: "올해 목표",
+      yearGoalDone: false,
+      daysLeftYear: 185,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPreferYearGoalMidpointOverWeekGoalMidpointWhenBothAtMidpoint", () => {
+    // Cascade: year > quarter > month > week (largest period wins)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "주간", weekGoalDone: false, daysLeftWeek: 4,
+      monthGoal: "월간", monthGoalDone: false, daysLeftMonth: 16,
+      quarterGoal: "분기", quarterGoalDone: false, daysLeftQuarter: 46,
+      yearGoal: "연간", yearGoalDone: false, daysLeftYear: 183,
+    });
+    expect(result!.text).toContain("연간 목표");
+  });
+
+  it("shouldPreferGoalExpiryOverGoalMidpointWhenBothPresent", () => {
+    // goal_expiry (9) has higher priority than goal_midpoint (9.3)
+    // weekGoal expiring (daysLeftWeek=1) + monthGoal at midpoint (daysLeftMonth=16)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "주간 목표", weekGoalDone: false, daysLeftWeek: 1,
+      monthGoal: "월간 목표", monthGoalDone: false, daysLeftMonth: 16,
+    });
+    expect(result!.text).toContain("주간 목표");
+    expect(result!.text).toContain("오늘");  // goal_expiry suffix
+  });
+
+  it("shouldPreferGoalMidpointOverMomentumDecline", () => {
+    // goal_midpoint (9.3) fires before momentum_decline (9.5)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      monthGoal: "월간 목표", monthGoalDone: false, daysLeftMonth: 16,
+      momentumHistory: [
+        { date: DAYS_2_AGO, score: 70, tier: "high" },
+        { date: YESTERDAY, score: 50, tier: "mid" },
+        { date: TODAY, score: 30, tier: "low" },
+      ],
+    });
+    expect(result!.text).toContain("월간 목표");
+    expect(result!.text).toContain("중반");
+  });
+
   // ── personal_best_streak ──────────────────────────────────────────────────
   it("shouldReturnPersonalBestWhenHabitReachedMilestoneAndNewBestToday", () => {
     // streak=30 is a milestone AND equals bestStreak (personal best)

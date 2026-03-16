@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -31,7 +31,9 @@ interface InsightParams {
   weekGoal?: string;
   /** True when weekly goal has been marked done; absent/false = not done. */
   weekGoalDone?: boolean;
-  /** Days remaining in the current ISO week (including today); 1 = last day of the week. */
+  /** Days remaining in the current ISO week (Mon–Sun) including today; Monday=7, Thursday=4, Sunday=1.
+   *  Caller MUST use an ISO-week (Monday-start) calculation — e.g. daysLeftInWeek() from datePeriods.ts.
+   *  A Sunday-start calendar would shift the Thursday mid-week trigger to Wednesday. */
   daysLeftWeek?: number;
   /** Monthly goal text; absent/empty = no goal set. */
   monthGoal?: string;
@@ -244,6 +246,27 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   if (yearGoal && !yearGoalDone && daysLeftYear != null && daysLeftYear <= 14) {
     const suffix = daysLeftYear <= 1 ? "오늘 마감" : `${daysLeftYear}일`;
     return { text: `📋 연간 목표 마감 임박 (${suffix})`, level: "warning" };
+  }
+
+  // 9.3. Goal midpoint: goal period halfway through and not yet marked done — soft mid-term check-in nudge.
+  // Fires once per period at the exact midpoint day; complementary to goal_expiry (9) which handles end-of-period urgency.
+  // Cascade: year > quarter > month > week — largest period takes precedence (mirrors period_start at 6).
+  // Midpoint definitions (daysLeft includes today):
+  //   week    : daysLeftWeek === 4 (Thursday — 3 days elapsed in a 7-day ISO week)
+  //   month   : daysLeftMonth in [15, 16] (day 15–16 of 28–31-day months)
+  //   quarter : daysLeftQuarter in [46, 47] (day ~45–46 of 90–92-day quarters)
+  //   year    : daysLeftYear in [183, 184] (183 = day 183/365 or day 184/366; 184 = day 183/366 — both cover first-past-midpoint day)
+  if (yearGoal && !yearGoalDone && daysLeftYear != null && (daysLeftYear === 183 || daysLeftYear === 184)) {
+    return { text: "📊 연간 목표 중반 점검 — 절반이 지났어요", level: "info" };
+  }
+  if (quarterGoal && !quarterGoalDone && daysLeftQuarter != null && (daysLeftQuarter === 46 || daysLeftQuarter === 47)) {
+    return { text: "📊 분기 목표 중반 점검 — 절반이 지났어요", level: "info" };
+  }
+  if (monthGoal && !monthGoalDone && daysLeftMonth != null && (daysLeftMonth === 15 || daysLeftMonth === 16)) {
+    return { text: "📊 월간 목표 중반 점검 — 절반이 지났어요", level: "info" };
+  }
+  if (weekGoal && !weekGoalDone && daysLeftWeek != null && daysLeftWeek === 4) {
+    return { text: "📊 주간 목표 중반 점검 — 이번 주 진행 중인가요?", level: "info" };
   }
 
   // 9.5. Momentum decline: 3 consecutive days each strictly lower than the day before — pattern signals a systemic productivity slide.
