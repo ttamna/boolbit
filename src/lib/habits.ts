@@ -341,3 +341,69 @@ export async function playHabitCheck(allDone = false): Promise<void> {
     // Graceful fallback: AudioContext unavailable or restricted
   }
 }
+
+// Minimum occurrences a weekday must have in the window to produce a reliable rate.
+// Fewer than 2 data points is insufficient to establish a pattern.
+const MIN_DOW_APPEARANCES = 2;
+
+// Minimum daily completion rate (%) below which a weekday is considered "weak".
+// 60% is the same numeric threshold used in calcWeeklyHabitReport, but applies to
+// per-weekday averages rather than weekly aggregates — coincidental, not a shared dependency.
+const WEAK_DAY_THRESHOLD = 60;
+
+// Computes average habit completion rate per weekday (0=Sun … 6=Sat) over the given day window.
+// Rate is the mean of (habits checked / total habits) across all occurrences of that weekday.
+// Returns null for weekdays with fewer than MIN_DOW_APPEARANCES occurrences — insufficient data.
+// Returns null for all weekdays when habits is empty or dayWindow is empty.
+// Exported for unit testing; pure function with no side effects.
+export function calcDayOfWeekHabitRates(
+  habits: Array<{ checkHistory?: string[] }>,
+  dayWindow: string[],
+): Record<number, number | null> {
+  const result: Record<number, number | null> = { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null };
+
+  if (habits.length === 0 || dayWindow.length === 0) return result;
+
+  // Group day window dates by weekday
+  const byDow: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+  for (const day of dayWindow) {
+    const dow = new Date(day + "T00:00:00").getDay();
+    byDow[dow].push(day);
+  }
+
+  for (let dow = 0; dow <= 6; dow++) {
+    const days = byDow[dow];
+    if (days.length < MIN_DOW_APPEARANCES) continue; // insufficient data → leave null
+
+    const sumRate = days.reduce((sum, day) => {
+      const checkedCount = habits.filter(h => h.checkHistory?.includes(day)).length;
+      return sum + checkedCount / habits.length;
+    }, 0);
+
+    result[dow] = Math.round((sumRate / days.length) * 100);
+  }
+
+  return result;
+}
+
+// Returns the weekday (0–6) with the lowest non-null rate strictly below WEAK_DAY_THRESHOLD (60%).
+// When multiple weekdays share the minimum rate, returns the lowest weekday number for stability.
+// Returns null when no weekday has a non-null rate below the threshold.
+// Exported for unit testing; pure function with no side effects.
+export function calcWeakDayOfWeek(
+  rates: Record<number, number | null>,
+): number | null {
+  let weakestDow: number | null = null;
+  let weakestRate = WEAK_DAY_THRESHOLD; // strictly-below threshold: must be < WEAK_DAY_THRESHOLD
+
+  for (let dow = 0; dow <= 6; dow++) {
+    const rate = rates[dow];
+    if (rate === null) continue;
+    if (rate < weakestRate) {
+      weakestRate = rate;
+      weakestDow = dow;
+    }
+  }
+
+  return weakestDow;
+}

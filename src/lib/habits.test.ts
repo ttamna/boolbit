@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, and calcWeeklyHabitReport pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, and Monday morning weekly habit completion rate report
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, and calcWeakDayOfWeek pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, and per-weekday habit completion rate analysis
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -1227,5 +1227,143 @@ describe("calcWeeklyHabitReport", () => {
     expect(msg).not.toBeNull();
     expect(msg).toContain("60");
     expect(msg).toContain("이번 주엔 더 해봐요"); // must not fall to low tier at 60%
+  });
+});
+
+// 14-day window: 2 occurrences per weekday, all known days (Jan 2024)
+// Mon(1): Jan 08, Jan 15 | Tue(2): Jan 09, Jan 16 | Wed(3): Jan 10, Jan 17
+// Thu(4): Jan 11, Jan 18 | Fri(5): Jan 12, Jan 19 | Sat(6): Jan 13, Jan 20
+// Sun(0): Jan 14, Jan 21
+const DOW_WINDOW = [
+  "2024-01-08", "2024-01-09", "2024-01-10", "2024-01-11",
+  "2024-01-12", "2024-01-13", "2024-01-14",
+  "2024-01-15", "2024-01-16", "2024-01-17", "2024-01-18",
+  "2024-01-19", "2024-01-20", "2024-01-21",
+];
+
+describe("calcDayOfWeekHabitRates", () => {
+  it("shouldReturnNullForAllWeekdaysWhenHabitsIsEmpty", () => {
+    const rates = calcDayOfWeekHabitRates([], DOW_WINDOW);
+    for (let d = 0; d <= 6; d++) {
+      expect(rates[d]).toBeNull();
+    }
+  });
+
+  it("shouldReturn100PctForWeekdayWhenHabitCheckedEveryOccurrence", () => {
+    // 1 habit checked on both Mondays → Mon rate = 100%
+    const h = makeHabit({ checkHistory: ["2024-01-08", "2024-01-15"] });
+    const rates = calcDayOfWeekHabitRates([h], DOW_WINDOW);
+    expect(rates[1]).toBe(100); // Monday
+  });
+
+  it("shouldReturn0PctForWeekdayWhenHabitNeverCheckedOnThatDay", () => {
+    // 1 habit checked on Tuesdays only → Monday rate = 0%
+    const h = makeHabit({ checkHistory: ["2024-01-09", "2024-01-16"] });
+    const rates = calcDayOfWeekHabitRates([h], DOW_WINDOW);
+    expect(rates[1]).toBe(0); // Monday
+  });
+
+  it("shouldReturn50PctWhenOneOfTwoHabitsCheckedEachOccurrence", () => {
+    // 2 habits; only habit1 checked on both Mondays → Mon rate = 50%
+    const h1 = makeHabit({ checkHistory: ["2024-01-08", "2024-01-15"] });
+    const h2 = makeHabit({ checkHistory: [] });
+    const rates = calcDayOfWeekHabitRates([h1, h2], DOW_WINDOW);
+    expect(rates[1]).toBe(50); // Monday
+  });
+
+  it("shouldReturnNullForWeekdayWithFewerThanMinAppearancesInWindow", () => {
+    // 7-day window: each weekday appears only once — insufficient data → null
+    const shortWindow = DOW_WINDOW.slice(0, 7);
+    const h = makeHabit({ checkHistory: ["2024-01-08"] });
+    const rates = calcDayOfWeekHabitRates([h], shortWindow);
+    expect(rates[1]).toBeNull(); // Monday: only 1 occurrence
+  });
+
+  it("shouldHandleHabitWithNoCheckHistory", () => {
+    // Habit without checkHistory treated as never checked
+    const h = makeHabit(); // checkHistory absent
+    const rates = calcDayOfWeekHabitRates([h], DOW_WINDOW);
+    expect(rates[1]).toBe(0); // Monday: 0/2 appearances checked
+  });
+
+  it("shouldComputeIndependentRatesForDifferentWeekdays", () => {
+    // habit checked on Mondays + Sundays, not on other days
+    const h = makeHabit({ checkHistory: ["2024-01-08", "2024-01-14", "2024-01-15", "2024-01-21"] });
+    const rates = calcDayOfWeekHabitRates([h], DOW_WINDOW);
+    expect(rates[1]).toBe(100); // Monday
+    expect(rates[0]).toBe(100); // Sunday
+    expect(rates[2]).toBe(0);   // Tuesday
+  });
+
+  it("shouldReturnNullForEmptyDayWindow", () => {
+    const h = makeHabit({ checkHistory: ["2024-01-08"] });
+    const rates = calcDayOfWeekHabitRates([h], []);
+    for (let d = 0; d <= 6; d++) {
+      expect(rates[d]).toBeNull();
+    }
+  });
+});
+
+describe("calcWeakDayOfWeek", () => {
+  it("shouldReturnWeekdayWithLowestRateBelowThreshold", () => {
+    // Monday at 0% is the weakest day below the 60% threshold
+    const rates: Record<number, number | null> = {
+      0: 80, 1: 0, 2: 90, 3: 85, 4: 75, 5: 70, 6: 80,
+    };
+    expect(calcWeakDayOfWeek(rates)).toBe(1); // Monday
+  });
+
+  it("shouldReturnNullWhenAllRatesAboveThreshold", () => {
+    const rates: Record<number, number | null> = {
+      0: 80, 1: 70, 2: 90, 3: 85, 4: 75, 5: 65, 6: 80,
+    };
+    expect(calcWeakDayOfWeek(rates)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenAllRatesAreNull", () => {
+    const rates: Record<number, number | null> = {
+      0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null,
+    };
+    expect(calcWeakDayOfWeek(rates)).toBeNull();
+  });
+
+  it("shouldSkipNullRatesWhenFindingWeakestDay", () => {
+    // Friday (5) at 40% is below threshold; Sunday (0) is null (skip)
+    const rates: Record<number, number | null> = {
+      0: null, 1: 80, 2: 90, 3: 85, 4: 75, 5: 40, 6: 80,
+    };
+    expect(calcWeakDayOfWeek(rates)).toBe(5); // Friday
+  });
+
+  it("shouldReturnDayWithAbsoluteLowestRateWhenMultipleBelowThreshold", () => {
+    // Tuesday (2) at 20% beats Monday (1) at 40% — both below 60%
+    const rates: Record<number, number | null> = {
+      0: 80, 1: 40, 2: 20, 3: 85, 4: 75, 5: 70, 6: 80,
+    };
+    expect(calcWeakDayOfWeek(rates)).toBe(2); // Tuesday
+  });
+
+  it("shouldReturnNullAtExactThresholdBoundary", () => {
+    // Exactly at threshold (60%) should NOT be considered weak
+    const rates: Record<number, number | null> = {
+      0: 80, 1: 60, 2: 90, 3: 85, 4: 75, 5: 70, 6: 80,
+    };
+    expect(calcWeakDayOfWeek(rates)).toBeNull(); // 60% is not below threshold
+  });
+
+  it("shouldReturnWeakdayAtOneBelow60Threshold", () => {
+    // 59% is strictly below threshold
+    const rates: Record<number, number | null> = {
+      0: 80, 1: 59, 2: 90, 3: 85, 4: 75, 5: 70, 6: 80,
+    };
+    expect(calcWeakDayOfWeek(rates)).toBe(1); // Monday at 59%
+  });
+
+  it("shouldReturnLowerDowNumberWhenTwoWeekdaysShareMinimumRate", () => {
+    // Mon(1) and Tue(2) both at 40% — lowest weekday number (1) wins for stability
+    const rates: Record<number, number | null> = {
+      0: 80, 1: 40, 2: 40, 3: 85, 4: 75, 5: 70, 6: 80,
+    };
+    expect(calcWeakDayOfWeek(rates)).toBe(1); // Monday returned (lower dow number)
   });
 });

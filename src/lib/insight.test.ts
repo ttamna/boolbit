@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -4132,5 +4132,83 @@ describe("calcTodayInsight — habit_target_near (priority 11.05, between person
     expect(result!.text).toContain("🎯"); // milestone_near badge
     expect(result!.text).toContain("🔥"); // fixed milestone badge, not user-target text
     expect(result!.text).toContain("1일 전"); // milestone_near format
+  });
+});
+
+describe("calcTodayInsight — weak_day_ahead (priority 6.8, between no_focus_project and pomodoro)", () => {
+  // Base params: morning, one habit, today is historically the weakest habit day.
+  // Uses TOMORROW ("2024-01-16", Tuesday) to avoid period_start(week) firing on Monday.
+  function baseWeak() {
+    return {
+      habits: [{ name: "운동", streak: 3, lastChecked: YESTERDAY }],
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      todayIsWeakHabitDay: true,
+    };
+  }
+
+  it("shouldReturnWeakDayAheadWhenMorningAndTodayIsWeakDay", () => {
+    const result = calcTodayInsight(baseWeak());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("약한 요일"); // must be the weak_day_ahead insight specifically
+  });
+
+  it("shouldNotReturnWeakDayAheadWhenTodayIsNotWeakDay", () => {
+    const result = calcTodayInsight({ ...baseWeak(), todayIsWeakHabitDay: false });
+    // No weak day — should not return the weak_day_ahead insight
+    expect(result?.text ?? "").not.toContain("약한 요일");
+  });
+
+  it("shouldNotReturnWeakDayAheadWhenTodayIsWeakDayFlagAbsent", () => {
+    const params = { ...baseWeak() };
+    delete (params as Record<string, unknown>)["todayIsWeakHabitDay"];
+    const result = calcTodayInsight(params);
+    expect(result?.text ?? "").not.toContain("약한 요일");
+  });
+
+  it("shouldNotReturnWeakDayAheadInAfternoon", () => {
+    const result = calcTodayInsight({ ...baseWeak(), nowHour: 14 });
+    // Afternoon → weak_day_ahead is suppressed (morning-only insight)
+    expect(result?.text ?? "").not.toContain("약한 요일");
+  });
+
+  it("shouldNotReturnWeakDayAheadAtExactNoon", () => {
+    // noon (12:00) is not morning — should not fire
+    const result = calcTodayInsight({ ...baseWeak(), nowHour: 12 });
+    expect(result?.text ?? "").not.toContain("약한 요일");
+  });
+
+  it("shouldNotReturnWeakDayAheadWhenNoHabits", () => {
+    const result = calcTodayInsight({ ...baseWeak(), habits: [] });
+    expect(result?.text ?? "").not.toContain("약한 요일");
+  });
+
+  it("shouldReturnNoFocusProjectOverWeakDayAheadWhenBothApply", () => {
+    // no_focus_project (6.5) beats weak_day_ahead (6.8) — tested via priority ordering
+    const result = calcTodayInsight({
+      ...baseWeak(),
+      todayStr: TOMORROW, // Tuesday — non-period-start day to avoid period_start firing
+      todayIntentionDate: TOMORROW,
+      projects: [{ name: "앱개발", status: "active" }], // active project, no isFocus → no_focus fires
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("집중"); // no_focus_project wins
+  });
+
+  it("shouldReturnWeakDayAheadOverPomodoroLastOneWhenBothApply", () => {
+    // weak_day_ahead (6.8) beats pomodoro_last_one (7) — tested via priority ordering
+    const result = calcTodayInsight({
+      ...baseWeak(),
+      sessionsToday: 3,
+      sessionGoal: 4, // 3/4 → one session left = pomodoro_last_one condition
+    });
+    expect(result).not.toBeNull();
+    // weak_day_ahead text should appear, not the pomodoro "1세션 남았어요" text
+    expect(result!.text).not.toContain("1세션");
   });
 });

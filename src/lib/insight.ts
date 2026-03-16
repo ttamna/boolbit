@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -74,6 +74,12 @@ interface InsightParams {
    * Absent/undefined = streak unknown; 0 = no streak.
    */
   intentionConsecutiveDays?: number;
+  /**
+   * True when today's weekday is the user's historically weakest habit day (below 60% avg completion).
+   * Caller derives this via calcWeakDayOfWeek(calcDayOfWeekHabitRates(habits, last28Days)) === todayDow.
+   * Absent/false = today is not a weak day or insufficient data; no nudge is shown.
+   */
+  todayIsWeakHabitDay?: boolean;
 }
 
 // Habit streak milestones at which a personal-best celebration is shown (mirrors getUpcomingMilestone targets).
@@ -125,7 +131,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > pomodoro_goal_streak > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > almost_perfect_day > momentum_rise > goal_done > goal_streak > project_ahead > project_near_completion > personal_best > habit_target_near > intention_streak.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > weak_day_ahead > pomodoro_last_one > pomodoro_goal_streak > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > almost_perfect_day > momentum_rise > goal_done > goal_streak > project_ahead > project_near_completion > personal_best > habit_target_near > intention_streak.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -137,6 +143,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     weekGoalPastDoneStreak,
     pomodoroGoalStreak,
     intentionConsecutiveDays,
+    todayIsWeakHabitDay,
   } = params;
 
   // 1. Streak at risk: evening (≥ 18h) + high streak (≥ 7) + not yet checked today
@@ -212,6 +219,14 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     if (active.length > 0 && !active.some(p => p.isFocus === true)) {
       return { text: `🎯 오늘 집중 프로젝트를 선택하세요 · ${active.length}개 진행 중`, level: "info" };
     }
+  }
+
+  // 6.8. Weak day ahead: morning + today is user's historically weakest habit day (below 60% avg completion).
+  // Fires a motivational awareness nudge so the user can consciously counteract their pattern.
+  // Morning-only (< 12h): actionable before habits are typically attempted; no value in the evening.
+  // Requires at least one habit — meaningless nudge with no habits to track.
+  if (nowHour < 12 && todayIsWeakHabitDay === true && habits.length > 0) {
+    return { text: "📅 오늘은 습관 완료율이 낮은 약한 요일이에요. 의식적으로 챙겨봐요!", level: "info" };
   }
 
   // 7. Pomodoro: one session away from daily goal
