@@ -450,3 +450,17 @@ export function calcGoalCompletionNotify(
   const trimmed = goalText?.trim();
   return trimmed ? `${emoji} ${label} — ${trimmed}` : `${emoji} ${label}`;
 }
+
+// Returns the desktop notification body for the Monday-morning weekly-goal nudge.
+// Fires when weekGoalDate is absent or does not match currentWeekStr (goal not yet set for this ISO week).
+// Returns null when weekGoalDate === currentWeekStr — goal is already set, no nudge needed.
+// Hour/day guards (Monday, getHours() >= 9) live in the caller (App.tsx useEffect).
+// Callers check weeklyGoalMorningRemindDate before invoking to ensure once-per-Monday delivery.
+// Exported for unit testing; pure function with no side effects.
+export function calcWeeklyGoalMorningReminder(
+  weekGoalDate: string | undefined,
+  currentWeekStr: string,
+): string | null {
+  if (weekGoalDate === currentWeekStr) return null;
+  return "📋 이번 주 목표를 세워보세요!";
+}

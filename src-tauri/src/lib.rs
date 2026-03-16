@@ -250,10 +250,14 @@ pub struct WidgetData {
     pub habit_milestone_approach_date: Option<String>,
     #[serde(rename = "weeklyReviewRemindDate", default, skip_serializing_if = "Option::is_none")]
     pub weekly_review_remind_date: Option<String>,
+    #[serde(rename = "weeklyGoalMorningRemindDate", default, skip_serializing_if = "Option::is_none")]
+    pub weekly_goal_morning_remind_date: Option<String>,
     #[serde(rename = "monthGoalRemindDate", default, skip_serializing_if = "Option::is_none")]
     pub month_goal_remind_date: Option<String>,
     #[serde(rename = "quarterGoalRemindDate", default, skip_serializing_if = "Option::is_none")]
     pub quarter_goal_remind_date: Option<String>,
+    #[serde(rename = "yearGoalRemindDate", default, skip_serializing_if = "Option::is_none")]
+    pub year_goal_remind_date: Option<String>,
     #[serde(rename = "habitsSound", default, skip_serializing_if = "Option::is_none")]
     pub habits_sound: Option<bool>,
     #[serde(rename = "pomodoroSound", default, skip_serializing_if = "Option::is_none")]
@@ -415,8 +419,10 @@ fn default_data() -> WidgetData {
         pomodoro_evening_remind_date: None,
         habit_milestone_approach_date: None,
         weekly_review_remind_date: None,
+        weekly_goal_morning_remind_date: None,
         month_goal_remind_date: None,
         quarter_goal_remind_date: None,
+        year_goal_remind_date: None,
         habits_sound: None,
         pomodoro_sound: None,
     }
@@ -812,9 +818,13 @@ fn load_data() -> WidgetData {
         .filter(|s| is_valid_ymd(s)).map(String::from);
     data.weekly_review_remind_date = data.weekly_review_remind_date.as_deref()
         .filter(|s| is_valid_ymd(s)).map(String::from);
+    data.weekly_goal_morning_remind_date = data.weekly_goal_morning_remind_date.as_deref()
+        .filter(|s| is_valid_ymd(s)).map(String::from);
     data.month_goal_remind_date = data.month_goal_remind_date.as_deref()
         .filter(|s| is_valid_ymd(s)).map(String::from);
     data.quarter_goal_remind_date = data.quarter_goal_remind_date.as_deref()
+        .filter(|s| is_valid_ymd(s)).map(String::from);
+    data.year_goal_remind_date = data.year_goal_remind_date.as_deref()
         .filter(|s| is_valid_ymd(s)).map(String::from);
     // Sanitize momentum_history: validate dates, guard NaN, clamp score 0–100, validate tier,
     // sort desc → dedup by date (keeps newest per date) → truncate to 7 → sort asc.

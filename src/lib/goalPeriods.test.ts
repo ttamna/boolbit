@@ -1,8 +1,8 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify } from "./goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder } from "./goalPeriods";
 import type { GoalEntry } from "../types";
 
 describe("isoWeekStr", () => {
@@ -1288,5 +1288,36 @@ describe("calcGoalCompletionNotify", () => {
   it("should return year completion message without suffix when goalText is whitespace only", () => {
     expect(calcGoalCompletionNotify("year", "   "))
       .toBe("💎 올해 목표 달성!");
+  });
+});
+
+describe("calcWeeklyGoalMorningReminder", () => {
+  const CURRENT_WEEK = "2026-W12";
+  const OTHER_WEEK = "2026-W11";
+  const MSG = "📋 이번 주 목표를 세워보세요!";
+
+  it("should return null when weekGoalDate matches currentWeekStr (goal already recorded for this week)", () => {
+    expect(calcWeeklyGoalMorningReminder(CURRENT_WEEK, CURRENT_WEEK)).toBeNull();
+  });
+
+  it("should return null when weekGoalDate matches currentWeekStr even when weekGoalDate is present without a goal text", () => {
+    // weekGoalDate === currentWeekStr is the sole guard — goal text is not consulted
+    expect(calcWeeklyGoalMorningReminder(CURRENT_WEEK, CURRENT_WEEK)).toBeNull();
+  });
+
+  it("should return nudge message when weekGoalDate is undefined (goal never set)", () => {
+    expect(calcWeeklyGoalMorningReminder(undefined, CURRENT_WEEK)).toBe(MSG);
+  });
+
+  it("should return nudge message when weekGoalDate is a prior week (stale — new week started)", () => {
+    expect(calcWeeklyGoalMorningReminder(OTHER_WEEK, CURRENT_WEEK)).toBe(MSG);
+  });
+
+  it("should return nudge message when weekGoalDate is a future week string (forward-clock drift guard)", () => {
+    expect(calcWeeklyGoalMorningReminder("2026-W99", CURRENT_WEEK)).toBe(MSG);
+  });
+
+  it("should return nudge message when weekGoalDate is an empty string (corrupt/absent date)", () => {
+    expect(calcWeeklyGoalMorningReminder("", CURRENT_WEEK)).toBe(MSG);
   });
 });
