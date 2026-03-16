@@ -11,17 +11,18 @@ export const colors = {
   borderAccent: "rgba(255,255,255,0.08)",
 
   // Text hierarchy (descending opacity)
+  // Floor raised from 0.20→0.26 to improve readability on varying desktop backgrounds (#26)
   textPrimary: "rgba(255,255,255,0.95)",
   textHigh: "rgba(255,255,255,0.88)",
-  textMid: "rgba(255,255,255,0.55)",
-  textLow: "rgba(255,255,255,0.50)",
-  textMuted: "rgba(255,255,255,0.45)",
-  textFaint: "rgba(255,255,255,0.40)",
-  textDim: "rgba(255,255,255,0.36)",
-  textSubtle: "rgba(255,255,255,0.32)",
-  textGhost: "rgba(255,255,255,0.28)",
-  textPhantom: "rgba(255,255,255,0.25)",
-  textLabel: "rgba(255,255,255,0.20)",
+  textMid: "rgba(255,255,255,0.62)",
+  textLow: "rgba(255,255,255,0.56)",
+  textMuted: "rgba(255,255,255,0.50)",
+  textFaint: "rgba(255,255,255,0.46)",
+  textDim: "rgba(255,255,255,0.42)",
+  textSubtle: "rgba(255,255,255,0.38)",
+  textGhost: "rgba(255,255,255,0.34)",
+  textPhantom: "rgba(255,255,255,0.30)",
+  textLabel: "rgba(255,255,255,0.26)",
 
   // Surfaces
   surfaceFaint: "rgba(255,255,255,0.04)",
@@ -51,11 +52,11 @@ export const fontSizes = {
   clockSec: 32, // Clock seconds
   lg: 14,       // Project names, habit icons
   base: 13,     // Dates, general text
-  sm: 13,       // Goals, habits, quotes
+  sm: 12,       // Goals, habits, quotes
   xs: 11,       // Progress %, metrics
   label: 10,    // Section labels
   mini: 9,      // Footer, chips
-  micro: 8,     // Drag bar label
+  micro: 9,     // Drag bar label (raised 8→9 for readability #26)
 } as const;
 
 export const radius = {
