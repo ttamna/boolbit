@@ -821,10 +821,13 @@ describe("calcTodayInsight", () => {
       sessionsToday: 0,
       sessionGoal: undefined,
       habitsAllDoneDate: undefined,
-      // timePct=50%, progress=35% → gap=-15 → does not fire
+      // timePct=50%, progress=35% → gap=-15 → project_behind does not fire (needs ≤ -20)
+      // project_forecast may surface a completion estimate instead
       projects: [{ name: "순탄한프로젝트", status: "active", deadline: IN_30, createdDate: DAYS_30_AGO, progress: 35 }],
     });
-    expect(result).toBeNull();
+    expect(result?.text).not.toContain("뒤처짐"); // project_behind must not fire
+    // project_forecast fires instead: velocity=35/30 %/day → daysToComplete=390/7 → daysVsDeadline=-26
+    expect(result?.text).toContain("26일 초과 예상");
   });
 
   it("shouldNotReturnProjectBehindForDoneProject", () => {
@@ -3399,12 +3402,15 @@ describe("calcTodayInsight — project_ahead (priority 10.8, after goal_done)", 
   });
 
   it("shouldNotReturnProjectAheadWhenGapBelow20Percent", () => {
-    // gap = 65 - 47 ≈ +18 < 20 → silent
+    // gap = 65 - 47 ≈ +18 < 20 → project_ahead does not fire (needs ≥ +20)
+    // project_forecast may surface a completion estimate instead
     const result = calcTodayInsight({
       ...base,
       projects: [{ name: "보통프로젝트", status: "active", deadline: IN_8_PA, createdDate: DAYS_7_AGO_PA, progress: 65 }],
     });
-    expect(result).toBeNull();
+    expect(result?.text).not.toContain("앞서가는 중!"); // project_ahead must not fire
+    // project_forecast fires instead: velocity=65/7 %/day → daysToComplete=245/65 → daysVsDeadline=4
+    expect(result?.text).toContain("D-4");
   });
 
   it("shouldNotReturnProjectAheadForDoneProject", () => {
@@ -4426,5 +4432,133 @@ describe("calcTodayInsight — pomodoro_day_record (priority 7.49, between pomod
     expect(result).not.toBeNull();
     expect(result!.text).toContain("포모도로 목표"); // goal_streak fires
     expect(result!.text).not.toContain("신기록");
+  });
+});
+
+describe("calcTodayInsight — project_forecast (priority 10.87, at-current-pace completion date)", () => {
+  // Tuesday 2024-01-16: not Monday, not 1st of month/quarter/year — no period_start triggers
+  const TODAY_F = "2024-01-16";
+
+  // Base: afternoon, intention set, no habits, no pomodoro goal, no competing insights
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY_F,
+    nowHour: 14,
+    todayIntentionDate: TODAY_F,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  // On-track project: 80 days elapsed, 101 days to deadline, 45% done
+  //   createdDate = "2023-10-28" (80 days before TODAY_F)
+  //   deadline   = "2024-04-26" (101 days after TODAY_F, > 7)
+  //   timePct    ≈ 44% (80/181), gap = +1% — within ±20%, so project_ahead/behind don't fire
+  //   velocity   = 45/80 = 0.5625%/day, daysToComplete = 55/0.5625 ≈ 97.78d → forecastDate ≈ 2024-04-22
+  //   daysVsDeadline = round(101 - 97.78) = round(3.22) = 3 → "D-3"
+  const onTrack = () => ({
+    name: "TestProject",
+    status: "active" as const,
+    deadline: "2024-04-26",
+    createdDate: "2023-10-28",
+    progress: 45,
+    lastFocusDate: undefined as string | undefined,
+  });
+
+  // Behind-pace project: 80 days elapsed, 76 days to deadline, 35% done
+  //   gap = 35 - 51 = -16% — NOT ≤ -20%, so project_behind doesn't fire
+  //   velocity   = 35/80 = 0.4375%/day, daysToComplete = 65/0.4375 ≈ 148.57d → forecastDate ≈ 2024-06-12
+  //   daysVsDeadline = round(76 - 148.57) = round(-72.57) = -73 → warning with "73일 초과 예상"
+  const behindPace = () => ({
+    name: "SlowProject",
+    status: "active" as const,
+    deadline: "2024-04-01",
+    createdDate: "2023-10-28",
+    progress: 35,
+    lastFocusDate: undefined as string | undefined,
+  });
+
+  it("shouldReturnProjectForecastInfoWhenOnTrack", () => {
+    const result = calcTodayInsight({ ...base(), projects: [onTrack()] });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("TestProject");
+    expect(result!.text).toContain("예상 완료");
+    expect(result!.text).toContain("D-3");
+  });
+
+  it("shouldReturnProjectForecastWarningWhenForecastPastDeadline", () => {
+    const result = calcTodayInsight({ ...base(), projects: [behindPace()] });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("SlowProject");
+    expect(result!.text).toContain("73일 초과 예상");
+  });
+
+  it("shouldReturnProjectForecastExactlyOnDeadline", () => {
+    // 80 days elapsed, 80 days to deadline, progress=50 → velocity=50/80=0.625, daysToComplete=80 exactly
+    // forecastDate = 2024-04-05 = deadline → daysVsDeadline = 0 → "D-0"
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [{
+        name: "PreciseProject",
+        status: "active" as const,
+        deadline: "2024-04-05", // 80 days from TODAY_F
+        createdDate: "2023-10-28",
+        progress: 50,
+        lastFocusDate: undefined,
+      }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("PreciseProject");
+    expect(result!.text).toContain("D-0");
+  });
+
+  it("shouldPickMostUrgentProjectWhenMultipleForecasts", () => {
+    // onTrack: D-3 (info), behindPace: -73 days overdue (warning) — picks the most urgent (warning)
+    const result = calcTodayInsight({ ...base(), projects: [onTrack(), behindPace()] });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("SlowProject");
+  });
+
+  it("shouldNotReturnProjectForecastForDoneProject", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [{ ...onTrack(), status: "done" as const }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectForecastForPausedProject", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [{ ...onTrack(), status: "paused" as const }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectForecastWhenDeadlineWithin7Days", () => {
+    // deadline_soon fires at priority 8; project_forecast filter also excludes deadline ≤ 7 days
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [{ ...onTrack(), deadline: "2024-01-21" }], // 5 days away
+    });
+    expect(result?.text).not.toContain("예상 완료");
+  });
+
+  it("shouldNotReturnProjectForecastWhenCalcCompletionForecastReturnsNull", () => {
+    // daysElapsed = 1 (< 3) → calcCompletionForecast returns null — too early to establish velocity
+    const result = calcTodayInsight({
+      ...base(),
+      projects: [{ ...onTrack(), createdDate: "2024-01-15" }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectForecastWhenNoProjects", () => {
+    const result = calcTodayInsight({ ...base(), projects: [] });
+    expect(result).toBeNull();
   });
 });
