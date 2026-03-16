@@ -11,6 +11,10 @@ const IN_3 = "2024-01-18";
 const IN_4 = "2024-01-19";
 const IN_7 = "2024-01-22";
 const IN_8 = "2024-01-23";
+const DAYS_2_AGO = "2024-01-13";
+const DAYS_3_AGO = "2024-01-12";
+const DAYS_4_AGO = "2024-01-11";
+const DAYS_5_AGO = "2024-01-10";
 const DAYS_6_AGO = "2024-01-09";
 const DAYS_7_AGO = "2024-01-08";
 const DAYS_8_AGO = "2024-01-07";
@@ -2135,5 +2139,139 @@ describe("calcTodayInsight — momentum_rise (priority 10.5, after project_stale
     });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("상승"); // rise beats personal_best
+  });
+
+  // ── habit_consecutive_miss ──────────────────────────────────────────────────
+  // nowHour: 14 prevents period_start (only fires < 12) and streak_at_risk (only fires ≥ 18).
+  // Miss count = days between today (exclusive) and last check (exclusive).
+  // If last check = DAYS_N_AGO, miss count = N - 1.
+  // → DAYS_4_AGO as last check → miss count = 3 (yesterday + DAYS_2_AGO + DAYS_3_AGO)
+  it("shouldReturnHabitConsecutiveMissWhenHabitMissed3DaysInARow", () => {
+    // last check 4 days ago → yesterday, DAYS_2_AGO, DAYS_3_AGO missing = 3 consecutive misses
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 0, checkHistory: [DAYS_4_AGO] }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("3");
+  });
+
+  it("shouldNotReturnHabitConsecutiveMissWhenMissedOnly2Days", () => {
+    // last check 3 days ago → yesterday + DAYS_2_AGO missing = 2 consecutive misses, below threshold
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 0, checkHistory: [DAYS_3_AGO] }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnHabitConsecutiveMissWhenCheckedYesterday", () => {
+    // habit checked yesterday → i=1 hits history immediately, count stays 0
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 5, checkHistory: [YESTERDAY] }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPickMostNeglectedHabitWhenMultipleMissed", () => {
+    // 독서: last check 4d ago → 3 misses; 운동: last check 6d ago → 5 misses → 운동 reported
+    const result = calcTodayInsight({
+      habits: [
+        { name: "독서", streak: 0, checkHistory: [DAYS_4_AGO] },
+        { name: "운동", streak: 0, checkHistory: [DAYS_6_AGO] },
+      ],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("5");
+  });
+
+  it("shouldReturnHabitConsecutiveMissWhenCheckHistoryEmpty", () => {
+    // Explicit empty array → full 14-day window all missed → missedDays=14
+    const result = calcTodayInsight({
+      habits: [{ name: "명상", streak: 0, checkHistory: [] }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("명상");
+    expect(result!.text).toContain("14");
+  });
+
+  it("shouldNotReturnHabitConsecutiveMissWhenCheckHistoryAbsent", () => {
+    // undefined checkHistory = no data available → skip, never counts as missed
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 0 }],  // checkHistory field absent
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPrioritizeProjectStaleOverHabitConsecutiveMiss", () => {
+    // project_stale (10) fires before habit_consecutive_miss (10.2)
+    // habit: last check 4d ago → 3 consecutive misses (qualifies)
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 0, checkHistory: [DAYS_4_AGO] }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "앱개발", status: "active", lastFocusDate: DAYS_7_AGO }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("앱개발"); // project_stale wins
+  });
+
+  it("shouldPrioritizeHabitConsecutiveMissOverMomentumRise", () => {
+    // habit_consecutive_miss (10.2) fires before momentum_rise (10.5)
+    // habit: last check 4d ago → 3 consecutive misses (qualifies)
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 0, checkHistory: [DAYS_4_AGO] }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      momentumHistory: RISING_HISTORY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동"); // consecutive miss wins over momentum rise
   });
 });

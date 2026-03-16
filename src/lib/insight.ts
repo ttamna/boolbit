@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > momentum rise > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > habit consecutive miss (≥3d) > momentum rise > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -14,7 +14,7 @@ export interface TodayInsight {
 }
 
 interface InsightParams {
-  habits: Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>;
+  habits: Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; checkHistory?: string[] }>;
   todayStr: string;
   nowHour: number;
   todayIntentionDate: string | undefined;
@@ -58,6 +58,41 @@ interface InsightParams {
 // Habit streak milestones at which a personal-best celebration is shown (mirrors getUpcomingMilestone targets).
 // Restricting to these values prevents the insight from firing every day while on a continuous best-streak run.
 const PERSONAL_BEST_MILESTONES = [7, 30, 100];
+
+// Minimum consecutive days a habit must be unchecked before a re-engagement nudge is surfaced.
+const MIN_MISS_DAYS = 3;
+// How many calendar days to scan backward when counting consecutive missed check-ins.
+// Matches the maximum checkHistory window defined on the Habit type.
+const MISS_LOOKBACK_DAYS = 14;
+
+// Scans habit checkHistory to find the most consecutively neglected habit.
+// Counts backward from yesterday — today is excluded because the user can still check in.
+// Returns the worst offender if at least MIN_MISS_DAYS consecutive days were missed; null otherwise.
+function calcHabitConsecutiveMiss(
+  habits: Array<{ name: string; checkHistory?: string[] }>,
+  todayStr: string
+): { name: string; missedDays: number } | null {
+  const base = new Date(todayStr + "T00:00:00");
+  let worst: { name: string; missedDays: number } | null = null;
+
+  for (const habit of habits) {
+    // Skip habits without checkHistory — absent data ≠ absent check-ins
+    if (!habit.checkHistory) continue;
+    const history = new Set(habit.checkHistory);
+    let count = 0;
+    for (let i = 1; i <= MISS_LOOKBACK_DAYS; i++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() - i);
+      if (history.has(d.toLocaleDateString("sv"))) break;
+      count++;
+    }
+    if (count >= MIN_MISS_DAYS && (!worst || count > worst.missedDays)) {
+      worst = { name: habit.name, missedDays: count };
+    }
+  }
+
+  return worst;
+}
 
 // Returns days from todayStr until deadline (0 = today, positive = future). Uses injected todayStr for testability.
 function daysUntil(deadline: string, todayStr: string): number | null {
@@ -219,6 +254,14 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     if (stale) {
       return { text: `⊖ ${stale.name} ${stale.days}일째 미집중`, level: "info" };
     }
+  }
+
+  // 10.2. Habit consecutive miss: a habit not checked in for 3+ consecutive days — re-engagement nudge.
+  // Counts backward from yesterday (today excluded — user can still check in).
+  // Picks the most neglected habit when multiple qualify.
+  const habitMiss = calcHabitConsecutiveMiss(habits, todayStr);
+  if (habitMiss) {
+    return { text: `🔄 ${habitMiss.name} ${habitMiss.missedDays}일 연속 미완료`, level: "warning" };
   }
 
   // 10.5. Momentum rise: 3 consecutive days each strictly higher than the day before — positive feedback for a productivity upswing.
