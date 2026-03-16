@@ -197,9 +197,34 @@ export default function App() {
 
   // Atomic batch update for GitHub polling — applies all results in one persist
   // to avoid the stale-closure overwrite race when multiple projects complete in parallel.
+  // Also detects new commits/PRs/issues vs previous snapshot and sends desktop notifications.
   const batchUpdateProjects = useCallback((updates: Array<{ id: number; patch: Partial<Project> }>) => {
     if (updates.length === 0) return;
     const snapshot = dataRef.current;
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        for (const update of updates) {
+          if (!update.patch.githubData) continue;
+          const old = snapshot.projects.find(p => p.id === update.id);
+          if (!old?.githubData) continue;
+          const prev = old.githubData;
+          const fresh = update.patch.githubData;
+          const name = old.name ?? `#${update.id}`;
+          if (fresh.lastCommitAt && prev.lastCommitAt && fresh.lastCommitAt > prev.lastCommitAt) {
+            sendNotification({ title: "Vision Widget", body: `${name}: 새 커밋이 추가됐습니다.` });
+          }
+          if (typeof fresh.openPrs === "number" && typeof prev.openPrs === "number" && fresh.openPrs > prev.openPrs) {
+            sendNotification({ title: "Vision Widget", body: `${name}: PR ${fresh.openPrs - prev.openPrs}개 추가됐습니다.` });
+          }
+          if (typeof fresh.openIssues === "number" && typeof prev.openIssues === "number" && fresh.openIssues > prev.openIssues) {
+            sendNotification({ title: "Vision Widget", body: `${name}: 이슈 ${fresh.openIssues - prev.openIssues}개 추가됐습니다.` });
+          }
+        }
+      } catch { /* not available in browser dev mode */ }
+    })();
     const next = {
       ...snapshot,
       projects: snapshot.projects.map(p => {
