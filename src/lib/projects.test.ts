@@ -1,5 +1,5 @@
 // ABOUTME: Tests for pure functions in lib/projects.ts
-// ABOUTME: Covers calcProjectsBadge, avgRunningProgressPct, sortProjects, calcCompletionForecast, and 11 date/deadline/staleness helpers (incl. dateAfterDays, calcScheduleGap)
+// ABOUTME: Covers calcProjectsBadge, avgRunningProgressPct, sortProjects, calcCompletionForecast, calcProjectPomodoroMilestone, and 11 date/deadline/staleness helpers (incl. dateAfterDays, calcScheduleGap)
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
@@ -20,6 +20,7 @@ import {
   calcCompletionForecast,
   calcProjectMilestone,
   calcProjectCompletionNotify,
+  calcProjectPomodoroMilestone,
 } from "./projects";
 import { colors } from "../theme";
 import type { Project, PomodoroDay } from "../types";
@@ -1240,5 +1241,80 @@ describe("calcProjectCompletionNotify", () => {
     const result = calcProjectCompletionNotify(undefined, "done", "New Project");
     expect(result).not.toBeNull();
     expect(result).toContain("New Project");
+  });
+});
+
+describe("calcProjectPomodoroMilestone", () => {
+  it("should return message with project name and '10' when sessions cross 10 milestone (9→10)", () => {
+    const result = calcProjectPomodoroMilestone(9, 10, "My App");
+    expect(result).not.toBeNull();
+    expect(result).toContain("My App");
+    expect(result).toContain("10");
+  });
+
+  it("should return message with project name and '25' when sessions cross 25 milestone (24→25)", () => {
+    const result = calcProjectPomodoroMilestone(24, 25, "My App");
+    expect(result).not.toBeNull();
+    expect(result).toContain("My App");
+    expect(result).toContain("25");
+  });
+
+  it("should return message with project name and '50' when sessions cross 50 milestone (49→50)", () => {
+    const result = calcProjectPomodoroMilestone(49, 50, "My App");
+    expect(result).not.toBeNull();
+    expect(result).toContain("My App");
+    expect(result).toContain("50");
+  });
+
+  it("should return message with project name and '100' when sessions cross 100 milestone (99→100)", () => {
+    const result = calcProjectPomodoroMilestone(99, 100, "My App");
+    expect(result).not.toBeNull();
+    expect(result).toContain("My App");
+    expect(result).toContain("100");
+  });
+
+  it("should include correct project name when name differs from milestone number", () => {
+    const result = calcProjectPomodoroMilestone(9, 10, "Vision Widget");
+    expect(result).toContain("Vision Widget");
+  });
+
+  it("should return null when no milestone is crossed (5→8)", () => {
+    expect(calcProjectPomodoroMilestone(5, 8, "My App")).toBeNull();
+  });
+
+  it("should return null when prevSessions=0 and newSessions below first threshold (0→9)", () => {
+    expect(calcProjectPomodoroMilestone(0, 9, "My App")).toBeNull();
+  });
+
+  it("should return null when sessions stay the same (5→5, equality guard)", () => {
+    expect(calcProjectPomodoroMilestone(5, 5, "My App")).toBeNull();
+  });
+
+  it("should return null when sessions decrease (15→10)", () => {
+    expect(calcProjectPomodoroMilestone(15, 10, "My App")).toBeNull();
+  });
+
+  it("should return null when projectName is empty string", () => {
+    expect(calcProjectPomodoroMilestone(9, 10, "")).toBeNull();
+  });
+
+  it("should return null when projectName is whitespace only", () => {
+    expect(calcProjectPomodoroMilestone(9, 10, "   ")).toBeNull();
+  });
+
+  it("should return highest milestone when multiple are crossed in one jump (0→100)", () => {
+    const result = calcProjectPomodoroMilestone(0, 100, "My App");
+    expect(result).not.toBeNull();
+    expect(result).toContain("100");
+  });
+
+  it("should return null when sessions land above an already-passed milestone (10→15)", () => {
+    expect(calcProjectPomodoroMilestone(10, 15, "My App")).toBeNull();
+  });
+
+  it("should return 25-milestone message when prev=15 (10 already passed) and new=26", () => {
+    const result = calcProjectPomodoroMilestone(15, 26, "My App");
+    expect(result).not.toBeNull();
+    expect(result).toContain("25");
   });
 });

@@ -18,7 +18,7 @@ import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDa
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
-import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify } from "./lib/projects";
+import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
@@ -1109,6 +1109,24 @@ export default function App() {
             sendNotification({ title: "Vision Widget", body: lifetimeMilestoneMsg });
           } catch { /* not available in browser dev mode */ }
         })();
+      }
+      // Notify when the focused project's per-project session count crosses a milestone (10/25/50/100 sessions).
+      // prevSessions: before this session; newSessions: after (always prevSessions + 1).
+      // Guard status !== 'done': a done project may still have isFocus=true in persisted data — skip milestone for it.
+      if (focusIdx >= 0 && snapshot.projects[focusIdx].status !== "done") {
+        const focusProject = snapshot.projects[focusIdx];
+        const prevSessions = focusProject.pomodoroSessions ?? 0;
+        const projectMilestoneMsg = calcProjectPomodoroMilestone(prevSessions, prevSessions + 1, focusProject.name);
+        if (projectMilestoneMsg) {
+          (async () => {
+            try {
+              let ok = await isPermissionGranted();
+              if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+              if (!ok) return;
+              sendNotification({ title: "Vision Widget", body: projectMilestoneMsg });
+            } catch { /* not available in browser dev mode */ }
+          })();
+        }
       }
     }
   }, [persist]);

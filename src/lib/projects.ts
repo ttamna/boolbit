@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for the Projects section — badge, sort, progress, deadline, age, and staleness logic
+// ABOUTME: Pure helpers for the Projects section — badge, sort, progress, deadline, age, staleness, and milestone logic
 // ABOUTME: All functions are side-effect-free; time-dependent ones accept injected dates for testing
 
 import type { Project, PomodoroDay } from "../types";
@@ -331,6 +331,29 @@ export function calcProjectCompletionNotify(
   if (prevStatus === "done") return null;
   if (!projectName.trim()) return null;
   return `✅ ${projectName} 완료! 수고하셨습니다 🎉`;
+}
+
+// Pomodoro session milestones for a single project: marks deep-work investment thresholds in a focused project.
+const PROJECT_SESSION_MILESTONES = [10, 25, 50, 100] as const;
+
+// Returns the desktop notification body when a focused project's lifetime pomodoro session count crosses a milestone.
+// Milestones: 10, 25, 50, 100 sessions — each marks a significant deep-work investment threshold.
+// Returns null when: newSessions ≤ prevSessions, no milestone is newly crossed, or projectName is empty/whitespace.
+// Fires only the highest newly-crossed threshold; matches calcProjectMilestone convention.
+// Exported for unit testing; pure function with no side effects.
+export function calcProjectPomodoroMilestone(
+  prevSessions: number,
+  newSessions: number,
+  projectName: string,
+): string | null {
+  if (newSessions <= prevSessions) return null;
+  if (!projectName.trim()) return null;
+  const crossed = PROJECT_SESSION_MILESTONES
+    .filter(m => prevSessions < m && newSessions >= m);
+  if (crossed.length === 0) return null;
+  // PROJECT_SESSION_MILESTONES is ascending [10,25,50,100]; filter preserves order; last = highest crossed.
+  const milestone = crossed[crossed.length - 1];
+  return `🍅 ${projectName} ${milestone}세션 달성! 꾸준한 집중력이 쌓이고 있어요`;
 }
 
 // Returns the highest milestone threshold crossed when progress moves from prevProgress to newProgress.
