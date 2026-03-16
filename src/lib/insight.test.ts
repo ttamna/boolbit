@@ -1906,6 +1906,140 @@ describe("calcTodayInsight", () => {
     expect(result!.text).toContain("의도"); // intention_missing, not week_start
     expect(result!.text).not.toContain("새 주");
   });
+
+  // ── streak_recession ───────────────────────────────────────────────────────
+  it("shouldReturnStreakRecessionWhenStreakBrokeYesterday", () => {
+    // streak=7, lastChecked=2 days ago → first morning after streak definitively broke
+    const result = calcTodayInsight({
+      habits: [habit("운동", 7, DAYS_2_AGO)],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("💔");
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("7");
+  });
+
+  it("shouldNotReturnStreakRecessionWhenLastCheckedYesterday", () => {
+    // Yesterday checked — streak still intact; recession condition requires lastChecked === 2 days ago
+    const result = calcTodayInsight({
+      habits: [habit("운동", 10, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnStreakRecessionWhenCheckedToday", () => {
+    // Checked today — streak is not broken; no recession
+    const result = calcTodayInsight({
+      habits: [habit("운동", 10, TODAY)],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnStreakRecessionWhenStreakBelow7", () => {
+    // streak=5 (below the 7-day significance threshold) — recession does not fire
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, DAYS_2_AGO)],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnHighestStreakHabitWhenMultipleStreakRecessionsQualify", () => {
+    // Both habits broke yesterday — recession picks the one with higher streak
+    const result = calcTodayInsight({
+      habits: [
+        habit("요가", 7, DAYS_2_AGO),
+        habit("운동", 12, DAYS_2_AGO),
+      ],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("12");
+    expect(result!.text).not.toContain("요가");
+  });
+
+  it("shouldPrioritizeStreakAtRiskOverStreakRecessionInEvening", () => {
+    // Evening (≥18): streak_at_risk (priority 1) fires before streak_recession (priority 10.1).
+    // The recession habit (lastChecked=DAYS_2_AGO) also qualifies for at-risk (lastChecked !== today).
+    const result = calcTodayInsight({
+      habits: [habit("운동", 12, DAYS_2_AGO)],
+      todayStr: TODAY,
+      nowHour: 19,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    // streak_at_risk fires since lastChecked !== todayStr in the evening
+    expect(result!.text).toContain("스트릭 위험");
+    expect(result!.text).not.toContain("💔");
+  });
+
+  it("shouldReturnStreakRecessionInMorningHours", () => {
+    // Explicitly confirms recession fires at morning hours (< 12) when no higher-priority insight blocks it.
+    // weekGoal provided to suppress period_start (TODAY = 2024-01-15 = Monday, nowHour < 12).
+    const result = calcTodayInsight({
+      habits: [habit("운동", 9, DAYS_2_AGO)],
+      todayStr: TODAY,
+      nowHour: 8,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "주간 목표",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("💔");
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("9");
+  });
+
+  it("shouldNotReturnStreakRecessionOnDay3OfBreak", () => {
+    // Day 3 of a broken streak: lastChecked === DAYS_3_AGO (not 2 days ago).
+    // streak_recession condition (lastChecked === dayBeforeYesterday) is false → does not fire.
+    // habit_consecutive_miss handles this via checkHistory; without checkHistory it returns null.
+    const result = calcTodayInsight({
+      habits: [habit("운동", 9, DAYS_3_AGO)],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    // streak_recession does not fire (lastChecked is 3 days ago, not 2)
+    expect(result).toBeNull();
+  });
 });
 
 // Helper: 3-day declining momentum history anchored to TODAY

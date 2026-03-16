@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > habit consecutive miss (≥3d) > momentum rise > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -104,7 +104,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > deadline_soon > goal_expiry > momentum_decline > project_stale > habit_consecutive_miss > momentum_rise > personal_best.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > momentum_rise > personal_best.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -266,6 +266,21 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     if (stale) {
       return { text: `⊖ ${stale.name} ${stale.days}일째 미집중`, level: "info" };
     }
+  }
+
+  // 10.1. Streak recession: fires on the first morning after a significant (≥7d) streak breaks.
+  // Condition: lastChecked === 2 days ago (yesterday was the missed day; today is the first morning the break is confirmed).
+  // Fires any time of day — streak_at_risk (priority 1) takes over in the evening via priority ordering.
+  // Picks the habit with the highest broken streak when multiple qualify.
+  // habit_consecutive_miss (10.2) handles longer absences (3+ days); this covers exactly the day-after-break.
+  const dayBeforeYesterdayDate = new Date(todayStr + "T00:00:00");
+  dayBeforeYesterdayDate.setDate(dayBeforeYesterdayDate.getDate() - 2);
+  const dayBeforeYesterday = dayBeforeYesterdayDate.toLocaleDateString("sv");
+  const recessionHabit = habits
+    .filter(h => (h.streak ?? 0) >= 7 && h.lastChecked === dayBeforeYesterday)
+    .sort((a, b) => (b.streak ?? 0) - (a.streak ?? 0))[0];
+  if (recessionHabit) {
+    return { text: `💔 ${recessionHabit.name} ${recessionHabit.streak}일 스트릭 끊어짐 — 오늘 다시?`, level: "warning" };
   }
 
   // 10.2. Habit consecutive miss: a habit not checked in for 3+ consecutive days — re-engagement nudge.
