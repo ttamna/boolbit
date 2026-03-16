@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (focus project has open PRs awaiting review) > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > project context switching (≥4 active projects all focused within 7 days) > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
+// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (active project has open PRs awaiting review) > github_drought (active project >7 days since last commit) > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > pomodoro_last_one > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > project context switching (≥4 active projects all focused within 7 days) > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -27,8 +27,10 @@ interface InsightParams {
    * projects without createdDate+progress are explicitly excluded from the behind-schedule check (not silently skipped).
    * `githubData.openPrs` is optional here (vs required in GitHubData) so existing test fixtures that only provide ciStatus
    * remain valid — githubData?.openPrs ?? 0 is used at call-sites so absent openPrs is treated as 0.
+   * `githubData.lastCommitAt` is optional here so existing test fixtures that omit it remain valid;
+   * absent lastCommitAt skips the github_drought check silently.
    */
-  projects?: Array<Pick<Project, "name" | "deadline" | "status" | "lastFocusDate"> & { createdDate?: string; progress?: number; isFocus?: boolean; githubData?: Pick<GitHubData, "ciStatus"> & { openPrs?: number } }>;
+  projects?: Array<Pick<Project, "name" | "deadline" | "status" | "lastFocusDate"> & { createdDate?: string; progress?: number; isFocus?: boolean; githubData?: Pick<GitHubData, "ciStatus"> & { openPrs?: number; lastCommitAt?: string | null } }>;
   /** Weekly goal text; absent/empty = no goal set. */
   weekGoal?: string;
   /** True when weekly goal has been marked done; absent/false = not done. */
@@ -118,6 +120,11 @@ const PERSONAL_BEST_MILESTONES = [7, 30, 100];
 // reliable signal of attention fragmentation.
 const MIN_CONTEXT_SWITCH_PROJECTS = 4;
 
+// Minimum days since last GitHub commit before a "commit drought" warning fires.
+// Chosen at 7 (strictly greater than) so brief weekend gaps or short code-review pauses
+// don't trigger false alarms; >7 days signals a meaningful activity gap.
+const GITHUB_DROUGHT_DAYS = 7;
+
 // Minimum consecutive days a habit must be unchecked before a re-engagement nudge is surfaced.
 const MIN_MISS_DAYS = 3;
 // How many calendar days to scan backward when counting consecutive missed check-ins.
@@ -163,7 +170,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > ci_failure > milestone_near > open_prs > perfect_day > intention_missing > period_start > no_focus_project > weak_day_ahead > pomodoro_last_one > pomodoro_goal_streak > pomodoro_day_record > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > project_context_switching > streak_recession > habit_consecutive_miss > almost_perfect_day > momentum_rise > goal_done > goal_streak > month_goal_streak > project_ahead > project_near_completion > project_forecast > personal_best > habit_target_near > intention_streak.
+// Priority order: streak_at_risk > deadline_critical > ci_failure > milestone_near > open_prs > github_drought > perfect_day > intention_missing > period_start > no_focus_project > weak_day_ahead > pomodoro_last_one > pomodoro_goal_streak > pomodoro_day_record > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > project_context_switching > streak_recession > habit_consecutive_miss > almost_perfect_day > momentum_rise > goal_done > goal_streak > month_goal_streak > project_ahead > project_near_completion > project_forecast > personal_best > habit_target_near > intention_streak.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -241,6 +248,31 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     if (withPrs) {
       const count = withPrs.githubData?.openPrs ?? 0;
       return { text: `🔀 ${withPrs.name} PR ${count}개 대기 중`, level: "info" };
+    }
+  }
+
+  // 3.7. GitHub commit drought: active/in-progress project with no commit for >7 days.
+  // Fires after open_prs (3.5) — a pending PR backlog is more immediately actionable than an activity drought.
+  // Fires before perfect_day (4) — a code inactivity signal warrants prompt attention.
+  // lastCommitAt absent/null/empty → no commit history available; skipped silently.
+  // Extracts the first 10 chars (YYYY-MM-DD) of the GitHub ISO timestamp (GitHub returns UTC 'Z' suffix)
+  // then compares with todayStr using local midnight — mirrors the daysUntil() pattern.
+  // Note: commits near UTC midnight may shift the extracted date by 1 day relative to the user's local calendar;
+  // this is an accepted approximation for a 7-day heuristic threshold.
+  // Picks the project with the most days since last commit (worst case surfaces first).
+  if (projects && projects.length > 0) {
+    const todayLocalMidnight = new Date(todayStr + "T00:00:00").getTime();
+    const drought = projects
+      .filter(p => p.status !== "done" && p.status !== "paused" && (p.githubData?.lastCommitAt ?? "").length >= 10)
+      .map(p => {
+        const lastCommitDateStr = p.githubData!.lastCommitAt!.substring(0, 10);
+        const daysSince = Math.floor((todayLocalMidnight - new Date(lastCommitDateStr + "T00:00:00").getTime()) / 86400000);
+        return { name: p.name, daysSince };
+      })
+      .filter(p => p.daysSince > GITHUB_DROUGHT_DAYS)
+      .sort((a, b) => b.daysSince - a.daysSince)[0];
+    if (drought) {
+      return { text: `⏸️ ${drought.name} — ${drought.daysSince}일째 커밋 없음`, level: "info" };
     }
   }
 

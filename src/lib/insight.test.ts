@@ -18,6 +18,7 @@ const DAYS_5_AGO = "2024-01-10";
 const DAYS_6_AGO = "2024-01-09";
 const DAYS_7_AGO = "2024-01-08";
 const DAYS_8_AGO = "2024-01-07";
+const DAYS_10_AGO = "2024-01-05";
 
 /** Minimal habit shape used across tests */
 function habit(name: string, streak: number, lastChecked?: string, bestStreak?: number) {
@@ -995,6 +996,190 @@ describe("calcTodayInsight", () => {
     expect(result!.text).toContain("백엔드");
     expect(result!.text).toContain("PR");
     expect(result!.text).not.toContain("완벽한");
+  });
+
+  // ── github_drought ──────────────────────────────────────────────────────────
+  it("shouldReturnGithubDroughtWhenActiveProjectHasNoCommitFor8Days", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "백엔드", status: "active", githubData: { ciStatus: null, lastCommitAt: DAYS_8_AGO + "T00:00:00Z" } }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("백엔드");
+    expect(result!.text).toContain("8");
+    expect(result!.text).toContain("커밋");
+  });
+
+  it("shouldReturnGithubDroughtWhenInProgressProjectHasNoCommitFor8Days", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "프론트엔드", status: "in-progress", githubData: { ciStatus: null, lastCommitAt: DAYS_8_AGO + "T00:00:00Z" } }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("프론트엔드");
+    expect(result!.text).toContain("커밋");
+  });
+
+  it("shouldNotReturnGithubDroughtWhenLastCommitIsExactly7DaysAgo", () => {
+    // 7 days ago is within threshold (>7 required); boundary: must NOT fire
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "경계프로젝트", status: "active", githubData: { ciStatus: null, lastCommitAt: DAYS_7_AGO + "T00:00:00Z" } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGithubDroughtWhenLastCommitIs6DaysAgo", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "클린프로젝트", status: "active", githubData: { ciStatus: null, lastCommitAt: DAYS_6_AGO + "T00:00:00Z" } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGithubDroughtWhenProjectIsDone", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "완료프로젝트", status: "done", githubData: { ciStatus: null, lastCommitAt: DAYS_8_AGO + "T00:00:00Z" } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGithubDroughtWhenProjectIsPaused", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "중단프로젝트", status: "paused", githubData: { ciStatus: null, lastCommitAt: DAYS_8_AGO + "T00:00:00Z" } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGithubDroughtWhenLastCommitAtIsAbsent", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "깃허브없음", status: "active", githubData: { ciStatus: null } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGithubDroughtWhenLastCommitAtIsExplicitNull", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "널커밋", status: "active", githubData: { ciStatus: null, lastCommitAt: null } }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGithubDroughtWhenGithubDataIsAbsent", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "깃허브연동없음", status: "active" }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPickMostStaleDroughtProjectWhenMultipleQualify", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "8일전커밋", status: "active", githubData: { ciStatus: null, lastCommitAt: DAYS_8_AGO + "T00:00:00Z" } },
+        { name: "10일전커밋", status: "active", githubData: { ciStatus: null, lastCommitAt: DAYS_10_AGO + "T00:00:00Z" } },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("10일전커밋"); // most stale wins
+  });
+
+  it("shouldOpenPrsPreemptGithubDrought", () => {
+    // open_prs (3.5) must preempt github_drought (3.7)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "백엔드", status: "active", githubData: { ciStatus: null, openPrs: 2, lastCommitAt: DAYS_8_AGO + "T00:00:00Z" } }],
+    });
+    expect(result!.text).toContain("PR"); // open_prs fires
+    expect(result!.text).not.toContain("커밋"); // not github_drought
+  });
+
+  it("shouldGithubDroughtPreemptPerfectDay", () => {
+    // github_drought (3.7) must preempt perfect_day (4)
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 5, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY, // all habits done = perfect_day would fire
+      projects: [{ name: "백엔드", status: "active", githubData: { ciStatus: null, lastCommitAt: DAYS_8_AGO + "T00:00:00Z" } }],
+    });
+    expect(result!.text).toContain("커밋"); // github_drought fires
+    expect(result!.text).not.toContain("완벽한"); // not perfect_day
   });
 
   // ── deadline_soon ──────────────────────────────────────────────────────────
