@@ -547,16 +547,16 @@ export default function App() {
   }, [loaded]); // only triggers once: loaded transitions false→true once at startup
 
   const updateProjects = useCallback((projects: Project[]) => {
-    persist({ ...data, projects });
-  }, [data, persist]);
+    persist({ ...dataRef.current, projects });
+  }, [persist]);
 
   const updateQuotes = useCallback((quotes: string[]) => {
-    persist({ ...data, quotes });
-  }, [data, persist]);
+    persist({ ...dataRef.current, quotes });
+  }, [persist]);
 
   const updateQuoteInterval = useCallback((quoteInterval: number) => {
-    persist({ ...data, quoteInterval });
-  }, [data, persist]);
+    persist({ ...dataRef.current, quoteInterval });
+  }, [persist]);
 
   const updateIntention = useCallback((todayIntention: string) => {
     const snapshot = dataRef.current;
@@ -695,35 +695,35 @@ export default function App() {
   }, [persist]);
 
   const updatePomodoroDurations = useCallback((pomodoroDurations: { focus: number; break: number; longBreak: number }) => {
-    persist({ ...data, pomodoroDurations });
-  }, [data, persist]);
+    persist({ ...dataRef.current, pomodoroDurations });
+  }, [persist]);
 
   const updatePomodoroAutoStart = useCallback((pomodoroAutoStart: boolean) => {
-    persist({ ...data, pomodoroAutoStart });
-  }, [data, persist]);
+    persist({ ...dataRef.current, pomodoroAutoStart });
+  }, [persist]);
 
   const updatePomodoroSessionGoal = useCallback((pomodoroSessionGoal: number | undefined) => {
-    persist({ ...data, pomodoroSessionGoal });
-  }, [data, persist]);
+    persist({ ...dataRef.current, pomodoroSessionGoal });
+  }, [persist]);
 
   const updatePomodoroLongBreakInterval = useCallback((pomodoroLongBreakInterval: number) => {
-    persist({ ...data, pomodoroLongBreakInterval });
-  }, [data, persist]);
+    persist({ ...dataRef.current, pomodoroLongBreakInterval });
+  }, [persist]);
 
   const updatePomodoroNotify = useCallback((pomodoroNotify: boolean) => {
     // Only persist false — absent/undefined means enabled (matches absent=default convention)
-    persist({ ...data, pomodoroNotify: pomodoroNotify ? undefined : false });
-  }, [data, persist]);
+    persist({ ...dataRef.current, pomodoroNotify: pomodoroNotify ? undefined : false });
+  }, [persist]);
 
   const updatePomodoroSound = useCallback((pomodoroSound: boolean) => {
     // Store true when enabled; coerce false → undefined so absent and false are both "disabled"
-    persist({ ...data, pomodoroSound: pomodoroSound || undefined });
-  }, [data, persist]);
+    persist({ ...dataRef.current, pomodoroSound: pomodoroSound || undefined });
+  }, [persist]);
 
   const updateHabitsSound = useCallback((habitsSound: boolean) => {
     // Store true when enabled; coerce false → undefined so absent and false are both "disabled"
-    persist({ ...data, habitsSound: habitsSound || undefined });
-  }, [data, persist]);
+    persist({ ...dataRef.current, habitsSound: habitsSound || undefined });
+  }, [persist]);
 
   // Batch-refresh GitHub data for all projects that have a repo set.
   // Fetches all repos in parallel, then applies results atomically to avoid
@@ -753,20 +753,21 @@ export default function App() {
   }, [settings.githubPat, persist]);
 
   const handlePomodoroSession = useCallback((focusMins: number) => {
+    const snapshot = dataRef.current;
     const today = new Date().toLocaleDateString("sv"); // YYYY-MM-DD local date (sv = Swedish = ISO format)
-    const count = calcTodaySessionCount(data.pomodoroSessionsDate, data.pomodoroSessions, today);
-    const newHistory = updatePomodoroHistory(data.pomodoroHistory ?? [], today, count);
+    const count = calcTodaySessionCount(snapshot.pomodoroSessionsDate, snapshot.pomodoroSessions, today);
+    const newHistory = updatePomodoroHistory(snapshot.pomodoroHistory ?? [], today, count);
     // Credit session to the ★ focused project (if any) as a lifetime counter.
-    const focusIdx = data.projects.findIndex(p => p.isFocus);
+    const focusIdx = snapshot.projects.findIndex(p => p.isFocus);
     const updatedProjects = focusIdx >= 0
-      ? data.projects.map((p, i) =>
+      ? snapshot.projects.map((p, i) =>
           i === focusIdx ? { ...p, pomodoroSessions: (p.pomodoroSessions ?? 0) + 1, lastFocusDate: today } : p
         )
-      : data.projects;
-    persist({ ...data, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects, pomodoroLifetimeMins: (data.pomodoroLifetimeMins ?? 0) + focusMins });
+      : snapshot.projects;
+    persist({ ...snapshot, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects, pomodoroLifetimeMins: (snapshot.pomodoroLifetimeMins ?? 0) + focusMins });
     // Notify when the daily session goal is hit exactly (not on every subsequent session).
     // Respects pomodoroNotify: absent/true = enabled, false = disabled.
-    if (data.pomodoroSessionGoal !== undefined && data.pomodoroSessionGoal > 0 && count === data.pomodoroSessionGoal && data.pomodoroNotify !== false) {
+    if (snapshot.pomodoroSessionGoal !== undefined && snapshot.pomodoroSessionGoal > 0 && count === snapshot.pomodoroSessionGoal && snapshot.pomodoroNotify !== false) {
       (async () => {
         try {
           let ok = await isPermissionGranted();
@@ -776,25 +777,27 @@ export default function App() {
         } catch { /* not available in browser dev mode */ }
       })();
     }
-  }, [data, persist]);
+  }, [persist]);
 
   const toggleSection = useCallback((section: SectionKey) => {
-    const current = data.collapsedSections ?? [];
+    const snapshot = dataRef.current;
+    const current = snapshot.collapsedSections ?? [];
     const next = current.includes(section)
       ? current.filter(s => s !== section)
       : [...current, section];
-    persist({ ...data, collapsedSections: next });
-  }, [data, persist]);
+    persist({ ...snapshot, collapsedSections: next });
+  }, [persist]);
 
   const moveSection = useCallback((section: SectionKey, dir: -1 | 1) => {
-    const order = data.sectionOrder ?? DEFAULT_SECTION_ORDER;
+    const snapshot = dataRef.current;
+    const order = snapshot.sectionOrder ?? DEFAULT_SECTION_ORDER;
     const i = order.indexOf(section);
     const j = i + dir;
     if (j < 0 || j >= order.length) return;
     const next = [...order];
     [next[i], next[j]] = [next[j], next[i]];
-    persist({ ...data, sectionOrder: next });
-  }, [data, persist]);
+    persist({ ...snapshot, sectionOrder: next });
+  }, [persist]);
 
   // Derived: today's completed focus session count, reset to 0 when date changes
   const pomodoroSessionsToday =
