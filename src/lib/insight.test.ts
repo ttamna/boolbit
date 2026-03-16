@@ -5818,6 +5818,119 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     });
   });
 
+  // ── habit_first_check_in ────────────────────────────────────────────────────
+  describe("habit_first_check_in (priority 6.85)", () => {
+    /**
+     * Base params: afternoon, no intention, no sessions — ensures no other insight fires.
+     * Individual tests inline-override habits, nowHour, todayIntentionDate, etc.
+     */
+    function firstBase() {
+      return {
+        habits: [] as ReturnType<typeof habit>[],
+        todayStr: TODAY,
+        nowHour: 14,
+        todayIntentionDate: undefined as string | undefined,
+        sessionsToday: 0,
+        sessionGoal: undefined as number | undefined,
+        habitsAllDoneDate: undefined as string | undefined,
+      };
+    }
+
+    it("shouldReturnHabitFirstCheckInWhenBrandNewHabitCheckedToday", () => {
+      // streak=1, lastChecked=TODAY, no bestStreak → genuine first check-in ever
+      const result = calcTodayInsight({
+        ...firstBase(),
+        habits: [{ name: "독서", streak: 1, lastChecked: TODAY }],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.level).toBe("success");
+      expect(result!.text).toContain("독서");
+    });
+
+    it("shouldReturnHabitFirstCheckInWhenBestStreakIsExactlyOne", () => {
+      // bestStreak=1 means the user has never exceeded a 1-day streak — still a "first step" context
+      const result = calcTodayInsight({
+        ...firstBase(),
+        habits: [{ name: "운동", streak: 1, lastChecked: TODAY, bestStreak: 1 }],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("운동");
+    });
+
+    it("shouldNotReturnHabitFirstCheckInWhenBestStreakAboveOne", () => {
+      // bestStreak=2 means the user has achieved a streak before — this is a restart, not a first
+      const result = calcTodayInsight({
+        ...firstBase(),
+        habits: [{ name: "운동", streak: 1, lastChecked: TODAY, bestStreak: 2 }],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotReturnHabitFirstCheckInWhenNotCheckedToday", () => {
+      // lastChecked=YESTERDAY — the user has not checked in today yet; no badge
+      // nowHour: 13 to avoid almost_perfect_day: with 1 unchecked habit at nowHour=14, remaining=1 → almost_perfect_day fires
+      const result = calcTodayInsight({
+        ...firstBase(),
+        nowHour: 13,
+        habits: [{ name: "독서", streak: 1, lastChecked: YESTERDAY }],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotReturnHabitFirstCheckInWhenStreakAboveOne", () => {
+      // streak=2 means the user is on day 2+ — not the first check-in
+      const result = calcTodayInsight({
+        ...firstBase(),
+        habits: [{ name: "독서", streak: 2, lastChecked: TODAY }],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldPreferBestDayAheadOverHabitFirstCheckIn", () => {
+      // best_day_ahead (6.82) fires before habit_first_check_in (6.85) — positive day-context beats new-habit nudge
+      // TOMORROW is used as the reference date (todayStr) so that lastChecked: TOMORROW aligns with "today";
+      // this avoids accidentally triggering streak_at_risk or other TODAY-anchored insights in the base params.
+      const result = calcTodayInsight({
+        ...firstBase(),
+        todayStr: TOMORROW,
+        todayIntentionDate: TOMORROW,
+        nowHour: 9,
+        habits: [{ name: "독서", streak: 1, lastChecked: TOMORROW }],
+        todayIsBestHabitDay: true,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("강한 요일");
+      expect(result!.text).not.toContain("독서");
+    });
+
+    it("shouldPickFirstHabitInArrayOrderWhenMultipleQualify", () => {
+      // .find() picks the first qualifying habit — array order determines which name appears
+      const result = calcTodayInsight({
+        ...firstBase(),
+        habits: [
+          { name: "독서", streak: 1, lastChecked: TODAY },
+          { name: "운동", streak: 1, lastChecked: TODAY },
+        ],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("독서");
+      expect(result!.text).not.toContain("운동");
+    });
+
+    it("shouldPreferHabitFirstCheckInOverPomodoroLastOne", () => {
+      // habit_first_check_in (6.85) fires before pomodoro_last_one (7) — new habit start preempts pomodoro nudge
+      const result = calcTodayInsight({
+        ...firstBase(),
+        habits: [{ name: "명상", streak: 1, lastChecked: TODAY }],
+        sessionsToday: 2,
+        sessionGoal: 3,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("명상");
+      expect(result!.text).not.toContain("포모도로");
+    });
+  });
+
   // ── habit_comeback ──────────────────────────────────────────────────────────
   describe("habit_comeback", () => {
     /**
@@ -6034,11 +6147,12 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     it("shouldBePreemptedByAlmostPerfectDay", () => {
       // almost_perfect_day (10.3) fires before pomodoro_today_above_avg (10.45)
       // 2 habits remain unchecked in the afternoon → almost_perfect_day fires
+      // bestStreak: 5 on checked habit prevents habit_first_check_in (6.85) from firing earlier
       const result = calcTodayInsight({
         ...base(),
         nowHour: 14,
         habits: [
-          { name: "운동", streak: 1, lastChecked: TODAY },
+          { name: "운동", streak: 1, lastChecked: TODAY, bestStreak: 5 },
           { name: "독서", streak: 1, lastChecked: YESTERDAY },
           { name: "명상", streak: 1, lastChecked: YESTERDAY },
         ],
