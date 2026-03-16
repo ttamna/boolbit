@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > personal best
+// ABOUTME: Priority chain: streak risk > deadline critical > milestone > perfect day > intention > period_start (year/quarter/month/week) > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > personal best
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -112,7 +112,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > momentum_rise > goal_done > goal_streak > project_ahead > personal_best.
+// Priority order: streak_at_risk > deadline_critical > milestone_near > perfect_day > intention_missing > period_start > no_focus_project > pomodoro_last_one > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > streak_recession > habit_consecutive_miss > momentum_rise > goal_done > goal_streak > project_ahead > project_near_completion > personal_best.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -379,6 +379,19 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
       .sort((a, b) => b.gap - a.gap)[0]; // most ahead first
     if (ahead) {
       return { text: `⚡ ${ahead.name} 일정 ${ahead.gap}% 앞서가는 중!`, level: "success" };
+    }
+  }
+
+  // 10.85. Project near completion: active/in-progress project at ≥ 90% progress — finish line is in sight.
+  // Fires after project_ahead (10.8) so schedule-relative positive context takes precedence.
+  // Picks the highest-progress project when multiple qualify.
+  // progress absent → excluded (undeclared progress ≠ near completion).
+  if (projects && projects.length > 0) {
+    const nearDone = projects
+      .filter(p => p.status !== "done" && p.status !== "paused" && p.progress != null && p.progress >= 90)
+      .sort((a, b) => b.progress! - a.progress!)[0];
+    if (nearDone) {
+      return { text: `🏁 ${nearDone.name} 완성 직전! (${nearDone.progress}%)`, level: "success" };
     }
   }
 

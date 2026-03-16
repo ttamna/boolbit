@@ -3338,9 +3338,10 @@ describe("calcTodayInsight — project_ahead (priority 10.8, after goal_done)", 
   it("shouldNotReturnProjectAheadWhenTimePctTooLow", () => {
     // createdDate=yesterday(2024-01-14), deadline=2024-02-22 → elapsed=1/39 days ≈ 2.6% < 10
     // calcScheduleGap returns null for early projects (timePct < 10 guard) — mirrors shouldNotReturnProjectBehindWhenTimePctTooLow
+    // progress=50 kept below 90 to avoid triggering project_near_completion (priority 10.85)
     const result = calcTodayInsight({
       ...base,
-      projects: [{ name: "막시작프로젝트", status: "active", deadline: "2024-02-22", createdDate: "2024-01-14", progress: 100 }],
+      projects: [{ name: "막시작프로젝트", status: "active", deadline: "2024-02-22", createdDate: "2024-01-14", progress: 50 }],
     });
     expect(result).toBeNull();
   });
@@ -3478,5 +3479,130 @@ describe("calcTodayInsight — goal_streak (priority 10.75, morning, past done w
     });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("연속 달성 중"); // goal_streak wins over project_ahead
+  });
+});
+
+// ── project_near_completion (priority 10.85, after project_ahead, before personal_best) ────
+describe("calcTodayInsight — project_near_completion (priority 10.85, after project_ahead)", () => {
+  const base = {
+    habits: [],
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as undefined,
+    habitsAllDoneDate: undefined as undefined,
+  };
+
+  it("shouldReturnProjectNearCompletionAt90Percent", () => {
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "거의다한프로젝트", status: "active", progress: 90 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("거의다한프로젝트");
+    expect(result!.text).toContain("90");
+  });
+
+  it("shouldNotReturnProjectNearCompletionAt89Percent", () => {
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "아직프로젝트", status: "active", progress: 89 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnProjectNearCompletionAt100Percent", () => {
+    // 100% progress but still active — user forgot to mark done
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "백퍼센트프로젝트", status: "active", progress: 100 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("백퍼센트프로젝트");
+    expect(result!.text).toContain("100");
+  });
+
+  it("shouldNotReturnProjectNearCompletionForDoneProject", () => {
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "완료프로젝트", status: "done", progress: 90 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectNearCompletionForPausedProject", () => {
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "중단프로젝트", status: "paused", progress: 90 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnProjectNearCompletionWhenProgressAbsent", () => {
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "진행률없음", status: "active" }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnHighestProgressProjectWhenMultipleNearCompletion", () => {
+    const result = calcTodayInsight({
+      ...base,
+      projects: [
+        { name: "구십프로젝트", status: "active", progress: 90 },
+        { name: "구십오프로젝트", status: "active", progress: 95 },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("구십오프로젝트"); // highest progress wins
+    expect(result!.text).toContain("95");
+  });
+
+  it("shouldProjectAheadFireBeforeProjectNearCompletion", () => {
+    // project_ahead (10.8) fires before project_near_completion (10.85)
+    // createdDate=DAYS_7_AGO, deadline=IN_8 → timePct≈47%; progress=92 → gap=+45 ≥20 → project_ahead fires
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "앞서가며완성직전", status: "active", deadline: IN_8, createdDate: DAYS_7_AGO, progress: 92 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("앞서가며완성직전");
+    expect(result!.text).toContain("앞서가는"); // project_ahead fires, not 완성 직전
+    expect(result!.text).not.toContain("완성 직전");
+  });
+
+  it("shouldReturnProjectNearCompletionWhenProjectAheadGapBelowThreshold", () => {
+    // project_ahead requires gap ≥ 20; progress=91, timePct≈47 → gap=+44... actually
+    // Use gap < 20 scenario: createdDate=DAYS_7_AGO, deadline=IN_8, progress=60 → gap≈13 < 20 → project_ahead skipped
+    // Then project_near_completion should NOT fire (60 < 90) — but swap to progress=91 with a fixture where gap < 20
+    // createdDate=DAYS_7_AGO, deadline=IN_8 → timePct≈47; progress=60 → gap=+13 < 20 (project_ahead skipped)
+    // BUT progress=60 < 90 → project_near_completion also skipped → null
+    // Correct fixture for "project_ahead skipped but project_near_completion fires":
+    // need progress ≥ 90 AND gap < 20 → impossible with same deadline if progress=91 → gap=44 ≥ 20
+    // Solution: use NO createdDate so project_ahead filter excludes it, but progress ≥ 90
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "마감없는완성직전", status: "active", progress: 91 }], // no createdDate → project_ahead excluded
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("마감없는완성직전");
+    expect(result!.text).toContain("완성 직전"); // project_near_completion fires
+    expect(result!.text).not.toContain("앞서가는");
+  });
+
+  it("shouldReturnProjectNearCompletionForInProgressStatus", () => {
+    // "in-progress" is the other non-excluded status (besides "active"); verify it is not blocked
+    const result = calcTodayInsight({
+      ...base,
+      projects: [{ name: "진행중프로젝트", status: "in-progress", progress: 90 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("진행중프로젝트");
   });
 });
