@@ -239,6 +239,22 @@ export function calcEveningHabitReminder(
   return { uncheckedCount: unchecked.length, uncheckedNames: unchecked.map(h => h.name) };
 }
 
+// Returns approach alerts for habits within threshold days of their next streak milestone (7🔥/30⭐/100💎).
+// Maps getUpcomingMilestone over all habits; only habits within threshold (default 3) appear.
+// Returns empty array when habits is empty or no habits are approaching a milestone — use .length to gate notification.
+// habits: input shape uses only name + streak (callers pass full Habit objects).
+// Exported for unit testing; pure function with no side effects.
+export function calcHabitMilestoneApproachNotify(
+  habits: Array<{ name: string; streak: number }>,
+  threshold = 3,
+): { name: string; daysLeft: number; badge: string }[] {
+  return habits.flatMap(habit => {
+    const upcoming = getUpcomingMilestone(habit.streak, threshold);
+    if (!upcoming) return [];
+    return [{ name: habit.name, daysLeft: upcoming.days, badge: upcoming.badge }];
+  });
+}
+
 // Plays a short audio cue when a habit is checked in using the Web Audio API.
 // Regular check: single E5 tone (659 Hz) — crisp, positive confirmation.
 // All done (allDone=true): ascending D5→G5 two-tone (587→784 Hz) — celebratory "all complete" signal.

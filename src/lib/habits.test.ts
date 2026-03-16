@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, and calcEveningHabitReminder pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, and evening reminder result
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, and calcHabitMilestoneApproachNotify pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, and multi-habit milestone approach alerts
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -970,5 +970,72 @@ describe("calcEveningHabitReminder", () => {
     const habits = [{ name: "운동", lastChecked: "" }];
     const result = calcEveningHabitReminder(habits, EVE_TODAY);
     expect(result).toEqual({ uncheckedCount: 1, uncheckedNames: ["운동"] });
+  });
+});
+
+describe("calcHabitMilestoneApproachNotify", () => {
+  it("should return empty array when habits is empty", () => {
+    expect(calcHabitMilestoneApproachNotify([])).toEqual([]);
+  });
+
+  it("should return empty when no habits approaching milestone (streak=3, default threshold=3)", () => {
+    // streak=3: days=7-3=4, exceeds threshold=3 → not approaching
+    expect(calcHabitMilestoneApproachNotify([{ name: "운동", streak: 3 }])).toEqual([]);
+  });
+
+  it("should return alert when habit is 1 day from 🔥 milestone", () => {
+    expect(calcHabitMilestoneApproachNotify([{ name: "운동", streak: 6 }]))
+      .toEqual([{ name: "운동", daysLeft: 1, badge: "🔥" }]);
+  });
+
+  it("should return alert when habit is 2 days from 🔥 milestone", () => {
+    expect(calcHabitMilestoneApproachNotify([{ name: "명상", streak: 5 }]))
+      .toEqual([{ name: "명상", daysLeft: 2, badge: "🔥" }]);
+  });
+
+  it("should return alert when habit is exactly at threshold distance from 🔥 (streak=4)", () => {
+    // streak=4: days=7-4=3, at default threshold=3
+    expect(calcHabitMilestoneApproachNotify([{ name: "독서", streak: 4 }]))
+      .toEqual([{ name: "독서", daysLeft: 3, badge: "🔥" }]);
+  });
+
+  it("should return ⭐ alert when habit is 3 days from 30-day milestone (streak=27)", () => {
+    expect(calcHabitMilestoneApproachNotify([{ name: "명상", streak: 27 }]))
+      .toEqual([{ name: "명상", daysLeft: 3, badge: "⭐" }]);
+  });
+
+  it("should return 💎 alert when habit is 1 day from 100-day milestone (streak=99)", () => {
+    expect(calcHabitMilestoneApproachNotify([{ name: "운동", streak: 99 }]))
+      .toEqual([{ name: "운동", daysLeft: 1, badge: "💎" }]);
+  });
+
+  it("should return empty when habit has just reached a milestone (streak=7)", () => {
+    // Next milestone is 30 (23 days away) — beyond default threshold=3
+    expect(calcHabitMilestoneApproachNotify([{ name: "운동", streak: 7 }])).toEqual([]);
+  });
+
+  it("should return empty when streak is 0", () => {
+    expect(calcHabitMilestoneApproachNotify([{ name: "운동", streak: 0 }])).toEqual([]);
+  });
+
+  it("should return multiple alerts when multiple habits are approaching, skip non-approaching", () => {
+    const habits = [
+      { name: "운동", streak: 6 },   // 1 day from 🔥
+      { name: "명상", streak: 29 },  // 1 day from ⭐
+      { name: "독서", streak: 3 },   // 4 days from 🔥 — beyond threshold
+    ];
+    expect(calcHabitMilestoneApproachNotify(habits)).toEqual([
+      { name: "운동", daysLeft: 1, badge: "🔥" },
+      { name: "명상", daysLeft: 1, badge: "⭐" },
+    ]);
+  });
+
+  it("should include streak=25 with custom threshold=5 (days=5 ≤ 5)", () => {
+    expect(calcHabitMilestoneApproachNotify([{ name: "운동", streak: 25 }], 5))
+      .toEqual([{ name: "운동", daysLeft: 5, badge: "⭐" }]);
+  });
+
+  it("should exclude streak=25 with default threshold=3 (days=5 > 3)", () => {
+    expect(calcHabitMilestoneApproachNotify([{ name: "운동", streak: 25 }])).toEqual([]);
   });
 });

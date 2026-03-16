@@ -14,7 +14,7 @@ import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder } from "./lib/intention";
-import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder } from "./lib/habits";
+import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
@@ -403,6 +403,30 @@ export default function App() {
     })();
   }, [data.pomodoroSessionsDate, data.pomodoroSessions, data.pomodoroMorningRemindDate, loaded, persist]);
 
+  // Habit milestone approach nudge — fires once per calendar day at 09:00+ (same window as intention reminder)
+  // when any habit is within 3 days of its next streak milestone (7🔥/30⭐/100💎).
+  // habitMilestoneApproachDate persists the guard so it fires only once per calendar day even after restart.
+  // Design: date is persisted before the async send (same pattern as intentionMorningRemindDate) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.habitMilestoneApproachDate === today) return;
+    if (now.getHours() < 9) return;
+    const approaching = calcHabitMilestoneApproachNotify(data.habits ?? []);
+    if (approaching.length === 0) return;
+    persist({ ...dataRef.current, habitMilestoneApproachDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        for (const { name, daysLeft, badge } of approaching) {
+          sendNotification({ title: "Vision Widget", body: `${badge} ${name} — 마일스톤까지 ${daysLeft}일!` });
+        }
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.habits, data.habitMilestoneApproachDate, loaded, persist]);
 
   // At-risk streak notification — fires once per app startup when habits are about to lose their streak.
   // "At risk" = streak > 0, last checked yesterday (midnight reset will zero the streak if not checked today).
