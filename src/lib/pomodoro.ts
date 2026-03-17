@@ -294,6 +294,32 @@ export function calcMonthlyPomodoroReport(
   return `💪 지난달 포모도로 ${total}세션 — 이번 달엔 더 집중해봐요 (${days}일 활성)`;
 }
 
+// Returns a desktop-notification body summarising last quarter's total pomodoro session count.
+// Fires on the first day of each quarter (Jan 1, Apr 1, Jul 1, Oct 1) at 09:00+ via the
+//   quarterlyPomodoroReportDate guard in App.tsx.
+// prevQtrDays: all calendar days of the previous quarter — caller uses
+//   calcLastNDays(yesterday, totalDaysInQuarter(yesterday)) so the window covers exactly Q1–Q4.
+// Note: pomodoroHistory is capped at 14 days, so only the last ≤14 days of the quarter will match.
+//   For this reason the session-count thresholds (≥100=🔥, ≥40=✅) match calcMonthlyPomodoroReport
+//   rather than being scaled by quarter length (×3); the effective data window is the same ≤14 days.
+// Returns null when fewer than 3 active (count > 0) days fall within the window.
+// Exported for unit testing; pure function with no side effects.
+export function calcQuarterlyPomodoroReport(
+  history: PomodoroDay[],
+  prevQtrDays: string[],
+): string | null {
+  const dateWindow = new Set(prevQtrDays);
+  const active = history.filter(e => dateWindow.has(e.date) && e.count > 0);
+  if (active.length < 3) return null;
+
+  const total = active.reduce((s, e) => s + e.count, 0);
+  const days = active.length;
+
+  if (total >= 100) return `🔥 지난 분기 포모도로 ${total}세션 — 집중력 최고! (${days}일 활성)`;
+  if (total >= 40) return `✅ 지난 분기 포모도로 ${total}세션 — 잘 집중했어요 (${days}일 활성)`;
+  return `💪 지난 분기 포모도로 ${total}세션 — 이번 분기엔 더 집중해봐요 (${days}일 활성)`;
+}
+
 // Returns the desktop notification body when no pomodoro sessions have been completed today, null otherwise.
 // Hour/date guards live in the caller (App.tsx useEffect) — fires after 10:00 via pomodoroMorningRemindDate guard.
 // Callers should check pomodoroMorningRemindDate before invoking to ensure once-per-day delivery.
