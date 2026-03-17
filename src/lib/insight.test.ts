@@ -6226,6 +6226,139 @@ describe("calcTodayInsight — focus_streak_milestone (priority 7.42, between po
   });
 });
 
+describe("calcTodayInsight — pomodoro_lifetime_milestone (priority 7.43, between focus_streak_milestone and pomodoro_goal_streak)", () => {
+  // Base: Monday afternoon, intention set, no habits, no pomodoro goal, no competing insights.
+  // TODAY = "2024-01-15" is a Monday — afternoon avoids morning-only gates.
+  // focusStreak=1 (not a FOCUS_STREAK_MILESTONES value) — no focus_streak_milestone interference.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 1,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    focusStreak: 1, // non-milestone value — suppresses focus_streak_milestone
+  });
+
+  it("shouldReturnLifetimeMilestoneWhenCrossing10h", () => {
+    // prevMins=599 + today's session → crosses 600min (10h) threshold
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroLifetimePrevMins: 599,
+      pomodoroLifetimeMins: 625,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("10");
+    expect(result!.text).toContain("시간 돌파");
+  });
+
+  it("shouldReturnLifetimeMilestoneWhenCrossing50h", () => {
+    // prevMins=2999, currentMins=3025 → crosses 3000min (50h) milestone
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroLifetimePrevMins: 2999,
+      pomodoroLifetimeMins: 3025,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("50");
+    expect(result!.text).toContain("시간 돌파");
+  });
+
+  it("shouldReturnLifetimeMilestoneWhenCrossing100h", () => {
+    // prevMins=5975, currentMins=6000 → crosses 6000min (100h) milestone exactly
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroLifetimePrevMins: 5975,
+      pomodoroLifetimeMins: 6000,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("100");
+    expect(result!.text).toContain("시간 돌파");
+  });
+
+  it("shouldReturnLifetimeMilestoneWhenCrossing200h", () => {
+    // prevMins=11975, currentMins=12000 → crosses 12000min (200h) milestone
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroLifetimePrevMins: 11975,
+      pomodoroLifetimeMins: 12000,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("200");
+    expect(result!.text).toContain("시간 돌파");
+  });
+
+  it("shouldNotFireWhenAlreadyPastMilestone", () => {
+    // Both prev and current past 600min — no milestone crossed today
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroLifetimePrevMins: 625,
+      pomodoroLifetimeMins: 650,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenBothBelowMilestone", () => {
+    // Still accumulating toward first milestone — not crossed yet
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroLifetimePrevMins: 100,
+      pomodoroLifetimeMins: 125,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenSessionsTodayIsZero", () => {
+    // sessionsToday=0 guard: even when prevMins<600 && currentMins>=600 would otherwise cross the threshold,
+    // the sessionsToday > 0 guard blocks the badge — isolates the guard from the crossing condition.
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 0,
+      pomodoroLifetimePrevMins: 575,
+      pomodoroLifetimeMins: 600, // would cross 10h if sessionsToday > 0, but guard blocks it
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenParamsAbsent", () => {
+    // absent pomodoroLifetimeMins / prevMins → feature not wired; skipped silently
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFocusStreakMilestonePreemptLifetimeMilestone", () => {
+    // focus_streak_milestone (7.42) fires before pomodoro_lifetime_milestone (7.43)
+    const result = calcTodayInsight({
+      ...base(),
+      focusStreak: 7, // milestone value → focus_streak_milestone fires
+      pomodoroLifetimePrevMins: 599,
+      pomodoroLifetimeMins: 625,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연속 집중"); // focus_streak wins
+    expect(result!.text).not.toContain("시간 돌파");
+  });
+
+  it("shouldLifetimeMilestonePreemptPomodoroGoalStreak", () => {
+    // pomodoro_lifetime_milestone (7.43) fires before pomodoro_goal_streak (7.45)
+    // goalStreak=3, sessionsToday=1 < sessionGoal=4 → pomodoro_goal_streak condition met,
+    // but lifetime milestone crossed today has higher priority
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 1,
+      sessionGoal: 4,
+      pomodoroGoalStreak: 3,
+      pomodoroLifetimePrevMins: 599,
+      pomodoroLifetimeMins: 625,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("시간 돌파"); // lifetime milestone wins
+    expect(result!.text).not.toContain("연속 달성 중"); // goal_streak not shown
+  });
+});
+
 describe("calcTodayInsight — project_forecast (priority 10.87, at-current-pace completion date)", () => {
   // Tuesday 2024-01-16: not Monday, not 1st of month/quarter/year — no period_start triggers
   const TODAY_F = "2024-01-16";

@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (active project has open PRs awaiting review) > github_drought (active project >7 days since last commit) > open_issues (active project ≥5 open GitHub issues) > habit_pomodoro_dual_win (all habits done + pomodoro goal met today) > habit_all_done_early (all habits done before noon, habits.length > 0; preempted by dual_win when pomodoro goal also met) > perfect day (streak count shown when ≥3 consecutive days via perfectDayStreak) > intention_done (today's intention marked done) > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > habit_first_check_in (streak=1, bestStreak≤1, checked today = brand-new habit first step) > habit_comeback (bestStreak≥14, streak 3+, checked today = recovering from broken long streak) > habit_multi_streak (3+ habits each ≥7d streak, collective portfolio momentum) > pomodoro_last_one > pomodoro_goal_streak_milestone (pomodoroGoalStreak+1 hits 7/14/30, today's goal already met) > focus_streak_milestone (7/14/30 consecutive focus days, sessionsToday > 0) > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_week_record (current ISO-week total beats same-length prev-week window) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > project context switching (≥4 active projects all focused within 7 days) > streak recession (≥7d broken yesterday) > pomodoro_goal_streak_broken (≥3d streak broke yesterday) > habit consecutive miss (≥3d) > habit_diversity_warning (habits ≥3, one streak <30% of others' avg, avgOthers ≥4) > almost perfect day (≥14h, 1–2 habits left) > habit_week_perfect (7-day completion rate = 100%) > habit_week_excellent (7-day completion rate 90–99%) > habit_week_improved (current 7d rate ≥10pp above prev 7d rate) > habit_week_declined (current 7d rate ≥10pp below prev 7d rate) > pomodoro_today_above_avg (sessionsToday ≥ rolling average +2) > momentum_streak_milestone (momentumStreak hits 7/14/30 consecutive qualifying days) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > quarter_goal_streak (past ≥2 consecutive done quarters, morning only) > year_goal_streak (past ≥1 consecutive done years, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit_best_streak_approach (auto-tracked bestStreak within 1–2 days, checked today) > habit_target_hit (user-defined targetStreak exactly reached today, checked today) > habit target near (user-defined targetStreak within 2 days) > habit_target_halfway (user-defined targetStreak at exact midpoint, checked today, target ≥ 14) > habit_month_flawless (habit checked every day of calendar month so far, ≥10 days in) > intention streak (≥7d consecutive intention-setting)
+// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (active project has open PRs awaiting review) > github_drought (active project >7 days since last commit) > open_issues (active project ≥5 open GitHub issues) > habit_pomodoro_dual_win (all habits done + pomodoro goal met today) > habit_all_done_early (all habits done before noon, habits.length > 0; preempted by dual_win when pomodoro goal also met) > perfect day (streak count shown when ≥3 consecutive days via perfectDayStreak) > intention_done (today's intention marked done) > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > habit_first_check_in (streak=1, bestStreak≤1, checked today = brand-new habit first step) > habit_comeback (bestStreak≥14, streak 3+, checked today = recovering from broken long streak) > habit_multi_streak (3+ habits each ≥7d streak, collective portfolio momentum) > pomodoro_last_one > pomodoro_goal_streak_milestone (pomodoroGoalStreak+1 hits 7/14/30, today's goal already met) > focus_streak_milestone (7/14/30 consecutive focus days, sessionsToday > 0) > pomodoro_lifetime_milestone (cumulative focus time crosses 10h/50h/100h/200h today) > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_week_record (current ISO-week total beats same-length prev-week window) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > project context switching (≥4 active projects all focused within 7 days) > streak recession (≥7d broken yesterday) > pomodoro_goal_streak_broken (≥3d streak broke yesterday) > habit consecutive miss (≥3d) > habit_diversity_warning (habits ≥3, one streak <30% of others' avg, avgOthers ≥4) > almost perfect day (≥14h, 1–2 habits left) > habit_week_perfect (7-day completion rate = 100%) > habit_week_excellent (7-day completion rate 90–99%) > habit_week_improved (current 7d rate ≥10pp above prev 7d rate) > habit_week_declined (current 7d rate ≥10pp below prev 7d rate) > pomodoro_today_above_avg (sessionsToday ≥ rolling average +2) > momentum_streak_milestone (momentumStreak hits 7/14/30 consecutive qualifying days) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > quarter_goal_streak (past ≥2 consecutive done quarters, morning only) > year_goal_streak (past ≥1 consecutive done years, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit_best_streak_approach (auto-tracked bestStreak within 1–2 days, checked today) > habit_target_hit (user-defined targetStreak exactly reached today, checked today) > habit target near (user-defined targetStreak within 2 days) > habit_target_halfway (user-defined targetStreak at exact midpoint, checked today, target ≥ 14) > habit_month_flawless (habit checked every day of calendar month so far, ≥10 days in) > intention streak (≥7d consecutive intention-setting)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -149,6 +149,21 @@ interface InsightParams {
    */
   focusStreak?: number;
   /**
+   * Total accumulated pomodoro focus minutes BEFORE today's sessions were added.
+   * Computed in App.tsx as max(0, (data.pomodoroLifetimeMins ?? 0) − sessionsToday × sessionDurationMins).
+   * Used together with pomodoroLifetimeMins to detect when today's sessions crossed a lifetime milestone
+   * (10h=600min / 50h=3000min / 100h=6000min / 200h=12000min).
+   * Absent/undefined = feature not wired by caller; pomodoro_lifetime_milestone skipped silently.
+   */
+  pomodoroLifetimePrevMins?: number;
+  /**
+   * Total accumulated pomodoro focus minutes including today's sessions.
+   * Sourced from data.pomodoroLifetimeMins in App.tsx.
+   * Together with pomodoroLifetimePrevMins, detects milestone crossings at priority 7.43.
+   * Absent/undefined = no lifetime data; pomodoro_lifetime_milestone skipped silently.
+   */
+  pomodoroLifetimeMins?: number;
+  /**
    * Number of consecutive days (including today if done) on which the user marked their daily
    * intention as accomplished (done === true in intentionHistory).
    * Computed by calcIntentionDoneStreak(intentionHistory, todayIntentionDone, todayStr) in App.tsx.
@@ -236,6 +251,11 @@ const MOMENTUM_STREAK_MILESTONES = [7, 14, 30];
 // Mirrors FOCUS_STREAK_MILESTONES (weekly/biweekly/monthly) — consistent with system-wide milestone philosophy.
 const POMODORO_GOAL_STREAK_MILESTONES = [7, 14, 30];
 
+// Cumulative focus-time milestones (in minutes) for the pomodoro_lifetime_milestone badge.
+// 600=10h, 3000=50h, 6000=100h, 12000=200h — chosen to mark meaningful long-term focus achievements
+// while remaining achievable across months of daily practice.
+const POMODORO_LIFETIME_MILESTONES = [600, 3000, 6000, 12000];
+
 // Minimum number of active/in-progress projects that must each have lastFocusDate within the last 7 days
 // before a context-switching warning is surfaced. Chosen at 4 to avoid false-positives for users with
 // naturally parallel workloads (2–3 projects); 4+ simultaneous active projects in a single week is a
@@ -304,7 +324,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > ci_failure > milestone_near > open_prs > github_drought > open_issues > habit_pomodoro_dual_win > habit_all_done_early (habits done before noon, length>0) > perfect_day > intention_done > intention_missing > period_start > no_focus_project > weak_day_ahead > best_day_ahead > habit_first_check_in > habit_comeback > habit_multi_streak > pomodoro_last_one > pomodoro_goal_streak_milestone > focus_streak_milestone > pomodoro_goal_streak > pomodoro_day_record > pomodoro_week_record > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > project_context_switching > streak_recession > habit_consecutive_miss > habit_diversity_warning > almost_perfect_day > habit_week_perfect > habit_week_excellent > habit_week_improved > habit_week_declined > pomodoro_today_above_avg > momentum_streak_milestone > momentum_rise > goal_done > goal_streak > month_goal_streak > quarter_goal_streak > year_goal_streak > project_ahead > project_near_completion > project_forecast > personal_best > habit_best_streak_approach > habit_target_hit > habit_target_near > habit_target_halfway > habit_month_flawless (habit checked every day of calendar month so far, ≥10 days in) > intention_streak.
+// Priority order: streak_at_risk > deadline_critical > ci_failure > milestone_near > open_prs > github_drought > open_issues > habit_pomodoro_dual_win > habit_all_done_early (habits done before noon, length>0) > perfect_day > intention_done > intention_missing > period_start > no_focus_project > weak_day_ahead > best_day_ahead > habit_first_check_in > habit_comeback > habit_multi_streak > pomodoro_last_one > pomodoro_goal_streak_milestone > focus_streak_milestone > pomodoro_lifetime_milestone (cumulative focus time crosses 10h/50h/100h/200h today) > pomodoro_goal_streak > pomodoro_day_record > pomodoro_week_record > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > project_context_switching > streak_recession > habit_consecutive_miss > habit_diversity_warning > almost_perfect_day > habit_week_perfect > habit_week_excellent > habit_week_improved > habit_week_declined > pomodoro_today_above_avg > momentum_streak_milestone > momentum_rise > goal_done > goal_streak > month_goal_streak > quarter_goal_streak > year_goal_streak > project_ahead > project_near_completion > project_forecast > personal_best > habit_best_streak_approach > habit_target_hit > habit_target_near > habit_target_halfway > habit_month_flawless (habit checked every day of calendar month so far, ≥10 days in) > intention_streak.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, todayIntentionDone, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -328,6 +348,8 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     todayIsWeakHabitDay,
     todayIsBestHabitDay,
     focusStreak,
+    pomodoroLifetimePrevMins,
+    pomodoroLifetimeMins,
     perfectDayStreak,
     habitWeekRate,
     habitPrevWeekRate,
@@ -628,6 +650,29 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // focusStreak absent → skipped silently (no history or caller did not wire calcFocusStreak).
   if (focusStreak != null && FOCUS_STREAK_MILESTONES.includes(focusStreak) && sessionsToday > 0) {
     return { text: `🔥 ${focusStreak}일 연속 집중 중!`, level: "success" };
+  }
+
+  // 7.43. Pomodoro lifetime milestone: today's sessions crossed a cumulative focus-time threshold.
+  // Detects crossing via pomodoroLifetimePrevMins < milestone && pomodoroLifetimeMins >= milestone.
+  // "just crossed" semantics: prevMins is the total before today's sessions were added; currentMins
+  //   includes them. Any milestone in (prevMins, currentMins] is a new lifetime achievement.
+  // Picks the SMALLEST milestone just crossed: find() returns the first match in the ascending
+  //   [600, 3000, 6000, 12000] array. In practice only one milestone can be crossed per session
+  //   batch (a single pomodoro adds ≤ 60min; skipping from 0 to 12000min is impossible), so this
+  //   is always the correct milestone to celebrate.
+  // sessionsToday > 0 guard: when the user hasn't focused today, prevMins === currentMins by
+  //   construction (no sessions to add), so no crossing is possible. Guard makes intent explicit.
+  // Fires AFTER focus_streak_milestone (7.42): a sustained streak signal (days) outweighs a
+  //   cumulative-total milestone on the same day — streak continuity is rarer.
+  // Fires BEFORE pomodoro_goal_streak (7.45): a lifetime achievement (rare, hours-scale) outweighs
+  //   a recurring daily-goal-streak nudge (fires every morning while streak ≥ 2 persists).
+  // Both params absent → skipped silently (feature not wired or no lifetime data available).
+  if (pomodoroLifetimeMins !== undefined && pomodoroLifetimePrevMins !== undefined && sessionsToday > 0) {
+    const hit = POMODORO_LIFETIME_MILESTONES.find(m => pomodoroLifetimePrevMins < m && pomodoroLifetimeMins >= m);
+    if (hit != null) {
+      const hours = hit / 60;
+      return { text: `⏱️ 누적 집중 ${hours}시간 돌파!`, level: "success" };
+    }
   }
 
   // 7.45. Pomodoro goal streak: consecutive past days where sessionGoal was met — motivational nudge to sustain the streak.
