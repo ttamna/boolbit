@@ -1,5 +1,5 @@
 // ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
-// ABOUTME: updateMomentumHistory — upserts today's score into rolling 31-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection; calcMomentumEveningDigest — end-of-day score summary notification body; calcMomentumMorningReminder — morning notification showing yesterday's score; calcWeeklyMomentumReport — Monday morning last-week avg + tier distribution report; calcMonthlyMomentumReport — 1st-of-month previous calendar month avg + tier distribution report; calcQuarterlyMomentumReport — quarter-start morning previous quarter avg + tier distribution report; calcYearlyMomentumReport — Jan 1 morning previous year avg + tier distribution report
+// ABOUTME: updateMomentumHistory — upserts today's score into rolling 31-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection; calcMomentumEveningDigest — end-of-day score summary notification body; calcMomentumMorningReminder — morning notification showing yesterday's score; calcWeeklyMomentumReport — Monday morning last-week avg + tier distribution report; calcMonthlyMomentumReport — 1st-of-month previous calendar month avg + tier distribution report; calcQuarterlyMomentumReport — quarter-start morning previous quarter avg + tier distribution report; calcYearlyMomentumReport — Jan 1 morning previous year avg + tier distribution report; calcDayOfWeekMomentumAvg/calcWeakMomentumDay/calcBestMomentumDay — per-weekday avg score for todayIsWeakMomentumDay/todayIsBestMomentumDay insight params
 
 import type { MomentumEntry } from "../types";
 
@@ -347,4 +347,80 @@ export function calcYearlyMomentumReport(history: MomentumEntry[], prevYearDays:
   if (avg >= 75) return `🔥 지난 해 모멘텀 평균 ${avg}점 — 최고의 한 해!${dist}`;
   if (avg >= 40) return `✅ 지난 해 모멘텀 평균 ${avg}점 — 잘 하고 있어요!${dist}`;
   return `💪 지난 해 모멘텀 평균 ${avg}점 — 이번 해엔 더 힘내봐요!${dist}`;
+}
+
+// Minimum history entries per weekday required to include that day in the analysis.
+const MIN_DOW_MOMENTUM_APPEARANCES = 2;
+// Average momentum score must be strictly below this threshold to flag a day as "weak".
+// Mirrors the low-tier boundary (score < 40) from calcDailyScore tier logic.
+const WEAK_MOMENTUM_DAY_THRESHOLD = 40;
+// Average momentum score must meet or exceed this threshold to flag a day as "best".
+// Chosen above the mid-tier midpoint to select reliably high-performing days.
+const BEST_MOMENTUM_DAY_THRESHOLD = 65;
+
+// Returns average momentum score per calendar day for each weekday (0=Sun … 6=Sat).
+// Only days in dayWindow that have a history entry are counted; absent days are not treated as 0
+// (unlike pomodoro, a missing momentum entry signals no data, not zero productivity).
+// Returns null for a given weekday when it has fewer than MIN_DOW_MOMENTUM_APPEARANCES history entries
+// in dayWindow — insufficient data for a meaningful pattern.
+// Returns all-null when dayWindow is empty or history is empty.
+// Exported for unit testing; pure function with no side effects.
+export function calcDayOfWeekMomentumAvg(
+  history: MomentumEntry[],
+  dayWindow: string[],
+): Record<number, number | null> {
+  const result: Record<number, number | null> = { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null };
+  if (history.length === 0 || dayWindow.length === 0) return result;
+
+  const historyMap = new Map<string, number>();
+  for (const e of history) {
+    if (!historyMap.has(e.date)) historyMap.set(e.date, e.score);
+  }
+
+  const byDow: Record<number, number[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+  const windowSet = new Set(dayWindow);
+  for (const [date, score] of historyMap) {
+    if (!windowSet.has(date)) continue;
+    const dow = new Date(date + "T00:00:00").getDay();
+    byDow[dow].push(score);
+  }
+
+  for (let dow = 0; dow <= 6; dow++) {
+    const scores = byDow[dow];
+    if (scores.length < MIN_DOW_MOMENTUM_APPEARANCES) continue;
+    result[dow] = scores.reduce((s, v) => s + v, 0) / scores.length;
+  }
+
+  return result;
+}
+
+// Returns the weekday (0–6) with the lowest non-null average strictly below WEAK_MOMENTUM_DAY_THRESHOLD (40).
+// When multiple weekdays share the minimum average, returns the lowest weekday number for stability.
+// Returns null when no weekday has a non-null average below the threshold.
+// Exported for unit testing; pure function with no side effects.
+export function calcWeakMomentumDay(avgMap: Record<number, number | null>): number | null {
+  let weakestDow: number | null = null;
+  let weakestAvg = WEAK_MOMENTUM_DAY_THRESHOLD;
+  for (let dow = 0; dow <= 6; dow++) {
+    const avg = avgMap[dow];
+    if (avg === null) continue;
+    if (avg < weakestAvg) { weakestAvg = avg; weakestDow = dow; }
+  }
+  return weakestDow;
+}
+
+// Returns the weekday (0–6) with the highest non-null average at or above BEST_MOMENTUM_DAY_THRESHOLD (65).
+// When multiple weekdays share the maximum average, returns the lowest weekday number for stability
+// (strict > means the first/lowest DoW encountered in the 0→6 loop wins on a tie).
+// Returns null when no weekday has a non-null average at or above the threshold.
+// Exported for unit testing; pure function with no side effects.
+export function calcBestMomentumDay(avgMap: Record<number, number | null>): number | null {
+  let bestDow: number | null = null;
+  let bestAvg: number | null = null;
+  for (let dow = 0; dow <= 6; dow++) {
+    const avg = avgMap[dow];
+    if (avg === null || avg < BEST_MOMENTUM_DAY_THRESHOLD) continue;
+    if (bestAvg === null || avg > bestAvg) { bestAvg = avg; bestDow = dow; }
+  }
+  return bestDow;
 }

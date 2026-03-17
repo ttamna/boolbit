@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, habit_pomodoro_dual_win, habit_all_done_early, intention_done, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, habit_pomodoro_dual_win, habit_all_done_early, intention_done, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -9638,6 +9638,132 @@ describe("calcTodayInsight — intention_best_day_ahead (priority 6.846, after i
     expect(result).not.toBeNull();
     expect(result!.text).toContain("의도 달성"); // intention_done badge fires
     expect(result!.text).not.toContain("의도 달성률이 높은"); // best_day_ahead suppressed
+  });
+});
+
+describe("calcTodayInsight — momentum_weak_day_ahead (priority 6.847, after intention_best_day_ahead)", () => {
+  // Base: morning, Tuesday (avoids period_start on Monday), intention set today, today is the weakest momentum day.
+  function baseWeakMomentum() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string }>,
+      todayStr: TOMORROW,    // 2024-01-16, Tuesday — non-period-start day
+      nowHour: 9,
+      todayIntentionDate: TOMORROW, // prevents intention_missing at priority 5
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      todayIsWeakMomentumDay: true,
+    };
+  }
+
+  it("shouldReturnMomentumWeakDayAheadWhenMorningAndFlagIsTrue", () => {
+    const result = calcTodayInsight(baseWeakMomentum());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("모멘텀");
+    expect(result!.text).toContain("낮은");
+  });
+
+  it("shouldNotReturnMomentumWeakDayAheadWhenFlagIsFalse", () => {
+    const result = calcTodayInsight({ ...baseWeakMomentum(), todayIsWeakMomentumDay: false });
+    expect(result?.text ?? "").not.toContain("모멘텀 점수가 낮은");
+  });
+
+  it("shouldNotReturnMomentumWeakDayAheadWhenFlagIsAbsent", () => {
+    const params = { ...baseWeakMomentum() };
+    delete (params as Record<string, unknown>)["todayIsWeakMomentumDay"];
+    const result = calcTodayInsight(params);
+    expect(result?.text ?? "").not.toContain("모멘텀 점수가 낮은");
+  });
+
+  it("shouldNotReturnMomentumWeakDayAheadAtNoonOrLater", () => {
+    const result = calcTodayInsight({ ...baseWeakMomentum(), nowHour: 12 });
+    expect(result?.text ?? "").not.toContain("모멘텀 점수가 낮은");
+  });
+
+  it("shouldReturnIntentionBestDayAheadOverMomentumWeakDayAhead", () => {
+    // intention_best_day_ahead (6.846) fires before momentum_weak_day_ahead (6.847)
+    const result = calcTodayInsight({
+      ...baseWeakMomentum(),
+      todayIsBestIntentionDay: true,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도 달성률이 높은"); // intention_best fires first
+    expect(result!.text).not.toContain("모멘텀 점수가 낮은");
+  });
+
+  it("shouldReturnMomentumWeakDayAheadOverHabitFirstCheckIn", () => {
+    // momentum_weak_day_ahead (6.847) fires before habit_first_check_in (6.85)
+    const result = calcTodayInsight({
+      ...baseWeakMomentum(),
+      habits: [{ name: "운동", streak: 1, lastChecked: TOMORROW, bestStreak: 1 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("모멘텀 점수가 낮은");
+    expect(result!.text).not.toContain("첫걸음");
+  });
+});
+
+describe("calcTodayInsight — momentum_best_day_ahead (priority 6.848, after momentum_weak_day_ahead)", () => {
+  // Base: morning, Tuesday, intention set today, today is the user's historically best momentum day.
+  function baseBestMomentum() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string }>,
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      todayIsBestMomentumDay: true,
+    };
+  }
+
+  it("shouldReturnMomentumBestDayAheadWhenMorningAndFlagIsTrue", () => {
+    const result = calcTodayInsight(baseBestMomentum());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("모멘텀");
+    expect(result!.text).toContain("높은");
+  });
+
+  it("shouldNotReturnMomentumBestDayAheadWhenFlagIsFalse", () => {
+    const result = calcTodayInsight({ ...baseBestMomentum(), todayIsBestMomentumDay: false });
+    expect(result?.text ?? "").not.toContain("모멘텀 점수가 높은");
+  });
+
+  it("shouldNotReturnMomentumBestDayAheadWhenFlagIsAbsent", () => {
+    const params = { ...baseBestMomentum() };
+    delete (params as Record<string, unknown>)["todayIsBestMomentumDay"];
+    const result = calcTodayInsight(params);
+    expect(result?.text ?? "").not.toContain("모멘텀 점수가 높은");
+  });
+
+  it("shouldNotReturnMomentumBestDayAheadAtNoonOrLater", () => {
+    const result = calcTodayInsight({ ...baseBestMomentum(), nowHour: 12 });
+    expect(result?.text ?? "").not.toContain("모멘텀 점수가 높은");
+  });
+
+  it("shouldReturnMomentumWeakDayAheadOverMomentumBestDayAhead", () => {
+    // momentum_weak_day_ahead (6.847) fires before momentum_best_day_ahead (6.848)
+    const result = calcTodayInsight({
+      ...baseBestMomentum(),
+      todayIsWeakMomentumDay: true,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("모멘텀 점수가 낮은"); // weak fires first
+    expect(result!.text).not.toContain("모멘텀 점수가 높은");
+  });
+
+  it("shouldReturnMomentumBestDayAheadOverHabitFirstCheckIn", () => {
+    // momentum_best_day_ahead (6.848) fires before habit_first_check_in (6.85)
+    const result = calcTodayInsight({
+      ...baseBestMomentum(),
+      habits: [{ name: "운동", streak: 1, lastChecked: TOMORROW, bestStreak: 1 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("모멘텀 점수가 높은");
+    expect(result!.text).not.toContain("첫걸음");
   });
 });
 

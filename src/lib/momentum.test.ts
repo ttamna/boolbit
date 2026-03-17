@@ -1,8 +1,8 @@
 // ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport — score, tier, history cap (31 entries), edge cases
-// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, 3-day trend detection, evening digest, morning reminder, weekly/monthly/quarterly/yearly reports
+// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, 3-day trend detection, evening digest, morning reminder, weekly/monthly/quarterly/yearly reports, and calcDayOfWeekMomentumAvg/calcWeakMomentumDay/calcBestMomentumDay for per-weekday momentum avg pattern analysis
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcMomentumMorningReminder, calcYearlyMomentumReport } from "./momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcMomentumMorningReminder, calcYearlyMomentumReport, calcDayOfWeekMomentumAvg, calcWeakMomentumDay, calcBestMomentumDay } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -1365,5 +1365,129 @@ describe("calcYearlyMomentumReport", () => {
     const msg = calcYearlyMomentumReport(history, YEAR_2024);
     expect(msg).not.toBeNull();
     expect(msg).toContain("🔥10");
+  });
+});
+
+// ─── calcDayOfWeekMomentumAvg ────────────────────────────────────────────────
+// 14-day window: 2024-01-15 (Mon) … 2024-01-28 (Sun). Each weekday appears exactly twice.
+// Sun=0: 01-21,01-28 | Mon=1: 01-15,01-22 | Tue=2: 01-16,01-23 | Wed=3: 01-17,01-24
+// Thu=4: 01-18,01-25 | Fri=5: 01-19,01-26 | Sat=6: 01-20,01-27
+// toLocaleDateString("sv") keeps dates in local time to match the T00:00:00 parse convention
+// used throughout the codebase (same as the cap-test fixtures above).
+const DOW_WINDOW_14 = Array.from({ length: 14 }, (_, i) => {
+  const d = new Date("2024-01-15T00:00:00");
+  d.setDate(d.getDate() + i);
+  return d.toLocaleDateString("sv");
+});
+
+describe("calcDayOfWeekMomentumAvg", () => {
+  it("returns all-null for empty history", () => {
+    const result = calcDayOfWeekMomentumAvg([], DOW_WINDOW_14);
+    expect(Object.values(result).every(v => v === null)).toBe(true);
+  });
+
+  it("returns all-null for empty dayWindow", () => {
+    const history = [{ date: "2024-01-15", score: 80, tier: "high" as const }];
+    const result = calcDayOfWeekMomentumAvg(history, []);
+    expect(Object.values(result).every(v => v === null)).toBe(true);
+  });
+
+  it("returns null for a DoW with fewer than 2 history entries", () => {
+    // Mon (1): only 01-15 has an entry; 01-22 is absent → 1 entry < MIN=2 → null
+    const history = [{ date: "2024-01-15", score: 30, tier: "low" as const }];
+    const result = calcDayOfWeekMomentumAvg(history, DOW_WINDOW_14);
+    expect(result[1]).toBeNull();
+  });
+
+  it("computes average for a DoW with exactly 2 history entries", () => {
+    // Mon (1): 01-15 score=30, 01-22 score=50 → avg = 40
+    const history = [
+      { date: "2024-01-15", score: 30, tier: "low" as const },
+      { date: "2024-01-22", score: 50, tier: "mid" as const },
+    ];
+    const result = calcDayOfWeekMomentumAvg(history, DOW_WINDOW_14);
+    expect(result[1]).toBe(40);
+  });
+
+  it("excludes entries outside the dayWindow", () => {
+    // 2024-01-08 is Mon but outside DOW_WINDOW_14 → only 01-15+01-22 count
+    const history = [
+      { date: "2024-01-08", score: 10, tier: "low" as const },
+      { date: "2024-01-15", score: 50, tier: "mid" as const },
+      { date: "2024-01-22", score: 70, tier: "mid" as const },
+    ];
+    const result = calcDayOfWeekMomentumAvg(history, DOW_WINDOW_14);
+    expect(result[1]).toBe(60); // (50+70)/2 = 60
+  });
+
+  it("does not treat absent days as score 0", () => {
+    // Mon (1): 01-15 present, 01-22 absent → 1 entry < MIN=2 → null (not avg of (80, 0))
+    const history = [{ date: "2024-01-15", score: 80, tier: "high" as const }];
+    const result = calcDayOfWeekMomentumAvg(history, DOW_WINDOW_14);
+    expect(result[1]).toBeNull();
+  });
+
+  it("computes averages for multiple days-of-week independently", () => {
+    // Mon(1): 01-15=30, 01-22=50 → avg=40; Wed(3): 01-17=80, 01-24=100 → avg=90; Tue(2)=null
+    const history = [
+      { date: "2024-01-15", score: 30, tier: "low" as const },
+      { date: "2024-01-22", score: 50, tier: "mid" as const },
+      { date: "2024-01-17", score: 80, tier: "high" as const },
+      { date: "2024-01-24", score: 100, tier: "high" as const },
+    ];
+    const result = calcDayOfWeekMomentumAvg(history, DOW_WINDOW_14);
+    expect(result[1]).toBe(40);
+    expect(result[3]).toBe(90);
+    expect(result[2]).toBeNull();
+  });
+});
+
+// ─── calcWeakMomentumDay ──────────────────────────────────────────────────────
+describe("calcWeakMomentumDay", () => {
+  it("returns null when all rates are null", () => {
+    expect(calcWeakMomentumDay({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null })).toBeNull();
+  });
+
+  it("returns the DoW when avg is strictly below threshold 40", () => {
+    expect(calcWeakMomentumDay({ 0: null, 1: 30, 2: null, 3: null, 4: null, 5: null, 6: null })).toBe(1);
+  });
+
+  it("returns null when avg is exactly at threshold 40 (not strictly below)", () => {
+    expect(calcWeakMomentumDay({ 0: null, 1: 40, 2: null, 3: null, 4: null, 5: null, 6: null })).toBeNull();
+  });
+
+  it("returns the lowest DoW on a tie", () => {
+    // dow 2 and dow 4 both 25; lowest dow (2) wins
+    expect(calcWeakMomentumDay({ 0: null, 1: null, 2: 25, 3: null, 4: 25, 5: null, 6: null })).toBe(2);
+  });
+
+  it("returns the DoW with the lowest avg below threshold when multiple qualify", () => {
+    // dow1=35, dow3=20 (both below 40); dow3 wins because 20 < 35
+    expect(calcWeakMomentumDay({ 0: null, 1: 35, 2: null, 3: 20, 4: null, 5: null, 6: null })).toBe(3);
+  });
+});
+
+// ─── calcBestMomentumDay ──────────────────────────────────────────────────────
+describe("calcBestMomentumDay", () => {
+  it("returns null when all rates are null", () => {
+    expect(calcBestMomentumDay({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null })).toBeNull();
+  });
+
+  it("returns the DoW when avg meets threshold 65", () => {
+    expect(calcBestMomentumDay({ 0: null, 1: 65, 2: null, 3: null, 4: null, 5: null, 6: null })).toBe(1);
+  });
+
+  it("returns null when avg is below threshold 65", () => {
+    expect(calcBestMomentumDay({ 0: null, 1: 64, 2: null, 3: null, 4: null, 5: null, 6: null })).toBeNull();
+  });
+
+  it("returns the lowest DoW on a tie", () => {
+    // dow 3 and dow 5 both at 70; lowest dow (3) wins
+    expect(calcBestMomentumDay({ 0: null, 1: null, 2: null, 3: 70, 4: null, 5: 70, 6: null })).toBe(3);
+  });
+
+  it("returns the DoW with the highest avg at or above threshold when multiple qualify", () => {
+    // dow1=65, dow3=80 (both ≥ 65); dow3 wins because 80 > 65
+    expect(calcBestMomentumDay({ 0: null, 1: 65, 2: null, 3: 80, 4: null, 5: null, 6: null })).toBe(3);
   });
 });

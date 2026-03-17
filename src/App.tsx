@@ -20,7 +20,7 @@ import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay } from "./lib/pomodoro";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport } from "./lib/momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport, calcDayOfWeekMomentumAvg, calcWeakMomentumDay, calcBestMomentumDay } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
@@ -1919,6 +1919,17 @@ export default function App() {
       return {
         todayIsWeakIntentionDay: calcWeakIntentionDay(intentionRates) === todayDow,
         todayIsBestIntentionDay: calcBestIntentionDay(intentionRates) === todayDow,
+      };
+    })(),
+    // todayIsWeakMomentumDay / todayIsBestMomentumDay: per-weekday momentum score averages.
+    // Uses last14Days (2 occurrences per DoW), matching other day-of-week analyses using the same window.
+    // Returns false when history has no entries (calcDayOfWeekMomentumAvg returns all-null).
+    ...(() => {
+      const momAvg = calcDayOfWeekMomentumAvg(data.momentumHistory ?? [], last14Days);
+      const todayDow = new Date(todayStr + "T00:00:00").getDay();
+      return {
+        todayIsWeakMomentumDay: calcWeakMomentumDay(momAvg) === todayDow,
+        todayIsBestMomentumDay: calcBestMomentumDay(momAvg) === todayDow,
       };
     })(),
   });
