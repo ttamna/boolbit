@@ -6612,6 +6612,157 @@ describe("calcTodayInsight — habit_lifetime_milestone (priority 7.44, between 
   });
 });
 
+describe("calcTodayInsight — project_focus_milestone (priority 7.441, between habit_lifetime_milestone and pomodoro_goal_streak)", () => {
+  // Wednesday, afternoon — no period_start/streak_at_risk/morning-only triggers
+  const TODAY = "2024-03-13";
+
+  // Base fixture: no competing insight, sessionsToday=1 (so crossing detection is active)
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 1,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("should fire when focused project crosses 10-session milestone", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      projectFocusSessions: 10,
+      projectFocusPrevSessions: 9,
+      projectFocusName: "MyProject",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toBe("🎯 MyProject 10회 집중 달성!");
+    expect(result!.level).toBe("success");
+  });
+
+  it("should fire when focused project crosses 25-session milestone", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      projectFocusSessions: 25,
+      projectFocusPrevSessions: 24,
+      projectFocusName: "Vision Widget",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toBe("🎯 Vision Widget 25회 집중 달성!");
+  });
+
+  it("should fire for the lowest milestone crossed when multiple milestones crossed in one day", () => {
+    // prev=9 → current=26 crosses both 10 and 25; should return the lower one (10)
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 17,
+      projectFocusSessions: 26,
+      projectFocusPrevSessions: 9,
+      projectFocusName: "Blitz",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toBe("🎯 Blitz 10회 집중 달성!");
+  });
+
+  it("should not fire when milestone is not crossed (current not at threshold)", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      projectFocusSessions: 11,
+      projectFocusPrevSessions: 10,
+      projectFocusName: "MyProject",
+    });
+    // Neither 10 (prev>=10) nor 25 (current<25) is crossed
+    expect(result?.text ?? "").not.toContain("집중 달성");
+  });
+
+  it("should not fire when sessionsToday=0", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 0,
+      projectFocusSessions: 10,
+      projectFocusPrevSessions: 10,
+      projectFocusName: "MyProject",
+    });
+    expect(result?.text ?? "").not.toContain("집중 달성");
+  });
+
+  it("should not fire when projectFocusSessions is absent", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      projectFocusPrevSessions: 9,
+      projectFocusName: "MyProject",
+    });
+    expect(result?.text ?? "").not.toContain("집중 달성");
+  });
+
+  it("should not fire when projectFocusName is absent", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      projectFocusSessions: 10,
+      projectFocusPrevSessions: 9,
+    });
+    expect(result?.text ?? "").not.toContain("집중 달성");
+  });
+
+  it("should fire for 50-session milestone", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 3,
+      projectFocusSessions: 50,
+      projectFocusPrevSessions: 47,
+      projectFocusName: "DeepWork",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toBe("🎯 DeepWork 50회 집중 달성!");
+  });
+
+  it("should fire for 100-session milestone", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      projectFocusSessions: 100,
+      projectFocusPrevSessions: 99,
+      projectFocusName: "Magnum Opus",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toBe("🎯 Magnum Opus 100회 집중 달성!");
+  });
+
+  it("habit_lifetime_milestone (7.44) fires before project_focus_milestone (7.441) when both crossing today", () => {
+    // Both milestones crossed on the same day with sessionsToday=1 (project_focus_milestone is eligible).
+    // habit_lifetime_milestone (7.44) must preempt project_focus_milestone (7.441) by priority order.
+    // sessionsToday=1 satisfies both: project_focus_milestone's sessionsToday > 0 guard is met,
+    //   so the preemption is a genuine priority contest — not a guard disabling the lower badge.
+    // pomodoroLifetimePrevMins absent → pomodoro_lifetime_milestone (7.43) can't fire and interfere.
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 1,
+      habitLifetimePrevCheckins: 99,
+      habitLifetimeCheckins: 102,
+      projectFocusSessions: 10,
+      projectFocusPrevSessions: 9,
+      projectFocusName: "MyProject",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("체크인"); // habit lifetime wins
+    expect(result!.text).not.toContain("집중 달성");
+  });
+
+  it("project_focus_milestone (7.441) fires before pomodoro_goal_streak (7.45)", () => {
+    // milestone crossing + active goal streak — milestone wins
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 2,
+      sessionGoal: 4,
+      pomodoroGoalStreak: 5,
+      projectFocusSessions: 25,
+      projectFocusPrevSessions: 23,
+      projectFocusName: "FocusApp",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toBe("🎯 FocusApp 25회 집중 달성!");
+    expect(result!.text).not.toContain("연속 달성 중");
+  });
+});
+
 describe("calcTodayInsight — project_forecast (priority 10.87, at-current-pace completion date)", () => {
   // Tuesday 2024-01-16: not Monday, not 1st of month/quarter/year — no period_start triggers
   const TODAY_F = "2024-01-16";

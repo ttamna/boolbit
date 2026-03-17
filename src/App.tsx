@@ -1285,6 +1285,20 @@ export default function App() {
   const habitLifetimePrevCheckins = data.habitLifetimeTotalCheckins !== undefined
     ? Math.max(0, data.habitLifetimeTotalCheckins - habitsDoneToday)
     : undefined;
+  // projectFocusSessions/projectFocusPrevSessions: lifetime focus session count for the focused project.
+  // prevSessions = max(0, current − sessionsToday) — mirrors the pomodoroLifetimePrevMins pattern.
+  // Known approximation: sessionsToday is the global daily count, not per-project. On days where the
+  // user switched focused projects, prev may underestimate. Acceptable vs. per-session tracking complexity.
+  const insightFocusProject = (data.projects ?? []).find(p => p.isFocus === true);
+  // Use undefined (not 0) when no focus project so insight.ts guard `projectFocusSessions !== undefined`
+  // correctly distinguishes "no focused project" from "focused project with 0 sessions".
+  const projectFocusSessions = insightFocusProject !== undefined
+    ? (insightFocusProject.pomodoroSessions ?? 0)
+    : undefined;
+  const projectFocusPrevSessions = insightFocusProject !== undefined
+    ? Math.max(0, (insightFocusProject.pomodoroSessions ?? 0) - pomodoroSessionsToday)
+    : undefined;
+  const projectFocusName = insightFocusProject?.name;
   // pomodoroRecentAvg: average sessions per day across all past history entries (today excluded).
   // pomodoroHistory includes today's entry (written by the session-complete handler); today is
   // excluded inside calcPomodoroRecentAvg via the todayStr filter — this exclusion is load-bearing.
@@ -1382,6 +1396,9 @@ export default function App() {
     pomodoroLifetimeMins: data.pomodoroLifetimeMins,
     habitLifetimePrevCheckins,
     habitLifetimeCheckins: data.habitLifetimeTotalCheckins,
+    projectFocusSessions,
+    projectFocusPrevSessions,
+    projectFocusName,
     // perfectDayStreak: consecutive days all habits completed including today — same 14-day window used by HabitStreak.
     // When ≥ 3, the perfect_day badge shows the streak count instead of a generic celebration.
     perfectDayStreak: habitsPerfectStreak,
