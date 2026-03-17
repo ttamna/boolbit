@@ -251,6 +251,10 @@ const GITHUB_DROUGHT_DAYS = 7;
 // Chosen at 5 to avoid noise for healthy small-project backlogs (1–4 issues is normal).
 const MIN_OPEN_ISSUES = 5;
 
+// Minimum calendar days into the month before the habit_month_flawless badge can surface.
+// 10 days suppresses early-month noise (e.g. a 3-day "개근" on Jan 3 is premature).
+const MIN_MONTH_DAYS = 10;
+
 // Minimum consecutive days a habit must be unchecked before a re-engagement nudge is surfaced.
 const MIN_MISS_DAYS = 3;
 // How many calendar days to scan backward when counting consecutive missed check-ins.
@@ -296,7 +300,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > ci_failure > milestone_near > open_prs > github_drought > open_issues > habit_pomodoro_dual_win > habit_all_done_early (habits done before noon, length>0) > perfect_day > intention_done > intention_missing > period_start > no_focus_project > weak_day_ahead > best_day_ahead > habit_first_check_in > habit_comeback > pomodoro_last_one > pomodoro_goal_streak_milestone > focus_streak_milestone > pomodoro_goal_streak > pomodoro_day_record > pomodoro_week_record > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > project_context_switching > streak_recession > habit_consecutive_miss > habit_diversity_warning > almost_perfect_day > habit_month_flawless (habit checked every day of calendar month so far, ≥10 days in) > habit_week_perfect > habit_week_excellent > habit_week_improved > habit_week_declined > pomodoro_today_above_avg > momentum_streak_milestone > momentum_rise > goal_done > goal_streak > month_goal_streak > quarter_goal_streak > year_goal_streak > project_ahead > project_near_completion > project_forecast > personal_best > habit_best_streak_approach > habit_target_hit > habit_target_near > habit_target_halfway > intention_streak.
+// Priority order: streak_at_risk > deadline_critical > ci_failure > milestone_near > open_prs > github_drought > open_issues > habit_pomodoro_dual_win > habit_all_done_early (habits done before noon, length>0) > perfect_day > intention_done > intention_missing > period_start > no_focus_project > weak_day_ahead > best_day_ahead > habit_first_check_in > habit_comeback > pomodoro_last_one > pomodoro_goal_streak_milestone > focus_streak_milestone > pomodoro_goal_streak > pomodoro_day_record > pomodoro_week_record > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > project_context_switching > streak_recession > habit_consecutive_miss > habit_diversity_warning > almost_perfect_day > habit_week_perfect > habit_week_excellent > habit_week_improved > habit_week_declined > pomodoro_today_above_avg > momentum_streak_milestone > momentum_rise > goal_done > goal_streak > month_goal_streak > quarter_goal_streak > year_goal_streak > project_ahead > project_near_completion > project_forecast > personal_best > habit_best_streak_approach > habit_target_hit > habit_target_near > habit_target_halfway > habit_month_flawless (habit checked every day of calendar month so far, ≥10 days in) > intention_streak.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, todayIntentionDone, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -1218,7 +1222,6 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // Fires BEFORE intention_streak (11.1): a month of perfect habit attendance outweighs a weekly
   //   intention-setting streak.
   // Picks the habit with the highest streak when multiple qualify — longest run earns the badge.
-  const MIN_MONTH_DAYS = 10;
   const currentMonthDay = parseInt(todayStr.slice(8, 10), 10);
   if (currentMonthDay >= MIN_MONTH_DAYS && habits.length > 0) {
     const monthFlawless = habits

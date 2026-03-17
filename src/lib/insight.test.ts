@@ -8329,11 +8329,13 @@ describe("calcTodayInsight — habit_month_flawless (priority 11.07, after habit
 
   it("shouldNotFireBeforeDay10", () => {
     // day 9 < MIN_MONTH_DAYS(10) → guard fails, no badge fires
+    // habitsAllDoneDate: undefined — overrides base() YESTERDAY which would be future relative to day9
     const day9 = "2024-01-09";
     const result = calcTodayInsight({
       ...base(),
       todayStr: day9,
       todayIntentionDate: day9,
+      habitsAllDoneDate: undefined,
       habits: [{ name: "운동", streak: 9, lastChecked: day9 }],
     });
     expect(result).toBeNull();
@@ -8404,7 +8406,9 @@ describe("calcTodayInsight — habit_month_flawless (priority 11.07, after habit
     // habit_month_flawless (11.07) fires before intention_streak (11.1)
     const result = calcTodayInsight({ ...base(), intentionConsecutiveDays: 7 });
     expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
     expect(result!.text).toContain("개근");
+    expect(result!.text).toContain("15일");
     expect(result!.text).not.toContain("의도");
   });
 });
