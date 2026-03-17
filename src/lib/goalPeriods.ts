@@ -556,3 +556,34 @@ export function calcWeeklyGoalMorningReminder(
   if (weekGoalDate === currentWeekStr) return null;
   return "📋 이번 주 목표를 세워보세요!";
 }
+
+// Returns the desktop notification body for the 1st-of-month morning monthly-goal nudge.
+// Fires when monthGoalDate is absent or does not match currentMonthStr (goal not yet set for this calendar month).
+// Returns null when monthGoalDate === currentMonthStr — goal is already set, no nudge needed.
+// Hour/day guards (1st of month, getHours() >= 9) live in the caller (App.tsx useEffect).
+// Callers check monthlyGoalMorningRemindDate before invoking to ensure once-per-month-1st delivery.
+// Design: 📋 (planning checklist) is used for start-of-period goal-setting nudges; 📅 (calendar) is reserved
+//   for end-of-period deadline urgency reminders (calcMonthlyGoalReminder). This is intentional.
+// Exported for unit testing; pure function with no side effects.
+export function calcMonthlyGoalMorningReminder(
+  monthGoalDate: string | undefined,
+  currentMonthStr: string,
+): string | null {
+  if (monthGoalDate === currentMonthStr) return null;
+  return "📋 이번 달 목표를 세워보세요!";
+}
+
+// Returns the desktop notification body for the quarter-start morning quarterly-goal nudge.
+// Fires when quarterGoalDate is absent or does not match currentQuarterStr (goal not yet set for this quarter).
+// Returns null when quarterGoalDate === currentQuarterStr — goal is already set, no nudge needed.
+// Hour/day guards (Jan/Apr/Jul/Oct 1st, getHours() >= 9) live in the caller (App.tsx useEffect).
+// Callers check quarterlyGoalMorningRemindDate before invoking to ensure once-per-quarter-start delivery.
+// Design: 📋 (planning checklist) for start-of-period nudge; mirrors calcWeeklyGoalMorningReminder emoji.
+// Exported for unit testing; pure function with no side effects.
+export function calcQuarterlyGoalMorningReminder(
+  quarterGoalDate: string | undefined,
+  currentQuarterStr: string,
+): string | null {
+  if (quarterGoalDate === currentQuarterStr) return null;
+  return "📋 이번 분기 목표를 세워보세요!";
+}

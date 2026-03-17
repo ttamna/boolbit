@@ -116,6 +116,8 @@ export interface WidgetData {
   habitMilestoneApproachDate?: string; // YYYY-MM-DD date when the habit milestone approach nudge was sent; absent = not sent
   weeklyReviewRemindDate?: string;     // YYYY-MM-DD (Sunday) when the weekly review nudge was last sent; absent = not sent
   weeklyGoalMorningRemindDate?: string; // YYYY-MM-DD (Monday) when the weekly goal-setting morning nudge was last sent; absent = not sent
+  monthlyGoalMorningRemindDate?: string; // YYYY-MM-DD (1st of month) when the monthly goal-setting morning nudge was last sent; absent = not sent
+  quarterlyGoalMorningRemindDate?: string; // YYYY-MM-DD (quarter-start) when the quarterly goal-setting morning nudge was last sent; absent = not sent
   weeklyGoalReportDate?: string;         // YYYY-MM-DD (Monday) when the weekly goal achievement report was last sent; absent = not sent
   monthlyGoalReportDate?: string;        // YYYY-MM-DD (1st of month) when the monthly goal achievement report was last sent; absent = not sent
   quarterlyGoalReportDate?: string;      // YYYY-MM-DD (quarter-start) when the quarterly goal achievement report was last sent; absent = not sent

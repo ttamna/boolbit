@@ -1,8 +1,8 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./goalPeriods";
 import type { GoalEntry } from "../types";
 
 describe("isoWeekStr", () => {
@@ -1297,11 +1297,7 @@ describe("calcWeeklyGoalMorningReminder", () => {
   const MSG = "📋 이번 주 목표를 세워보세요!";
 
   it("should return null when weekGoalDate matches currentWeekStr (goal already recorded for this week)", () => {
-    expect(calcWeeklyGoalMorningReminder(CURRENT_WEEK, CURRENT_WEEK)).toBeNull();
-  });
-
-  it("should return null when weekGoalDate matches currentWeekStr even when weekGoalDate is present without a goal text", () => {
-    // weekGoalDate === currentWeekStr is the sole guard — goal text is not consulted
+    // weekGoalDate === currentWeekStr is the sole guard — goal text content is not consulted
     expect(calcWeeklyGoalMorningReminder(CURRENT_WEEK, CURRENT_WEEK)).toBeNull();
   });
 
@@ -1319,6 +1315,58 @@ describe("calcWeeklyGoalMorningReminder", () => {
 
   it("should return nudge message when weekGoalDate is an empty string (corrupt/absent date)", () => {
     expect(calcWeeklyGoalMorningReminder("", CURRENT_WEEK)).toBe(MSG);
+  });
+});
+
+describe("calcMonthlyGoalMorningReminder", () => {
+  const CURRENT_MONTH = "2026-03";
+  const OTHER_MONTH = "2026-02";
+  const MSG = "📋 이번 달 목표를 세워보세요!";
+
+  it("should return null when monthGoalDate matches currentMonthStr (goal already set for this month)", () => {
+    expect(calcMonthlyGoalMorningReminder(CURRENT_MONTH, CURRENT_MONTH)).toBeNull();
+  });
+
+  it("should return nudge message when monthGoalDate is undefined (goal never set)", () => {
+    expect(calcMonthlyGoalMorningReminder(undefined, CURRENT_MONTH)).toBe(MSG);
+  });
+
+  it("should return nudge message when monthGoalDate is a prior month (stale — new month started)", () => {
+    expect(calcMonthlyGoalMorningReminder(OTHER_MONTH, CURRENT_MONTH)).toBe(MSG);
+  });
+
+  it("should return nudge message when monthGoalDate is a future month string (forward-clock drift guard)", () => {
+    expect(calcMonthlyGoalMorningReminder("2026-12", CURRENT_MONTH)).toBe(MSG);
+  });
+
+  it("should return nudge message when monthGoalDate is an empty string (corrupt/absent date)", () => {
+    expect(calcMonthlyGoalMorningReminder("", CURRENT_MONTH)).toBe(MSG);
+  });
+});
+
+describe("calcQuarterlyGoalMorningReminder", () => {
+  const CURRENT_QUARTER = "2026-Q1";
+  const OTHER_QUARTER = "2025-Q4";
+  const MSG = "📋 이번 분기 목표를 세워보세요!";
+
+  it("should return null when quarterGoalDate matches currentQuarterStr (goal already set for this quarter)", () => {
+    expect(calcQuarterlyGoalMorningReminder(CURRENT_QUARTER, CURRENT_QUARTER)).toBeNull();
+  });
+
+  it("should return nudge message when quarterGoalDate is undefined (goal never set)", () => {
+    expect(calcQuarterlyGoalMorningReminder(undefined, CURRENT_QUARTER)).toBe(MSG);
+  });
+
+  it("should return nudge message when quarterGoalDate is a prior quarter (stale — new quarter started)", () => {
+    expect(calcQuarterlyGoalMorningReminder(OTHER_QUARTER, CURRENT_QUARTER)).toBe(MSG);
+  });
+
+  it("should return nudge message when quarterGoalDate is a future quarter string (forward-clock drift guard)", () => {
+    expect(calcQuarterlyGoalMorningReminder("2026-Q4", CURRENT_QUARTER)).toBe(MSG);
+  });
+
+  it("should return nudge message when quarterGoalDate is an empty string (corrupt/absent date)", () => {
+    expect(calcQuarterlyGoalMorningReminder("", CURRENT_QUARTER)).toBe(MSG);
   });
 });
 

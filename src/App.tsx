@@ -15,7 +15,7 @@ import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder } from "./lib/habits";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
@@ -603,6 +603,58 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.weekGoalDate, data.weeklyGoalMorningRemindDate, loaded, persist]);
+
+  // 1st-of-month morning monthly goal-setting nudge — fires once per month-1st at 9:00+ when monthly goal is not yet set.
+  // Triggers only when monthGoalDate ≠ currentMonthStr (goal stale or absent); null return = already set, no nudge needed.
+  // monthlyGoalMorningRemindDate persists the guard so it fires only once per month-1st even after restart.
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.monthlyGoalMorningRemindDate === today) return;
+    if (now.getDate() !== 1) return;      // only 1st of month
+    if (now.getHours() < 9) return;       // after 09:00
+    const currentMonthStr = today.slice(0, 7); // "YYYY-MM"
+    const msg = calcMonthlyGoalMorningReminder(data.monthGoalDate, currentMonthStr);
+    if (!msg) return;
+    persist({ ...dataRef.current, monthlyGoalMorningRemindDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.monthGoalDate, data.monthlyGoalMorningRemindDate, loaded, persist]);
+
+  // Quarter-start morning quarterly goal-setting nudge — fires once per quarter-start at 9:00+ when quarterly goal is not yet set.
+  // Triggers only when quarterGoalDate ≠ currentQuarterStr (goal stale or absent); null return = already set, no nudge needed.
+  // quarterlyGoalMorningRemindDate persists the guard so it fires only once per quarter-start even after restart.
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.quarterlyGoalMorningRemindDate === today) return;
+    if (now.getHours() < 9) return;       // after 09:00
+    // Quarter starts on Jan 1, Apr 1, Jul 1, Oct 1
+    const month = now.getMonth() + 1; // 1-based
+    if (!((month === 1 || month === 4 || month === 7 || month === 10) && now.getDate() === 1)) return;
+    const currentQuarterStr = quarterStr(now);
+    const msg = calcQuarterlyGoalMorningReminder(data.quarterGoalDate, currentQuarterStr);
+    if (!msg) return;
+    persist({ ...dataRef.current, quarterlyGoalMorningRemindDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.quarterGoalDate, data.quarterlyGoalMorningRemindDate, loaded, persist]);
 
   // Monday morning weekly habit completion rate report — fires once per Monday at 9:00+.
   // Reports the previous week's (7 days ending yesterday) average daily habit completion rate.

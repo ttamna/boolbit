@@ -252,6 +252,10 @@ pub struct WidgetData {
     pub weekly_review_remind_date: Option<String>,
     #[serde(rename = "weeklyGoalMorningRemindDate", default, skip_serializing_if = "Option::is_none")]
     pub weekly_goal_morning_remind_date: Option<String>,
+    #[serde(rename = "monthlyGoalMorningRemindDate", default, skip_serializing_if = "Option::is_none")]
+    pub monthly_goal_morning_remind_date: Option<String>,
+    #[serde(rename = "quarterlyGoalMorningRemindDate", default, skip_serializing_if = "Option::is_none")]
+    pub quarterly_goal_morning_remind_date: Option<String>,
     #[serde(rename = "weeklyHabitReportDate", default, skip_serializing_if = "Option::is_none")]
     pub weekly_habit_report_date: Option<String>,
     #[serde(rename = "monthGoalRemindDate", default, skip_serializing_if = "Option::is_none")]
