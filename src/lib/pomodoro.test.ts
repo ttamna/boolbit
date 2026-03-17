@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, goal-streak consecutive past days, and recent rolling average sessions (today excluded)
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), and ISO-week record pace comparison (current week vs same-length prev-week window)
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./pomodoro";
 import { colors } from "../theme";
 import type { PomodoroDay } from "../types";
 
@@ -954,6 +954,100 @@ describe("calcPomodoroRecentAvg", () => {
       { date: "2026-03-14", count: 4 },
     ];
     expect(calcPomodoroRecentAvg(history, TODAY)).toBe(2); // (0+4)/2
+  });
+});
+
+describe("calcPomodoroWeekRecord", () => {
+  // Monday anchor: "2024-01-15" is a confirmed Monday (mirrors insight.test.ts fixture).
+  const MON = "2024-01-15"; // Monday, ISO position 1
+  const TUE = "2024-01-16"; // Tuesday, ISO position 2
+  const WED = "2024-01-17"; // Wednesday, ISO position 3
+  const PREV_MON = "2024-01-08"; // previous week Monday
+  const PREV_TUE = "2024-01-09"; // previous week Tuesday
+  const PREV_WED = "2024-01-10"; // previous week Wednesday
+
+  it("shouldReturnOnlySessionsTodayOnMondayWithEmptyHistory", () => {
+    // Monday (isoPos=1): no past week days — only today vs. prev Monday
+    const result = calcPomodoroWeekRecord([], 3, MON);
+    expect(result.currentWeekTotal).toBe(3); // only sessionsToday
+    expect(result.prevWeekTotal).toBe(0);    // no prev-Monday entry in history
+  });
+
+  it("shouldReturnCorrectTotalsOnTuesday", () => {
+    const history = [
+      { date: MON, count: 2 },      // current week Mon (past)
+      { date: PREV_MON, count: 3 }, // prev week Mon
+      { date: PREV_TUE, count: 2 }, // prev week Tue
+    ];
+    const result = calcPomodoroWeekRecord(history, 4, TUE);
+    expect(result.currentWeekTotal).toBe(6); // 2 (Mon) + 4 (today)
+    expect(result.prevWeekTotal).toBe(5);    // 3 + 2
+  });
+
+  it("shouldReturnCorrectTotalsOnWednesday", () => {
+    const history = [
+      { date: MON, count: 2 },      // current week Mon
+      { date: TUE, count: 4 },      // current week Tue (past)
+      { date: PREV_MON, count: 2 }, // prev week Mon
+      { date: PREV_TUE, count: 3 }, // prev week Tue
+      { date: PREV_WED, count: 2 }, // prev week Wed
+    ];
+    const result = calcPomodoroWeekRecord(history, 3, WED);
+    expect(result.currentWeekTotal).toBe(9); // 2 + 4 + 3
+    expect(result.prevWeekTotal).toBe(7);    // 2 + 3 + 2
+  });
+
+  it("shouldReturnZeroPrevWeekTotalWhenNoPrevWeekHistory", () => {
+    const history = [{ date: MON, count: 5 }]; // only current week; no prev-week entries
+    const result = calcPomodoroWeekRecord(history, 3, TUE);
+    expect(result.currentWeekTotal).toBe(8); // 5 + 3
+    expect(result.prevWeekTotal).toBe(0);
+  });
+
+  it("shouldReturnZeroTotalsWhenHistoryEmptyAndNoSessionsToday", () => {
+    const result = calcPomodoroWeekRecord([], 0, WED);
+    expect(result.currentWeekTotal).toBe(0);
+    expect(result.prevWeekTotal).toBe(0);
+  });
+
+  it("shouldCountSessionsTodayForCurrentWeekNotFromHistory", () => {
+    // Even if history has an entry for today, sessionsToday is the authoritative today-count.
+    // calcPomodoroWeekRecord uses sessionsToday directly for today and ignores history[today].
+    const history = [
+      { date: WED, count: 99 }, // stale history entry for today — should be ignored
+      { date: PREV_WED, count: 1 },
+    ];
+    const result = calcPomodoroWeekRecord(history, 4, WED);
+    expect(result.currentWeekTotal).toBe(4); // 0 (Mon absent) + 0 (Tue absent) + 4 (sessionsToday)
+    expect(result.prevWeekTotal).toBe(1);    // prev Wed only
+  });
+
+  it("shouldHandleSundayCorrectly", () => {
+    // Sunday is the only day where jsDay=0 → isoPos must be 7 (not 0) to stay ISO-correct.
+    // 2024-01-21 is a Sunday (+6 from confirmed Monday 2024-01-15).
+    // daysSinceMonday=6: current week is Mon Jan 15–Sun Jan 21; prev week is Mon Jan 8–Sun Jan 14.
+    const SUN = "2024-01-21";
+    const PREV_SUN_MON = "2024-01-08"; // prev week Monday (13 days ago — within 14-day history cap)
+    const history = [
+      { date: "2024-01-15", count: 2 }, // current Mon
+      { date: "2024-01-16", count: 3 }, // current Tue
+      { date: "2024-01-17", count: 1 }, // current Wed
+      { date: "2024-01-18", count: 2 }, // current Thu
+      { date: "2024-01-19", count: 3 }, // current Fri
+      { date: "2024-01-20", count: 1 }, // current Sat
+      { date: PREV_SUN_MON, count: 4 }, // prev Mon
+      { date: "2024-01-09", count: 2 }, // prev Tue
+      { date: "2024-01-10", count: 1 }, // prev Wed
+      { date: "2024-01-11", count: 2 }, // prev Thu
+      { date: "2024-01-12", count: 3 }, // prev Fri
+      { date: "2024-01-13", count: 2 }, // prev Sat
+      { date: "2024-01-14", count: 1 }, // prev Sun
+    ];
+    const result = calcPomodoroWeekRecord(history, 5, SUN);
+    // current: 2+3+1+2+3+1 (Mon–Sat from history) + 5 (Sun sessionsToday) = 17
+    expect(result.currentWeekTotal).toBe(17);
+    // prev: 4+2+1+2+3+2+1 = 15
+    expect(result.prevWeekTotal).toBe(15);
   });
 });
 

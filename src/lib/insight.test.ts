@@ -6281,3 +6281,104 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
   });
 
 });
+
+describe("calcTodayInsight — pomodoro_week_record (priority 7.495, between pomodoro_day_record and pomodoro_goal_reached)", () => {
+  // Base: Wednesday afternoon ("2024-01-17"), intention set, no habits, no competing insights.
+  // Wednesday (not Monday) ensures week_record has prior days in the week to compare against.
+  const WED = "2024-01-17"; // Wednesday; TODAY="2024-01-15" is confirmed Monday so +2 = Wednesday
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: WED,
+    nowHour: 14,
+    todayIntentionDate: WED,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldReturnWeekRecordBadgeWhenCurrentWeekAheadOfPrevWeek", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 5,
+      pomodoroWeekRecord: { currentWeekTotal: 10, prevWeekTotal: 7 },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이번 주");
+    expect(result!.text).toContain("신기록");
+    expect(result!.text).toContain("10");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWhenSessionsTodayIsZero", () => {
+    // sessionsToday > 0 is a load-bearing guard — user must be actively focusing for the badge to fire.
+    // Check that the week_record badge text is absent rather than asserting the overall return is null,
+    // so the test remains meaningful even if a future insight fires on the sparse base fixture.
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 0,
+      pomodoroWeekRecord: { currentWeekTotal: 5, prevWeekTotal: 3 },
+    });
+    expect(result?.text ?? "").not.toContain("이번 주");
+  });
+
+  it("shouldNotFireWhenPrevWeekTotalIsZero", () => {
+    // No prev-week baseline — any sessions this week would be a trivial "record"; skipped.
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 3,
+      pomodoroWeekRecord: { currentWeekTotal: 3, prevWeekTotal: 0 },
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenCurrentWeekBehindPrevWeek", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 2,
+      pomodoroWeekRecord: { currentWeekTotal: 5, prevWeekTotal: 8 },
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenTotalsAreEqual", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 3,
+      pomodoroWeekRecord: { currentWeekTotal: 6, prevWeekTotal: 6 },
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroWeekRecordAbsent", () => {
+    const result = calcTodayInsight({ ...base(), sessionsToday: 5 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByPomodoroDayRecordWhenBothConditionsMet", () => {
+    // day_record (7.49) has higher priority than week_record (7.495)
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 6,
+      pomodoroSessionBest: 4,                                        // day record: 6 > 4
+      pomodoroWeekRecord: { currentWeekTotal: 12, prevWeekTotal: 8 }, // week record also true
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록");
+    expect(result!.text).toContain("6");   // day record shows today's session count
+    expect(result!.text).not.toContain("이번 주"); // week record message not shown
+  });
+
+  it("shouldPreemptGoalReachedWhenBothConditionsMet", () => {
+    // week_record (7.495) has higher priority than goal_reached (7.5)
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 5,
+      sessionGoal: 4,                                                 // goal reached: 5 >= 4
+      pomodoroWeekRecord: { currentWeekTotal: 10, prevWeekTotal: 7 }, // week record also true
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이번 주");
+    expect(result!.text).toContain("신기록");
+    expect(result!.text).not.toContain("목표 달성");
+  });
+});

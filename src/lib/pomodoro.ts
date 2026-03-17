@@ -1,5 +1,5 @@
 // ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, and lifetime milestone notifications
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, goal-streak consecutive past days, and recent rolling average sessions (today excluded)
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, goal-streak consecutive past days, recent rolling average sessions (today excluded), and ISO-week record pace comparison (current week vs same-length prev-week window)
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -341,4 +341,46 @@ export function calcPomodoroEveningReminder(
   }
   if (sessions > 0) return null;
   return "🍅 오늘 아직 집중 세션이 없어요!";
+}
+
+// Compares the current ISO-week total (Mon through today) against the same-length window one week ago.
+// Uses the ISO week convention: Monday = position 1, Sunday = position 7.
+// sessionsToday is the authoritative count for today; history entries for today's date are ignored.
+// Returns { currentWeekTotal, prevWeekTotal } always — callers decide whether to show an insight based on these values.
+// currentWeekTotal: sum of sessions from Monday to today (history for past days + sessionsToday for today).
+// prevWeekTotal: sum of sessions from the same Mon-to-same-day window one ISO week earlier (7 days back).
+// Exported for unit testing; pure function with no side effects.
+export function calcPomodoroWeekRecord(
+  history: PomodoroDay[],
+  sessionsToday: number,
+  todayStr: string,
+): { currentWeekTotal: number; prevWeekTotal: number } {
+  const base = new Date(todayStr + "T00:00:00");
+  const jsDay = base.getDay();
+  const isoPos = jsDay === 0 ? 7 : jsDay; // Mon=1 … Sun=7
+  const daysSinceMonday = isoPos - 1;     // Mon→0, Tue→1, …, Sun→6
+
+  const dateMap = new Map<string, number>(history.map(e => [e.date, e.count]));
+  let currentWeekTotal = 0;
+  let prevWeekTotal = 0;
+
+  // Anchor to Monday of the current week; setDate handles month-boundary rollback automatically.
+  const monday = new Date(base);
+  monday.setDate(base.getDate() - daysSinceMonday);
+
+  for (let offset = 0; offset <= daysSinceMonday; offset++) {
+    const curDay = new Date(monday);
+    curDay.setDate(monday.getDate() + offset);
+    const curKey = curDay.toLocaleDateString("sv"); // YYYY-MM-DD
+
+    const prevDay = new Date(curDay);
+    prevDay.setDate(curDay.getDate() - 7);
+    const prevKey = prevDay.toLocaleDateString("sv");
+
+    // For today (last iteration) use sessionsToday as the authoritative count; history may be stale.
+    currentWeekTotal += offset === daysSinceMonday ? sessionsToday : (dateMap.get(curKey) ?? 0);
+    prevWeekTotal += dateMap.get(prevKey) ?? 0;
+  }
+
+  return { currentWeekTotal, prevWeekTotal };
 }

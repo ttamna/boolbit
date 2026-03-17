@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -1240,6 +1240,10 @@ export default function App() {
   // excluded inside calcPomodoroRecentAvg via the todayStr filter — this exclusion is load-bearing.
   // Passed to calcTodayInsight for the pomodoro_today_above_avg badge (priority 10.45).
   const pomodoroRecentAvg = calcPomodoroRecentAvg(data.pomodoroHistory ?? [], todayStr);
+  // pomodoroWeekRecord: compares current ISO-week total (Mon–today) against same-length window last week.
+  // Uses pomodoroSessionsToday (the live session count) rather than any history entry for today,
+  // so the record comparison stays accurate during an active work session.
+  const pomodoroWeekRecord = calcPomodoroWeekRecord(data.pomodoroHistory ?? [], pomodoroSessionsToday, todayStr);
   // last14Days/habitsPerfectStreak: declared here (before calcTodayInsight) so perfectDayStreak
   // can be passed as a param. Also reused by HabitStreak + habitsWeekTrend below.
   const last14Days = calcLastNDays(todayStr, 14);
@@ -1298,6 +1302,7 @@ export default function App() {
     ) - 1),
     pomodoroGoalStreak,
     pomodoroSessionBest,
+    pomodoroWeekRecord,
     pomodoroRecentAvg,
     intentionConsecutiveDays,
     focusStreak,

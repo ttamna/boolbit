@@ -108,6 +108,16 @@ interface InsightParams {
    */
   pomodoroSessionBest?: number;
   /**
+   * Current ISO-week session total (Mon through today, using sessionsToday for today) and
+   * the same-length window from the previous ISO week (Mon through same-offset-7d), from pomodoroHistory.
+   * When currentWeekTotal > prevWeekTotal AND prevWeekTotal > 0 AND sessionsToday > 0,
+   * a "이번 주 포모도로 신기록 페이스!" badge fires at priority 7.495, between day_record (7.49) and
+   * goal_reached (7.5). prevWeekTotal > 0 guard prevents trivial "record" when last week had no sessions.
+   * Computed by calcPomodoroWeekRecord(pomodoroHistory, sessionsToday, todayStr) in App.tsx.
+   * Absent/undefined = feature not wired by caller; skipped silently.
+   */
+  pomodoroWeekRecord?: { currentWeekTotal: number; prevWeekTotal: number };
+  /**
    * Consecutive days (including today) on which the user has set a daily intention.
    * Capped at 7 by calcIntentionStreak (today + 6 history days).
    * A value ≥ 7 with todayIntentionDate === todayStr triggers an intention-streak badge.
@@ -220,7 +230,7 @@ function daysUntil(deadline: string, todayStr: string): number | null {
 }
 
 // Returns the single most relevant actionable insight for the user right now, or null if nothing notable.
-// Priority order: streak_at_risk > deadline_critical > ci_failure > milestone_near > open_prs > github_drought > open_issues > perfect_day > intention_done > intention_missing > period_start > no_focus_project > weak_day_ahead > best_day_ahead > habit_first_check_in > habit_comeback > pomodoro_last_one > focus_streak_milestone > pomodoro_goal_streak > pomodoro_day_record > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > project_context_switching > streak_recession > habit_consecutive_miss > almost_perfect_day > pomodoro_today_above_avg > momentum_rise > goal_done > goal_streak > month_goal_streak > project_ahead > project_near_completion > project_forecast > personal_best > habit_target_near > intention_streak.
+// Priority order: streak_at_risk > deadline_critical > ci_failure > milestone_near > open_prs > github_drought > open_issues > perfect_day > intention_done > intention_missing > period_start > no_focus_project > weak_day_ahead > best_day_ahead > habit_first_check_in > habit_comeback > pomodoro_last_one > focus_streak_milestone > pomodoro_goal_streak > pomodoro_day_record > pomodoro_week_record > pomodoro_goal_reached > deadline_soon > goal_expiry > momentum_decline > project_stale > project_context_switching > streak_recession > habit_consecutive_miss > almost_perfect_day > pomodoro_today_above_avg > momentum_rise > goal_done > goal_streak > month_goal_streak > project_ahead > project_near_completion > project_forecast > personal_best > habit_target_near > intention_streak.
 export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   const {
     habits, todayStr, nowHour, todayIntentionDate, todayIntentionDone, sessionsToday, sessionGoal, habitsAllDoneDate, projects,
@@ -234,6 +244,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     quarterGoalPastDoneStreak,
     pomodoroGoalStreak,
     pomodoroSessionBest,
+    pomodoroWeekRecord,
     pomodoroRecentAvg,
     intentionConsecutiveDays,
     todayIsWeakHabitDay,
@@ -502,6 +513,22 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     (sessionGoal == null || sessionGoal === 0 || sessionsToday >= sessionGoal)
   ) {
     return { text: `🍅 오늘 포모도로 신기록! (${sessionsToday}세션)`, level: "success" };
+  }
+
+  // 7.495. Pomodoro week record: current ISO-week total (Mon–today) beats the same-length prev-week window.
+  // Fires AFTER pomodoro_day_record (7.49) so a single-day record takes priority over a week-pace record.
+  // Fires BEFORE pomodoro_goal_reached (7.5) to show a more celebratory message when both conditions hold.
+  // prevWeekTotal > 0 guard: prevents a trivial "record" when last week had no sessions at all.
+  // sessionsToday > 0 guard: ensures the badge fires because the user is actively focusing right now, not
+  //   from earlier-this-week sessions that already put the week total ahead before today started.
+  // pomodoroWeekRecord absent → feature not wired; skipped silently.
+  if (
+    pomodoroWeekRecord !== undefined &&
+    sessionsToday > 0 &&
+    pomodoroWeekRecord.currentWeekTotal > pomodoroWeekRecord.prevWeekTotal &&
+    pomodoroWeekRecord.prevWeekTotal > 0
+  ) {
+    return { text: `🍅 이번 주 포모도로 신기록 페이스! (${pomodoroWeekRecord.currentWeekTotal}세션)`, level: "success" };
   }
 
   // 7.5. Pomodoro goal reached: daily session goal met or exceeded — positive reinforcement.
