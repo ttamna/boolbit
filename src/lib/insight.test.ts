@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, habit_pomodoro_dual_win, habit_all_done_early, intention_done, pomodoro_today_above_avg)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, habit_pomodoro_dual_win, habit_all_done_early, intention_done, pomodoro_today_above_avg, habit_multi_streak)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -6913,6 +6913,116 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
       expect(result).not.toBeNull();
       expect(result!.text).toContain("회복");
       expect(result!.text).not.toContain("포모도로");
+    });
+  });
+
+  // ── habit_multi_streak ──────────────────────────────────────────────────────
+  describe("calcTodayInsight — habit_multi_streak (priority 6.95, 3+ habits each ≥7d streak)", () => {
+    /**
+     * Base params for habit_multi_streak tests — designed so no other insight triggers:
+     * - nowHour: 13  → past morning window (no_focus_project/weak_day_ahead/best_day_ahead need < 12),
+     *                   below almost_perfect_day threshold (≥ 14h, 1–2 habits left),
+     *                   below streak_at_risk threshold (≥ 18h)
+     * - todayIntentionDate: undefined → intention_missing needs nowHour < 12 (false)
+     * - sessionsToday: 0, sessionGoal: undefined → all pomodoro checks silently skipped
+     * - habitsAllDoneDate: undefined → no perfect_day / habit_all_done_early
+     * - habits default: [] → no habit-specific insight fires unless overridden
+     */
+    function multiStreakBase() {
+      return {
+        habits: [] as ReturnType<typeof habit>[],
+        todayStr: TODAY,
+        nowHour: 13,
+        todayIntentionDate: undefined as string | undefined,
+        sessionsToday: 0,
+        sessionGoal: undefined as number | undefined,
+        habitsAllDoneDate: undefined as string | undefined,
+      };
+    }
+
+    it("shouldReturnMultiStreakBadgeWhenThreeHabitsEachOnSevenPlusDayStreak", () => {
+      const result = calcTodayInsight({
+        ...multiStreakBase(),
+        habits: [habit("운동", 7), habit("독서", 10), habit("명상", 14)],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.level).toBe("success");
+      expect(result!.text).toContain("3");
+      expect(result!.text).toContain("7일+");
+    });
+
+    it("shouldShowCorrectCountWhenFourHabitsQualify", () => {
+      const result = calcTodayInsight({
+        ...multiStreakBase(),
+        habits: [habit("운동", 8), habit("독서", 9), habit("명상", 10), habit("일기", 7)],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("4");
+    });
+
+    it("shouldNotFireWhenOnlyTwoHabitsOnSevenPlusStreak", () => {
+      // 2 habits qualify — below the threshold of 3
+      const result = calcTodayInsight({
+        ...multiStreakBase(),
+        habits: [habit("운동", 7), habit("독서", 10)],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotFireWhenThreeHabitsExistButStreaksBelow7", () => {
+      // streaks 5, 4, 3 — all below 7; avoids streak=6 which is 1 away from milestone (7)
+      const result = calcTodayInsight({
+        ...multiStreakBase(),
+        habits: [habit("운동", 5), habit("독서", 4), habit("명상", 3)],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotFireWithEmptyHabits", () => {
+      const result = calcTodayInsight({ ...multiStreakBase(), habits: [] });
+      expect(result).toBeNull();
+    });
+
+    it("shouldCountOnlyHabitsWithStreakAtLeastSeven", () => {
+      // 2 habits qualify (streak ≥ 7), 2 do not (streak < 7) → total = 2, below threshold
+      // Using streak=5 instead of 6 to avoid milestone_near (6 is 1 away from the 7-day milestone)
+      const result = calcTodayInsight({
+        ...multiStreakBase(),
+        habits: [habit("운동", 7), habit("독서", 10), habit("명상", 3), habit("일기", 5)],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldPreferHabitComebackOverMultiStreak", () => {
+      // habit_comeback (6.9) fires before habit_multi_streak (6.95)
+      // comeback habit: bestStreak=20 ≥ 14, streak=3 ≥ 3, streak < bestStreak, lastChecked=today
+      // multi-streak: three habits with streak ≥ 7 would qualify, but comeback preempts
+      const result = calcTodayInsight({
+        ...multiStreakBase(),
+        habits: [
+          habit("회복중", 3, TODAY, 20),  // triggers habit_comeback
+          habit("운동", 8),               // streak ≥ 7
+          habit("독서", 9),               // streak ≥ 7
+          habit("명상", 10),              // streak ≥ 7
+        ],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("회복");    // habit_comeback wins
+      expect(result!.text).not.toContain("7일+"); // multi_streak does not fire
+    });
+
+    it("shouldReturnMultiStreakBeforePomodoroLastOne", () => {
+      // habit_multi_streak (6.95) fires before pomodoro_last_one (7)
+      // sessionsToday=2, sessionGoal=3 → 1 session away → pomodoro_last_one condition met
+      const result = calcTodayInsight({
+        ...multiStreakBase(),
+        habits: [habit("운동", 7), habit("독서", 8), habit("명상", 9)],
+        sessionsToday: 2,
+        sessionGoal: 3,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("7일+");       // multi_streak wins
+      expect(result!.text).not.toContain("포모도로"); // pomodoro_last_one does not fire
     });
   });
 
