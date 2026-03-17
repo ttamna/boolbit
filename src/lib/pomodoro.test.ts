@@ -1573,10 +1573,18 @@ describe("calcDayOfWeekPomodoroAvg", () => {
     expect(result[1]).toBe(2); // (4+0)/2
   });
 
-  it("shouldReturnZeroAverageForAllDowWhenHistoryIsEmptyButWindowHasSufficientAppearances", () => {
-    // null = not enough appearances; 0 = enough appearances but no sessions recorded
+  it("shouldReturnAllNullWhenHistoryHasNoRecordedSessions", () => {
+    // Empty history → no session data recorded yet → all-null to prevent spurious weak-day badge.
+    // This distinguishes "no data" (null) from "data with 0 sessions on that DoW" (0).
     const result = calcDayOfWeekPomodoroAvg([], DOW_WINDOW);
-    for (let d = 0; d <= 6; d++) expect(result[d]).toBe(0);
+    for (let d = 0; d <= 6; d++) expect(result[d]).toBeNull();
+  });
+
+  it("shouldReturnAllNullWhenAllHistoryEntriesHaveZeroCount", () => {
+    // count=0 entries in history are not counted as "session data present".
+    const history = [{ date: "2026-03-08", count: 0 }, { date: "2026-03-09", count: 0 }];
+    const result = calcDayOfWeekPomodoroAvg(history, DOW_WINDOW);
+    for (let d = 0; d <= 6; d++) expect(result[d]).toBeNull();
   });
 
   it("shouldComputeIndependentAveragesForEachDow", () => {
@@ -1610,6 +1618,18 @@ describe("calcWeakPomodoroDay", () => {
     const avg: Record<number, number | null> = { 0: 0.5, 1: 0.2, 2: 0.8, 3: null, 4: null, 5: null, 6: null };
     expect(calcWeakPomodoroDay(avg)).toBe(1); // 0.2 is the lowest
   });
+
+  it("shouldReturnNullAtExactThresholdBoundary", () => {
+    // avg exactly 1.0 is NOT strictly below the threshold — not a weak day
+    const avg: Record<number, number | null> = { 0: 1.0, 1: 2, 2: null, 3: null, 4: null, 5: null, 6: null };
+    expect(calcWeakPomodoroDay(avg)).toBeNull();
+  });
+
+  it("shouldReturnLowerDowIndexOnTieAtSameMinimumAverage", () => {
+    // DoW 0 and DoW 1 both avg 0.5 — the lower index (0) wins for stability
+    const avg: Record<number, number | null> = { 0: 0.5, 1: 0.5, 2: null, 3: null, 4: null, 5: null, 6: null };
+    expect(calcWeakPomodoroDay(avg)).toBe(0);
+  });
 });
 
 describe("calcBestPomodoroDay", () => {
@@ -1636,6 +1656,12 @@ describe("calcBestPomodoroDay", () => {
   it("shouldIgnoreDowsThatAreBelowThreshold", () => {
     const avg: Record<number, number | null> = { 0: 2.9, 1: null, 2: 3.1, 3: null, 4: null, 5: null, 6: null };
     expect(calcBestPomodoroDay(avg)).toBe(2); // 2.9 < 3 threshold, so only dow=2 qualifies
+  });
+
+  it("shouldReturnLowerDowIndexOnTieAtSameMaximumAverage", () => {
+    // DoW 0 and DoW 1 both avg 4.0 — strict > means the first (lower) DoW wins
+    const avg: Record<number, number | null> = { 0: 4.0, 1: 4.0, 2: null, 3: null, 4: null, 5: null, 6: null };
+    expect(calcBestPomodoroDay(avg)).toBe(0);
   });
 });
 

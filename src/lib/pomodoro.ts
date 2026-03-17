@@ -471,12 +471,24 @@ const WEAK_POMODORO_DAY_THRESHOLD = 1;
 // Average sessions/day must meet or exceed this threshold to flag a day as "best".
 const BEST_POMODORO_DAY_THRESHOLD = 3;
 
+// Returns average pomodoro sessions per calendar day for each weekday (0=Sun … 6=Sat).
+// Days in dayWindow not present in history are treated as 0 sessions (user was active but did no pomodoro).
+// Returns null for a given weekday when it has fewer than MIN_DOW_POMODORO_APPEARANCES occurrences
+// in dayWindow — insufficient data for a meaningful pattern.
+// Returns all-null when dayWindow is empty OR when history has no entries with count > 0 (no session
+// data recorded yet — avoids producing spurious all-zero averages that would trigger a false weak-day badge).
+// Note: unlike calcDayOfWeekHabitRates, a 0-avg weekday is only meaningful when the user HAS some
+// recorded session data; an entirely empty history produces null to signal "no data", not "0 sessions".
+// Exported for unit testing; pure function with no side effects.
 export function calcDayOfWeekPomodoroAvg(
   history: PomodoroDay[],
   dayWindow: string[],
 ): Record<number, number | null> {
   const result: Record<number, number | null> = { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null };
   if (dayWindow.length === 0) return result;
+  // No recorded sessions in any history entry → insufficient data; return all-null to avoid
+  // spurious weak-day detection on users who haven't started using the pomodoro timer yet.
+  if (!history.some(e => e.count > 0)) return result;
   const historyMap = new Map(history.map(h => [h.date, h.count]));
   const byDow: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
   for (const day of dayWindow) {
@@ -492,6 +504,10 @@ export function calcDayOfWeekPomodoroAvg(
   return result;
 }
 
+// Returns the weekday (0–6) with the lowest non-null average strictly below WEAK_POMODORO_DAY_THRESHOLD (1).
+// When multiple weekdays share the minimum average, returns the lowest weekday number for stability.
+// Returns null when no weekday has a non-null average below the threshold.
+// Exported for unit testing; pure function with no side effects.
 export function calcWeakPomodoroDay(avgMap: Record<number, number | null>): number | null {
   let weakestDow: number | null = null;
   let weakestAvg = WEAK_POMODORO_DAY_THRESHOLD;
@@ -503,6 +519,11 @@ export function calcWeakPomodoroDay(avgMap: Record<number, number | null>): numb
   return weakestDow;
 }
 
+// Returns the weekday (0–6) with the highest non-null average at or above BEST_POMODORO_DAY_THRESHOLD (3).
+// When multiple weekdays share the maximum average, returns the lowest weekday number for stability
+// (strict > means the first/lowest DoW encountered in the 0→6 loop wins on a tie).
+// Returns null when no weekday has a non-null average at or above the threshold.
+// Exported for unit testing; pure function with no side effects.
 export function calcBestPomodoroDay(avgMap: Record<number, number | null>): number | null {
   let bestDow: number | null = null;
   let bestAvg: number | null = null;

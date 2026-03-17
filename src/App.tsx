@@ -1899,8 +1899,9 @@ export default function App() {
         todayIsBestHabitDay: calcBestDayOfWeek(rates) === todayDow,
       };
     })(),
-    // todayIsWeakPomodoroDay / todayIsBestPomodoroDay: per-weekday pomodoro session average over last14Days.
-    // Uses last14Days (matches the pomodoroHistory 14-day cap) — each weekday gets exactly 2 data points.
+    // todayIsWeakPomodoroDay / todayIsBestPomodoroDay: per-weekday pomodoro session averages.
+    // Uses last14Days (2 occurrences per DoW) so the function has consistent inputs.
+    // Returns false when history has no recorded sessions (calcDayOfWeekPomodoroAvg returns all-null).
     ...(() => {
       const pomAvg = calcDayOfWeekPomodoroAvg(data.pomodoroHistory ?? [], last14Days);
       const todayDow = new Date(todayStr + "T00:00:00").getDay();
