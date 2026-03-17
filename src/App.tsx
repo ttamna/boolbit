@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -860,6 +860,34 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.pomodoroHistory, data.quarterlyPomodoroReportDate, loaded, persist]);
+
+  // New Year's morning yearly pomodoro total session count retrospective — fires once per year on Jan 1 at 9:00+.
+  // Reports the previous calendar year's total sessions and active-day count.
+  // yearlyPomodoroReportDate persists the guard so it fires only once per Jan 1 even after restart.
+  // Design: pomodoroHistory is capped at 14 days, so only the last ≤14 days of the year will match.
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.yearlyPomodoroReportDate === today) return;
+    if (now.getHours() < 9) return;   // after 09:00
+    if (now.getMonth() !== 0 || now.getDate() !== 1) return;  // only Jan 1
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const prevYearDays = calcLastNDays(yesterday.toLocaleDateString("sv"), totalDaysInYear(yesterday));
+    const msg = calcYearlyPomodoroReport(data.pomodoroHistory ?? [], prevYearDays);
+    if (!msg) return;
+    persist({ ...dataRef.current, yearlyPomodoroReportDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.pomodoroHistory, data.yearlyPomodoroReportDate, loaded, persist]);
 
   // Monday morning weekly momentum avg + tier distribution report — fires once per Monday at 9:00+.
   // Reports the previous week's (7 days ending yesterday, Mon–Sun) average score and tier breakdown.

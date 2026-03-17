@@ -1,5 +1,5 @@
-// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, lifetime milestone notifications, and monthly session report
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), and ISO-week record pace comparison (current week vs same-length prev-week window)
+// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, lifetime milestone notifications, and weekly/monthly/quarterly/yearly session reports
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, quarterly session report, yearly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), and ISO-week record pace comparison (current week vs same-length prev-week window)
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -437,4 +437,29 @@ export function calcPomodoroWeekRecord(
   }
 
   return { currentWeekTotal, prevWeekTotal };
+}
+
+// Returns a desktop-notification body summarising last year's total pomodoro session count.
+// Fires on January 1st each year at 09:00+ via the yearlyPomodoroReportDate guard in App.tsx.
+// prevYearDays: all calendar days of the previous year — caller uses
+//   calcLastNDays(yesterday, totalDaysInYear(yesterday)) so the window covers exactly Jan 1–Dec 31.
+// Note: pomodoroHistory is capped at 14 days, so only the last ≤14 days of the year will match.
+//   For this reason the session-count thresholds (≥100=🔥, ≥40=✅) match calcQuarterlyPomodoroReport
+//   rather than being scaled by year length; the effective data window is the same ≤14 days.
+// Returns null when fewer than 3 active (count > 0) days fall within the window.
+// Exported for unit testing; pure function with no side effects.
+export function calcYearlyPomodoroReport(
+  history: PomodoroDay[],
+  prevYearDays: string[],
+): string | null {
+  const dateWindow = new Set(prevYearDays);
+  const active = history.filter(e => dateWindow.has(e.date) && e.count > 0);
+  if (active.length < 3) return null;
+
+  const total = active.reduce((s, e) => s + e.count, 0);
+  const days = active.length;
+
+  if (total >= 100) return `🔥 지난 해 포모도로 ${total}세션 — 집중력 최고! (${days}일 활성)`;
+  if (total >= 40) return `✅ 지난 해 포모도로 ${total}세션 — 잘 집중했어요 (${days}일 활성)`;
+  return `💪 지난 해 포모도로 ${total}세션 — 올해엔 더 집중해봐요 (${days}일 활성)`;
 }
