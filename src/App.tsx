@@ -13,7 +13,7 @@ import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport } from "./lib/intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcYearlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
@@ -886,6 +886,34 @@ export default function App() {
     })();
   }, [data.intentionHistory, data.weeklyIntentionReportDate, loaded, persist]);
 
+  // 1st-of-month morning monthly intention done-rate report — fires once per month at 9:00+.
+  // Reports the previous calendar month's intention done rate from intentionHistory.
+  // monthlyIntentionReportDate persists the guard so it fires only once per month-1st even after restart.
+  // Design: yesterday-ending window spans the full previous calendar month (yesterday.getDate() = total days).
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.monthlyIntentionReportDate === today) return;
+    if (now.getDate() !== 1) return;  // only 1st of month
+    if (now.getHours() < 9) return;   // after 09:00
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const prevMonthDays = calcLastNDays(yesterday.toLocaleDateString("sv"), yesterday.getDate());
+    const msg = calcMonthlyIntentionReport(data.intentionHistory ?? [], prevMonthDays);
+    if (!msg) return;
+    persist({ ...dataRef.current, monthlyIntentionReportDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.intentionHistory, data.monthlyIntentionReportDate, loaded, persist]);
+
   // Monday morning weekly goal achievement retrospective — fires once per Monday at 9:00+.
   // Reports whether the previous ISO week's goal was achieved (done === true) or missed.
   // weeklyGoalReportDate persists the guard so it fires only once per Monday even after restart.
@@ -1123,7 +1151,8 @@ export default function App() {
     // Track the date when the intention was last set so midnight reset can clear stale values
     const today = new Date().toLocaleDateString("sv");
     const todayIntentionDate = intention ? today : undefined;
-    // Append/update today's entry in rolling 7-day history when setting a non-empty intention.
+    // Append/update today's entry in rolling 35-day history when setting a non-empty intention.
+    // 35 days covers the full previous calendar month (max 31 days) for calcMonthlyIntentionReport.
     // When clearing, leave history unchanged so the last set text is preserved for reflection.
     const history: IntentionEntry[] = snapshot.intentionHistory ?? [];
     // preserve done (single source: todayIntentionDone) when text is unchanged — same contract as below
@@ -1131,7 +1160,7 @@ export default function App() {
       ? [...history.filter(e => e.date !== today), {
           date: today, text: intention,
           ...(snapshot.todayIntentionDone && intention === snapshot.todayIntention ? { done: true } : {}),
-        }].slice(-7)
+        }].slice(-35)
       : history.length > 0 ? history : undefined;
     // Clear done when intention is cleared OR when text changes; done is tied to the specific text
     const todayIntentionDone = (intention && intention === snapshot.todayIntention) ? snapshot.todayIntentionDone : undefined;
@@ -1147,9 +1176,10 @@ export default function App() {
     if (history.some(e => e.date === today)) {
       updatedHistory = history.map(e => e.date === today ? { ...e, done: done || undefined } : e);
     } else if (done && snapshot.todayIntention) {
-      // today entry absent + done=true: upsert so done survives midnight reset
-      // done=false: skip — no history entry exists, nothing to clear
-      updatedHistory = [...history, { date: today, text: snapshot.todayIntention, done: true }].slice(-7);
+      // today entry absent + done=true: upsert so done survives midnight reset.
+      // done=false: skip — no history entry exists, nothing to clear.
+      // Apply the same 35-day cap as the setIntention path when appending a new entry.
+      updatedHistory = [...history, { date: today, text: snapshot.todayIntention, done: true }].slice(-35);
     } else {
       updatedHistory = history;
     }

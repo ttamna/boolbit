@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, and calcWeeklyIntentionReport helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, and calcMonthlyIntentionReport helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport } from "./intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport } from "./intention";
 import type { IntentionEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
@@ -602,5 +602,136 @@ describe("calcWeeklyIntentionReport", () => {
     // setCount = 3 (not 4), doneCount = 3 → 100%
     expect(result).toContain("100%");
     expect(result).toContain("3/3");
+  });
+});
+
+describe("calcMonthlyIntentionReport", () => {
+  // Feb 2026: 28 days (2026-02-01 … 2026-02-28), used as prevMonthDays fixture.
+  const FEB_2026: string[] = Array.from({ length: 28 }, (_, i) => {
+    const d = new Date("2026-02-01T00:00:00");
+    d.setDate(d.getDate() + i);
+    return d.toLocaleDateString("sv");
+  });
+
+  it("should return null when fewer than 2 entries in window", () => {
+    const history: IntentionEntry[] = [{ date: "2026-02-05", text: "a", done: true }];
+    expect(calcMonthlyIntentionReport(history, FEB_2026)).toBeNull();
+  });
+
+  it("should return null when history is empty", () => {
+    expect(calcMonthlyIntentionReport([], FEB_2026)).toBeNull();
+  });
+
+  it("should return 100% perfect message when all done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-02-01", text: "a", done: true },
+      { date: "2026-02-02", text: "b", done: true },
+      { date: "2026-02-03", text: "c", done: true },
+    ];
+    const result = calcMonthlyIntentionReport(history, FEB_2026);
+    expect(result).not.toBeNull();
+    expect(result).toContain("100%");
+    expect(result).toContain("3/3");
+    expect(result).toContain("지난달");
+  });
+
+  it("should return ≥70% excellent message when 3/4 done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-02-01", text: "a", done: true },
+      { date: "2026-02-02", text: "b", done: true },
+      { date: "2026-02-03", text: "c", done: true },
+      { date: "2026-02-04", text: "d", done: false },
+    ];
+    const result = calcMonthlyIntentionReport(history, FEB_2026);
+    expect(result).not.toBeNull();
+    expect(result).toContain("75%");
+    expect(result).toContain("3/4");
+  });
+
+  it("should return ≥40% medium message when 2/4 done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-02-01", text: "a", done: true },
+      { date: "2026-02-02", text: "b", done: true },
+      { date: "2026-02-03", text: "c", done: false },
+      { date: "2026-02-04", text: "d", done: false },
+    ];
+    const result = calcMonthlyIntentionReport(history, FEB_2026);
+    expect(result).not.toBeNull();
+    expect(result).toContain("50%");
+    expect(result).toContain("2/4");
+  });
+
+  it("should return <40% low message when 1/5 done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-02-01", text: "a", done: true },
+      { date: "2026-02-02", text: "b", done: false },
+      { date: "2026-02-03", text: "c", done: false },
+      { date: "2026-02-04", text: "d", done: false },
+      { date: "2026-02-05", text: "e", done: false },
+    ];
+    const result = calcMonthlyIntentionReport(history, FEB_2026);
+    expect(result).not.toBeNull();
+    expect(result).toContain("20%");
+    expect(result).toContain("1/5");
+  });
+
+  it("should ignore entries outside the prevMonthDays window", () => {
+    // 2026-01-31 is outside Feb window → should be excluded
+    const history: IntentionEntry[] = [
+      { date: "2026-01-31", text: "old", done: true },
+      { date: "2026-02-01", text: "a", done: true },
+      { date: "2026-02-02", text: "b", done: true },
+    ];
+    const result = calcMonthlyIntentionReport(history, FEB_2026);
+    expect(result).not.toBeNull();
+    expect(result).toContain("2/2");
+  });
+
+  it("should deduplicate by date so duplicate history entries do not inflate setCount", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-02-01", text: "first", done: true },
+      { date: "2026-02-01", text: "dup", done: false },  // duplicate — ignored
+      { date: "2026-02-02", text: "b", done: true },
+      { date: "2026-02-03", text: "c", done: true },
+    ];
+    const result = calcMonthlyIntentionReport(history, FEB_2026);
+    expect(result).not.toBeNull();
+    expect(result).toContain("100%");
+    expect(result).toContain("3/3");
+  });
+
+  it("should treat absent done field as not done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-02-01", text: "a" },         // done absent → false
+      { date: "2026-02-02", text: "b", done: true },
+      { date: "2026-02-03", text: "c" },          // done absent → false
+    ];
+    const result = calcMonthlyIntentionReport(history, FEB_2026);
+    expect(result).not.toBeNull();
+    expect(result).toContain("1/3");
+  });
+
+  it("should return null when only 1 distinct entry in window after dedup", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-02-01", text: "a", done: true },
+      { date: "2026-02-01", text: "dup", done: false },  // same date → deduped out
+    ];
+    expect(calcMonthlyIntentionReport(history, FEB_2026)).toBeNull();
+  });
+
+  it("should include entries from the first and last day of the month, not just the final 7 days", () => {
+    // Validates full-month coverage: entries span Feb 1 (day 1) through Feb 28 (day 28).
+    // The 35-day rolling cap lives in App.tsx (persist path); this pure function test verifies
+    // that entries at both ends of the month window are correctly aggregated once history is passed in.
+    const history: IntentionEntry[] = [
+      { date: "2026-02-01", text: "month-start", done: true },  // 27 days before month-end
+      { date: "2026-02-14", text: "mid-month", done: false },   // 14 days before month-end
+      { date: "2026-02-28", text: "month-end", done: true },    // last day of month
+    ];
+    const result = calcMonthlyIntentionReport(history, FEB_2026);
+    expect(result).not.toBeNull();
+    // 2 done out of 3 set → 67%
+    expect(result).toContain("2/3");
+    expect(result).toContain("지난달");
   });
 });

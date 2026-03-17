@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, evening reminder, and weekly done-rate report logic
+// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, evening reminder, weekly done-rate report, and monthly done-rate report logic
 // ABOUTME: todayStr anchors all date arithmetic for DST safety; notification helpers guard duplicate sends via caller-managed date fields
 
 import type { IntentionEntry } from "../types";
@@ -177,6 +177,34 @@ export function calcWeeklyIntentionReport(
   if (pct >= 70) return `✅ 지난주 의도 달성률 ${pct}% — 훌륭해요! (${doneCount}/${setCount})`;
   if (pct >= 40) return `💡 지난주 의도 달성률 ${pct}% — 이번 주엔 더 실천해봐요! (${doneCount}/${setCount})`;
   return `⚠️ 지난주 의도 달성률 ${pct}% — 의도를 실천하는 것이 중요해요! (${doneCount}/${setCount})`;
+}
+
+// Returns the monthly intention done-rate report notification body for the previous calendar month's window.
+// prevMonthDays: array of YYYY-MM-DD strings covering all days of the previous month (e.g. all 28/29/30/31 days).
+// Deduplicates by date so duplicate history entries do not inflate setCount.
+// Returns null when fewer than 2 distinct dates with set intentions exist in the window (insufficient data).
+// Thresholds mirror calcWeeklyIntentionReport: 100% → 완벽; ≥70% → 훌륭; ≥40% → 이번 달엔 더 실천; <40% → 의도 실천 독려
+// Callers should check monthlyIntentionReportDate before invoking to ensure once-per-month-start delivery.
+export function calcMonthlyIntentionReport(
+  history: IntentionEntry[],
+  prevMonthDays: string[],
+): string | null {
+  const dateWindow = new Set(prevMonthDays);
+  // Deduplicate by date (first occurrence wins) to guard against duplicate history entries.
+  const seen = new Set<string>();
+  const relevant = history.filter(e => {
+    if (!dateWindow.has(e.date) || seen.has(e.date)) return false;
+    seen.add(e.date);
+    return true;
+  });
+  const setCount = relevant.length;
+  if (setCount < 2) return null;
+  const doneCount = relevant.filter(e => e.done === true).length;
+  const pct = Math.round((doneCount / setCount) * 100);
+  if (pct === 100) return `🌟 지난달 의도 달성률 100% — 완벽한 한 달! (${setCount}/${setCount})`;
+  if (pct >= 70) return `✅ 지난달 의도 달성률 ${pct}% — 훌륭해요! (${doneCount}/${setCount})`;
+  if (pct >= 40) return `💡 지난달 의도 달성률 ${pct}% — 이번 달엔 더 실천해봐요! (${doneCount}/${setCount})`;
+  return `⚠️ 지난달 의도 달성률 ${pct}% — 의도를 실천하는 것이 중요해요! (${doneCount}/${setCount})`;
 }
 
 // Returns the desktop notification body when todayIntentionDone transitions from falsy to true, null otherwise.

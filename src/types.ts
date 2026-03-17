@@ -90,7 +90,7 @@ export interface WidgetData {
   todayIntention?: string;           // one-line daily intention set by user; absent = not set
   todayIntentionDate?: string;       // YYYY-MM-DD when todayIntention was last set; absent = not tracked
   todayIntentionDone?: boolean;      // true when user marks today's intention as accomplished; absent/false = not done
-  intentionHistory?: IntentionEntry[]; // rolling 7-day log of daily intentions; newest last; absent = no history
+  intentionHistory?: IntentionEntry[]; // rolling 35-day log of daily intentions; newest last; absent = no history. 35 days covers the full previous calendar month for calcMonthlyIntentionReport.
   weekGoal?: string;      // one-line weekly goal; absent = not set
   weekGoalDate?: string;  // ISO week "YYYY-Www" when weekGoal was last set; absent = not tracked
   weekGoalDone?: boolean; // true when user marks weekly goal as accomplished; absent/false = not done
@@ -130,7 +130,8 @@ export interface WidgetData {
   monthlyMomentumReportDate?: string;  // YYYY-MM-DD (1st of month) when the monthly momentum avg+tier report was last sent; absent = not sent
   weeklyPomodoroReportDate?: string;   // YYYY-MM-DD (Monday) when the weekly pomodoro session count report was last sent; absent = not sent
   monthlyPomodoroReportDate?: string;  // YYYY-MM-DD (1st of month) when the monthly pomodoro session count report was last sent; absent = not sent
-  weeklyIntentionReportDate?: string;  // YYYY-MM-DD (Monday) when the weekly intention done-rate report was last sent; absent = not sent
+  weeklyIntentionReportDate?: string;   // YYYY-MM-DD (Monday) when the weekly intention done-rate report was last sent; absent = not sent
+  monthlyIntentionReportDate?: string;  // YYYY-MM-DD (1st of month) when the monthly intention done-rate report was last sent; absent = not sent
   monthGoalRemindDate?: string;        // YYYY-MM-DD when the end-of-month goal review nudge was last sent; absent = not sent
   quarterGoalRemindDate?: string;      // YYYY-MM-DD when the end-of-quarter goal review nudge was last sent; absent = not sent
   yearGoalRemindDate?: string;         // YYYY-MM-DD when the end-of-year goal review nudge was last sent; absent = not sent
