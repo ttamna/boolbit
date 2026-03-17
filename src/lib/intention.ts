@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for intention streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, and evening reminder logic
+// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, and evening reminder logic
 // ABOUTME: todayStr anchors all date arithmetic for DST safety; notification helpers guard duplicate sends via caller-managed date fields
 
 import type { IntentionEntry } from "../types";
@@ -119,6 +119,36 @@ export function calcIntentionEveningReminder(
   if (todayIntentionDone) return null;
   if (intentionDate !== todayStr) return null;
   return `🌙 오늘의 의도를 달성했나요? "${trimmed}"`;
+}
+
+/**
+ * Returns the number of consecutive days (including today if done) on which the user marked their
+ * daily intention as accomplished (done === true in intentionHistory).
+ *
+ * - If todayIntentionDone === true: streak starts at 1 (today) then walks up to 6 past days → max 7.
+ * - If todayIntentionDone is absent/false: streak starts at 0 then walks up to 6 past days → max 6.
+ * - Stops at the first past day absent from history or present with done !== true.
+ * - Returns 0 when no consecutive done day is reachable.
+ *
+ * Pure function with no side effects; todayStr injected for DST-safe date arithmetic.
+ */
+export function calcIntentionDoneStreak(
+  history: IntentionEntry[],
+  todayIntentionDone: boolean | undefined,
+  todayStr: string,
+): number {
+  // Only store done=true dates; absent and done=false both resolve to "not done"
+  const doneSet = new Set<string>(history.filter(e => e.done === true).map(e => e.date));
+  const base = new Date(todayStr + "T00:00:00");
+  let streak = todayIntentionDone === true ? 1 : 0;
+  for (let back = 1; back <= 6; back++) {
+    const d = new Date(base);
+    d.setDate(d.getDate() - back);
+    const dateStr = d.toLocaleDateString("sv");
+    if (!doneSet.has(dateStr)) break;
+    streak++;
+  }
+  return streak;
 }
 
 // Returns the desktop notification body when todayIntentionDone transitions from falsy to true, null otherwise.

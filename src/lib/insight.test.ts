@@ -5921,6 +5921,76 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     });
   });
 
+  // ── intention_done_streak ──────────────────────────────────────────────────
+  describe("intention_done_streak (priority 4.5 enhanced)", () => {
+    function intentionDoneBase() {
+      return {
+        habits: [],
+        todayStr: TODAY,
+        nowHour: 15,
+        todayIntentionDate: TODAY,
+        todayIntentionDone: true as boolean | undefined,
+        sessionsToday: 0,
+        sessionGoal: undefined as number | undefined,
+        habitsAllDoneDate: undefined as string | undefined,
+      };
+    }
+
+    it("shouldShowStreakCountWhenIntentionDoneStreakAtLeast3", () => {
+      const result = calcTodayInsight({ ...intentionDoneBase(), intentionDoneStreak: 3 });
+      expect(result).not.toBeNull();
+      expect(result!.level).toBe("success");
+      expect(result!.text).toContain("3일 연속 의도 달성");
+    });
+
+    it("shouldShowStreakCountOf5WhenStreakIs5", () => {
+      const result = calcTodayInsight({ ...intentionDoneBase(), intentionDoneStreak: 5 });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("5일 연속 의도 달성");
+    });
+
+    it("shouldShowPlainMessageWhenStreakBelow3", () => {
+      // intentionDoneStreak=2 → below threshold, plain "오늘의 의도 달성!" fires
+      const result = calcTodayInsight({ ...intentionDoneBase(), intentionDoneStreak: 2 });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("의도 달성");
+      expect(result!.text).not.toContain("연속");
+    });
+
+    it("shouldShowPlainMessageWhenStreakAbsent", () => {
+      // no intentionDoneStreak → plain message
+      const result = calcTodayInsight({ ...intentionDoneBase(), intentionDoneStreak: undefined });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("의도 달성");
+      expect(result!.text).not.toContain("연속");
+    });
+
+    it("shouldNotFireWhenNotDoneEvenWithHighStreak", () => {
+      // streak=5 but todayIntentionDone=false → no badge
+      const result = calcTodayInsight({ ...intentionDoneBase(), todayIntentionDone: false, intentionDoneStreak: 5 });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotFireWhenDateMismatchEvenWithHighStreak", () => {
+      // done but date from yesterday → stale state guard blocks it
+      const result = calcTodayInsight({ ...intentionDoneBase(), todayIntentionDate: YESTERDAY, intentionDoneStreak: 5 });
+      expect(result).toBeNull();
+    });
+
+    it("shouldPreferPerfectDayOverIntentionDoneStreak", () => {
+      // perfect_day (priority 4) must preempt intention_done_streak (4.5)
+      const result = calcTodayInsight({
+        ...intentionDoneBase(),
+        intentionDoneStreak: 5,
+        habits: [{ name: "운동", streak: 1, lastChecked: TODAY }],
+        habitsAllDoneDate: TODAY,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("완벽한 습관");
+      expect(result!.text).not.toContain("연속 의도");
+    });
+  });
+
   // ── habit_first_check_in ────────────────────────────────────────────────────
   describe("habit_first_check_in (priority 6.85)", () => {
     /**

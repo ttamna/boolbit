@@ -13,7 +13,7 @@ import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder } from "./lib/intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
@@ -1229,6 +1229,14 @@ export default function App() {
     todayStr,
     data.intentionHistory ?? [],
   );
+  // intentionDoneStreak: consecutive days (including today if done) on which today's intention was
+  // marked accomplished. When ≥ 3, the intention_done badge shows the streak count instead of a
+  // generic message — rewards sustained execution over single-day completion.
+  const intentionDoneStreak = calcIntentionDoneStreak(
+    data.intentionHistory ?? [],
+    data.todayIntentionDone,
+    todayStr,
+  );
   // last28Days: 4-week window used for per-weekday habit completion rate (calcDayOfWeekHabitRates).
   // 28 days = 4 full weeks so each weekday has exactly 4 data points — well above MIN_DOW_APPEARANCES=2.
   const last28Days = calcLastNDays(todayStr, 28);
@@ -1305,6 +1313,7 @@ export default function App() {
     pomodoroWeekRecord,
     pomodoroRecentAvg,
     intentionConsecutiveDays,
+    intentionDoneStreak,
     focusStreak,
     // perfectDayStreak: consecutive days all habits completed including today — same 14-day window used by HabitStreak.
     // When ≥ 3, the perfect_day badge shows the streak count instead of a generic celebration.

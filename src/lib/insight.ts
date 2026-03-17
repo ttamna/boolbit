@@ -132,6 +132,15 @@ interface InsightParams {
    */
   focusStreak?: number;
   /**
+   * Number of consecutive days (including today if done) on which the user marked their daily
+   * intention as accomplished (done === true in intentionHistory).
+   * Computed by calcIntentionDoneStreak(intentionHistory, todayIntentionDone, todayStr) in App.tsx.
+   * When ≥ 3 AND todayIntentionDone AND todayIntentionDate === todayStr, the intention_done
+   * badge shows the streak count ("N일 연속 의도 달성!") instead of the generic message.
+   * Absent/undefined or < 3 = generic "오늘의 의도 달성!" message; no streak count shown.
+   */
+  intentionDoneStreak?: number;
+  /**
    * Average pomodoro sessions per calendar day across all past history entries (today excluded).
    * Derived from the rolling 14-day pomodoroHistory; covers up to 13 past days — not a strict 7-day window.
    * Computed by calcPomodoroRecentAvg(pomodoroHistory, todayStr) in App.tsx.
@@ -247,6 +256,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     pomodoroWeekRecord,
     pomodoroRecentAvg,
     intentionConsecutiveDays,
+    intentionDoneStreak,
     todayIsWeakHabitDay,
     todayIsBestHabitDay,
     focusStreak,
@@ -371,7 +381,12 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // intention done is surfaced as the next-best signal when habits are still in progress.
   // Fires before intention_missing (5): a completed intention supersedes the "please set" nudge.
   // todayIntentionDate === todayStr guard prevents stale done state from a previous day from firing.
+  // When intentionDoneStreak ≥ 3 (consecutive done days including today), the streak count is shown
+  // instead of the generic message — rewards sustained execution, not just single-day completion.
   if (todayIntentionDone && todayIntentionDate === todayStr) {
+    if (intentionDoneStreak != null && intentionDoneStreak >= 3) {
+      return { text: `✨ ${intentionDoneStreak}일 연속 의도 달성! 실행력이 빛나요`, level: "success" };
+    }
     return { text: "✨ 오늘의 의도 달성!", level: "success" };
   }
 

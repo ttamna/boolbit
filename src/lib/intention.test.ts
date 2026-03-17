@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, and calcIntentionEveningReminder helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, and calcIntentionDoneStreak helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder } from "./intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak } from "./intention";
 import type { IntentionEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
@@ -388,5 +388,92 @@ describe("calcIntentionEveningReminder", () => {
   it("should include intention text in quotes in the notification body", () => {
     const result = calcIntentionEveningReminder("독서 30분", false, TODAY, TODAY);
     expect(result).toContain("\"독서 30분\"");
+  });
+});
+
+describe("calcIntentionDoneStreak", () => {
+  it("should return 0 when history is empty and today is not done", () => {
+    expect(calcIntentionDoneStreak([], false, TODAY)).toBe(0);
+  });
+
+  it("should return 0 when history is empty and todayIntentionDone is undefined", () => {
+    expect(calcIntentionDoneStreak([], undefined, TODAY)).toBe(0);
+  });
+
+  it("should return 1 when today is done and history is empty", () => {
+    expect(calcIntentionDoneStreak([], true, TODAY)).toBe(1);
+  });
+
+  it("should return 2 when yesterday done in history and today done", () => {
+    const history: IntentionEntry[] = [{ date: "2026-03-14", text: "t", done: true }];
+    expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(2);
+  });
+
+  it("should return 3 when two consecutive past days done and today done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-03-13", text: "t", done: true },
+      { date: "2026-03-14", text: "t", done: true },
+    ];
+    expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(3);
+  });
+
+  it("should return 1 when yesterday is in history but done is false and today done", () => {
+    const history: IntentionEntry[] = [{ date: "2026-03-14", text: "t", done: false }];
+    expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(1);
+  });
+
+  it("should return 1 when yesterday absent from history and today done", () => {
+    // day-2 done but day-1 (yesterday) absent → gap stops streak at today only
+    const history: IntentionEntry[] = [{ date: "2026-03-13", text: "t", done: true }];
+    expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(1);
+  });
+
+  it("should return 1 when yesterday done in history but today not done", () => {
+    // only past days count when today is not done
+    const history: IntentionEntry[] = [{ date: "2026-03-14", text: "t", done: true }];
+    expect(calcIntentionDoneStreak(history, false, TODAY)).toBe(1);
+  });
+
+  it("should return 0 when yesterday not done and today not done", () => {
+    const history: IntentionEntry[] = [{ date: "2026-03-14", text: "t", done: false }];
+    expect(calcIntentionDoneStreak(history, false, TODAY)).toBe(0);
+  });
+
+  it("should cap at 7 with 6 consecutive past done days and today done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-03-09", text: "t", done: true },
+      { date: "2026-03-10", text: "t", done: true },
+      { date: "2026-03-11", text: "t", done: true },
+      { date: "2026-03-12", text: "t", done: true },
+      { date: "2026-03-13", text: "t", done: true },
+      { date: "2026-03-14", text: "t", done: true },
+    ];
+    expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(7);
+  });
+
+  it("should not exceed 7 even when more past done entries exist", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-03-08", text: "t", done: true },
+      { date: "2026-03-09", text: "t", done: true },
+      { date: "2026-03-10", text: "t", done: true },
+      { date: "2026-03-11", text: "t", done: true },
+      { date: "2026-03-12", text: "t", done: true },
+      { date: "2026-03-13", text: "t", done: true },
+      { date: "2026-03-14", text: "t", done: true },
+    ];
+    expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(7);
+  });
+
+  it("should return 6 when today not done and 6 consecutive past done days exist", () => {
+    // today not done → starts from 0, walks 6 back → max 6 (not 7)
+    const history: IntentionEntry[] = [
+      { date: "2026-03-09", text: "t", done: true },
+      { date: "2026-03-10", text: "t", done: true },
+      { date: "2026-03-11", text: "t", done: true },
+      { date: "2026-03-12", text: "t", done: true },
+      { date: "2026-03-13", text: "t", done: true },
+      { date: "2026-03-14", text: "t", done: true },
+    ];
+    expect(calcIntentionDoneStreak(history, false, TODAY)).toBe(6);
   });
 });
