@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, and calcMonthlyIntentionReport helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, and calcQuarterlyIntentionReport helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, quarterly done-rate report, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport } from "./intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport } from "./intention";
 import type { IntentionEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
@@ -733,5 +733,138 @@ describe("calcMonthlyIntentionReport", () => {
     // 2 done out of 3 set → 67%
     expect(result).toContain("2/3");
     expect(result).toContain("지난달");
+  });
+});
+
+describe("calcQuarterlyIntentionReport", () => {
+  // Q4 2025: Oct 1 – Dec 31 (92 days), used as prevQtrDays fixture.
+  const Q4_2025: string[] = Array.from({ length: 92 }, (_, i) => {
+    const d = new Date("2025-10-01T00:00:00");
+    d.setDate(d.getDate() + i);
+    return d.toLocaleDateString("sv");
+  });
+
+  it("should return null when fewer than 2 entries in window", () => {
+    const history: IntentionEntry[] = [{ date: "2025-10-05", text: "a", done: true }];
+    expect(calcQuarterlyIntentionReport(history, Q4_2025)).toBeNull();
+  });
+
+  it("should return null when history is empty", () => {
+    expect(calcQuarterlyIntentionReport([], Q4_2025)).toBeNull();
+  });
+
+  it("should return 100% perfect message with 지난 분기 text when all done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2025-10-01", text: "a", done: true },
+      { date: "2025-10-02", text: "b", done: true },
+      { date: "2025-10-03", text: "c", done: true },
+    ];
+    const result = calcQuarterlyIntentionReport(history, Q4_2025);
+    expect(result).not.toBeNull();
+    expect(result).toContain("100%");
+    expect(result).toContain("3/3");
+    expect(result).toContain("지난 분기");
+    expect(result).not.toContain("지난달");
+  });
+
+  it("should return ≥70% excellent message when 3/4 done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2025-10-01", text: "a", done: true },
+      { date: "2025-10-02", text: "b", done: true },
+      { date: "2025-10-03", text: "c", done: true },
+      { date: "2025-10-04", text: "d", done: false },
+    ];
+    const result = calcQuarterlyIntentionReport(history, Q4_2025);
+    expect(result).not.toBeNull();
+    expect(result).toContain("75%");
+    expect(result).toContain("3/4");
+    expect(result).toContain("지난 분기");
+  });
+
+  it("should return ≥40% medium message when 2/4 done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2025-10-01", text: "a", done: true },
+      { date: "2025-10-02", text: "b", done: true },
+      { date: "2025-10-03", text: "c", done: false },
+      { date: "2025-10-04", text: "d", done: false },
+    ];
+    const result = calcQuarterlyIntentionReport(history, Q4_2025);
+    expect(result).not.toBeNull();
+    expect(result).toContain("50%");
+    expect(result).toContain("2/4");
+    expect(result).toContain("이번 분기엔");
+  });
+
+  it("should return <40% low message when 1/5 done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2025-10-01", text: "a", done: true },
+      { date: "2025-10-02", text: "b", done: false },
+      { date: "2025-10-03", text: "c", done: false },
+      { date: "2025-10-04", text: "d", done: false },
+      { date: "2025-10-05", text: "e", done: false },
+    ];
+    const result = calcQuarterlyIntentionReport(history, Q4_2025);
+    expect(result).not.toBeNull();
+    expect(result).toContain("20%");
+    expect(result).toContain("1/5");
+    expect(result).toContain("지난 분기");
+  });
+
+  it("should ignore entries outside the prevQtrDays window", () => {
+    // 2025-09-30 is before Q4 → should be excluded
+    const history: IntentionEntry[] = [
+      { date: "2025-09-30", text: "old", done: true },
+      { date: "2025-10-01", text: "a", done: true },
+      { date: "2025-10-02", text: "b", done: true },
+    ];
+    const result = calcQuarterlyIntentionReport(history, Q4_2025);
+    expect(result).not.toBeNull();
+    expect(result).toContain("2/2");
+  });
+
+  it("should deduplicate by date so duplicate history entries do not inflate setCount", () => {
+    const history: IntentionEntry[] = [
+      { date: "2025-10-01", text: "first", done: true },
+      { date: "2025-10-01", text: "dup", done: false },  // duplicate — ignored
+      { date: "2025-10-02", text: "b", done: true },
+      { date: "2025-10-03", text: "c", done: true },
+    ];
+    const result = calcQuarterlyIntentionReport(history, Q4_2025);
+    expect(result).not.toBeNull();
+    expect(result).toContain("100%");
+    expect(result).toContain("3/3");
+  });
+
+  it("should treat absent done field as not done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2025-10-01", text: "a" },         // done absent → false
+      { date: "2025-10-02", text: "b", done: true },
+      { date: "2025-10-03", text: "c" },          // done absent → false
+    ];
+    const result = calcQuarterlyIntentionReport(history, Q4_2025);
+    expect(result).not.toBeNull();
+    expect(result).toContain("1/3");
+  });
+
+  it("should return null when only 1 distinct entry after dedup", () => {
+    const history: IntentionEntry[] = [
+      { date: "2025-10-01", text: "a", done: true },
+      { date: "2025-10-01", text: "dup", done: false },  // same date → deduped out
+    ];
+    expect(calcQuarterlyIntentionReport(history, Q4_2025)).toBeNull();
+  });
+
+  it("should include entries from the first and last day of the quarter", () => {
+    // Validates full-quarter coverage: entries span Oct 1 (day 1) through Dec 31 (day 92).
+    const history: IntentionEntry[] = [
+      { date: "2025-10-01", text: "quarter-start", done: true },  // first day of Q4
+      { date: "2025-11-15", text: "mid-quarter", done: false },   // middle of Q4
+      { date: "2025-12-31", text: "quarter-end", done: true },    // last day of Q4
+    ];
+    const result = calcQuarterlyIntentionReport(history, Q4_2025);
+    expect(result).not.toBeNull();
+    // 2 done out of 3 set → 67%
+    expect(result).toContain("2/3");
+    expect(result).toContain("지난 분기");
   });
 });

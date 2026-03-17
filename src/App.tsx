@@ -13,7 +13,7 @@ import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport } from "./lib/intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcYearlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
@@ -943,6 +943,36 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.intentionHistory, data.monthlyIntentionReportDate, loaded, persist]);
+
+  // Quarter-start morning quarterly intention done-rate report — fires once per quarter at 9:00+.
+  // Reports the previous calendar quarter's intention done rate from intentionHistory.
+  // quarterlyIntentionReportDate persists the guard so it fires only once per quarter-start even after restart.
+  // Design: totalDaysInQuarter(yesterday) gives the exact length of the previous quarter (90–92 days).
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.quarterlyIntentionReportDate === today) return;
+    if (now.getHours() < 9) return;   // after 09:00
+    // Quarter starts on Jan 1, Apr 1, Jul 1, Oct 1
+    const month = now.getMonth() + 1; // 1-based
+    if (!((month === 1 || month === 4 || month === 7 || month === 10) && now.getDate() === 1)) return;
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const prevQtrDays = calcLastNDays(yesterday.toLocaleDateString("sv"), totalDaysInQuarter(yesterday));
+    const msg = calcQuarterlyIntentionReport(data.intentionHistory ?? [], prevQtrDays);
+    if (!msg) return;
+    persist({ ...dataRef.current, quarterlyIntentionReportDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.intentionHistory, data.quarterlyIntentionReportDate, loaded, persist]);
 
   // Monday morning weekly goal achievement retrospective — fires once per Monday at 9:00+.
   // Reports whether the previous ISO week's goal was achieved (done === true) or missed.
