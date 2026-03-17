@@ -587,3 +587,18 @@ export function calcQuarterlyGoalMorningReminder(
   if (quarterGoalDate === currentQuarterStr) return null;
   return "📋 이번 분기 목표를 세워보세요!";
 }
+
+// Returns the desktop notification body for the New Year's Day morning yearly-goal nudge.
+// Fires when yearGoalDate is absent or does not match currentYearStr (goal not yet set for this year).
+// Returns null when yearGoalDate === currentYearStr — goal is already set, no nudge needed.
+// Hour/day guards (Jan 1, getHours() >= 9) live in the caller (App.tsx useEffect).
+// Callers check yearlyGoalMorningRemindDate before invoking to ensure once-per-year delivery.
+// Design: 📋 (planning checklist) for start-of-period nudge; mirrors the weekly/monthly/quarterly pattern.
+// Exported for unit testing; pure function with no side effects.
+export function calcYearlyGoalMorningReminder(
+  yearGoalDate: string | undefined,
+  currentYearStr: string,
+): string | null {
+  if (yearGoalDate === currentYearStr) return null;
+  return "📋 올해 목표를 세워보세요!";
+}

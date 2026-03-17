@@ -1,8 +1,8 @@
-// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport
+// ABOUTME: Tests for goalPeriods helpers — isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcYearlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport
 // ABOUTME: Covers year-boundary edge cases where ISO week year differs from calendar year
 
 import { describe, it, expect } from "vitest";
-import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./goalPeriods";
+import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcYearlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./goalPeriods";
 import type { GoalEntry } from "../types";
 
 describe("isoWeekStr", () => {
@@ -1630,5 +1630,31 @@ describe("calcYearlyGoalReport", () => {
     const YEAR_2025 = "2025";
     const history: GoalEntry[] = [{ date: YEAR_2025, text: "독립 창업", done: true }];
     expect(calcYearlyGoalReport(YEAR_2025, history)).toBe("🎊 지난해 목표 달성! — 독립 창업");
+  });
+});
+
+describe("calcYearlyGoalMorningReminder", () => {
+  const CURRENT_YEAR = "2026";
+  const OTHER_YEAR = "2025";
+  const MSG = "📋 올해 목표를 세워보세요!";
+
+  it("should return null when yearGoalDate matches currentYearStr (goal already set for this year)", () => {
+    expect(calcYearlyGoalMorningReminder(CURRENT_YEAR, CURRENT_YEAR)).toBeNull();
+  });
+
+  it("should return nudge message when yearGoalDate is undefined (goal never set)", () => {
+    expect(calcYearlyGoalMorningReminder(undefined, CURRENT_YEAR)).toBe(MSG);
+  });
+
+  it("should return nudge message when yearGoalDate is a prior year (stale — new year started)", () => {
+    expect(calcYearlyGoalMorningReminder(OTHER_YEAR, CURRENT_YEAR)).toBe(MSG);
+  });
+
+  it("should return nudge message when yearGoalDate is a future year string (forward-clock drift guard)", () => {
+    expect(calcYearlyGoalMorningReminder("2027", CURRENT_YEAR)).toBe(MSG);
+  });
+
+  it("should return nudge message when yearGoalDate is an empty string (corrupt/absent date)", () => {
+    expect(calcYearlyGoalMorningReminder("", CURRENT_YEAR)).toBe(MSG);
   });
 });
