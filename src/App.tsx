@@ -13,7 +13,7 @@ import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport } from "./lib/intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcYearlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcYearlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
@@ -1061,6 +1061,35 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.intentionHistory, data.quarterlyIntentionReportDate, loaded, persist]);
+
+  // New Year's morning yearly intention done-rate retrospective — fires once per year on Jan 1 at 9:00+.
+  // Reports the previous calendar year's intention done rate from intentionHistory.
+  // yearlyIntentionReportDate persists the guard so it fires only once per Jan 1 even after restart.
+  // Design: totalDaysInYear(yesterday) gives the exact length of the previous year (365 or 366 in leap years).
+  // Design: intentionHistory is capped at 35 days, so only the last ≤35 days of prevYearDays will match.
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.yearlyIntentionReportDate === today) return;
+    if (now.getHours() < 9) return;   // after 09:00
+    if (now.getMonth() !== 0 || now.getDate() !== 1) return;  // only Jan 1
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const prevYearDays = calcLastNDays(yesterday.toLocaleDateString("sv"), totalDaysInYear(yesterday));
+    const msg = calcYearlyIntentionReport(data.intentionHistory ?? [], prevYearDays);
+    if (!msg) return;
+    persist({ ...dataRef.current, yearlyIntentionReportDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.intentionHistory, data.yearlyIntentionReportDate, loaded, persist]);
 
   // Monday morning weekly goal achievement retrospective — fires once per Monday at 9:00+.
   // Reports whether the previous ISO week's goal was achieved (done === true) or missed.

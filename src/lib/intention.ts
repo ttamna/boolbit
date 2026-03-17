@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, evening reminder, weekly done-rate report, monthly done-rate report, and quarterly done-rate report logic
+// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, evening reminder, weekly done-rate report, monthly done-rate report, quarterly done-rate report, and yearly done-rate report logic
 // ABOUTME: todayStr anchors all date arithmetic for DST safety; notification helpers guard duplicate sends via caller-managed date fields
 
 import type { IntentionEntry } from "../types";
@@ -233,6 +233,35 @@ export function calcQuarterlyIntentionReport(
   if (pct >= 70) return `✅ 지난 분기 의도 달성률 ${pct}% — 훌륭해요! (${doneCount}/${setCount})`;
   if (pct >= 40) return `💡 지난 분기 의도 달성률 ${pct}% — 이번 분기엔 더 실천해봐요! (${doneCount}/${setCount})`;
   return `⚠️ 지난 분기 의도 달성률 ${pct}% — 의도를 실천하는 것이 중요해요! (${doneCount}/${setCount})`;
+}
+
+// Returns the yearly intention done-rate notification body for New Year's morning (Jan 1, 9:00+).
+// prevYearDays: YYYY-MM-DD strings for every day of the previous calendar year (365 or 366 in leap years).
+// Deduplicates by date (first occurrence wins) to guard against duplicate history entries.
+// Returns null when fewer than 2 distinct entries fall within prevYearDays.
+// Design: intentionHistory is capped at 35 days, so only the last ≤35 days of prevYearDays will match —
+//   the preceding ~330 days of the previous year are not stored and are absent from the calculation.
+// Exported for unit testing; pure function with no side effects.
+export function calcYearlyIntentionReport(
+  history: IntentionEntry[],
+  prevYearDays: string[],
+): string | null {
+  const dateWindow = new Set(prevYearDays);
+  // Deduplicate by date (first occurrence wins) to guard against duplicate history entries.
+  const seen = new Set<string>();
+  const relevant = history.filter(e => {
+    if (!dateWindow.has(e.date) || seen.has(e.date)) return false;
+    seen.add(e.date);
+    return true;
+  });
+  const setCount = relevant.length;
+  if (setCount < 2) return null;
+  const doneCount = relevant.filter(e => e.done === true).length;
+  const pct = Math.round((doneCount / setCount) * 100);
+  if (pct === 100) return `🌟 지난 해 의도 달성률 100% — 완벽한 한 해! (${setCount}/${setCount})`;
+  if (pct >= 70) return `✅ 지난 해 의도 달성률 ${pct}% — 훌륭해요! (${doneCount}/${setCount})`;
+  if (pct >= 40) return `💡 지난 해 의도 달성률 ${pct}% — 올해엔 더 실천해봐요! (${doneCount}/${setCount})`;
+  return `⚠️ 지난 해 의도 달성률 ${pct}% — 의도를 실천하는 것이 중요해요! (${doneCount}/${setCount})`;
 }
 
 // Returns the desktop notification body when todayIntentionDone transitions from falsy to true, null otherwise.

@@ -138,6 +138,7 @@ export interface WidgetData {
   weeklyIntentionReportDate?: string;      // YYYY-MM-DD (Monday) when the weekly intention done-rate report was last sent; absent = not sent
   monthlyIntentionReportDate?: string;     // YYYY-MM-DD (1st of month) when the monthly intention done-rate report was last sent; absent = not sent
   quarterlyIntentionReportDate?: string;   // YYYY-MM-DD (quarter-start) when the quarterly intention done-rate report was last sent; absent = not sent
+  yearlyIntentionReportDate?: string;      // YYYY-MM-DD (Jan 1) when the yearly intention done-rate report was last sent; absent = not sent
   monthGoalRemindDate?: string;        // YYYY-MM-DD when the end-of-month goal review nudge was last sent; absent = not sent
   quarterGoalRemindDate?: string;      // YYYY-MM-DD when the end-of-quarter goal review nudge was last sent; absent = not sent
   yearGoalRemindDate?: string;         // YYYY-MM-DD when the end-of-year goal review nudge was last sent; absent = not sent

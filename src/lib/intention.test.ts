@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, and calcQuarterlyIntentionReport helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, quarterly done-rate report, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, and calcYearlyIntentionReport helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport } from "./intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport } from "./intention";
 import type { IntentionEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
@@ -866,5 +866,139 @@ describe("calcQuarterlyIntentionReport", () => {
     // 2 done out of 3 set → 67%
     expect(result).toContain("2/3");
     expect(result).toContain("지난 분기");
+  });
+});
+
+describe("calcYearlyIntentionReport", () => {
+  // 2024 is a leap year (366 days): Jan 1 – Dec 31. Used as prevYearDays fixture.
+  const YEAR_2024: string[] = Array.from({ length: 366 }, (_, i) => {
+    const d = new Date("2024-01-01T00:00:00");
+    d.setDate(d.getDate() + i);
+    return d.toLocaleDateString("sv");
+  });
+
+  it("should return null when history is empty", () => {
+    expect(calcYearlyIntentionReport([], YEAR_2024)).toBeNull();
+  });
+
+  it("should return null when fewer than 2 entries in window", () => {
+    const history: IntentionEntry[] = [{ date: "2024-01-05", text: "a", done: true }];
+    expect(calcYearlyIntentionReport(history, YEAR_2024)).toBeNull();
+  });
+
+  it("should return 100% perfect message with 지난 해 text when all done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2024-01-01", text: "a", done: true },
+      { date: "2024-01-02", text: "b", done: true },
+      { date: "2024-01-03", text: "c", done: true },
+    ];
+    const result = calcYearlyIntentionReport(history, YEAR_2024);
+    expect(result).not.toBeNull();
+    expect(result).toContain("100%");
+    expect(result).toContain("3/3");
+    expect(result).toContain("지난 해");
+    expect(result).not.toContain("지난 분기");
+    expect(result).not.toContain("지난달");
+  });
+
+  it("should return ≥70% excellent message when 3/4 done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2024-01-01", text: "a", done: true },
+      { date: "2024-01-02", text: "b", done: true },
+      { date: "2024-01-03", text: "c", done: true },
+      { date: "2024-01-04", text: "d", done: false },
+    ];
+    const result = calcYearlyIntentionReport(history, YEAR_2024);
+    expect(result).not.toBeNull();
+    expect(result).toContain("75%");
+    expect(result).toContain("3/4");
+    expect(result).toContain("지난 해");
+  });
+
+  it("should return ≥40% medium message with 올해엔 text when 2/4 done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2024-01-01", text: "a", done: true },
+      { date: "2024-01-02", text: "b", done: true },
+      { date: "2024-01-03", text: "c", done: false },
+      { date: "2024-01-04", text: "d", done: false },
+    ];
+    const result = calcYearlyIntentionReport(history, YEAR_2024);
+    expect(result).not.toBeNull();
+    expect(result).toContain("50%");
+    expect(result).toContain("2/4");
+    expect(result).toContain("올해엔");
+  });
+
+  it("should return <40% low message with warning text when 1/5 done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2024-01-01", text: "a", done: true },
+      { date: "2024-01-02", text: "b", done: false },
+      { date: "2024-01-03", text: "c", done: false },
+      { date: "2024-01-04", text: "d", done: false },
+      { date: "2024-01-05", text: "e", done: false },
+    ];
+    const result = calcYearlyIntentionReport(history, YEAR_2024);
+    expect(result).not.toBeNull();
+    expect(result).toContain("20%");
+    expect(result).toContain("1/5");
+    expect(result).toContain("의도를 실천하는 것이 중요해요");
+  });
+
+  it("should ignore entries outside prevYearDays window", () => {
+    // 2023-12-31 is before 2024 → should be excluded
+    const history: IntentionEntry[] = [
+      { date: "2023-12-31", text: "old", done: true },
+      { date: "2024-01-01", text: "a", done: true },
+      { date: "2024-01-02", text: "b", done: true },
+    ];
+    const result = calcYearlyIntentionReport(history, YEAR_2024);
+    expect(result).not.toBeNull();
+    expect(result).toContain("2/2");
+  });
+
+  it("should deduplicate by date so duplicate history entries do not inflate setCount", () => {
+    const history: IntentionEntry[] = [
+      { date: "2024-01-01", text: "first", done: true },
+      { date: "2024-01-01", text: "dup", done: false },  // duplicate — ignored
+      { date: "2024-01-02", text: "b", done: true },
+      { date: "2024-01-03", text: "c", done: true },
+    ];
+    const result = calcYearlyIntentionReport(history, YEAR_2024);
+    expect(result).not.toBeNull();
+    expect(result).toContain("100%");
+    expect(result).toContain("3/3");
+  });
+
+  it("should treat absent done field as not done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2024-01-01", text: "a" },         // done absent → false
+      { date: "2024-01-02", text: "b", done: true },
+      { date: "2024-01-03", text: "c" },          // done absent → false
+    ];
+    const result = calcYearlyIntentionReport(history, YEAR_2024);
+    expect(result).not.toBeNull();
+    expect(result).toContain("1/3");
+  });
+
+  it("should return null when only 1 distinct entry after dedup", () => {
+    const history: IntentionEntry[] = [
+      { date: "2024-01-01", text: "a", done: true },
+      { date: "2024-01-01", text: "dup", done: false },  // same date → deduped out
+    ];
+    expect(calcYearlyIntentionReport(history, YEAR_2024)).toBeNull();
+  });
+
+  it("should include entries from the first and last day of the year", () => {
+    // Validates full-year coverage: entries span Jan 1 and Dec 31 of 2024.
+    const history: IntentionEntry[] = [
+      { date: "2024-01-01", text: "year-start", done: true },   // first day of 2024
+      { date: "2024-06-15", text: "mid-year", done: false },    // middle of 2024
+      { date: "2024-12-31", text: "year-end", done: true },     // last day of 2024
+    ];
+    const result = calcYearlyIntentionReport(history, YEAR_2024);
+    expect(result).not.toBeNull();
+    // 2 done out of 3 set → 67%
+    expect(result).toContain("2/3");
+    expect(result).toContain("지난 해");
   });
 });
