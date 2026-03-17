@@ -104,6 +104,7 @@ export interface WidgetData {
   yearGoalDate?: string;  // "YYYY" when yearGoal was last set; absent = not tracked
   yearGoalDone?: boolean; // true when user marks yearly goal as accomplished; absent/false = not done
   pomodoroLifetimeMins?: number; // cumulative focus minutes across all sessions; absent = 0 (pre-feature)
+  habitLifetimeTotalCheckins?: number; // cumulative check-ins across all habits; absent = 0 (pre-feature)
   momentumHistory?: MomentumEntry[]; // rolling 7-day daily momentum scores; newest last; absent = no history
   habitsAllDoneDate?: string;   // YYYY-MM-DD date when the "all habits done today" notification was sent; absent = not sent
   habitEveningRemindDate?: string; // YYYY-MM-DD date when the evening unchecked-habits reminder was sent; absent = not sent

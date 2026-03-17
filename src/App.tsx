@@ -166,9 +166,17 @@ export default function App() {
 
   const updateHabit = useCallback((i: number, patch: Partial<Habit>) => {
     const snapshot = dataRef.current;
-    const next = { ...snapshot, habits: snapshot.habits.map((h, idx) =>
-      idx === i ? { ...h, ...patch } : h
-    )};
+    const today = new Date().toLocaleDateString("sv");
+    const oldHabit = snapshot.habits[i];
+    // Detect new check-in (lastChecked set to today) vs undo (lastChecked cleared from today).
+    const isNewCheckIn = patch.lastChecked !== undefined && patch.lastChecked === today && oldHabit.lastChecked !== today;
+    const isUndoCheckIn = "lastChecked" in patch && patch.lastChecked === undefined && oldHabit.lastChecked === today;
+    const lifetimeDelta = isNewCheckIn ? 1 : isUndoCheckIn ? -1 : 0;
+    const next = {
+      ...snapshot,
+      habits: snapshot.habits.map((h, idx) => idx === i ? { ...h, ...patch } : h),
+      ...(lifetimeDelta !== 0 ? { habitLifetimeTotalCheckins: Math.max(0, (snapshot.habitLifetimeTotalCheckins ?? 0) + lifetimeDelta) } : {}),
+    };
     persist(next);
   }, [persist]);
 
@@ -323,7 +331,18 @@ export default function App() {
   }, [loaded]); // only triggers once: loaded transitions false→true once at startup
 
   const updateHabits = useCallback((habits: Habit[]) => {
-    persist({ ...dataRef.current, habits });
+    const snapshot = dataRef.current;
+    const today = new Date().toLocaleDateString("sv");
+    // Count net new check-ins in this batch (positive = check-in, negative = unlikely but safe).
+    const prevDoneCount = (snapshot.habits ?? []).filter(h => h.lastChecked === today).length;
+    const newDoneCount = habits.filter(h => h.lastChecked === today).length;
+    const delta = newDoneCount - prevDoneCount;
+    // Only increment — never decrement. Habit deletion may produce delta < 0 (a checked habit was
+    // removed), but a lifetime achievement counter must not be reduced by removing a habit.
+    const patch = delta > 0
+      ? { habitLifetimeTotalCheckins: (snapshot.habitLifetimeTotalCheckins ?? 0) + delta }
+      : {};
+    persist({ ...snapshot, habits, ...patch });
   }, [persist]);
 
   // Sends a desktop notification when a habit streak crosses a milestone (7, 30, 100 days).
@@ -1260,6 +1279,12 @@ export default function App() {
     0,
     (data.pomodoroLifetimeMins ?? 0) - pomodoroSessionsToday * ((data.pomodoroDurations ?? { focus: 25 }).focus),
   );
+  // habitLifetimePrevCheckins: cumulative check-ins across all habits BEFORE today's check-ins.
+  // Computed by subtracting habitsDoneToday (already wired above) from the stored running total.
+  // Together with data.habitLifetimeTotalCheckins, detects when today crossed a milestone (100/500/1000/5000).
+  const habitLifetimePrevCheckins = data.habitLifetimeTotalCheckins !== undefined
+    ? Math.max(0, data.habitLifetimeTotalCheckins - habitsDoneToday)
+    : undefined;
   // pomodoroRecentAvg: average sessions per day across all past history entries (today excluded).
   // pomodoroHistory includes today's entry (written by the session-complete handler); today is
   // excluded inside calcPomodoroRecentAvg via the todayStr filter — this exclusion is load-bearing.
@@ -1355,6 +1380,8 @@ export default function App() {
     focusStreak,
     pomodoroLifetimePrevMins,
     pomodoroLifetimeMins: data.pomodoroLifetimeMins,
+    habitLifetimePrevCheckins,
+    habitLifetimeCheckins: data.habitLifetimeTotalCheckins,
     // perfectDayStreak: consecutive days all habits completed including today — same 14-day window used by HabitStreak.
     // When ≥ 3, the perfect_day badge shows the streak count instead of a generic celebration.
     perfectDayStreak: habitsPerfectStreak,

@@ -6359,6 +6359,151 @@ describe("calcTodayInsight — pomodoro_lifetime_milestone (priority 7.43, betwe
   });
 });
 
+describe("calcTodayInsight — habit_lifetime_milestone (priority 7.44, between pomodoro_lifetime_milestone and pomodoro_goal_streak)", () => {
+  // Base: Monday afternoon, no competing insights, habits.length=0 avoids habit-level badge interference.
+  // sessionsToday=0 ensures pomodoro_lifetime_milestone can't fire (its guard requires sessionsToday > 0).
+  // focusStreak=1 (non-milestone) suppresses focus_streak_milestone.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    focusStreak: 1, // non-milestone value — suppresses focus_streak_milestone
+  });
+
+  it("shouldReturnLifetimeMilestoneWhenCrossing100Checkins", () => {
+    // prevCheckins=99, currentCheckins=102 → crosses 100 threshold
+    const result = calcTodayInsight({
+      ...base(),
+      habitLifetimePrevCheckins: 99,
+      habitLifetimeCheckins: 102,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("100");
+    expect(result!.text).toContain("체크인");
+    expect(result!.text).toContain("돌파");
+  });
+
+  it("shouldReturnLifetimeMilestoneWhenCrossing500Checkins", () => {
+    // prevCheckins=498, currentCheckins=503 → crosses 500 threshold
+    const result = calcTodayInsight({
+      ...base(),
+      habitLifetimePrevCheckins: 498,
+      habitLifetimeCheckins: 503,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("500");
+    expect(result!.text).toContain("체크인");
+  });
+
+  it("shouldReturnLifetimeMilestoneWhenCrossing1000CheckinsExactly", () => {
+    // prevCheckins=997, currentCheckins=1000 → crosses 1000 threshold exactly
+    const result = calcTodayInsight({
+      ...base(),
+      habitLifetimePrevCheckins: 997,
+      habitLifetimeCheckins: 1000,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("1000");
+    expect(result!.text).toContain("체크인");
+  });
+
+  it("shouldReturnLifetimeMilestoneWhenCrossing5000Checkins", () => {
+    // prevCheckins=4998, currentCheckins=5001 → crosses 5000 threshold
+    const result = calcTodayInsight({
+      ...base(),
+      habitLifetimePrevCheckins: 4998,
+      habitLifetimeCheckins: 5001,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("5000");
+    expect(result!.text).toContain("체크인");
+  });
+
+  it("shouldNotFireWhenAlreadyPastMilestone", () => {
+    // Both prev and current past 100 — milestone was crossed on an earlier day
+    const result = calcTodayInsight({
+      ...base(),
+      habitLifetimePrevCheckins: 102,
+      habitLifetimeCheckins: 105,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPrevExactlyEqualsMilestone", () => {
+    // prev=100 exactly: crossing condition is prevCheckins < 100, which is false — not crossed today
+    const result = calcTodayInsight({
+      ...base(),
+      habitLifetimePrevCheckins: 100,
+      habitLifetimeCheckins: 101,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenBothBelowMilestone", () => {
+    // Still accumulating toward first milestone — threshold not yet reached
+    const result = calcTodayInsight({
+      ...base(),
+      habitLifetimePrevCheckins: 80,
+      habitLifetimeCheckins: 85,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenNoHabitsCheckedToday", () => {
+    // prev === current (habitLifetimeCheckins > habitLifetimePrevCheckins guard blocks it)
+    const result = calcTodayInsight({
+      ...base(),
+      habitLifetimePrevCheckins: 99,
+      habitLifetimeCheckins: 99, // equal → no check-ins today; guard blocks
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenParamsAbsent", () => {
+    // absent habitLifetimeCheckins / prevCheckins → feature not wired; skipped silently
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPomodoroLifetimeMilestonePreemptHabitLifetimeMilestone", () => {
+    // pomodoro_lifetime_milestone (7.43) fires before habit_lifetime_milestone (7.44)
+    // sessionsToday=1 so pomodoro_lifetime_milestone guard is satisfied
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 1,
+      pomodoroLifetimePrevMins: 599,
+      pomodoroLifetimeMins: 625, // crosses 10h pomodoro milestone
+      habitLifetimePrevCheckins: 99,
+      habitLifetimeCheckins: 102, // crosses 100 habit milestone simultaneously
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("시간 돌파"); // pomodoro lifetime wins
+    expect(result!.text).not.toContain("체크인"); // habit lifetime not shown
+  });
+
+  it("shouldHabitLifetimeMilestonePreemptPomodoroGoalStreak", () => {
+    // habit_lifetime_milestone (7.44) fires before pomodoro_goal_streak (7.45)
+    // goalStreak=3, sessionsToday=1 < sessionGoal=4 → pomodoro_goal_streak condition met,
+    // but habit lifetime milestone has higher priority
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 1,
+      sessionGoal: 4,
+      pomodoroGoalStreak: 3,
+      habitLifetimePrevCheckins: 99,
+      habitLifetimeCheckins: 102,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("체크인"); // habit lifetime milestone wins
+    expect(result!.text).not.toContain("연속 달성 중"); // goal_streak not shown
+  });
+});
+
 describe("calcTodayInsight — project_forecast (priority 10.87, at-current-pace completion date)", () => {
   // Tuesday 2024-01-16: not Monday, not 1st of month/quarter/year — no period_start triggers
   const TODAY_F = "2024-01-16";
