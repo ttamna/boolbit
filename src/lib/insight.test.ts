@@ -3167,7 +3167,7 @@ describe("calcTodayInsight", () => {
 
   it("shouldReturnNullWhenBestStreakUndefined", () => {
     const result = calcTodayInsight({
-      habits: [{ name: "운동", streak: 30, lastChecked: TODAY, bestStreak: undefined }],
+      habits: [{ name: "운동", streak: 7, lastChecked: TODAY, bestStreak: undefined }],
       todayStr: TODAY,
       nowHour: 14,
       todayIntentionDate: TODAY,
@@ -3279,7 +3279,7 @@ describe("calcTodayInsight", () => {
     // bestStreak < streak is a data-corruption state (bestStreak should always be ≥ streak).
     // The filter condition streak === bestStreak correctly rejects this case.
     const result = calcTodayInsight({
-      habits: [{ name: "운동", streak: 30, lastChecked: TODAY, bestStreak: 20 }],
+      habits: [{ name: "운동", streak: 12, lastChecked: TODAY, bestStreak: 8 }],
       todayStr: TODAY,
       nowHour: 14,
       todayIntentionDate: TODAY,
@@ -6836,7 +6836,7 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
       // streak === bestStreak: user is back at peak; personal_best covers this milestone
       const result = calcTodayInsight({
         ...comebackBase(),
-        habits: [habit("독서", 20, TODAY, 20)],
+        habits: [habit("독서", 10, TODAY, 10)],
       });
       expect(result).toBeNull();
     });
@@ -7795,7 +7795,7 @@ describe("calcTodayInsight — habit_diversity_warning (priority 10.22)", () => 
       ...base,
       habits: [
         { name: "운동", streak: 1, lastChecked: TODAY, bestStreak: 5 },
-        { name: "독서", streak: 20, lastChecked: TODAY },
+        { name: "독서", streak: 10, lastChecked: TODAY },
       ],
     });
     expect(result).toBeNull();
@@ -8163,10 +8163,10 @@ describe("calcTodayInsight — habit_target_hit (priority 11.04, between habit_b
   });
 
   it("shouldNotFireWhenStreakExceedsTarget", () => {
-    // streak=22 > targetStreak=21: target already surpassed — result is null
-    // habit_target_near: gap = 21-22 = -1, guard gap >= 1 fails → doesn't fire
+    // streak=12 > targetStreak=11: target already surpassed — result is null
+    // habit_target_near: gap = 11-12 = -1, guard gap >= 1 fails → doesn't fire
     const result = calcTodayInsight({
-      habits: [{ name: "운동", streak: 22, lastChecked: TODAY, targetStreak: 21 }],
+      habits: [{ name: "운동", streak: 12, lastChecked: TODAY, targetStreak: 11 }],
       todayStr: TODAY,
       nowHour: 9,
       todayIntentionDate: TODAY,
@@ -8263,7 +8263,7 @@ describe("calcTodayInsight — habit_target_hit (priority 11.04, between habit_b
   it("shouldNotFireWhenNoTargetSet", () => {
     // No targetStreak defined → habit_target_hit cannot fire; result is null
     const result = calcTodayInsight({
-      habits: [{ name: "운동", streak: 15, lastChecked: TODAY }],
+      habits: [{ name: "운동", streak: 12, lastChecked: TODAY }],
       todayStr: TODAY,
       nowHour: 9,
       todayIntentionDate: TODAY,
@@ -8288,6 +8288,124 @@ describe("calcTodayInsight — habit_target_hit (priority 11.04, between habit_b
       weekGoal: "test",
     });
     expect(result).toBeNull();
+  });
+});
+
+// ── habit_month_flawless ─────────────────────────────────────────────────────
+describe("calcTodayInsight — habit_month_flawless (priority 11.07, after habit_target_halfway)", () => {
+  // TODAY = "2024-01-15" → day 15 of January, ≥ MIN_MONTH_DAYS (10)
+  // streak ≥ currentMonthDay AND lastChecked === todayStr → habit checked every day this month
+  function base() {
+    return {
+      habits: [{ name: "운동", streak: 15, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+  it("shouldFireWhenStreakEqualsCurrentMonthDay", () => {
+    // streak=15 on day 15, checked today → all 15 January days covered
+    const result = calcTodayInsight(base());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("개근");
+    expect(result!.text).toContain("15일");
+  });
+
+  it("shouldFireWhenStreakExceedsCurrentMonthDay", () => {
+    // streak=20 on day 15 → 20 consecutive days ending today cover all of January too
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 20, lastChecked: TODAY }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("개근");
+  });
+
+  it("shouldNotFireBeforeDay10", () => {
+    // day 9 < MIN_MONTH_DAYS(10) → guard fails, no badge fires
+    const day9 = "2024-01-09";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day9,
+      todayIntentionDate: day9,
+      habits: [{ name: "운동", streak: 9, lastChecked: day9 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireExactlyOnDay10", () => {
+    // day 10 === MIN_MONTH_DAYS(10) → boundary fires
+    const day10 = "2024-01-10";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day10,
+      todayIntentionDate: day10,
+      habits: [{ name: "운동", streak: 10, lastChecked: day10 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("개근");
+    expect(result!.text).toContain("10일");
+  });
+
+  it("shouldNotFireWhenStreakBelowCurrentMonthDay", () => {
+    // streak=14 < currentMonthDay=15 → habit missed at least one day this month
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 14, lastChecked: TODAY }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenNotCheckedToday", () => {
+    // lastChecked=YESTERDAY → today's check-in missing, month not fully covered through today
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 15, lastChecked: YESTERDAY }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPickHabitWithHighestStreak", () => {
+    // two qualifying habits: 운동(streak=20) and 독서(streak=15) → 운동 selected (highest streak)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "독서", streak: 15, lastChecked: TODAY },
+        { name: "운동", streak: 20, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    expect(result!.text).not.toContain("독서");
+  });
+
+  it("shouldBePreemptedByAlmostPerfectDay", () => {
+    // almost_perfect_day (10.3): hour≥14 + 1 habit unchecked → fires before habit_month_flawless (11.07)
+    const result = calcTodayInsight({
+      ...base(),
+      nowHour: 15,
+      habits: [
+        { name: "운동", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 4, lastChecked: YESTERDAY }, // not checked today
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽한 하루까지");
+    expect(result!.text).not.toContain("개근");
+  });
+
+  it("shouldPreemptIntentionStreak", () => {
+    // habit_month_flawless (11.07) fires before intention_streak (11.1)
+    const result = calcTodayInsight({ ...base(), intentionConsecutiveDays: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("개근");
+    expect(result!.text).not.toContain("의도");
   });
 });
 
