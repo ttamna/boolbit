@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, habit_pomodoro_dual_win, habit_all_done_early, intention_done, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, habit_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -6742,6 +6742,115 @@ describe("calcTodayInsight — focus_streak_milestone (priority 7.42, between po
     expect(result).not.toBeNull();
     expect(result!.text).toContain("연속 집중"); // milestone wins
     expect(result!.text).not.toContain("목표 달성"); // goal_reached not shown
+  });
+});
+
+describe("calcTodayInsight — intention_done milestone tier (priority 4.5, within intention_done block)", () => {
+  // The intention_done block (priority 4.5) has three tiers:
+  //   1. intentionDoneStreak ∈ {7,14,30}: milestone celebration message
+  //   2. intentionDoneStreak ≥ 3 (non-milestone): streak count message
+  //   3. default: single-day completion message
+  // Base: Tuesday afternoon, intention set and done today, no habits, no pomodoro sessions.
+  // TODAY_IDM = "2024-01-16" (Tuesday) — avoids Monday period_start; afternoon avoids morning-only gates.
+  const TODAY_IDM = "2024-01-16";
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY_IDM,
+    nowHour: 14,
+    todayIntentionDate: TODAY_IDM,
+    todayIntentionDone: true,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldReturnMilestoneBadgeWhenStreakHits7", () => {
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("7");
+    expect(result!.text).toContain("마일스톤");
+    expect(result!.text).toContain("실행 의지");
+  });
+
+  it("shouldReturnMilestoneBadgeWhenStreakHits14", () => {
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("14");
+    expect(result!.text).toContain("마일스톤");
+  });
+
+  it("shouldReturnMilestoneBadgeWhenStreakHits30", () => {
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 30 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("30");
+    expect(result!.text).toContain("마일스톤");
+  });
+
+  it("shouldReturnRegularStreakBadgeOnNonMilestoneDay6", () => {
+    // 6 is not a milestone → streak count badge fires (not milestone text)
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 6 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("6");
+    expect(result!.text).not.toContain("마일스톤");
+    expect(result!.text).not.toContain("실행 의지");
+  });
+
+  it("shouldReturnRegularStreakBadgeOnNonMilestoneDay8", () => {
+    // 8 is not a milestone → streak count badge fires (not milestone text)
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 8 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("8");
+    expect(result!.text).not.toContain("마일스톤");
+  });
+
+  it("shouldReturnGenericBadgeWhenStreakIsAbsent", () => {
+    // intentionDoneStreak absent → plain "오늘의 의도 달성!" fires
+    const result = calcTodayInsight({ ...base() });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("오늘의 의도 달성");
+    expect(result!.text).not.toContain("마일스톤");
+  });
+
+  it("shouldNotReturnAnyIntentionBadgeWhenTodayIntentionNotDone", () => {
+    // todayIntentionDone=false → intention_done block skipped entirely
+    const result = calcTodayInsight({ ...base(), todayIntentionDone: false, intentionDoneStreak: 7 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnMilestoneBadgeWhenIntentionDateIsNotToday", () => {
+    // todayIntentionDate ≠ todayStr → intention_done block skipped → null
+    const result = calcTodayInsight({
+      ...base(),
+      todayIntentionDate: "2024-01-15",
+      intentionDoneStreak: 7,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnMilestoneBadgePreemptingFocusStreakMilestone", () => {
+    // intention_done (4.5) fires before focus_streak_milestone (7.42)
+    // milestone tier fires on intentionDoneStreak=7 milestone day
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 1,
+      focusStreak: 7, // would fire focus_streak_milestone without intention done firing first
+      intentionDoneStreak: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("마일스톤"); // intention milestone wins
+    expect(result!.text).not.toContain("집중"); // focus milestone absent
+  });
+
+  it("shouldMilestoneTierFireBeforeRegularStreakTierOnMilestoneDay", () => {
+    // When streak is exactly 7 (milestone), milestone text fires instead of regular streak text
+    const milestoneResult = calcTodayInsight({ ...base(), intentionDoneStreak: 7 });
+    const streakResult = calcTodayInsight({ ...base(), intentionDoneStreak: 6 });
+    expect(milestoneResult!.text).toContain("마일스톤");
+    expect(streakResult!.text).not.toContain("마일스톤");
+    expect(streakResult!.text).toContain("연속 의도 달성"); // regular streak text
   });
 });
 
