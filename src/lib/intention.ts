@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, evening reminder, weekly done-rate report, monthly done-rate report, quarterly done-rate report, and yearly done-rate report logic
+// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, evening reminder, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, and per-weekday intention done-rate analysis logic
 // ABOUTME: todayStr anchors all date arithmetic for DST safety; notification helpers guard duplicate sends via caller-managed date fields
 
 import type { IntentionEntry } from "../types";
@@ -276,4 +276,96 @@ export function calcIntentionDoneNotify(
   if (!done || prevDone) return null;
   const trimmed = intentionText?.trim();
   return trimmed ? `✨ 오늘의 의도 달성! "${trimmed}"` : "✨ 오늘의 의도 달성!";
+}
+
+// Minimum number of days with a set intention required for a weekday's rate to be computed.
+// Mirrors MIN_DOW_APPEARANCES in habits.ts — prevents spurious results from single-occurrence data.
+const MIN_INTENTION_DOW_APPEARANCES = 2;
+
+// Minimum intention done rate (0–100) for a weekday to qualify as "weak".
+// 50% (vs. habits.ts WEAK_DAY_THRESHOLD=60): intentions are optional — a user setting an intention
+// on only half their typical days for a weekday and failing >50% signals a genuine execution gap.
+// Habits are tracked every day; intentions are discretionary, making a lower threshold appropriate.
+const WEAK_INTENTION_DAY_THRESHOLD = 50;
+
+// Minimum intention done rate (0–100) for a weekday to qualify as the "best" day.
+// 80% mirrors BEST_DAY_THRESHOLD from habits.ts — a high-success rate signals a reliable execution day.
+const BEST_INTENTION_DAY_THRESHOLD = 80;
+
+// Computes intention done rate per weekday (0=Sun … 6=Sat) over the given day window.
+// Rate = (done count / set count) * 100 for each weekday where a set intention was found in history.
+// Days in dayWindow with no history entry are counted as "no intention set" (not as 0%-done).
+// Deduplicates by date (first occurrence wins, mirrors all calcXxxIntentionReport functions) to
+// guard against duplicate intentionHistory entries.
+// Returns null for weekdays with fewer than MIN_INTENTION_DOW_APPEARANCES set intentions in the window.
+// Returns all-null when history is empty or dayWindow is empty.
+// Exported for unit testing; pure function with no side effects.
+export function calcDayOfWeekIntentionDoneRate(
+  history: IntentionEntry[],
+  dayWindow: string[],
+): Record<number, number | null> {
+  const result: Record<number, number | null> = { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null };
+  if (history.length === 0 || dayWindow.length === 0) return result;
+
+  // First occurrence wins (consistent with calcWeeklyIntentionReport and other report functions).
+  const historyMap = new Map<string, IntentionEntry>();
+  for (const e of history) {
+    if (!historyMap.has(e.date)) historyMap.set(e.date, e);
+  }
+
+  const byDow: Record<number, { setCount: number; doneCount: number }> = {
+    0: { setCount: 0, doneCount: 0 },
+    1: { setCount: 0, doneCount: 0 },
+    2: { setCount: 0, doneCount: 0 },
+    3: { setCount: 0, doneCount: 0 },
+    4: { setCount: 0, doneCount: 0 },
+    5: { setCount: 0, doneCount: 0 },
+    6: { setCount: 0, doneCount: 0 },
+  };
+
+  for (const day of dayWindow) {
+    const entry = historyMap.get(day);
+    if (!entry) continue; // no intention set on this day → skip
+    const dow = new Date(day + "T00:00:00").getDay();
+    byDow[dow].setCount++;
+    if (entry.done === true) byDow[dow].doneCount++;
+  }
+
+  for (let dow = 0; dow <= 6; dow++) {
+    const { setCount, doneCount } = byDow[dow];
+    if (setCount < MIN_INTENTION_DOW_APPEARANCES) continue;
+    result[dow] = Math.round((doneCount / setCount) * 100);
+  }
+
+  return result;
+}
+
+// Returns the weekday (0–6) with the lowest non-null done rate strictly below WEAK_INTENTION_DAY_THRESHOLD (50%).
+// When multiple weekdays share the minimum rate, returns the lowest weekday number for stability.
+// Returns null when no weekday has a non-null done rate below the threshold.
+// Exported for unit testing; pure function with no side effects.
+export function calcWeakIntentionDay(rates: Record<number, number | null>): number | null {
+  let weakestDow: number | null = null;
+  let weakestRate = WEAK_INTENTION_DAY_THRESHOLD; // strictly-below: must be < WEAK_INTENTION_DAY_THRESHOLD
+  for (let dow = 0; dow <= 6; dow++) {
+    const rate = rates[dow];
+    if (rate === null) continue;
+    if (rate < weakestRate) { weakestRate = rate; weakestDow = dow; }
+  }
+  return weakestDow;
+}
+
+// Returns the weekday (0–6) with the highest non-null done rate at or above BEST_INTENTION_DAY_THRESHOLD (80%).
+// When multiple weekdays share the maximum rate, returns the lowest weekday number for stability.
+// Returns null when no weekday has a non-null done rate at or above the threshold.
+// Exported for unit testing; pure function with no side effects.
+export function calcBestIntentionDay(rates: Record<number, number | null>): number | null {
+  let bestDow: number | null = null;
+  let bestRate: number | null = null;
+  for (let dow = 0; dow <= 6; dow++) {
+    const rate = rates[dow];
+    if (rate === null || rate < BEST_INTENTION_DAY_THRESHOLD) continue;
+    if (bestRate === null || rate > bestRate) { bestRate = rate; bestDow = dow; }
+  }
+  return bestDow;
 }

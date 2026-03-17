@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, and calcYearlyIntentionReport helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, and calcBestIntentionDay helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, per-weekday intention done rate, weak/best intention day detection, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport } from "./intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay } from "./intention";
 import type { IntentionEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
@@ -1000,5 +1000,161 @@ describe("calcYearlyIntentionReport", () => {
     // 2 done out of 3 set → 67%
     expect(result).toContain("2/3");
     expect(result).toContain("지난 해");
+  });
+});
+
+// 14-day window covering each weekday twice: Jan 7–20 2024 (Sun–Sat, Sun–Sat)
+const DOW_WINDOW_14 = [
+  "2024-01-07", // Sun (0)
+  "2024-01-08", // Mon (1)
+  "2024-01-09", // Tue (2)
+  "2024-01-10", // Wed (3)
+  "2024-01-11", // Thu (4)
+  "2024-01-12", // Fri (5)
+  "2024-01-13", // Sat (6)
+  "2024-01-14", // Sun (0)
+  "2024-01-15", // Mon (1)
+  "2024-01-16", // Tue (2)
+  "2024-01-17", // Wed (3)
+  "2024-01-18", // Thu (4)
+  "2024-01-19", // Fri (5)
+  "2024-01-20", // Sat (6)
+];
+
+// ─── calcDayOfWeekIntentionDoneRate ───────────────────────────────────────────
+describe("calcDayOfWeekIntentionDoneRate", () => {
+  it("should return all-null when history is empty", () => {
+    const result = calcDayOfWeekIntentionDoneRate([], DOW_WINDOW_14);
+    expect(Object.values(result).every(v => v === null)).toBe(true);
+  });
+
+  it("should return all-null when dayWindow is empty", () => {
+    const history: IntentionEntry[] = [{ date: "2024-01-08", text: "a", done: true }];
+    const result = calcDayOfWeekIntentionDoneRate(history, []);
+    expect(Object.values(result).every(v => v === null)).toBe(true);
+  });
+
+  it("should return null for a weekday with only 1 set intention (below min appearances)", () => {
+    // 2024-01-08 is the only Monday in history → below MIN_INTENTION_DOW_APPEARANCES (2) → null
+    const history: IntentionEntry[] = [{ date: "2024-01-08", text: "a", done: true }];
+    const result = calcDayOfWeekIntentionDoneRate(history, DOW_WINDOW_14);
+    expect(result[1]).toBeNull(); // Monday: 1 set intention, below min
+  });
+
+  it("should compute 50% when 2 set intentions on same weekday with 1 done", () => {
+    // Mon Jan 8 (done=true) + Mon Jan 15 (done=false) → 1/2 = 50%
+    const history: IntentionEntry[] = [
+      { date: "2024-01-08", text: "a", done: true },
+      { date: "2024-01-15", text: "b", done: false },
+    ];
+    const result = calcDayOfWeekIntentionDoneRate(history, DOW_WINDOW_14);
+    expect(result[1]).toBe(50);
+  });
+
+  it("should compute 100% when all set intentions on a weekday are done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2024-01-08", text: "a", done: true },
+      { date: "2024-01-15", text: "b", done: true },
+    ];
+    const result = calcDayOfWeekIntentionDoneRate(history, DOW_WINDOW_14);
+    expect(result[1]).toBe(100);
+  });
+
+  it("should compute 0% when all set intentions on a weekday have done=false", () => {
+    const history: IntentionEntry[] = [
+      { date: "2024-01-08", text: "a", done: false },
+      { date: "2024-01-15", text: "b", done: false },
+    ];
+    const result = calcDayOfWeekIntentionDoneRate(history, DOW_WINDOW_14);
+    expect(result[1]).toBe(0);
+  });
+
+  it("should not count history entries outside dayWindow", () => {
+    // 2024-01-01 (Mon) is outside DOW_WINDOW_14; 2024-01-08 (Mon) is inside → only 1 Mon set → null
+    const history: IntentionEntry[] = [
+      { date: "2024-01-01", text: "outside", done: true },
+      { date: "2024-01-08", text: "inside", done: false },
+    ];
+    const result = calcDayOfWeekIntentionDoneRate(history, DOW_WINDOW_14);
+    expect(result[1]).toBeNull(); // only 1 Monday in window
+  });
+
+  it("should compute rates independently per weekday", () => {
+    // Mon: 2 done / 2 set = 100%; Tue: 1 done / 2 set = 50%
+    const history: IntentionEntry[] = [
+      { date: "2024-01-08", text: "mon1", done: true },
+      { date: "2024-01-15", text: "mon2", done: true },
+      { date: "2024-01-09", text: "tue1", done: true },
+      { date: "2024-01-16", text: "tue2", done: false },
+    ];
+    const result = calcDayOfWeekIntentionDoneRate(history, DOW_WINDOW_14);
+    expect(result[1]).toBe(100); // Monday
+    expect(result[2]).toBe(50);  // Tuesday
+  });
+
+  it("should treat absent done field as not done", () => {
+    // done is optional on IntentionEntry; absent means not done (done !== true)
+    const history: IntentionEntry[] = [
+      { date: "2024-01-08", text: "a" }, // done absent → not done
+      { date: "2024-01-15", text: "b", done: true },
+    ];
+    const result = calcDayOfWeekIntentionDoneRate(history, DOW_WINDOW_14);
+    expect(result[1]).toBe(50); // 1 done out of 2 set
+  });
+
+  it("should use first occurrence when duplicate dates exist in history (first-wins)", () => {
+    // First entry: done=true; duplicate: done=false → first-wins: rate = 100%
+    const history: IntentionEntry[] = [
+      { date: "2024-01-08", text: "first", done: true },
+      { date: "2024-01-08", text: "dup",   done: false }, // duplicate, discarded
+      { date: "2024-01-15", text: "b",     done: true },
+    ];
+    const result = calcDayOfWeekIntentionDoneRate(history, DOW_WINDOW_14);
+    expect(result[1]).toBe(100); // first-wins: both Mondays count as done
+  });
+});
+
+// ─── calcWeakIntentionDay ────────────────────────────────────────────────────
+describe("calcWeakIntentionDay", () => {
+  it("should return null when all rates are null", () => {
+    expect(calcWeakIntentionDay({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null })).toBeNull();
+  });
+
+  it("should return the weekday with rate strictly below 50% threshold", () => {
+    expect(calcWeakIntentionDay({ 0: null, 1: 40, 2: null, 3: null, 4: null, 5: null, 6: null })).toBe(1);
+  });
+
+  it("should return null when weakest rate is exactly at 50% threshold (not strictly below)", () => {
+    expect(calcWeakIntentionDay({ 0: null, 1: 50, 2: null, 3: null, 4: null, 5: null, 6: null })).toBeNull();
+  });
+
+  it("should return lowest weekday number when multiple weekdays tie at the minimum rate", () => {
+    // dow=2 and dow=4 both at 30% → lowest dow wins (2)
+    expect(calcWeakIntentionDay({ 0: null, 1: null, 2: 30, 3: null, 4: 30, 5: null, 6: null })).toBe(2);
+  });
+});
+
+// ─── calcBestIntentionDay ────────────────────────────────────────────────────
+describe("calcBestIntentionDay", () => {
+  it("should return null when all rates are null", () => {
+    expect(calcBestIntentionDay({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null })).toBeNull();
+  });
+
+  it("should return the weekday with rate at or above 80% threshold", () => {
+    expect(calcBestIntentionDay({ 0: null, 1: 80, 2: null, 3: null, 4: null, 5: null, 6: null })).toBe(1);
+  });
+
+  it("should return null when all non-null rates are below 80% threshold", () => {
+    expect(calcBestIntentionDay({ 0: null, 1: 79, 2: null, 3: null, 4: null, 5: null, 6: null })).toBeNull();
+  });
+
+  it("should return the weekday with the highest rate when multiple exceed threshold", () => {
+    // dow=3 at 90% > dow=1 at 80% → return 3 (highest rate)
+    expect(calcBestIntentionDay({ 0: null, 1: 80, 2: null, 3: 90, 4: null, 5: null, 6: null })).toBe(3);
+  });
+
+  it("should return lowest weekday number when multiple weekdays tie at the best rate", () => {
+    // dow=1 and dow=4 both at 90% → lowest dow wins (1)
+    expect(calcBestIntentionDay({ 0: null, 1: 90, 2: null, 3: null, 4: 90, 5: null, 6: null })).toBe(1);
   });
 });

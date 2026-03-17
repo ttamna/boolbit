@@ -9479,3 +9479,165 @@ describe("calcTodayInsight — habit_month_flawless (priority 11.07, after habit
   });
 });
 
+describe("calcTodayInsight — intention_weak_day_ahead (priority 6.845, after pomodoro_best_day_ahead)", () => {
+  // Base: morning, Tuesday (avoids period_start on Monday), intention set today, today is the weakest intention day.
+  function baseWeakIntention() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string }>,
+      todayStr: TOMORROW,   // 2024-01-16, Tuesday — non-period-start day
+      nowHour: 9,
+      todayIntentionDate: TOMORROW, // intention is set today (prevents intention_missing at priority 5)
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      todayIsWeakIntentionDay: true,
+    };
+  }
+
+  it("shouldReturnIntentionWeakDayAheadWhenMorningAndTodayIsWeakIntentionDay", () => {
+    const result = calcTodayInsight(baseWeakIntention());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("낮은");
+  });
+
+  it("shouldNotReturnIntentionWeakDayAheadWhenFlagIsFalse", () => {
+    const result = calcTodayInsight({ ...baseWeakIntention(), todayIsWeakIntentionDay: false });
+    expect(result?.text ?? "").not.toContain("의도 달성률이 낮은");
+  });
+
+  it("shouldNotReturnIntentionWeakDayAheadWhenFlagIsAbsent", () => {
+    const params = { ...baseWeakIntention() };
+    delete (params as Record<string, unknown>)["todayIsWeakIntentionDay"];
+    const result = calcTodayInsight(params);
+    expect(result?.text ?? "").not.toContain("의도 달성률이 낮은");
+  });
+
+  it("shouldNotReturnIntentionWeakDayAheadAtNoonOrLater", () => {
+    const result = calcTodayInsight({ ...baseWeakIntention(), nowHour: 12 });
+    expect(result?.text ?? "").not.toContain("의도 달성률이 낮은");
+  });
+
+  it("shouldReturnPomodoroBestDayAheadOverIntentionWeakDayAhead", () => {
+    // pomodoro_best_day_ahead (6.84) fires before intention_weak_day_ahead (6.845)
+    const result = calcTodayInsight({
+      ...baseWeakIntention(),
+      todayIsBestPomodoroDay: true,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("집중"); // pomodoro_best fires first
+    expect(result!.text).not.toContain("의도 달성률이 낮은");
+  });
+
+  it("shouldReturnIntentionWeakDayAheadOverHabitFirstCheckIn", () => {
+    // intention_weak_day_ahead (6.845) fires before habit_first_check_in (6.85)
+    const result = calcTodayInsight({
+      ...baseWeakIntention(),
+      habits: [{ name: "운동", streak: 1, lastChecked: TOMORROW, bestStreak: 1 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도 달성률이 낮은");
+    expect(result!.text).not.toContain("첫걸음");
+  });
+
+  it("shouldBePreemptedByIntentionDoneWhenTodayIntentionIsAlreadyDone", () => {
+    // intention_done (priority 4.5) fires before intention_weak_day_ahead (6.845)
+    // When the user has already marked today's intention done, the weak-day nudge is suppressed.
+    const result = calcTodayInsight({
+      ...baseWeakIntention(),
+      todayIntentionDone: true, // today's intention is accomplished
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도 달성"); // intention_done badge fires
+    expect(result!.text).not.toContain("의도 달성률이 낮은"); // weak_day_ahead suppressed
+  });
+});
+
+describe("calcTodayInsight — intention_best_day_ahead (priority 6.846, after intention_weak_day_ahead)", () => {
+  // Base: morning, Tuesday, intention set today, today is the user's historically best intention day.
+  function baseBestIntention() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string }>,
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      todayIsBestIntentionDay: true,
+    };
+  }
+
+  it("shouldReturnIntentionBestDayAheadWhenMorningAndTodayIsBestIntentionDay", () => {
+    const result = calcTodayInsight(baseBestIntention());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("높은");
+  });
+
+  it("shouldNotReturnIntentionBestDayAheadWhenFlagIsFalse", () => {
+    const result = calcTodayInsight({ ...baseBestIntention(), todayIsBestIntentionDay: false });
+    expect(result?.text ?? "").not.toContain("의도 달성률이 높은");
+  });
+
+  it("shouldNotReturnIntentionBestDayAheadWhenFlagIsAbsent", () => {
+    const params = { ...baseBestIntention() };
+    delete (params as Record<string, unknown>)["todayIsBestIntentionDay"];
+    const result = calcTodayInsight(params);
+    expect(result?.text ?? "").not.toContain("의도 달성률이 높은");
+  });
+
+  it("shouldNotReturnIntentionBestDayAheadAtNoonOrLater", () => {
+    const result = calcTodayInsight({ ...baseBestIntention(), nowHour: 12 });
+    expect(result?.text ?? "").not.toContain("의도 달성률이 높은");
+  });
+
+  it("shouldReturnIntentionWeakDayAheadOverIntentionBestDayAheadWhenBothSet", () => {
+    // Edge case: both weak and best flags true → weak (6.845) preempts best (6.846)
+    const result = calcTodayInsight({
+      ...baseBestIntention(),
+      todayIsWeakIntentionDay: true,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("낮은"); // weak fires first
+    expect(result!.text).not.toContain("의도 달성률이 높은");
+  });
+
+  it("shouldReturnPomodoroBestDayAheadOverIntentionBestDayAhead", () => {
+    // pomodoro_best_day_ahead (6.84) fires before intention_best_day_ahead (6.846)
+    const result = calcTodayInsight({
+      ...baseBestIntention(),
+      todayIsBestPomodoroDay: true,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("집중"); // pomodoro_best fires first
+    expect(result!.text).not.toContain("의도 달성률이 높은");
+  });
+
+  it("shouldReturnIntentionBestDayAheadOverHabitFirstCheckIn", () => {
+    // intention_best_day_ahead (6.846) fires before habit_first_check_in (6.85)
+    const result = calcTodayInsight({
+      ...baseBestIntention(),
+      habits: [{ name: "운동", streak: 1, lastChecked: TOMORROW, bestStreak: 1 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도 달성률이 높은");
+    expect(result!.text).not.toContain("첫걸음");
+  });
+
+  it("shouldBePreemptedByIntentionDoneWhenTodayIntentionIsAlreadyDone", () => {
+    // intention_done (priority 4.5) fires before intention_best_day_ahead (6.846)
+    // When the user has already marked today's intention done, the best-day positive nudge is superseded
+    // by the direct accomplishment celebration.
+    const result = calcTodayInsight({
+      ...baseBestIntention(),
+      todayIntentionDone: true, // today's intention is accomplished
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도 달성"); // intention_done badge fires
+    expect(result!.text).not.toContain("의도 달성률이 높은"); // best_day_ahead suppressed
+  });
+});
+
