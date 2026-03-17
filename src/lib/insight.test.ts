@@ -1257,6 +1257,140 @@ describe("calcTodayInsight", () => {
     expect(result!.text).toContain("프로젝트A"); // first project in user-defined order
   });
 
+  // ── project_completed ────────────────────────────────────────────────────────
+  it("shouldReturnProjectCompletedWhenProjectDoneToday", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "앱서버", status: "done", completedDate: TODAY }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("앱서버");
+    expect(result!.text).toContain("완료");
+  });
+
+  it("shouldNotFireProjectCompletedWhenStatusNotDone", () => {
+    // milestone_near (3) fires instead, proving the priority chain reached past 2.75
+    const result = calcTodayInsight({
+      habits: [habit("독서", 6, YESTERDAY)], // triggers milestone_near at priority 3
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "진행중", status: "active", completedDate: TODAY }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("독서"); // milestone_near fires; project_completed skipped
+    expect(result!.text).not.toContain("진행중");
+  });
+
+  it("shouldNotFireProjectCompletedWhenCompletedDateNotToday", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "예전완료", status: "done", completedDate: YESTERDAY }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireProjectCompletedWhenCompletedDateAbsent", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "완료일없음", status: "done" }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnCiFailureBeforeProjectCompleted", () => {
+    // ci_failure (2.5) must preempt project_completed (2.75)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "CI고장", status: "active", githubData: { ciStatus: "failure" } },
+        { name: "완료된앱", status: "done", completedDate: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("CI"); // ci_failure fires first
+    expect(result!.text).toContain("고장"); // ci_failure project name surfaces
+    expect(result!.text).not.toContain("완료"); // project_completed text suppressed
+  });
+
+  it("shouldReturnProjectCompletedBeforeMilestoneNear", () => {
+    // project_completed (2.75) must preempt milestone_near (3)
+    const result = calcTodayInsight({
+      habits: [habit("독서", 6, YESTERDAY)], // 1 day from 7d milestone
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "완료된앱", status: "done", completedDate: TODAY }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완료"); // project_completed fires first
+    expect(result!.text).not.toContain("1일 전"); // milestone_near suppressed
+  });
+
+  it("shouldReturnFirstCompletedProjectWhenMultipleCompletedToday", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "프로젝트A", status: "done", completedDate: TODAY },
+        { name: "프로젝트B", status: "done", completedDate: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("프로젝트A"); // first in user-defined order
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireProjectCompletedWhenStatusIsPaused", () => {
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [{ name: "중단됨", status: "paused", completedDate: TODAY }],
+    });
+    expect(result).toBeNull();
+  });
+
   // ── open_prs ────────────────────────────────────────────────────────────────
   it("shouldReturnOpenPrsWhenActiveProjectHasOpenPrs", () => {
     const result = calcTodayInsight({
