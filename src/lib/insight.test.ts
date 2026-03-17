@@ -355,6 +355,25 @@ describe("calcTodayInsight", () => {
     expect(result!.text).not.toContain("신기록 페이스"); // week_record badge must NOT fire
   });
 
+  it("shouldPreemptPomodoroSessionBestTieWithDualWin", () => {
+    // dual_win (3.95) preempts pomodoro_session_best_tie (7.491):
+    // sessionsToday(4) === pomodoroSessionBest(4) → tie condition met, but dual_win fires first
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+      pomodoroSessionBest: 4, // sessionsToday(4) === best(4) → tie condition met
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관"); // dual_win fires
+    expect(result!.text).toContain("포모도로");
+    expect(result!.text).not.toContain("타이"); // session_best_tie badge must NOT fire
+  });
+
   // ── habit_all_done_early ──────────────────────────────────────────────────
   it("shouldFireHabitAllDoneEarlyWhenAllHabitsDoneBeforeNoon", () => {
     // morning (< 12h) + all habits done today → early-completion celebration
@@ -6073,9 +6092,13 @@ describe("calcTodayInsight — pomodoro_day_record (priority 7.49, between pomod
     expect(result!.text).toContain("6");
   });
 
-  it("shouldNotReturnPomodoroDayRecordWhenSessionsEqualHistoricalBest", () => {
+  it("shouldReturnSessionBestTieInsteadOfDayRecordWhenSessionsEqualHistoricalBest", () => {
+    // pomodoro_day_record (7.49) requires sessionsToday > pomodoroSessionBest — ties don't qualify.
+    // pomodoro_session_best_tie (7.491) fires for the exact tie case instead.
     const result = calcTodayInsight({ ...base(), sessionsToday: 4, pomodoroSessionBest: 4 });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("타이");                      // tie badge fires
+    expect(result!.text).not.toContain("오늘 포모도로 신기록!"); // day_record message doesn't fire
   });
 
   it("shouldNotReturnPomodoroDayRecordWhenSessionsBelowHistoricalBest", () => {
@@ -6131,6 +6154,91 @@ describe("calcTodayInsight — pomodoro_day_record (priority 7.49, between pomod
     expect(result).not.toBeNull();
     expect(result!.text).toContain("포모도로 목표"); // goal_streak fires
     expect(result!.text).not.toContain("신기록");
+  });
+});
+
+describe("calcTodayInsight — pomodoro_session_best_tie (priority 7.491, after pomodoro_day_record and before pomodoro_week_record)", () => {
+  // Base: afternoon, intention set, no habits, no goal, no competing insights.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldReturnSessionBestTieWhenNoGoalAndSessionsEqualBest", () => {
+    const result = calcTodayInsight({ ...base(), sessionsToday: 4, pomodoroSessionBest: 4 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("타이");
+    expect(result!.text).toContain("4");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldReturnSessionBestTieWhenGoalReachedAndSessionsEqualBest", () => {
+    const result = calcTodayInsight({
+      ...base(), sessionsToday: 5, sessionGoal: 4, pomodoroSessionBest: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("타이");
+    expect(result!.text).toContain("5");
+  });
+
+  it("shouldNotReturnSessionBestTieWhenSessionsExceedBest", () => {
+    // day_record (7.49) fires before session_best_tie when sessionsToday > pomodoroSessionBest
+    const result = calcTodayInsight({ ...base(), sessionsToday: 5, pomodoroSessionBest: 4 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("타이");
+    expect(result!.text).toContain("신기록"); // day_record fires
+  });
+
+  it("shouldNotReturnSessionBestTieWhenSessionsBelowBest", () => {
+    const result = calcTodayInsight({ ...base(), sessionsToday: 3, pomodoroSessionBest: 4 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnSessionBestTieWhenBestAbsent", () => {
+    const result = calcTodayInsight({ ...base(), sessionsToday: 4 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnSessionBestTieWhenSessionsIsZeroAndBestIsZero", () => {
+    // sessionsToday > 0 guard prevents a nonsensical "tied 0-session day" badge
+    const result = calcTodayInsight({ ...base(), sessionsToday: 0, pomodoroSessionBest: 0 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnSessionBestTieWhenGoalSetButNotYetReached", () => {
+    // sessionGoal guard: fires only after the daily goal is met when a goal is configured
+    const result = calcTodayInsight({
+      ...base(), sessionsToday: 3, sessionGoal: 5, pomodoroSessionBest: 3,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnSessionBestTieWhenSessionGoalIsZeroAndSessionsEqualBest", () => {
+    // sessionGoal=0 is treated as "no goal" — mirrors day_record and goal_reached guards
+    const result = calcTodayInsight({ ...base(), sessionsToday: 4, sessionGoal: 0, pomodoroSessionBest: 4 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("타이");
+  });
+
+  it("shouldPreemptWeekRecordWhenBothConditionsMet", () => {
+    // session_best_tie (7.491) fires before week_record (7.495) when sessions tie the daily best
+    const WED = "2024-01-17"; // Wednesday ensures week_record has prior-day data
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: WED,
+      todayIntentionDate: WED,
+      sessionsToday: 5,
+      pomodoroSessionBest: 5,                                        // tie
+      pomodoroWeekRecord: { currentWeekTotal: 12, prevWeekTotal: 8 }, // week record also true
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("타이");           // tie badge wins
+    expect(result!.text).not.toContain("이번 주");    // week_record not shown
   });
 });
 
