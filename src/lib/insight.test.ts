@@ -5485,6 +5485,152 @@ describe("calcTodayInsight — year_goal_streak (priority 10.78, between quarter
   });
 });
 
+describe("calcTodayInsight — pomodoro_goal_streak_milestone (priority 7.41, before focus_streak_milestone)", () => {
+  // Base: Tuesday afternoon, intention set, no habits, no competing higher-priority insights.
+  // TODAY = "2024-01-16" (Tuesday) — avoids Monday period_start gate; afternoon avoids morning-only insights.
+  const TODAY_T = "2024-01-16";
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY_T,
+    nowHour: 14,
+    todayIntentionDate: TODAY_T,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldReturnGoalStreakMilestoneOn7thDay", () => {
+    // pomodoroGoalStreak=6 (past days) + today = 7th consecutive goal day
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 3,
+      sessionGoal: 3,
+      pomodoroGoalStreak: 6,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("7");
+    expect(result!.text).toContain("연속 달성");
+  });
+
+  it("shouldReturnGoalStreakMilestoneOn14thDay", () => {
+    // pomodoroGoalStreak=13 (past) + today = 14th consecutive goal day
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 4,
+      sessionGoal: 2,
+      pomodoroGoalStreak: 13,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("14");
+    expect(result!.text).toContain("연속 달성");
+  });
+
+  it("shouldReturnGoalStreakMilestoneOn30thDay", () => {
+    // pomodoroGoalStreak=29 (past) + today = 30th consecutive goal day
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 5,
+      sessionGoal: 4,
+      pomodoroGoalStreak: 29,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("30");
+    expect(result!.text).toContain("연속 달성");
+  });
+
+  it("shouldNotReturnGoalStreakMilestoneOnNonMilestoneThreshold", () => {
+    // pomodoroGoalStreak=5 → total=6, not a milestone (7/14/30 only)
+    // Today goal not met (sessionsToday=0 < sessionGoal=3) → pomodoro_goal_streak nudge fires
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 0,
+      sessionGoal: 3,
+      pomodoroGoalStreak: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("5일 연속 달성 중"); // goal_streak nudge, not milestone
+  });
+
+  it("shouldNotReturnGoalStreakMilestoneWhenGoalNotYetMetToday", () => {
+    // sessionsToday=2 < sessionGoal=4 → goal not met today → milestone skipped
+    // pomodoro_goal_streak (7.45) fires instead (streak ≥ 2, goal not met)
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 2,
+      sessionGoal: 4,
+      pomodoroGoalStreak: 6,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연속 달성 중"); // goal_streak nudge (7.45) fires
+    expect(result!.text).not.toContain("일 연속 달성!"); // milestone badge (7.41) absent
+  });
+
+  it("shouldNotReturnGoalStreakMilestoneWhenSessionGoalAbsent", () => {
+    // sessionGoal absent → no configured daily goal → milestone skipped → null
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 4,
+      sessionGoal: undefined,
+      pomodoroGoalStreak: 6,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGoalStreakMilestoneWhenSessionGoalIsZero", () => {
+    // sessionGoal=0 treated as "no goal" → skipped → null
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 4,
+      sessionGoal: 0,
+      pomodoroGoalStreak: 6,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnGoalStreakMilestoneWhenPomodoroGoalStreakAbsent", () => {
+    // pomodoroGoalStreak absent → feature not wired → skipped → null
+    // sessionsToday=0 < sessionGoal=4 ensures pomodoro_goal_reached also doesn't fire
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 0,
+      sessionGoal: 4,
+      pomodoroGoalStreak: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldGoalStreakMilestonePreemptFocusStreakMilestoneWhenBothQualify", () => {
+    // pomodoroGoalStreak=6 + today = 7th goal day; focusStreak=7 also milestone
+    // pomodoro_goal_streak_milestone (7.41) fires before focus_streak_milestone (7.42)
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 3,
+      sessionGoal: 3,
+      pomodoroGoalStreak: 6,
+      focusStreak: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("목표"); // goal milestone wins
+    expect(result!.text).not.toContain("집중"); // focus milestone not shown
+  });
+
+  it("shouldPomodoroLastOnePreemptGoalStreakMilestone", () => {
+    // sessionsToday=2, sessionGoal=3 → one away from goal → pomodoro_last_one (7) fires first
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 2,
+      sessionGoal: 3,
+      pomodoroGoalStreak: 6,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("1세션"); // pomodoro_last_one wins
+    expect(result!.text).not.toContain("연속 달성");
+  });
+});
+
 describe("calcTodayInsight — pomodoro_day_record (priority 7.49, between pomodoro_goal_streak and pomodoro_goal_reached)", () => {
   // Base: afternoon, intention set, no habits, no goal, no competing insights
   const base = () => ({
