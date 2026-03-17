@@ -781,7 +781,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // Threshold 90%: requires high sustained completion across the full 7-day window to avoid noise.
   //   80% threshold fires on too many ordinary weeks; 90% (≈6.3/7 days) signals genuine consistency.
   // No nowHour gate — this is a positive reinforcement badge with no urgency, suitable any time of day.
-  // habitWeekRate absent → skipped silently (App.tsx not yet wired or insufficient history).
+  // habitWeekRate absent → skipped silently (insufficient history).
   if (habitWeekRate !== undefined && habitWeekRate >= 90) {
     return { text: `🌟 이번 주 습관 완료율 ${habitWeekRate}%! 지속력이 빛나요`, level: "success" };
   }

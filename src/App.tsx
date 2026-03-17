@@ -1256,6 +1256,11 @@ export default function App() {
   // can be passed as a param. Also reused by HabitStreak + habitsWeekTrend below.
   const last14Days = calcLastNDays(todayStr, 14);
   const habitsPerfectStreak = calcPerfectDayStreak(habitsArr, last14Days);
+  // last7Days + habitsWeekRate: declared before calcTodayInsight so habitWeekRate feeds the
+  // habit_week_excellent insight (priority 10.35). Reused below for intentionWeek, habitsWeekTrend,
+  // habitsBadge, and projectsBadge — single source of truth for the current 7-day window.
+  const last7Days = calcLastNDays(todayStr, 7);
+  const habitsWeekRate = calcHabitsWeekRate(habitsArr, last7Days);
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1329,6 +1334,7 @@ export default function App() {
     // perfectDayStreak: consecutive days all habits completed including today — same 14-day window used by HabitStreak.
     // When ≥ 3, the perfect_day badge shows the streak count instead of a generic celebration.
     perfectDayStreak: habitsPerfectStreak,
+    habitWeekRate: habitsWeekRate ?? undefined,
     // todayIsWeakHabitDay / todayIsBestHabitDay: derived from the same per-weekday rates computed once.
     // Uses last28Days (4 full weeks) so each weekday has exactly 4 data points.
     ...(() => {
@@ -1431,10 +1437,6 @@ export default function App() {
   const monthGoalStreak = calcMonthGoalStreak(data.monthGoal, data.monthGoalDate, data.monthGoalHistory ?? [], renderDate);
   const quarterGoalStreak = calcQuarterGoalStreak(data.quarterGoal, data.quarterGoalDate, data.quarterGoalHistory ?? [], renderDate);
   const yearGoalStreak = calcYearGoalStreak(data.yearGoal, data.yearGoalDate, data.yearGoalHistory ?? [], renderDate);
-  // last7Days: [6daysAgo, ..., yesterday, today] as YYYY-MM-DD strings (oldest→newest, HabitStreak.tsx convention).
-  // Single source shared by habitsWeekRate (cur-7), weekPomodoroCount, and recentlyDoneCount.
-  // habitsWeekTrend uses last14Days.slice(0,7) for the prev-7 window (see below).
-  const last7Days = calcLastNDays(todayStr, 7);
   // intentionWeek: per-day set/done status for the last 7 days — pure function extracted to src/lib/intention.ts.
   // Note: updateIntention preserves history entries when the user clears today's intention
   // ("leave history unchanged so the last set text is preserved for reflection"). So `set: !!entry`
@@ -1443,9 +1445,6 @@ export default function App() {
   const { days: intentionLast7, setCount: intentionSetCount7, doneCount: intentionDoneCount7 } =
     calcIntentionWeek(last7Days, todayStr, data.todayIntention, data.todayIntentionDone, data.intentionHistory ?? []);
 
-  // habitsWeekRate: average daily habit completion rate (%) over the last 7 days.
-  // Pure functions extracted to src/lib/habits.ts for testability.
-  const habitsWeekRate = calcHabitsWeekRate(habitsArr, last7Days);
   // habitsWeekTrend: week-over-week direction — compares cur-7 rate vs prev-7 rate using the same 14-day window.
   const habitsPrevWeekRate = calcHabitsWeekRate(habitsArr, last14Days.slice(0, 7));
   const habitsWeekTrend = calcHabitsWeekTrend(habitsWeekRate, habitsPrevWeekRate);
