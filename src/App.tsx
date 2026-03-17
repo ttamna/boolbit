@@ -14,7 +14,7 @@ import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak } from "./lib/intention";
-import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek } from "./lib/habits";
+import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
@@ -416,6 +416,29 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.habits, data.habitEveningRemindDate, loaded, persist]);
+
+  // Morning habit activation nudge — fires once per calendar day at 9:00+ when habits are present and none checked today.
+  // habitMorningRemindDate persists the guard so it fires only once per calendar day even after restart.
+  // Design: date is persisted before the async send (same pattern as habitEveningRemindDate) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.habitMorningRemindDate === today) return;
+    if (now.getHours() < 9) return;
+    const habits = data.habits ?? [];
+    const msg = calcHabitMorningReminder(habits, today);
+    if (!msg) return;
+    persist({ ...dataRef.current, habitMorningRemindDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.habits, data.habitMorningRemindDate, loaded, persist]);
 
   // Morning intention reminder — fires once per calendar day at 09:00+ when today's intention is not yet set.
   // intentionMorningRemindDate persists the guard so it fires only once per calendar day even after restart.

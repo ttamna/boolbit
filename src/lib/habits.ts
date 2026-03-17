@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, and per-weekday best/weak day detection
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, and per-weekday best/weak day detection
 
 import type { Habit } from "../types";
 
@@ -432,4 +432,20 @@ export function calcBestDayOfWeek(
   }
 
   return bestDow;
+}
+
+// Returns the desktop notification body for the morning habit activation nudge.
+// Fires when habits are present but none have been checked in yet today.
+// Returns null when: habits array is empty, or any habit already has lastChecked === todayStr.
+// Rationale: once the user starts (≥1 habit done), they have momentum and no longer need prompting.
+// Hour/date guard (getHours() >= 9) lives in the caller (App.tsx useEffect).
+// Callers check habitMorningRemindDate before invoking to ensure once-per-day delivery.
+// Exported for unit testing; pure function with no side effects.
+export function calcHabitMorningReminder(
+  habits: Array<{ name: string; lastChecked?: string }>,
+  todayStr: string,
+): string | null {
+  if (habits.length === 0) return null;
+  if (habits.some(h => h.lastChecked === todayStr)) return null;
+  return `✅ 오늘의 습관을 시작해보세요! ${habits.length}개가 기다리고 있어요.`;
 }

@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, and calcBestDayOfWeek pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, and per-weekday habit completion rate analysis
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, and calcHabitMorningReminder pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, per-weekday habit completion rate analysis, and morning habit activation nudge
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -1429,5 +1429,55 @@ describe("calcBestDayOfWeek", () => {
       0: 60, 1: 90, 2: 70, 3: 90, 4: 65, 5: 70, 6: 60,
     };
     expect(calcBestDayOfWeek(rates)).toBe(1); // Monday returned (lower dow number)
+  });
+});
+
+describe("calcHabitMorningReminder — morning habit activation nudge (9:00+, no habits checked today)", () => {
+  const TODAY = "2026-03-17";
+
+  it("shouldReturnNullWhenHabitsArrayIsEmpty", () => {
+    expect(calcHabitMorningReminder([], TODAY)).toBeNull();
+  });
+
+  it("shouldReturnMessageWhenNoHabitsCheckedToday", () => {
+    const habits = [
+      { name: "운동", lastChecked: "2026-03-16" },
+      { name: "독서", lastChecked: "2026-03-15" },
+    ];
+    const result = calcHabitMorningReminder(habits, TODAY);
+    expect(result).not.toBeNull();
+    expect(result).toContain("2개"); // habit count phrase
+  });
+
+  it("shouldReturnNullWhenAnyHabitAlreadyCheckedToday", () => {
+    // Once the user starts (1+ habits done), no nudge needed
+    const habits = [
+      { name: "운동", lastChecked: TODAY },
+      { name: "독서", lastChecked: "2026-03-16" },
+    ];
+    expect(calcHabitMorningReminder(habits, TODAY)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenAllHabitsCheckedToday", () => {
+    const habits = [
+      { name: "운동", lastChecked: TODAY },
+      { name: "독서", lastChecked: TODAY },
+    ];
+    expect(calcHabitMorningReminder(habits, TODAY)).toBeNull();
+  });
+
+  it("shouldReturnMessageWhenSingleHabitNotCheckedToday", () => {
+    const habits = [{ name: "명상", lastChecked: "2026-03-16" }];
+    const result = calcHabitMorningReminder(habits, TODAY);
+    expect(result).not.toBeNull();
+    expect(result).toContain("1개"); // single habit count phrase
+  });
+
+  it("shouldReturnMessageWhenHabitHasNoLastChecked", () => {
+    // A brand-new habit with no lastChecked is still "not done today" — nudge fires
+    const habits = [{ name: "새 습관" }];
+    const result = calcHabitMorningReminder(habits, TODAY);
+    expect(result).not.toBeNull();
+    expect(result).toContain("1개");
   });
 });
