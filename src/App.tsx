@@ -1261,6 +1261,10 @@ export default function App() {
   // habitsBadge, and projectsBadge — single source of truth for the current 7-day window.
   const last7Days = calcLastNDays(todayStr, 7);
   const habitsWeekRate = calcHabitsWeekRate(habitsArr, last7Days);
+  // habitsPrevWeekRate: previous 7-day window (days 7–13 ago) — last14Days=[today-13,…,today],
+  // slice(0,7)=[today-13,…,today-7]. Declared here alongside habitsWeekRate so both are available
+  // before calcTodayInsight feeds habitPrevWeekRate for the habit_week_improved badge (priority 10.36).
+  const habitsPrevWeekRate = calcHabitsWeekRate(habitsArr, last14Days.slice(0, 7));
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1335,6 +1339,9 @@ export default function App() {
     // When ≥ 3, the perfect_day badge shows the streak count instead of a generic celebration.
     perfectDayStreak: habitsPerfectStreak,
     habitWeekRate: habitsWeekRate ?? undefined,
+    // habitPrevWeekRate: previous 7-day window (days 8–14 ago) — compared against habitWeekRate to detect
+    // a week-over-week improvement of ≥ 10 pp for the habit_week_improved badge (priority 10.36).
+    habitPrevWeekRate: habitsPrevWeekRate ?? undefined,
     // todayIsWeakHabitDay / todayIsBestHabitDay: derived from the same per-weekday rates computed once.
     // Uses last28Days (4 full weeks) so each weekday has exactly 4 data points.
     ...(() => {
@@ -1445,8 +1452,7 @@ export default function App() {
   const { days: intentionLast7, setCount: intentionSetCount7, doneCount: intentionDoneCount7 } =
     calcIntentionWeek(last7Days, todayStr, data.todayIntention, data.todayIntentionDone, data.intentionHistory ?? []);
 
-  // habitsWeekTrend: week-over-week direction — compares cur-7 rate vs prev-7 rate using the same 14-day window.
-  const habitsPrevWeekRate = calcHabitsWeekRate(habitsArr, last14Days.slice(0, 7));
+  // habitsWeekTrend: week-over-week direction — reuses habitsPrevWeekRate declared near calcTodayInsight above.
   const habitsWeekTrend = calcHabitsWeekTrend(habitsWeekRate, habitsPrevWeekRate);
   const habitsBadge = calcHabitsBadge({
     habitCount: habitsArr.length,

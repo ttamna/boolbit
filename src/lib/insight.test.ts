@@ -7073,3 +7073,82 @@ describe("calcTodayInsight — habit_diversity_warning (priority 10.22)", () => 
   });
 });
 
+// ── habit_week_improved ──────────────────────────────────────────
+describe("calcTodayInsight — habit_week_improved (priority 10.36, after habit_week_excellent, before pomodoro_today_above_avg)", () => {
+  // nowHour:12 — below morning blocks and below almost_perfect_day gate (≥14h).
+  // habitsAllDoneDate:YESTERDAY — perfect_day (priority 4) does not fire today.
+  // No streak-at-risk, no deadline, no intention gap — clean baseline to isolate this insight.
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+  it("shouldFireWhenImprovedBy10pp", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 75, habitPrevWeekRate: 65 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireAtExactly10ppDelta", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 70, habitPrevWeekRate: 60 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("70");
+  });
+
+  it("shouldNotFireAt9ppDelta", () => {
+    // habit_week_improved requires ≥10pp gap; 9pp is below threshold.
+    // habits:[] + projects:[] ensures no other block fires — null is solely because gap=9 < 10.
+    const result = calcTodayInsight({ ...base(), habits: [], projects: [], habitWeekRate: 69, habitPrevWeekRate: 60 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenRateDeclined", () => {
+    const result = calcTodayInsight({ ...base(), habits: [], projects: [], habitWeekRate: 50, habitPrevWeekRate: 70 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenRateStable", () => {
+    const result = calcTodayInsight({ ...base(), habits: [], projects: [], habitWeekRate: 70, habitPrevWeekRate: 70 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPrevRateAbsent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 75, habitPrevWeekRate: undefined });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenCurrentRateAbsent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: undefined, habitPrevWeekRate: 60 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldIncludeCurrentRateInText", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 82, habitPrevWeekRate: 60 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("82%");
+  });
+
+  it("shouldBePreemptedByHabitWeekExcellentAt90Plus", () => {
+    // habit_week_excellent (10.35) fires before habit_week_improved (10.36) when rate ≥ 90
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 92, habitPrevWeekRate: 75 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("92"); // habit_week_excellent badge
+    expect(result!.text).toContain("지속력"); // habit_week_excellent Korean text
+    expect(result!.text).not.toContain("올랐어요"); // habit_week_improved suppressed
+  });
+
+  it("shouldFireJustBelow90WhenPrevWas70", () => {
+    // rate=89 (< 90 → habit_week_excellent doesn't fire), improvement=19pp → habit_week_improved fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 89, habitPrevWeekRate: 70 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("89");
+  });
+});
+
