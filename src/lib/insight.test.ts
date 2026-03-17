@@ -5859,20 +5859,20 @@ describe("calcTodayInsight — pomodoro_weak_day_ahead (priority 6.83, after bes
 
   it("shouldNotReturnPomodoroWeakDayAheadWhenFlagIsFalse", () => {
     const result = calcTodayInsight({ ...baseWeakPomodoro(), todayIsWeakPomodoroDay: false });
-    expect(result?.text ?? "").not.toContain("집중하기 어려운");
+    expect(result?.text ?? "").not.toContain("집중하기 약한");
   });
 
   it("shouldNotReturnPomodoroWeakDayAheadWhenFlagIsAbsent", () => {
     const params = { ...baseWeakPomodoro() };
     delete (params as Record<string, unknown>)["todayIsWeakPomodoroDay"];
     const result = calcTodayInsight(params);
-    expect(result?.text ?? "").not.toContain("집중하기 어려운");
+    expect(result?.text ?? "").not.toContain("집중하기 약한");
   });
 
-  it("shouldNotReturnPomodoroWeakDayAheadInAfternoon", () => {
-    // Morning-only insight (< 12h); suppressed at noon or later
+  it("shouldNotReturnPomodoroWeakDayAheadAtNoonOrLater", () => {
+    // Morning-only insight (nowHour < 12); noon (12) is already suppressed
     const result = calcTodayInsight({ ...baseWeakPomodoro(), nowHour: 12 });
-    expect(result?.text ?? "").not.toContain("집중하기 어려운");
+    expect(result?.text ?? "").not.toContain("집중하기 약한");
   });
 
   it("shouldReturnBestHabitDayAheadOverPomodoroWeakDayAhead", () => {

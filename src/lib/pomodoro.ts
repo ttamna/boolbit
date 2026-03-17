@@ -1,5 +1,5 @@
-// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, lifetime milestone notifications, and weekly/monthly/quarterly/yearly session reports
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, quarterly session report, yearly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), and ISO-week record pace comparison (current week vs same-length prev-week window)
+// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, lifetime milestone notifications, weekly/monthly/quarterly/yearly session reports, and per-weekday session average for weak/best day detection
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, quarterly session report, yearly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), and calcDayOfWeekPomodoroAvg/calcWeakPomodoroDay/calcBestPomodoroDay for todayIsWeakPomodoroDay/todayIsBestPomodoroDay insight params
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -462,4 +462,54 @@ export function calcYearlyPomodoroReport(
   if (total >= 100) return `🔥 지난 해 포모도로 ${total}세션 — 집중력 최고! (${days}일 활성)`;
   if (total >= 40) return `✅ 지난 해 포모도로 ${total}세션 — 잘 집중했어요 (${days}일 활성)`;
   return `💪 지난 해 포모도로 ${total}세션 — 올해엔 더 집중해봐요 (${days}일 활성)`;
+}
+
+// Minimum appearances per weekday required to include that day in the analysis.
+const MIN_DOW_POMODORO_APPEARANCES = 2;
+// Average sessions/day must be below this threshold to flag a day as "weak".
+const WEAK_POMODORO_DAY_THRESHOLD = 1;
+// Average sessions/day must meet or exceed this threshold to flag a day as "best".
+const BEST_POMODORO_DAY_THRESHOLD = 3;
+
+export function calcDayOfWeekPomodoroAvg(
+  history: PomodoroDay[],
+  dayWindow: string[],
+): Record<number, number | null> {
+  const result: Record<number, number | null> = { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null };
+  if (dayWindow.length === 0) return result;
+  const historyMap = new Map(history.map(h => [h.date, h.count]));
+  const byDow: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+  for (const day of dayWindow) {
+    const dow = new Date(day + "T00:00:00").getDay();
+    byDow[dow].push(day);
+  }
+  for (let dow = 0; dow <= 6; dow++) {
+    const days = byDow[dow];
+    if (days.length < MIN_DOW_POMODORO_APPEARANCES) continue;
+    const sum = days.reduce((acc, day) => acc + (historyMap.get(day) ?? 0), 0);
+    result[dow] = sum / days.length;
+  }
+  return result;
+}
+
+export function calcWeakPomodoroDay(avgMap: Record<number, number | null>): number | null {
+  let weakestDow: number | null = null;
+  let weakestAvg = WEAK_POMODORO_DAY_THRESHOLD;
+  for (let dow = 0; dow <= 6; dow++) {
+    const avg = avgMap[dow];
+    if (avg === null) continue;
+    if (avg < weakestAvg) { weakestAvg = avg; weakestDow = dow; }
+  }
+  return weakestDow;
+}
+
+export function calcBestPomodoroDay(avgMap: Record<number, number | null>): number | null {
+  let bestDow: number | null = null;
+  let bestAvg: number | null = null;
+  for (let dow = 0; dow <= 6; dow++) {
+    const avg = avgMap[dow];
+    if (avg === null || avg < BEST_POMODORO_DAY_THRESHOLD) continue;
+    if (bestAvg === null || avg > bestAvg) { bestAvg = avg; bestDow = dow; }
+  }
+  return bestDow;
 }

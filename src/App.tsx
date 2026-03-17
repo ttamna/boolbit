@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -1897,6 +1897,16 @@ export default function App() {
       return {
         todayIsWeakHabitDay: calcWeakDayOfWeek(rates) === todayDow,
         todayIsBestHabitDay: calcBestDayOfWeek(rates) === todayDow,
+      };
+    })(),
+    // todayIsWeakPomodoroDay / todayIsBestPomodoroDay: per-weekday pomodoro session average over last14Days.
+    // Uses last14Days (matches the pomodoroHistory 14-day cap) — each weekday gets exactly 2 data points.
+    ...(() => {
+      const pomAvg = calcDayOfWeekPomodoroAvg(data.pomodoroHistory ?? [], last14Days);
+      const todayDow = new Date(todayStr + "T00:00:00").getDay();
+      return {
+        todayIsWeakPomodoroDay: calcWeakPomodoroDay(pomAvg) === todayDow,
+        todayIsBestPomodoroDay: calcBestPomodoroDay(pomAvg) === todayDow,
       };
     })(),
   });

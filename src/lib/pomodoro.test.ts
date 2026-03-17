@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, monthly pomodoro session report, quarterly pomodoro session report, yearly pomodoro session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), and ISO-week record pace comparison (current week vs same-length prev-week window)
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, monthly pomodoro session report, quarterly pomodoro session report, yearly pomodoro session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), and per-weekday pomodoro session average with weak/best day detection
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay } from "./pomodoro";
 import { colors } from "../theme";
 import type { PomodoroDay } from "../types";
 
@@ -1534,6 +1534,108 @@ describe("calcYearlyPomodoroReport", () => {
     expect(result).toContain("✅");
     expect(result).toContain("60세션");
     expect(result).toContain("3일 활성");
+  });
+});
+
+// 14-day window anchored at 2026-03-15 (Sunday).
+// Each DoW appears exactly twice:
+//   Sun(0): 03-08, 03-15 | Mon(1): 03-02, 03-09 | Tue(2): 03-03, 03-10
+//   Wed(3): 03-04, 03-11 | Thu(4): 03-05, 03-12 | Fri(5): 03-06, 03-13 | Sat(6): 03-07, 03-14
+const DOW_WINDOW = calcLast14Days("2026-03-15");
+
+describe("calcDayOfWeekPomodoroAvg", () => {
+  it("shouldReturnAllNullWhenWindowIsEmpty", () => {
+    const result = calcDayOfWeekPomodoroAvg([], []);
+    for (let d = 0; d <= 6; d++) expect(result[d]).toBeNull();
+  });
+
+  it("shouldReturnNullForDowWithFewerThanTwoAppearances", () => {
+    // 13-day window: Mon(1) appears only once (03-02 dropped by slice(1)).
+    const window13 = DOW_WINDOW.slice(1); // drops 03-02 → Mon only has 03-09
+    const history = [{ date: "2026-03-09", count: 5 }];
+    const result = calcDayOfWeekPomodoroAvg(history, window13);
+    expect(result[1]).toBeNull();
+  });
+
+  it("shouldAverageCountsAcrossTwoOccurrencesCorrectly", () => {
+    const history = [
+      { date: "2026-03-08", count: 2 }, // Sun
+      { date: "2026-03-15", count: 4 }, // Sun
+    ];
+    const result = calcDayOfWeekPomodoroAvg(history, DOW_WINDOW);
+    expect(result[0]).toBe(3); // (2+4)/2
+  });
+
+  it("shouldCountMissingHistoryDatesAsZero", () => {
+    // Mon appears on 03-02 and 03-09; only 03-02 is in history.
+    const history = [{ date: "2026-03-02", count: 4 }];
+    const result = calcDayOfWeekPomodoroAvg(history, DOW_WINDOW);
+    expect(result[1]).toBe(2); // (4+0)/2
+  });
+
+  it("shouldReturnZeroAverageForAllDowWhenHistoryIsEmptyButWindowHasSufficientAppearances", () => {
+    // null = not enough appearances; 0 = enough appearances but no sessions recorded
+    const result = calcDayOfWeekPomodoroAvg([], DOW_WINDOW);
+    for (let d = 0; d <= 6; d++) expect(result[d]).toBe(0);
+  });
+
+  it("shouldComputeIndependentAveragesForEachDow", () => {
+    const history = [
+      { date: "2026-03-06", count: 6 }, // Fri
+      { date: "2026-03-13", count: 2 }, // Fri
+    ];
+    const result = calcDayOfWeekPomodoroAvg(history, DOW_WINDOW);
+    expect(result[5]).toBe(4); // Fri avg = (6+2)/2
+    expect(result[0]).toBe(0); // Sun avg = 0 (no sessions recorded)
+  });
+});
+
+describe("calcWeakPomodoroDay", () => {
+  it("shouldReturnNullWhenAllValuesAreNull", () => {
+    const avg: Record<number, number | null> = { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null };
+    expect(calcWeakPomodoroDay(avg)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenNoAverageFallsBelowThreshold", () => {
+    const avg: Record<number, number | null> = { 0: 1, 1: 2, 2: 3, 3: 4, 4: null, 5: null, 6: null };
+    expect(calcWeakPomodoroDay(avg)).toBeNull();
+  });
+
+  it("shouldReturnDowWithLowestAverageBelowThreshold", () => {
+    const avg: Record<number, number | null> = { 0: 0, 1: 0.5, 2: null, 3: null, 4: null, 5: null, 6: null };
+    expect(calcWeakPomodoroDay(avg)).toBe(0); // 0 < 0.5, both below threshold of 1
+  });
+
+  it("shouldPickLowestAvgAmongMultipleCandidates", () => {
+    const avg: Record<number, number | null> = { 0: 0.5, 1: 0.2, 2: 0.8, 3: null, 4: null, 5: null, 6: null };
+    expect(calcWeakPomodoroDay(avg)).toBe(1); // 0.2 is the lowest
+  });
+});
+
+describe("calcBestPomodoroDay", () => {
+  it("shouldReturnNullWhenAllValuesAreNull", () => {
+    const avg: Record<number, number | null> = { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null };
+    expect(calcBestPomodoroDay(avg)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenNoAverageReachesThreshold", () => {
+    const avg: Record<number, number | null> = { 0: 1, 1: 2, 2: 2.9, 3: null, 4: null, 5: null, 6: null };
+    expect(calcBestPomodoroDay(avg)).toBeNull();
+  });
+
+  it("shouldReturnDowWithHighestAverageAtOrAboveThreshold", () => {
+    const avg: Record<number, number | null> = { 0: 5, 1: 3, 2: null, 3: null, 4: null, 5: null, 6: null };
+    expect(calcBestPomodoroDay(avg)).toBe(0); // 5 > 3, both >= 3
+  });
+
+  it("shouldPickHighestAvgAmongMultipleCandidates", () => {
+    const avg: Record<number, number | null> = { 0: 3, 1: 4.5, 2: 3.2, 3: null, 4: null, 5: null, 6: null };
+    expect(calcBestPomodoroDay(avg)).toBe(1); // 4.5 is highest
+  });
+
+  it("shouldIgnoreDowsThatAreBelowThreshold", () => {
+    const avg: Record<number, number | null> = { 0: 2.9, 1: null, 2: 3.1, 3: null, 4: null, 5: null, 6: null };
+    expect(calcBestPomodoroDay(avg)).toBe(2); // 2.9 < 3 threshold, so only dow=2 qualifies
   });
 });
 
