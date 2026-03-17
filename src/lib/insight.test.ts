@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, habit_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -524,22 +524,23 @@ describe("calcTodayInsight", () => {
     expect(result!.text).not.toContain("의도"); // triple_win does NOT fire
   });
 
-  it("shouldFallThroughToPerfectDayWhenSessionGoalAbsentAndIntentionDone", () => {
-    // sessionGoal absent → triple_win guard fails → dual_win guard also fails → perfect_day fires
+  it("shouldFireIntentionHabitDualWinWhenPomodoroGoalNotReachedAndIntentionDone", () => {
+    // sessionsToday(2) < sessionGoal(4) → triple_win guard fails (pomodoro unmet) → intention_habit_dual_win fires
     const result = calcTodayInsight({
       habits: [habit("운동", 5, TODAY)],
       todayStr: TODAY,
       nowHour: 15,
       todayIntentionDate: TODAY,
       todayIntentionDone: true,
-      sessionsToday: 0,
-      sessionGoal: undefined,
+      sessionsToday: 2,
+      sessionGoal: 4,
       habitsAllDoneDate: TODAY,
     });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("완벽"); // perfect_day fires, not triple_win
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("의도"); // intention_habit_dual_win fires
+    expect(result!.text).toContain("습관");
     expect(result!.text).not.toContain("포모도로");
-    expect(result!.text).not.toContain("의도");
   });
 
   it("shouldFireTripleWinBeforeHabitAllDoneEarlyWhenMorningAndAllThreeDomainsAchieved", () => {
@@ -560,6 +561,320 @@ describe("calcTodayInsight", () => {
     expect(result!.text).toContain("포모도로");
     // must NOT be habit_all_done_early
     expect(result!.text).not.toContain("아침 스타트");
+  });
+
+  // ── intention_habit_dual_win ─────────────────────────────────────────────
+  it("shouldFireIntentionHabitDualWinWhenIntentionDoneAndAllHabitsDone", () => {
+    // intention done today + all habits done today + no pomodoro goal → dual_win fires
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("습관");
+    expect(result!.text).not.toContain("포모도로");
+  });
+
+  it("shouldFireIntentionHabitDualWinWhenPomodoroGoalNotMet", () => {
+    // intention done + habits done + sessions < goal → pomodoro goal not met → dual_win fires
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 2,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("습관");
+    expect(result!.text).not.toContain("포모도로");
+  });
+
+  it("shouldFireIntentionHabitDualWinWhenPomodoroGoalIsZero", () => {
+    // sessionGoal=0 means no configured goal → pomodoro not meaningful → dual_win fires
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 3,
+      sessionGoal: 0,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("습관");
+    expect(result!.text).not.toContain("포모도로");
+  });
+
+  it("shouldNotFireIntentionHabitDualWinWhenIntentionNotDone", () => {
+    // todayIntentionDone absent → intention not accomplished → falls through to habit_all_done_early or perfect_day
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    // perfect_day fires, NOT intention_habit_dual_win
+    expect(result!.text).not.toContain("포모도로");
+    const text = result!.text;
+    // intention_habit_dual_win must NOT fire (no "의도" in combination with "습관")
+    expect(text.includes("의도") && text.includes("습관")).toBe(false);
+  });
+
+  it("shouldNotFireIntentionHabitDualWinWhenHabitsNotAllDone", () => {
+    // habitsAllDoneDate !== todayStr → not all habits done → falls through
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: YESTERDAY,
+    });
+    // intention_done fires (habits not all done → dual_win skipped)
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도 달성");
+    expect(result!.text).not.toContain("습관");
+  });
+
+  it("shouldNotFireIntentionHabitDualWinWhenStaleIntentionDate", () => {
+    // todayIntentionDate=YESTERDAY but todayIntentionDone=true → stale done state, guard blocks
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: YESTERDAY,
+      todayIntentionDone: true,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    // habits done + stale intention → perfect_day fires, not dual_win
+    expect(result!.text).toContain("완벽");
+    expect(result!.text).not.toContain("포모도로");
+  });
+
+  it("shouldPreemptIntentionHabitDualWinWithTripleWin", () => {
+    // triple_win (3.93) fires when all 3 domains done — intention_habit_dual_win must NOT fire
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    // triple_win badge must contain all 3 domains
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("습관");
+    expect(result!.text).toContain("포모도로");
+  });
+
+  it("shouldFireIntentionHabitDualWinBeforeHabitAllDoneEarlyInMorning", () => {
+    // morning + intention done + all habits done → intention_habit_dual_win (3.94) fires
+    // NOT habit_all_done_early (3.97)
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("습관");
+    expect(result!.text).not.toContain("아침 스타트"); // habit_all_done_early suppressed
+  });
+
+  it("shouldFireIntentionHabitDualWinBeforePerfectDay", () => {
+    // intention_habit_dual_win (3.94) fires before perfect_day (4)
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 4, // would trigger "4일 연속 완벽한 하루" if perfect_day fires
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("연속 완벽"); // perfect_day suppressed
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("습관");
+  });
+
+  // ── intention_pomodoro_dual_win ──────────────────────────────────────────
+  it("shouldFireIntentionPomodoroDualWinWhenIntentionDoneAndPomodoroGoalMet", () => {
+    // intention done today + pomodoro goal met + habits NOT all done → dual_win fires
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: YESTERDAY, // habits NOT all done today
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("포모도로");
+  });
+
+  it("shouldFireIntentionPomodoroDualWinWhenSessionsExceedGoal", () => {
+    // sessionsToday(6) > sessionGoal(4) still qualifies as goal met
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 6,
+      sessionGoal: 4,
+      habitsAllDoneDate: YESTERDAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("포모도로");
+  });
+
+  it("shouldNotFireIntentionPomodoroDualWinWhenIntentionNotDone", () => {
+    // no todayIntentionDone → falls through to pomodoro_goal_reached or lower
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: undefined,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: YESTERDAY,
+    });
+    expect(result).not.toBeNull();
+    // pomodoro_goal_reached fires — no "의도" in combined badge
+    expect(result!.text).not.toContain("의도");
+  });
+
+  it("shouldNotFireIntentionPomodoroDualWinWhenPomodoroGoalNotMet", () => {
+    // sessionsToday(2) < sessionGoal(4) → goal not met → falls through
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 2,
+      sessionGoal: 4,
+      habitsAllDoneDate: YESTERDAY,
+    });
+    expect(result).not.toBeNull();
+    // intention_done fires (pomodoro goal not met, habits not done)
+    expect(result!.text).toContain("의도 달성");
+    expect(result!.text).not.toContain("포모도로");
+  });
+
+  it("shouldNotFireIntentionPomodoroDualWinWhenNoSessionGoal", () => {
+    // sessionGoal absent → no configured goal → falls through to intention_done
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 4,
+      sessionGoal: undefined,
+      habitsAllDoneDate: YESTERDAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도 달성");
+    expect(result!.text).not.toContain("포모도로");
+  });
+
+  it("shouldPreemptIntentionPomodoroDualWinWithTripleWin", () => {
+    // triple_win (3.93): all 3 done → fires before intention_pomodoro_dual_win (3.96)
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    // triple_win message must contain all 3 domains
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("습관");
+    expect(result!.text).toContain("포모도로");
+    expect(result!.text).toBe("🌟 오늘 의도 + 습관 + 포모도로 목표 모두 달성!"); // exact triple_win badge
+  });
+
+  it("shouldPreemptIntentionPomodoroDualWinWithHabitPomodoroDualWin", () => {
+    // habit_pomodoro_dual_win (3.95): habits + pomodoro, no intention → intention_pomodoro_dual_win skipped
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: false, // intention NOT done
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    // habit_pomodoro_dual_win fires — pin exact badge text
+    expect(result!.text).toBe("🏆 오늘 습관 + 포모도로 목표 모두 달성!");
+    expect(result!.text).not.toContain("의도"); // intention_pomodoro_dual_win must NOT fire
+  });
+
+  it("shouldNotFireIntentionPomodoroDualWinWhenStaleIntentionDate", () => {
+    // todayIntentionDate=YESTERDAY → stale done state, date guard blocks
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: YESTERDAY,
+      todayIntentionDone: true,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: YESTERDAY,
+    });
+    expect(result).not.toBeNull();
+    // pomodoro_goal_reached fires — stale intention guard blocks dual_win
+    expect(result!.text).not.toContain("의도");
   });
 
   // ── habit_all_done_early ──────────────────────────────────────────────────
@@ -7816,8 +8131,9 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
       expect(result!.text).toContain("의도 달성");
     });
 
-    it("shouldPreferPerfectDayOverIntentionDone", () => {
-      // perfect_day (priority 4) must preempt intention_done (4.5)
+    it("shouldPreferIntentionHabitDualWinOverIntentionDone", () => {
+      // intention_habit_dual_win (priority 3.94) must preempt intention_done (4.5)
+      // when both intention and all habits are done today
       const result = calcTodayInsight({
         ...intentionBase(),
         todayIntentionDone: true,
@@ -7825,8 +8141,9 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
         habitsAllDoneDate: TODAY,
       });
       expect(result).not.toBeNull();
-      expect(result!.text).toContain("완벽한 습관");
-      expect(result!.text).not.toContain("의도 달성");
+      expect(result!.text).toContain("의도");
+      expect(result!.text).toContain("습관");
+      expect(result!.text).not.toContain("포모도로");
     });
 
     it("shouldReturnIntentionDoneBeforeLowerPriorityInsight", () => {
@@ -7898,8 +8215,9 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
       expect(result).toBeNull();
     });
 
-    it("shouldPreferPerfectDayOverIntentionDoneStreak", () => {
-      // perfect_day (priority 4) must preempt intention_done_streak (4.5)
+    it("shouldPreferIntentionHabitDualWinOverIntentionDoneStreak", () => {
+      // intention_habit_dual_win (priority 3.94) preempts intention_done_streak (4.5)
+      // when both intention and all habits are done today
       const result = calcTodayInsight({
         ...intentionDoneBase(),
         intentionDoneStreak: 5,
@@ -7907,7 +8225,8 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
         habitsAllDoneDate: TODAY,
       });
       expect(result).not.toBeNull();
-      expect(result!.text).toContain("완벽한 습관");
+      expect(result!.text).toContain("의도");
+      expect(result!.text).toContain("습관");
       expect(result!.text).not.toContain("연속 의도");
     });
   });
