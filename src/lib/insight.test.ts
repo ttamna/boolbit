@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -5774,8 +5774,8 @@ describe("calcTodayInsight — almost_perfect_day (priority 10.3)", () => {
       todayStr: TODAY,
       nowHour: 14,
       todayIntentionDate: TODAY,
-      sessionsToday: 0,
-      sessionGoal: undefined,
+      sessionsToday: 1,
+      sessionGoal: 3, // pomodoroScore=10 → total=43, outside nearMid [25,40)
       habitsAllDoneDate: undefined,
     });
     expect(result).not.toBeNull();
@@ -5790,8 +5790,8 @@ describe("calcTodayInsight — almost_perfect_day (priority 10.3)", () => {
       todayStr: TODAY,
       nowHour: 15,
       todayIntentionDate: TODAY,
-      sessionsToday: 0,
-      sessionGoal: undefined,
+      sessionsToday: 1,
+      sessionGoal: 3, // pomodoroScore=10 → total=45 (round(1/3*50+10+8)), outside nearMid
       habitsAllDoneDate: undefined,
     });
     expect(result).not.toBeNull();
@@ -5806,8 +5806,8 @@ describe("calcTodayInsight — almost_perfect_day (priority 10.3)", () => {
       todayStr: TODAY,
       nowHour: 13,
       todayIntentionDate: TODAY,
-      sessionsToday: 0,
-      sessionGoal: undefined,
+      sessionsToday: 1,
+      sessionGoal: 3, // score=43, outside nearMid — prevents momentum_near_tier
       habitsAllDoneDate: undefined,
     });
     // Before 14h — almost_perfect_day must not fire; returns null (no other insight matches)
@@ -5884,8 +5884,8 @@ describe("calcTodayInsight — almost_perfect_day (priority 10.3)", () => {
       todayStr: TODAY,
       nowHour: 16,
       todayIntentionDate: TODAY,
-      sessionsToday: 0,
-      sessionGoal: undefined,
+      sessionsToday: 1,
+      sessionGoal: 3, // score=43, outside nearMid — prevents momentum_near_tier
       habitsAllDoneDate: undefined,
     });
     expect(result).not.toBeNull();
@@ -8683,6 +8683,7 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
           { name: "명상", streak: 1, lastChecked: YESTERDAY },
         ],
         sessionsToday: 5, pomodoroRecentAvg: 2,
+        // sessionGoal omitted: no explicit goal → pomodoro_goal_reached won't fire, score=17 → no momentum_near_tier
       });
       expect(result).not.toBeNull();
       expect(result!.text).toContain("완벽한 하루");
@@ -9116,9 +9117,12 @@ describe("calcTodayInsight — habit_week_perfect (priority 10.34, between almos
 
   it("shouldBePreemptedByAlmostPerfectDay", () => {
     // nowHour=14, 1 habit unchecked today → almost_perfect_day (10.3) fires before habit_week_perfect (10.34)
+    // sessionsToday=1 + sessionGoal=3 → score=43, outside nearMid [25,40) — prevents momentum_near_tier
     const result = calcTodayInsight({
       ...base(),
       nowHour: 14,
+      sessionsToday: 1,
+      sessionGoal: 3,
       habits: [
         { name: "운동", streak: 3, lastChecked: TODAY },
         { name: "독서", streak: 2, lastChecked: YESTERDAY }, // unchecked today
@@ -9193,9 +9197,12 @@ describe("calcTodayInsight — habit_week_excellent (priority 10.35, between alm
 
   it("shouldBePreemptedByAlmostPerfectDay", () => {
     // nowHour=14, 1 habit unchecked today → almost_perfect_day (10.3) fires before habit_week_excellent (10.35)
+    // sessionsToday=1 + sessionGoal=3 → score=43, outside nearMid [25,40) — prevents momentum_near_tier
     const result = calcTodayInsight({
       ...base(),
       nowHour: 14,
+      sessionsToday: 1,
+      sessionGoal: 3,
       habits: [
         { name: "운동", streak: 3, lastChecked: TODAY },
         { name: "독서", streak: 2, lastChecked: YESTERDAY }, // unchecked today
@@ -9210,9 +9217,12 @@ describe("calcTodayInsight — habit_week_excellent (priority 10.35, between alm
 
   it("shouldFireWhenAlmostPerfectDayConditionsNotMet", () => {
     // nowHour=12 (below 14) → almost_perfect_day cannot fire; habit_week_excellent fires
+    // sessionsToday=1 + sessionGoal=3 → score=43, outside nearMid [25,40) — prevents momentum_near_tier
     const result = calcTodayInsight({
       ...base(),
       nowHour: 12,
+      sessionsToday: 1,
+      sessionGoal: 3,
       habits: [
         { name: "운동", streak: 3, lastChecked: TODAY },
         { name: "독서", streak: 2, lastChecked: YESTERDAY }, // unchecked today
@@ -9545,9 +9555,11 @@ describe("calcTodayInsight — habit_diversity_warning (priority 10.22)", () => 
     // Without fix: [운동:1, 독서:0, 명상:0, 필사:8] → avgOthers=(0+0+8)/3=2.67 < 4 → badge suppressed (wrong).
     // With fix: active peers for 운동 = [필사:8], avgOthers=8 → 1 < 8*0.3=2.4 → badge fires (correct).
     // nowHour:12 prevents almost_perfect_day (≥14h) on the unchecked 독서/명상.
+    // todayIntentionDate=undefined: habitsScore=25, intentionScore=0 → total=25; habitGain=(1/4)*50=12.5 < gap(15) → no tier nudge.
     const result = calcTodayInsight({
       ...base,
       nowHour: 12,
+      todayIntentionDate: undefined,
       habits: [
         { name: "운동", streak: 1, lastChecked: TODAY, bestStreak: 5 },
         { name: "독서", streak: 0 }, // inactive — excluded from peer average
@@ -10071,9 +10083,12 @@ describe("calcTodayInsight — habit_month_flawless (priority 11.07, after habit
 
   it("shouldBePreemptedByAlmostPerfectDay", () => {
     // almost_perfect_day (10.3): hour≥14 + 1 habit unchecked → fires before habit_month_flawless (11.07)
+    // sessionsToday=1 + sessionGoal=3 → score=43, outside nearMid [25,40) — prevents momentum_near_tier
     const result = calcTodayInsight({
       ...base(),
       nowHour: 15,
+      sessionsToday: 1,
+      sessionGoal: 3,
       habits: [
         { name: "운동", streak: 15, lastChecked: TODAY },
         { name: "독서", streak: 4, lastChecked: YESTERDAY }, // not checked today
@@ -10380,6 +10395,230 @@ describe("calcTodayInsight — momentum_best_day_ahead (priority 6.848, after mo
     expect(result).not.toBeNull();
     expect(result!.text).toContain("모멘텀 점수가 높은");
     expect(result!.text).not.toContain("첫걸음");
+  });
+});
+
+describe("calcTodayInsight — momentum_near_tier (priority 7.6, after pomodoro_goal_reached)", () => {
+  // Score formula: habits (0-50) + pomodoro (0-30) + intention (0/8/20)
+  // mid tier ≥40, high tier ≥75
+  // Fires when a SINGLE available action bridges the raw gap to the next tier.
+  // Available actions: intentionDone (+12 if set & not done), pomodoro (+30/goalN if goal not met), habit (+50/total if unchecked).
+
+  function nearMidPomodoroBase() {
+    // 4 habits (3 checked today, 1 not), 0 sessions, goal=2 (explicit), intention not set
+    // habitsScoreRaw=37.5, pomodoroScoreRaw=0, intentionScoreRaw=0 → currentScore=38
+    // gapToMid=2, pomodoroGain=(1/2)*30=15 ≥ 2 → fires (pomodoro nudge)
+    // unchecked habit: streak=1, lastChecked=YESTERDAY (≠ TODAY) → habit_first_check_in not triggered
+    return {
+      habits: [
+        { name: "운동", streak: 3, lastChecked: TODAY },
+        { name: "독서", streak: 3, lastChecked: TODAY },
+        { name: "명상", streak: 3, lastChecked: TODAY },
+        { name: "글쓰기", streak: 1, lastChecked: YESTERDAY },
+      ],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: undefined as string | undefined,
+      sessionsToday: 0,
+      sessionGoal: 2 as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+    };
+  }
+
+  it("shouldReturnPomodoroNudgeWhenScoreNearMidAndPomodoroCanBridgeGap", () => {
+    const result = calcTodayInsight(nearMidPomodoroBase());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("집중 1세션");
+    expect(result!.text).toContain("좋은 하루");
+  });
+
+  it("shouldReturnHabitNudgeWhenScoreNearMidAndHabitCanBridgeGap", () => {
+    // 4 habits (3 checked, 1 unchecked), no explicit goal, no intention
+    // habitsScoreRaw=37.5, pomodoroScoreRaw=0, intentionScoreRaw=0 → currentScore=38
+    // gapToMid=2, pomodoroGain=0 (no explicit goal), habitGain=(1/4)*50=12.5≥2 → fires (habit nudge)
+    const result = calcTodayInsight({
+      habits: [
+        { name: "운동", streak: 3, lastChecked: TODAY },
+        { name: "독서", streak: 3, lastChecked: TODAY },
+        { name: "명상", streak: 3, lastChecked: TODAY },
+        { name: "글쓰기", streak: 1, lastChecked: YESTERDAY },
+      ],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("습관 하나만");
+    expect(result!.text).toContain("좋은 하루");
+  });
+
+  it("shouldReturnIntentionDoneNudgeWhenScoreNearHighAndIntentionSetNotDone", () => {
+    // 4 habits (2 checked), 2 sessions (goal=4), intention set not done
+    // habitsScoreRaw=25, pomodoroScoreRaw=15, intentionScoreRaw=8 → currentScore=48
+    // Wait: gapToHigh=75-48=27 — too far. Let me use 3 habits (all checked), 2 sessions, goal=4, set not done:
+    // habitsScoreRaw=50, pomodoroScoreRaw=15, intentionScoreRaw=8 → currentScore=73
+    // gapToHigh=2, intentionDoneGain=12>=2 → fires (intention done nudge)
+    // pomodoro_last_one: sessionsToday(2) === sessionGoal(4)-1(3)? 2≠3 → doesn't fire
+    // bestStreak: 2 on 명상 prevents habit_first_check_in (requires bestStreak≤1)
+    const result = calcTodayInsight({
+      habits: [
+        { name: "운동", streak: 3, lastChecked: TODAY },
+        { name: "독서", streak: 2, lastChecked: TODAY },
+        { name: "명상", streak: 1, bestStreak: 2, lastChecked: TODAY },
+      ],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: false,
+      sessionsToday: 2,
+      sessionGoal: 4,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("의도를 달성하면");
+    expect(result!.text).toContain("최고의 하루");
+  });
+
+  it("shouldReturnIntentionDoneNudgeBeforePomodoroNudgeWhenBothBridgeGap", () => {
+    // 3 habits (all checked today), 2 sessions, goal=4, intention set not done
+    // habitsScoreRaw=50, pomodoroScoreRaw=15, intentionScoreRaw=8 → currentScore=73
+    // gapToHigh=2, intentionDoneGain(12)>=2 AND pomodoroGain(7.5)>=2 → intention done checked first
+    // bestStreak: 2 on 명상 prevents habit_first_check_in (requires bestStreak≤1)
+    const result = calcTodayInsight({
+      habits: [
+        { name: "운동", streak: 3, lastChecked: TODAY },
+        { name: "독서", streak: 2, lastChecked: TODAY },
+        { name: "명상", streak: 1, bestStreak: 2, lastChecked: TODAY },
+      ],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: false,
+      sessionsToday: 2,
+      sessionGoal: 4,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도를 달성하면");
+    expect(result!.text).not.toContain("집중 1세션");
+  });
+
+  it("shouldNotFireWhenNoSingleActionCanBridgeGap", () => {
+    // 6 habits (5 checked, 1 unchecked), 2 sessions (goal=5, 1 available), intention done
+    // habitsScoreRaw=(5/6)*50=41.67, pomodoroScoreRaw=(2/5)*30=12, intentionScoreRaw=20 → currentScore=74 (round(73.67))
+    // gapToHigh=75-73.67=1.33
+    // intentionDoneGain=0 (already done), pomodoroGain=(1/5)*30=6>=1.33 → WOULD fire (pomodoro)
+    // Change: make gap larger so no single action bridges.
+    // 6 habits (4 checked, 2 unchecked), 2 sessions (goal=5), intention done
+    // habitsScoreRaw=(4/6)*50=33.33, pomodoroScoreRaw=12, intentionScoreRaw=20 → currentScoreRaw=65.33 → currentScore=65
+    // gapToHigh=75-65.33=9.67
+    // intentionDoneGain=0, pomodoroGain=6<9.67, habitGain=(1/6)*50=8.33<9.67 → no insight fires
+    const result = calcTodayInsight({
+      habits: [
+        { name: "A", streak: 2, lastChecked: TODAY },
+        { name: "B", streak: 2, lastChecked: TODAY },
+        { name: "C", streak: 2, lastChecked: TODAY },
+        { name: "D", streak: 2, lastChecked: TODAY },
+        { name: "E", streak: 2, lastChecked: YESTERDAY },
+        { name: "F", streak: 2, lastChecked: YESTERDAY },
+      ],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 2,
+      sessionGoal: 5,
+      habitsAllDoneDate: undefined,
+    });
+    // No tier nudge: no single action covers the 9.67pt gap to high
+    expect(result?.text).not.toContain("좋은 하루");
+    expect(result?.text).not.toContain("최고의 하루");
+  });
+
+  it("shouldNotFireWhenAlreadyHighTier", () => {
+    // All habits checked, goal met, intention done → score=100
+    const result = calcTodayInsight({
+      habits: [
+        { name: "운동", streak: 3, lastChecked: TODAY },
+        { name: "독서", streak: 3, lastChecked: TODAY },
+      ],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result?.text).not.toContain("좋은 하루");
+    expect(result?.text).not.toContain("최고의 하루");
+  });
+
+  it("shouldBePreemptedByPomodoroGoalReached", () => {
+    // sessionGoal=4 met (sessionsToday=4) → pomodoro_goal_reached (7.5) fires before momentum_near_tier (7.6)
+    // score: habitsScoreRaw=(1/4)*50=12.5, pomodoroScoreRaw=30, intentionScoreRaw=20 → currentScore=63 → nearHigh
+    // habitGain=(1/4)*50=12.5 >= gapToHigh(12.5) → WOULD fire tier nudge if 7.5 didn't preempt
+    const result = calcTodayInsight({
+      habits: [
+        { name: "운동", streak: 3, lastChecked: TODAY },
+        { name: "독서", streak: 2, lastChecked: YESTERDAY },
+        { name: "명상", streak: 1, lastChecked: YESTERDAY },
+        { name: "글쓰기", streak: 1, lastChecked: YESTERDAY },
+      ],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("포모도로 목표 달성");
+    expect(result!.text).not.toContain("최고의 하루");
+  });
+
+  it("shouldPreemptDeadlineSoonWhenScoreNearTier", () => {
+    // Near-mid setup + project with deadline 4 days away
+    // momentum_near_tier (7.6) fires before deadline_soon (8)
+    const result = calcTodayInsight({
+      ...nearMidPomodoroBase(),
+      projects: [{ name: "사이드프로젝트", status: "active" as const, deadline: IN_4 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("좋은 하루");
+    expect(result!.text).not.toContain("D-4");
+  });
+
+  it("shouldSuggestHabitNotPomodoroWhenGoalUndefinedAndScoreNearMid", () => {
+    // sessionGoal=undefined → no pomodoro contribution (goalN=null); pomodoro action not suggested
+    // 4 habits (3 checked, 1 unchecked), many sessions but no goal, no intention
+    // habitsScoreRaw=37.5, pomodoroScoreRaw=0, intentionScoreRaw=0 → currentScore=38
+    // gapToMid=2, pomodoroGain=0 (no explicit goal), habitGain=12.5 >= 2 → habit nudge (not pomodoro)
+    const result = calcTodayInsight({
+      habits: [
+        { name: "운동", streak: 3, lastChecked: TODAY },
+        { name: "독서", streak: 3, lastChecked: TODAY },
+        { name: "명상", streak: 3, lastChecked: TODAY },
+        { name: "글쓰기", streak: 1, lastChecked: YESTERDAY },
+      ],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: undefined,
+      sessionsToday: 5,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("습관 하나만");
+    expect(result!.text).not.toContain("집중 1세션");
   });
 });
 
