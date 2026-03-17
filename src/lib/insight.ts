@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (active project has open PRs awaiting review) > github_drought (active project >7 days since last commit) > open_issues (active project ≥5 open GitHub issues) > perfect day (streak count shown when ≥3 consecutive days via perfectDayStreak) > intention_done (today's intention marked done) > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > habit_first_check_in (streak=1, bestStreak≤1, checked today = brand-new habit first step) > habit_comeback (bestStreak≥14, streak 3+, checked today = recovering from broken long streak) > pomodoro_last_one > focus_streak_milestone (7/14/30 consecutive focus days, sessionsToday > 0) > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_week_record (current ISO-week total beats same-length prev-week window) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > project context switching (≥4 active projects all focused within 7 days) > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > pomodoro_today_above_avg (sessionsToday ≥ rolling average +2) > momentum_streak_milestone (momentumStreak hits 7/14/30 consecutive qualifying days) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > quarter_goal_streak (past ≥2 consecutive done quarters, morning only) > year_goal_streak (past ≥1 consecutive done years, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
+// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (active project has open PRs awaiting review) > github_drought (active project >7 days since last commit) > open_issues (active project ≥5 open GitHub issues) > perfect day (streak count shown when ≥3 consecutive days via perfectDayStreak) > intention_done (today's intention marked done) > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > habit_first_check_in (streak=1, bestStreak≤1, checked today = brand-new habit first step) > habit_comeback (bestStreak≥14, streak 3+, checked today = recovering from broken long streak) > pomodoro_last_one > focus_streak_milestone (7/14/30 consecutive focus days, sessionsToday > 0) > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_week_record (current ISO-week total beats same-length prev-week window) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > project context switching (≥4 active projects all focused within 7 days) > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > pomodoro_today_above_avg (sessionsToday ≥ rolling average +2) > momentum_streak_milestone (momentumStreak hits 7/14/30 consecutive qualifying days) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > quarter_goal_streak (past ≥2 consecutive done quarters, morning only) > year_goal_streak (past ≥1 consecutive done years, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit_best_streak_approach (auto-tracked bestStreak within 1–2 days, checked today) > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -898,6 +898,40 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     .sort((a, b) => b.streak - a.streak)[0];
   if (personalBest) {
     return { text: `🏆 ${personalBest.name} 역대 최고! (${personalBest.streak}d)`, level: "success" };
+  }
+
+  // 11.02. Habit approach personal best: habit checked in today with streak 1–2 days from all-time bestStreak.
+  // Fires AFTER personal_best (11): personal_best requires streak === bestStreak at a fixed milestone,
+  //   which implies gap === 0 — mutually exclusive with this block's gap > 0 condition.
+  // Fires BEFORE habit_target_near (11.05): approaching an auto-tracked all-time best is rarer
+  //   and more significant than approaching a user-set target; takes precedence when both qualify.
+  //   Exception: when lastChecked !== todayStr, this block is filtered out but targetNear (11.05) may
+  //   still fire (it has no lastChecked guard). This is intentional — this badge is a "same-day fresh
+  //   check-in" signal; without today's check-in, the target nudge is more actionable.
+  // habit_comeback interaction: when bestStreak >= 14 and gap <= 2, habit_comeback (6.9) fires first
+  //   because its priority (6.9) is higher. This block is therefore only reached for bestStreak < 14,
+  //   OR when bestStreak >= 14 but streak < 3 (outside comeback's streak >= 3 guard), OR when the
+  //   habit was not checked in today (outside comeback's lastChecked === todayStr guard).
+  // bestStreak > 3 guard: suppresses trivial bests (e.g. bestStreak=2 from a brief early attempt).
+  // lastChecked === todayStr guard: the user must have already checked in today — the approach message
+  //   is freshest and most actionable right after today's check-in confirms the streak is still alive.
+  // Picks the habit with the smallest gap (1 before 2) when multiple qualify;
+  //   ties broken by higher bestStreak (more impressive personal best takes priority).
+  const approachBest = habits
+    .filter(h =>
+      h.lastChecked === todayStr &&
+      h.bestStreak != null && h.bestStreak > 3 &&
+      h.streak < h.bestStreak &&
+      (h.bestStreak - h.streak) <= 2
+    )
+    .sort((a, b) => {
+      const gapA = a.bestStreak! - a.streak;
+      const gapB = b.bestStreak! - b.streak;
+      return gapA !== gapB ? gapA - gapB : b.bestStreak! - a.bestStreak!;
+    })[0];
+  if (approachBest) {
+    const gap = approachBest.bestStreak! - approachBest.streak;
+    return { text: `🔥 ${approachBest.name} 역대 최고까지 ${gap}일!`, level: "success" };
   }
 
   // 11.05. Habit target near: user-defined targetStreak goal within 1–2 days of completion.

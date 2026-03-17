@@ -6688,3 +6688,131 @@ describe("calcTodayInsight — momentum_streak_milestone (priority 10.46, betwee
     expect(result).toBeNull(); // double-fire guard prevents re-emission
   });
 });
+
+// ── habit_best_streak_approach ──────────────────────────────────────────
+describe("calcTodayInsight — habit_best_streak_approach (priority 11.02, between personal_best and habit_target_near)", () => {
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      // nowHour: 12 — above morning blocks (<12) and below almost_perfect_day (≥14), ensuring no other insight fires
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+    it("shouldFireWithGap1WhenCheckedToday", () => {
+      const result = calcTodayInsight({
+        ...base(),
+        habits: [{ name: "운동", streak: 9, lastChecked: TODAY, bestStreak: 10 }],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("운동");
+      expect(result!.text).toContain("1일");
+      expect(result!.level).toBe("success");
+    });
+
+    it("shouldFireWithGap2WhenCheckedToday", () => {
+      const result = calcTodayInsight({
+        ...base(),
+        habits: [{ name: "독서", streak: 8, lastChecked: TODAY, bestStreak: 10 }],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("독서");
+      expect(result!.text).toContain("2일");
+      expect(result!.level).toBe("success");
+    });
+
+    it("shouldNotFireWithGap3", () => {
+      const result = calcTodayInsight({
+        ...base(),
+        habits: [{ name: "운동", streak: 7, lastChecked: TODAY, bestStreak: 10 }],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotFireWhenGap0StreakEqualsBest", () => {
+      // bestStreak=10 is not a fixed milestone (7/30/100), so personal_best also does not fire
+      const result = calcTodayInsight({
+        ...base(),
+        habits: [{ name: "운동", streak: 10, lastChecked: TODAY, bestStreak: 10 }],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotFireWhenBestStreakAbsent", () => {
+      const result = calcTodayInsight({
+        ...base(),
+        habits: [{ name: "운동", streak: 9, lastChecked: TODAY, bestStreak: undefined }],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotFireWhenBestStreak3OrLess", () => {
+      const result = calcTodayInsight({
+        ...base(),
+        habits: [{ name: "운동", streak: 2, lastChecked: TODAY, bestStreak: 3 }],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldNotFireWhenLastCheckedNotToday", () => {
+      const result = calcTodayInsight({
+        ...base(),
+        habits: [{ name: "운동", streak: 9, lastChecked: YESTERDAY, bestStreak: 10 }],
+      });
+      expect(result).toBeNull();
+    });
+
+    it("shouldPickHabitWithSmallestGapWhenMultipleQualify", () => {
+      const result = calcTodayInsight({
+        ...base(),
+        habits: [
+          { name: "독서", streak: 8, lastChecked: TODAY, bestStreak: 10 }, // gap=2
+          { name: "운동", streak: 9, lastChecked: TODAY, bestStreak: 10 }, // gap=1
+        ],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("운동"); // closer to best
+      expect(result!.text).toContain("1일");
+    });
+
+    it("shouldBePreemptedByPersonalBestAtMilestone", () => {
+      // streak=7=bestStreak → personal_best fires (7 is in PERSONAL_BEST_MILESTONES)
+      // habit_best_streak_approach: streak < bestStreak → 7 < 7 = false → not reachable
+      const result = calcTodayInsight({
+        ...base(),
+        habits: [{ name: "운동", streak: 7, lastChecked: TODAY, bestStreak: 7 }],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("역대 최고"); // personal_best badge
+      expect(result!.text).not.toContain("역대 최고까지"); // our badge suppressed
+    });
+
+    it("shouldBePreemptedByHabitComebackWhenBestStreakGe14AndGapLe2", () => {
+      // bestStreak=16 >= 14, streak=14, gap=2 → both habit_comeback (6.9) and approachBest (11.02) qualify
+      // habit_comeback has higher priority (6.9 < 11.02) so it fires first
+      const result = calcTodayInsight({
+        ...base(),
+        habits: [{ name: "운동", streak: 14, lastChecked: TODAY, bestStreak: 16 }],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("회복"); // habit_comeback badge
+      expect(result!.text).not.toContain("역대 최고까지"); // approachBest suppressed
+    });
+
+    it("shouldFireBeforeHabitTargetNearWhenBothConditionsMet", () => {
+      // gap=1 to bestStreak (11.02) AND gap=2 to targetStreak (11.05) — our badge wins
+      const result = calcTodayInsight({
+        ...base(),
+        habits: [{ name: "운동", streak: 9, lastChecked: TODAY, bestStreak: 10, targetStreak: 11 }],
+      });
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("역대 최고까지"); // habit_best_streak_approach
+      expect(result!.text).not.toContain("목표 11일"); // habit_target_near suppressed
+    });
+});
+
