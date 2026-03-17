@@ -1213,6 +1213,11 @@ export default function App() {
   const pomodoroGoalStreak = data.pomodoroSessionGoal != null && data.pomodoroSessionGoal > 0
     ? calcPomodoroGoalStreak(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, todayStr)
     : undefined;
+  // prevPomodoroGoalStreak: streak as of yesterday's start — used to detect a streak that broke yesterday.
+  // Reuses yesterdayHabitsStr (same local-midnight basis) to avoid duplicate date computation.
+  const prevPomodoroGoalStreak = data.pomodoroSessionGoal != null && data.pomodoroSessionGoal > 0
+    ? calcPomodoroGoalStreak(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, yesterdayHabitsStr)
+    : undefined;
   // pomodoroSessionBest: max session count on any PAST calendar day in the 14-day rolling history.
   // Today's entry is excluded — compare against past days only to detect a genuine new daily record.
   // undefined when no past-day history exists (first use or all entries are today's date).
@@ -1327,6 +1332,7 @@ export default function App() {
       renderDate,
     ) - 1),
     pomodoroGoalStreak,
+    prevPomodoroGoalStreak,
     pomodoroSessionBest,
     pomodoroWeekRecord,
     pomodoroRecentAvg,

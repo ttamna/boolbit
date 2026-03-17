@@ -3377,6 +3377,122 @@ describe("calcTodayInsight", () => {
   });
 });
 
+describe("calcTodayInsight — pomodoro_goal_streak_broken (priority 10.11, between streak_recession and habit_consecutive_miss)", () => {
+  // Base params: no habits (prevents streak_recession/habit_consecutive_miss interference),
+  // afternoon hour 14 (bypasses period_start/no_focus_project which require < 12),
+  // sessionGoal set, pomodoroGoalStreak=0 (yesterday missed goal).
+  const base = {
+    habits: [] as ReturnType<typeof habit>[],
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    habitsAllDoneDate: undefined,
+  } as const;
+
+  it("shouldFireWhenGoalStreakBrokenAfter3Days", () => {
+    // pomodoroGoalStreak=0 (yesterday missed), prevPomodoroGoalStreak=3 (3 consecutive days before that)
+    const result = calcTodayInsight({
+      ...base,
+      sessionGoal: 4,
+      pomodoroGoalStreak: 0,
+      prevPomodoroGoalStreak: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("💔");
+    expect(result!.text).toContain("3");
+    expect(result!.text).toContain("포모도로");
+  });
+
+  it("shouldShowPrevStreakCountInMessage", () => {
+    // prevPomodoroGoalStreak=5 — message should reflect the 5-day streak that was broken
+    const result = calcTodayInsight({
+      ...base,
+      sessionGoal: 2,
+      pomodoroGoalStreak: 0,
+      prevPomodoroGoalStreak: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("5");
+  });
+
+  it("shouldNotFireWhenGoalStreakStillAlive", () => {
+    // pomodoroGoalStreak=1 (yesterday met goal, streak alive) — broken badge must not fire.
+    // pomodoroGoalStreak=1 is below the pomodoro_goal_streak (7.45) threshold of ≥2, so no other
+    // insight fires with this minimal fixture → result is null.
+    const result = calcTodayInsight({
+      ...base,
+      sessionGoal: 4,
+      pomodoroGoalStreak: 1,
+      prevPomodoroGoalStreak: 4,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPrevStreakTooShort", () => {
+    // prevPomodoroGoalStreak=2 — below the 3-day significance threshold; no broken-streak badge
+    const result = calcTodayInsight({
+      ...base,
+      sessionGoal: 4,
+      pomodoroGoalStreak: 0,
+      prevPomodoroGoalStreak: 2,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPrevStreakAbsent", () => {
+    // prevPomodoroGoalStreak absent — insufficient history; skipped silently
+    const result = calcTodayInsight({
+      ...base,
+      sessionGoal: 4,
+      pomodoroGoalStreak: 0,
+      prevPomodoroGoalStreak: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenSessionGoalAbsent", () => {
+    // No sessionGoal → no daily goal means no streak can exist; badge suppressed
+    const result = calcTodayInsight({
+      ...base,
+      sessionGoal: undefined,
+      pomodoroGoalStreak: 0,
+      prevPomodoroGoalStreak: 5,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenSessionGoalIsZero", () => {
+    // sessionGoal=0 is treated as "no goal" — same as absent (mirrors sessionGoal > 0 guard)
+    const result = calcTodayInsight({
+      ...base,
+      sessionGoal: 0,
+      pomodoroGoalStreak: 0,
+      prevPomodoroGoalStreak: 5,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByStreakRecessionAtPriority10point1", () => {
+    // streak_recession (10.1) fires before pomodoro_goal_streak_broken (10.11)
+    // when a significant habit streak (≥7d) also broke yesterday (lastChecked=DAYS_2_AGO).
+    const result = calcTodayInsight({
+      ...base,
+      habits: [habit("운동", 7, DAYS_2_AGO)],
+      sessionGoal: 4,
+      pomodoroGoalStreak: 0,
+      prevPomodoroGoalStreak: 4,
+    });
+    expect(result).not.toBeNull();
+    // streak_recession fires: 💔 habit name + streak count
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("7");
+    // pomodoro goal streak broken must NOT fire
+    expect(result!.text).not.toContain("포모도로");
+  });
+});
+
 // Helper: 3-day declining momentum history anchored to TODAY
 const DECLINING_HISTORY = [
   { date: "2024-01-13", score: 80, tier: "high" as const },

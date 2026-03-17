@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (active project has open PRs awaiting review) > github_drought (active project >7 days since last commit) > open_issues (active project ≥5 open GitHub issues) > perfect day (streak count shown when ≥3 consecutive days via perfectDayStreak) > intention_done (today's intention marked done) > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > habit_first_check_in (streak=1, bestStreak≤1, checked today = brand-new habit first step) > habit_comeback (bestStreak≥14, streak 3+, checked today = recovering from broken long streak) > pomodoro_last_one > pomodoro_goal_streak_milestone (pomodoroGoalStreak+1 hits 7/14/30, today's goal already met) > focus_streak_milestone (7/14/30 consecutive focus days, sessionsToday > 0) > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_week_record (current ISO-week total beats same-length prev-week window) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > project context switching (≥4 active projects all focused within 7 days) > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > habit_diversity_warning (habits ≥3, one streak <30% of others' avg, avgOthers ≥4) > almost perfect day (≥14h, 1–2 habits left) > habit_week_excellent (7-day completion rate ≥90%) > habit_week_improved (current 7d rate ≥10pp above prev 7d rate) > habit_week_declined (current 7d rate ≥10pp below prev 7d rate) > pomodoro_today_above_avg (sessionsToday ≥ rolling average +2) > momentum_streak_milestone (momentumStreak hits 7/14/30 consecutive qualifying days) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > quarter_goal_streak (past ≥2 consecutive done quarters, morning only) > year_goal_streak (past ≥1 consecutive done years, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit_best_streak_approach (auto-tracked bestStreak within 1–2 days, checked today) > habit_target_hit (user-defined targetStreak exactly reached today, checked today) > habit target near (user-defined targetStreak within 2 days) > habit_target_halfway (user-defined targetStreak at exact midpoint, checked today, target ≥ 14) > intention streak (≥7d consecutive intention-setting)
+// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (active project has open PRs awaiting review) > github_drought (active project >7 days since last commit) > open_issues (active project ≥5 open GitHub issues) > perfect day (streak count shown when ≥3 consecutive days via perfectDayStreak) > intention_done (today's intention marked done) > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > habit_first_check_in (streak=1, bestStreak≤1, checked today = brand-new habit first step) > habit_comeback (bestStreak≥14, streak 3+, checked today = recovering from broken long streak) > pomodoro_last_one > pomodoro_goal_streak_milestone (pomodoroGoalStreak+1 hits 7/14/30, today's goal already met) > focus_streak_milestone (7/14/30 consecutive focus days, sessionsToday > 0) > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_week_record (current ISO-week total beats same-length prev-week window) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > project context switching (≥4 active projects all focused within 7 days) > streak recession (≥7d broken yesterday) > pomodoro_goal_streak_broken (≥3d streak broke yesterday) > habit consecutive miss (≥3d) > habit_diversity_warning (habits ≥3, one streak <30% of others' avg, avgOthers ≥4) > almost perfect day (≥14h, 1–2 habits left) > habit_week_excellent (7-day completion rate ≥90%) > habit_week_improved (current 7d rate ≥10pp above prev 7d rate) > habit_week_declined (current 7d rate ≥10pp below prev 7d rate) > pomodoro_today_above_avg (sessionsToday ≥ rolling average +2) > momentum_streak_milestone (momentumStreak hits 7/14/30 consecutive qualifying days) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > quarter_goal_streak (past ≥2 consecutive done quarters, morning only) > year_goal_streak (past ≥1 consecutive done years, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit_best_streak_approach (auto-tracked bestStreak within 1–2 days, checked today) > habit_target_hit (user-defined targetStreak exactly reached today, checked today) > habit target near (user-defined targetStreak within 2 days) > habit_target_halfway (user-defined targetStreak at exact midpoint, checked today, target ≥ 14) > intention streak (≥7d consecutive intention-setting)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -109,6 +109,13 @@ interface InsightParams {
    * Absent/undefined = no streak data or sessionGoal not set.
    */
   pomodoroGoalStreak?: number;
+  /**
+   * Pomodoro goal streak as of yesterday's start — i.e. how many consecutive days BEFORE yesterday
+   * the daily session goal was met. Used to measure the streak length that broke on yesterday's miss.
+   * Computed by calling calcPomodoroGoalStreak with yesterdayStr as anchor.
+   * Absent/undefined = not computed by caller; pomodoro_goal_streak_broken skipped silently.
+   */
+  prevPomodoroGoalStreak?: number;
   /**
    * Maximum session count on any single PAST calendar day in pomodoroHistory (today excluded).
    * When sessionsToday strictly exceeds this value — and the daily goal is also reached (or absent/zero) —
@@ -301,6 +308,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     quarterGoalPastDoneStreak,
     yearGoalPastDoneStreak,
     pomodoroGoalStreak,
+    prevPomodoroGoalStreak,
     pomodoroSessionBest,
     pomodoroWeekRecord,
     pomodoroRecentAvg,
@@ -752,6 +760,19 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     .sort((a, b) => (b.streak ?? 0) - (a.streak ?? 0))[0];
   if (recessionHabit) {
     return { text: `💔 ${recessionHabit.name} ${recessionHabit.streak}일 스트릭 끊어짐 — 오늘 다시?`, level: "warning" };
+  }
+
+  // 10.11. Pomodoro goal streak broken: daily session-goal streak (≥3 past days) broke yesterday.
+  // pomodoroGoalStreak === 0: yesterday missed → streak reset.
+  // prevPomodoroGoalStreak ≥ 3: meaningful streak before the break.
+  // sessionGoal > 0 guard: no goal = no streak concept.
+  // Mirrors streak_recession (10.1) for pomodoro goals rather than habit check-ins.
+  if (
+    sessionGoal !== undefined && sessionGoal > 0 &&
+    pomodoroGoalStreak === 0 &&
+    prevPomodoroGoalStreak !== undefined && prevPomodoroGoalStreak >= 3
+  ) {
+    return { text: `💔 포모도로 목표 ${prevPomodoroGoalStreak}일 스트릭 끊어짐 — 오늘 다시?`, level: "warning" };
   }
 
   // 10.2. Habit consecutive miss: a habit not checked in for 3+ consecutive days — re-engagement nudge.
