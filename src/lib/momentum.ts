@@ -1,5 +1,5 @@
 // ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
-// ABOUTME: updateMomentumHistory — upserts today's score into rolling 31-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection; calcMomentumEveningDigest — end-of-day score summary notification body; calcWeeklyMomentumReport — Monday morning last-week avg + tier distribution report; calcMonthlyMomentumReport — 1st-of-month previous calendar month avg + tier distribution report; calcQuarterlyMomentumReport — quarter-start morning previous quarter avg + tier distribution report
+// ABOUTME: updateMomentumHistory — upserts today's score into rolling 31-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection; calcMomentumEveningDigest — end-of-day score summary notification body; calcMomentumMorningReminder — morning notification showing yesterday's score; calcWeeklyMomentumReport — Monday morning last-week avg + tier distribution report; calcMonthlyMomentumReport — 1st-of-month previous calendar month avg + tier distribution report; calcQuarterlyMomentumReport — quarter-start morning previous quarter avg + tier distribution report
 
 import type { MomentumEntry } from "../types";
 
@@ -188,6 +188,21 @@ export function calcMomentumEveningDigest(score: number, tier: "high" | "mid" | 
   if (tier === "high") return `🔥 오늘 모멘텀 ${score}점 — 고점 달성! 이 흐름 유지해요`;
   if (tier === "mid") return `✅ 오늘 모멘텀 ${score}점 — 괜찮은 하루였어요`;
   return `💪 오늘 모멘텀 ${score}점 — 내일은 더 힘내봐요!`;
+}
+
+// Returns the morning notification body showing yesterday's momentum score.
+// yesterdayStr: YYYY-MM-DD for the previous calendar day (caller derives via toLocaleDateString("sv") of yesterday).
+// Returns null when no history entry for yesterdayStr exists, or when score ≤ 0.
+// Tier determines the tone: high=🔥 carry momentum forward, mid=✅ encouragement, low=💪 motivational reset.
+// Mirrors calcMomentumEveningDigest emoji/tier conventions so the two notifications feel cohesive.
+// Hour/date guards live in the caller (App.tsx useEffect) — fires at 09:00+ via momentumMorningRemindDate guard.
+// Exported for unit testing; pure function with no side effects.
+export function calcMomentumMorningReminder(history: MomentumEntry[], yesterdayStr: string): string | null {
+  const entry = history.find(e => e.date === yesterdayStr);
+  if (!entry || entry.score <= 0) return null;
+  if (entry.tier === "high") return `🔥 어제 모멘텀 ${entry.score}점 — 최고야! 오늘도 이어가요`;
+  if (entry.tier === "mid") return `✅ 어제 모멘텀 ${entry.score}점 — 잘 했어요! 오늘도 달려봐요`;
+  return `💪 어제 모멘텀 ${entry.score}점 — 오늘은 더 높여봐요!`;
 }
 
 /**

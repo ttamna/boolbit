@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport — score, tier, history cap (31 entries), edge cases
-// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, 3-day trend detection, weekly/monthly/quarterly reports
+// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport — score, tier, history cap (31 entries), edge cases
+// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, 3-day trend detection, evening digest, morning reminder, weekly/monthly/quarterly reports
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport } from "./momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcMomentumMorningReminder } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -1144,5 +1144,63 @@ describe("calcQuarterlyMomentumReport", () => {
     expect(msg).toMatch(/^🔥/);
     expect(msg).toContain("지난 분기");
     expect(msg).toContain("🔥10");
+  });
+});
+
+describe("calcMomentumMorningReminder", () => {
+  it("should return null when history is empty", () => {
+    expect(calcMomentumMorningReminder([], "2026-03-18")).toBeNull();
+  });
+
+  it("should return null when no entry exists for yesterdayStr", () => {
+    const history = [{ date: "2026-03-16", score: 80, tier: "high" as const }];
+    expect(calcMomentumMorningReminder(history, "2026-03-17")).toBeNull();
+  });
+
+  it("should return null when yesterday's score is zero", () => {
+    const history = [{ date: "2026-03-17", score: 0, tier: "low" as const }];
+    expect(calcMomentumMorningReminder(history, "2026-03-17")).toBeNull();
+  });
+
+  it("should return null when yesterday's score is negative (defensive guard)", () => {
+    const history = [{ date: "2026-03-17", score: -1, tier: "low" as const }];
+    expect(calcMomentumMorningReminder(history, "2026-03-17")).toBeNull();
+  });
+
+  it("should return 🔥 message with score for high tier", () => {
+    const history = [{ date: "2026-03-17", score: 82, tier: "high" as const }];
+    const msg = calcMomentumMorningReminder(history, "2026-03-17");
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("🔥");
+    expect(msg).toContain("82");
+  });
+
+  it("should return ✅ message with score for mid tier", () => {
+    const history = [{ date: "2026-03-17", score: 55, tier: "mid" as const }];
+    const msg = calcMomentumMorningReminder(history, "2026-03-17");
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("✅");
+    expect(msg).toContain("55");
+  });
+
+  it("should return 💪 message with score for low tier", () => {
+    const history = [{ date: "2026-03-17", score: 20, tier: "low" as const }];
+    const msg = calcMomentumMorningReminder(history, "2026-03-17");
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("💪");
+    expect(msg).toContain("20");
+  });
+
+  it("should use only the entry for yesterdayStr and ignore other dates", () => {
+    const history = [
+      { date: "2026-03-16", score: 90, tier: "high" as const },
+      { date: "2026-03-17", score: 30, tier: "low" as const },
+      { date: "2026-03-18", score: 80, tier: "high" as const },
+    ];
+    const msg = calcMomentumMorningReminder(history, "2026-03-17");
+    expect(msg).toContain("💪");
+    expect(msg).toContain("30");
+    expect(msg).not.toContain("90");
+    expect(msg).not.toContain("80");
   });
 });

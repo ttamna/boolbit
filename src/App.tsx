@@ -20,7 +20,7 @@ import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./lib/pomodoro";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport } from "./lib/momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
@@ -1798,6 +1798,34 @@ export default function App() {
     persist({ ...current, momentumHistory: updated });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dailyScore.score, dailyScore.tier, todayStr]);
+
+  // Morning momentum reminder — fires once per calendar day at 09:00+ showing yesterday's momentum score.
+  // Gives the user daily context to carry momentum forward or start fresh with awareness.
+  // momentumMorningRemindDate persists the guard so it fires only once per calendar day even after restart.
+  // Design: date is persisted before the async send (same pattern as pomodoroMorningRemindDate) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.momentumMorningRemindDate === today) return;
+    if (now.getHours() < 9) return;
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toLocaleDateString("sv");
+    const msg = calcMomentumMorningReminder(data.momentumHistory ?? [], yesterdayStr);
+    if (!msg) return;
+    persist({ ...dataRef.current, momentumMorningRemindDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  // dailyScore.score is included so the effect reruns when the user's first morning activity updates
+  //   the score — covers the case where the app was open overnight and momentumHistory didn't change.
+  }, [data.momentumHistory, data.momentumMorningRemindDate, dailyScore.score, loaded, persist]);
 
   // Evening momentum score digest — fires once per calendar day at 21:00+ when today's score > 0.
   // Gives the user end-of-day closure by surfacing their momentum score with a tier-appropriate message.
