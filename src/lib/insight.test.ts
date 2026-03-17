@@ -7078,6 +7078,89 @@ describe("calcTodayInsight — habit_best_streak_approach (priority 11.02, betwe
     });
 });
 
+// ── habit_week_perfect ──────────────────────────────────────────
+describe("calcTodayInsight — habit_week_perfect (priority 10.34, between almost_perfect_day and habit_week_excellent)", () => {
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+  it("shouldFireAt100Percent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 100 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽한 한 주"); // distinct from habit_week_excellent text
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldContainPerfectWeekText", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 100 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽한 한 주");
+  });
+
+  it("shouldNotFireAt99Percent", () => {
+    // 99% → habit_week_excellent (10.35) fires, not habit_week_perfect
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 99 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("완벽한 한 주");
+  });
+
+  it("shouldNotFireAt90Percent", () => {
+    // 90% → habit_week_excellent fires instead
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 90 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("완벽한 한 주");
+  });
+
+  it("shouldNotFireWhenAbsent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: undefined });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByPerfectDayWhenAllHabitsDoneToday", () => {
+    // habitsAllDoneDate === TODAY → perfect_day (priority 4) fires before habit_week_perfect (10.34)
+    const result = calcTodayInsight({
+      ...base(),
+      habitsAllDoneDate: TODAY,
+      habitWeekRate: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽한 습관"); // perfect_day badge text
+    expect(result!.text).not.toContain("완벽한 한 주"); // habit_week_perfect suppressed
+  });
+
+  it("shouldBePreemptedByAlmostPerfectDay", () => {
+    // nowHour=14, 1 habit unchecked today → almost_perfect_day (10.3) fires before habit_week_perfect (10.34)
+    const result = calcTodayInsight({
+      ...base(),
+      nowHour: 14,
+      habits: [
+        { name: "운동", streak: 3, lastChecked: TODAY },
+        { name: "독서", streak: 2, lastChecked: YESTERDAY }, // unchecked today
+      ],
+      habitsAllDoneDate: YESTERDAY,
+      habitWeekRate: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽한 하루까지"); // almost_perfect_day wins
+    expect(result!.text).not.toContain("완벽한 한 주"); // habit_week_perfect suppressed
+  });
+
+  it("shouldFireBeforeHabitWeekExcellent", () => {
+    // habit_week_perfect (10.34) fires at 100% instead of habit_week_excellent (10.35)
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 100 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("지속력이 빛나요"); // habit_week_excellent text not shown
+  });
+});
+
 // ── habit_week_excellent ──────────────────────────────────────────
 describe("calcTodayInsight — habit_week_excellent (priority 10.35, between almost_perfect_day and pomodoro_today_above_avg)", () => {
   function base() {
@@ -7107,10 +7190,12 @@ describe("calcTodayInsight — habit_week_excellent (priority 10.35, between alm
     expect(result!.level).toBe("success");
   });
 
-  it("shouldFireAt100Percent", () => {
+  it("shouldNotFireAt100Percent", () => {
+    // 100% → habit_week_perfect (10.34) fires first; habit_week_excellent requires < 100
     const result = calcTodayInsight({ ...base(), habitWeekRate: 100 });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("100");
+    expect(result!.text).not.toContain("지속력이 빛나요"); // habit_week_excellent suppressed
+    expect(result!.text).toContain("완벽한 한 주"); // habit_week_perfect fires instead
   });
 
   it("shouldNotFireAt89Percent", () => {
@@ -7264,6 +7349,13 @@ describe("calcTodayInsight — habit_week_declined (priority 10.37, after habit_
     const result = calcTodayInsight({ ...base(), habitWeekRate: 70, habitPrevWeekRate: 79 });
     expect(result).toBeNull();
   });
+
+  it("shouldBePreemptedByHabitWeekPerfectWhenCurrentRate100", () => {
+    // weekRate=100, prevRate=80 → decline impossible, but also perfect fires first (10.34 < 10.37)
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 100, habitPrevWeekRate: 80 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽한 한 주"); // habit_week_perfect wins
+  });
 });
 
 // ── habit_week_improved ──────────────────────────────────────────
@@ -7349,6 +7441,14 @@ describe("calcTodayInsight — habit_week_improved (priority 10.36, after habit_
     // Boundary: prevRate=71, weekRate=80 → improvement=9pp (< 10pp threshold) → no badge
     const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 71 });
     expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByHabitWeekPerfectWhenCurrentRate100", () => {
+    // weekRate=100, prevRate=80 → improvement=20pp, but habit_week_perfect (10.34) fires first
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 100, habitPrevWeekRate: 80 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽한 한 주"); // habit_week_perfect wins
+    expect(result!.text).not.toContain("올랐어요"); // habit_week_improved suppressed
   });
 
   it("shouldFireBeforeHabitWeekDeclinedWhenBothCouldApply", () => {
