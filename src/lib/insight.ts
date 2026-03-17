@@ -437,6 +437,9 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // sessionsToday >= sessionGoal guard: fires on the exact moment the goal is met or exceeded (same
   //   semantics as pomodoro_goal_reached at 7.5 — > 0 excess counts as goal met).
   // open_issues (3.9) preempts this block: a GitHub backlog is a pending action item and surfaces first.
+  // This block also preempts pomodoro_goal_streak_milestone (7.41), pomodoro_day_record (7.49),
+  //   pomodoro_week_record (7.495), and pomodoro_goal_reached (7.5): on a dual-win day, showing
+  //   both domains simultaneously is the most celebratory outcome even when a pomodoro record was set.
   if (
     habitsAllDoneDate === todayStr &&
     sessionGoal !== undefined && sessionGoal > 0 &&

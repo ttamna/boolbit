@@ -192,7 +192,7 @@ describe("calcTodayInsight", () => {
     expect(result!.text).toContain("포모도로");
   });
 
-  it("shouldFallThroughToPerfectDayWhenPomodoroGoalAbsent", () => {
+  it("shouldShowPerfectDayWhenPomodoroGoalAbsent", () => {
     // sessionGoal absent → only habits done → perfect_day fires, not dual_win
     const result = calcTodayInsight({
       habits: [habit("운동", 5, TODAY)],
@@ -209,7 +209,7 @@ describe("calcTodayInsight", () => {
     expect(result!.text).not.toContain("포모도로");
   });
 
-  it("shouldFallThroughToPerfectDayWhenSessionGoalIsZero", () => {
+  it("shouldShowPerfectDayWhenSessionGoalIsZero", () => {
     // sessionGoal=0 is treated as "no configured goal" → perfect_day fires
     const result = calcTodayInsight({
       habits: [habit("운동", 5, TODAY)],
@@ -225,8 +225,9 @@ describe("calcTodayInsight", () => {
     expect(result!.text).not.toContain("포모도로");
   });
 
-  it("shouldFallThroughToPomodoroGoalReachedWhenHabitsNotAllDone", () => {
-    // habitsAllDoneDate !== TODAY → only pomodoro goal met → pomodoro_goal_reached fires
+  it("shouldShowPomodoroGoalReachedWhenHabitsNotAllDone", () => {
+    // habitsAllDoneDate !== TODAY → dual_win skipped; pomodoroGoalStreak/SessionBest/WeekRecord
+    // absent → 7.41/7.49/7.495 skipped; pomodoro_goal_reached (7.5) fires
     const result = calcTodayInsight({
       habits: [habit("운동", 5, YESTERDAY)],
       todayStr: TODAY,
@@ -235,6 +236,9 @@ describe("calcTodayInsight", () => {
       sessionsToday: 4,
       sessionGoal: 4,
       habitsAllDoneDate: YESTERDAY,
+      pomodoroGoalStreak: undefined, // no milestone (7.41)
+      pomodoroSessionBest: undefined, // no day record (7.49)
+      pomodoroWeekRecord: undefined,  // no week record (7.495)
     });
     expect(result).not.toBeNull();
     // pomodoro_goal_reached fires — positively assert its (sessionsToday/sessionGoal) format
@@ -292,6 +296,63 @@ describe("calcTodayInsight", () => {
     // dual_win fires (contains 포모도로), NOT plain perfect_day
     expect(result!.text).toContain("포모도로");
     expect(result!.text).toContain("습관");
+  });
+
+  it("shouldPreemptPomodoroGoalStreakMilestoneWithDualWin", () => {
+    // dual_win (3.95) preempts pomodoro_goal_streak_milestone (7.41):
+    // pomodoroGoalStreak=6 → +1 today = 7-day milestone, but dual_win fires first
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+      pomodoroGoalStreak: 6, // +1 today = 7 → milestone condition met
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관"); // dual_win fires
+    expect(result!.text).toContain("포모도로");
+    expect(result!.text).not.toContain("일 연속 달성!"); // milestone badge must NOT fire
+  });
+
+  it("shouldPreemptPomodoroSessionRecordWithDualWin", () => {
+    // dual_win (3.95) preempts pomodoro_day_record (7.49):
+    // sessionsToday(5) > pomodoroSessionBest(4) → record condition met, but dual_win fires first
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 5,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+      pomodoroSessionBest: 4, // sessionsToday(5) > best(4) → day_record condition met
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관"); // dual_win fires
+    expect(result!.text).toContain("포모도로");
+    expect(result!.text).not.toContain("신기록"); // day_record badge must NOT fire
+  });
+
+  it("shouldPreemptPomodoroWeekRecordWithDualWin", () => {
+    // dual_win (3.95) preempts pomodoro_week_record (7.495):
+    // currentWeekTotal > prevWeekTotal → week record condition met, but dual_win fires first
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+      pomodoroWeekRecord: { currentWeekTotal: 20, prevWeekTotal: 15 }, // week record condition met
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관"); // dual_win fires
+    expect(result!.text).toContain("포모도로");
+    expect(result!.text).not.toContain("신기록 페이스"); // week_record badge must NOT fire
   });
 
   // ── perfect_day ────────────────────────────────────────────────────────────
