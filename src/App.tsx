@@ -1240,6 +1240,10 @@ export default function App() {
   // excluded inside calcPomodoroRecentAvg via the todayStr filter — this exclusion is load-bearing.
   // Passed to calcTodayInsight for the pomodoro_today_above_avg badge (priority 10.45).
   const pomodoroRecentAvg = calcPomodoroRecentAvg(data.pomodoroHistory ?? [], todayStr);
+  // last14Days/habitsPerfectStreak: declared here (before calcTodayInsight) so perfectDayStreak
+  // can be passed as a param. Also reused by HabitStreak + habitsWeekTrend below.
+  const last14Days = calcLastNDays(todayStr, 14);
+  const habitsPerfectStreak = calcPerfectDayStreak(habitsArr, last14Days);
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1297,6 +1301,9 @@ export default function App() {
     pomodoroRecentAvg,
     intentionConsecutiveDays,
     focusStreak,
+    // perfectDayStreak: consecutive days all habits completed including today — same 14-day window used by HabitStreak.
+    // When ≥ 3, the perfect_day badge shows the streak count instead of a generic celebration.
+    perfectDayStreak: habitsPerfectStreak,
     // todayIsWeakHabitDay / todayIsBestHabitDay: derived from the same per-weekday rates computed once.
     // Uses last28Days (4 full weeks) so each weekday has exactly 4 data points.
     ...(() => {
@@ -1414,9 +1421,6 @@ export default function App() {
   // habitsWeekRate: average daily habit completion rate (%) over the last 7 days.
   // Pure functions extracted to src/lib/habits.ts for testability.
   const habitsWeekRate = calcHabitsWeekRate(habitsArr, last7Days);
-  // habitsPerfectStreak: consecutive days all habits completed — same 14-day window as HabitStreak.tsx.
-  const last14Days = calcLastNDays(todayStr, 14);
-  const habitsPerfectStreak = calcPerfectDayStreak(habitsArr, last14Days);
   // habitsWeekTrend: week-over-week direction — compares cur-7 rate vs prev-7 rate using the same 14-day window.
   const habitsPrevWeekRate = calcHabitsWeekRate(habitsArr, last14Days.slice(0, 7));
   const habitsWeekTrend = calcHabitsWeekTrend(habitsWeekRate, habitsPrevWeekRate);

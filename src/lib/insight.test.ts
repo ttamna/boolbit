@@ -188,6 +188,109 @@ describe("calcTodayInsight", () => {
     expect(result?.level).not.toBe("success");
   });
 
+  // ── perfect_day_streak ─────────────────────────────────────────────────────
+  it("shouldShowStreakCountWhenPerfectDayStreakReaches3", () => {
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("3");
+    expect(result!.text).toContain("연속");
+  });
+
+  it("shouldShowStreakCountWhenPerfectDayStreakIs7", () => {
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("7");
+    expect(result!.text).toContain("연속");
+  });
+
+  it("shouldShowGenericMessageWhenPerfectDayStreakIsBelow3", () => {
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 2,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).not.toContain("연속");
+    expect(result!.text).toContain("완벽");
+  });
+
+  it("shouldShowGenericMessageWhenPerfectDayStreakIsAbsent", () => {
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      // perfectDayStreak absent — backward compatibility
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("완벽");
+    expect(result!.text).not.toContain("연속");
+  });
+
+  it("shouldNotFirePerfectDayStreakWhenHabitsNotDoneToday", () => {
+    const result = calcTodayInsight({
+      // Non-empty habits so the only reason perfect_day is skipped is the outer guard
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      // habitsAllDoneDate is yesterday — outer guard fails, streak count must NOT appear
+      habitsAllDoneDate: YESTERDAY,
+      perfectDayStreak: 5,
+    });
+    expect(result?.text ?? "").not.toContain("연속");
+  });
+
+  it("shouldShowGenericMessageWhenPerfectDayStreakIs1", () => {
+    // First-time perfect day (streak=1) shows generic celebration, not a streak count
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 1,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("완벽");
+    expect(result!.text).not.toContain("연속");
+  });
+
   // ── intention_missing ──────────────────────────────────────────────────────
   it("shouldReturnIntentionMissingWhenMorningAndNoIntentionSet", () => {
     const result = calcTodayInsight({

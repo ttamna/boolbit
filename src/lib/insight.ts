@@ -1,5 +1,5 @@
 // ABOUTME: calcTodayInsight — context-aware daily insight engine for the Clock badge
-// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (active project has open PRs awaiting review) > github_drought (active project >7 days since last commit) > open_issues (active project ≥5 open GitHub issues) > perfect day > intention_done (today's intention marked done) > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > habit_first_check_in (streak=1, bestStreak≤1, checked today = brand-new habit first step) > habit_comeback (bestStreak≥14, streak 3+, checked today = recovering from broken long streak) > pomodoro_last_one > focus_streak_milestone (7/14/30 consecutive focus days, sessionsToday > 0) > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > project context switching (≥4 active projects all focused within 7 days) > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > pomodoro_today_above_avg (sessionsToday ≥ rolling average +2) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > quarter_goal_streak (past ≥2 consecutive done quarters, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
+// ABOUTME: Priority chain: streak risk > deadline critical > ci_failure (active project CI broken) > milestone > open_prs (active project has open PRs awaiting review) > github_drought (active project >7 days since last commit) > open_issues (active project ≥5 open GitHub issues) > perfect day (streak count shown when ≥3 consecutive days via perfectDayStreak) > intention_done (today's intention marked done) > intention > period_start (year/quarter/month/week) > no_focus_project > weak_day_ahead (morning, historically low-completion weekday) > best_day_ahead (morning, historically high-completion weekday ≥80%) > habit_first_check_in (streak=1, bestStreak≤1, checked today = brand-new habit first step) > habit_comeback (bestStreak≥14, streak 3+, checked today = recovering from broken long streak) > pomodoro_last_one > focus_streak_milestone (7/14/30 consecutive focus days, sessionsToday > 0) > pomodoro_goal_streak (≥2 consecutive past goal days) > pomodoro_day_record (today's session count beats all-time single-day best) > pomodoro_week_record (current ISO-week total beats same-length prev-week window) > pomodoro_goal_reached > deadline soon > project behind (≥20% gap) > goal expiry (week≤2d > month≤2d > quarter≤7d > year≤14d) > goal midpoint (Thu/mid-month/mid-quarter/mid-year, cascade year>quarter>month>week) > momentum decline > project stale > project context switching (≥4 active projects all focused within 7 days) > streak recession (≥7d broken yesterday) > habit consecutive miss (≥3d) > almost perfect day (≥14h, 1–2 habits left) > pomodoro_today_above_avg (sessionsToday ≥ rolling average +2) > momentum rise > goal done (year>quarter>month>week, daysLeft above expiry threshold) > goal streak (past ≥1 consecutive done weeks, morning only) > month_goal_streak (past ≥2 consecutive done months, morning only) > quarter_goal_streak (past ≥2 consecutive done quarters, morning only) > project ahead (≥20% ahead of schedule) > project near completion (progress ≥90%) > project forecast (at-current-pace completion date for on-track projects with deadline >7d) > personal best > habit target near (user-defined targetStreak within 2 days) > intention streak (≥7d consecutive intention-setting)
 
 import { getUpcomingMilestone } from "./habits";
 import { calcMomentumTrend } from "./momentum";
@@ -142,6 +142,14 @@ interface InsightParams {
    * When todayIsWeakHabitDay is also true (edge case), weak_day_ahead (6.8) fires first — warnings preempt positive nudges.
    */
   todayIsBestHabitDay?: boolean;
+  /**
+   * Number of consecutive calendar days (including today) on which ALL habits were completed.
+   * Derived from calcPerfectDayStreak(habits, last14Days) in App.tsx.
+   * When habitsAllDoneDate === todayStr AND this value is ≥ 3, a streak-count badge fires
+   * instead of the generic "오늘 완벽한 습관 달성!" message.
+   * Absent/undefined or < 3 = generic message; no streak count shown.
+   */
+  perfectDayStreak?: number;
 }
 
 // Habit streak milestones at which a personal-best celebration is shown (mirrors getUpcomingMilestone targets).
@@ -231,6 +239,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     todayIsWeakHabitDay,
     todayIsBestHabitDay,
     focusStreak,
+    perfectDayStreak,
   } = params;
 
   // 1. Streak at risk: evening (≥ 18h) + high streak (≥ 7) + not yet checked today
@@ -336,8 +345,13 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     }
   }
 
-  // 4. Perfect day: all habits completed today
+  // 4. Perfect day: all habits completed today.
+  // When perfectDayStreak ≥ 3, show the consecutive-day count for added motivation;
+  // otherwise fall back to a generic celebration (< 3 days is too brief to surface as a streak).
   if (habitsAllDoneDate === todayStr) {
+    if (perfectDayStreak != null && perfectDayStreak >= 3) {
+      return { text: `✨ ${perfectDayStreak}일 연속 완벽한 하루!`, level: "success" };
+    }
     return { text: "✨ 오늘 완벽한 습관 달성!", level: "success" };
   }
 
