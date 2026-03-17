@@ -428,6 +428,23 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     }
   }
 
+  // 3.95. Habit + pomodoro dual win: ALL habits completed today AND daily pomodoro session goal met.
+  // Fires BEFORE perfect_day (4): the combined cross-domain achievement is more celebratory than
+  //   either condition alone. When only habits are done (no configured goal), falls through to (4).
+  //   When only the pomodoro goal is met (habits not all done), falls through to pomodoro_goal_reached (7.5).
+  // sessionGoal > 0 guard: mirrors pomodoro_goal_reached — goal=0 or absent means "no configured goal";
+  //   in that case only habits completion is relevant, so perfect_day (4) fires instead.
+  // sessionsToday >= sessionGoal guard: fires on the exact moment the goal is met or exceeded (same
+  //   semantics as pomodoro_goal_reached at 7.5 — > 0 excess counts as goal met).
+  // open_issues (3.9) preempts this block: a GitHub backlog is a pending action item and surfaces first.
+  if (
+    habitsAllDoneDate === todayStr &&
+    sessionGoal !== undefined && sessionGoal > 0 &&
+    sessionsToday >= sessionGoal
+  ) {
+    return { text: `🏆 오늘 습관 + 포모도로 목표 모두 달성!`, level: "success" };
+  }
+
   // 4. Perfect day: all habits completed today.
   // When perfectDayStreak ≥ 3, show the consecutive-day count for added motivation;
   // otherwise fall back to a generic celebration (< 3 days is too brief to surface as a streak).

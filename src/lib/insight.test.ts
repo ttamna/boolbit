@@ -159,6 +159,141 @@ describe("calcTodayInsight", () => {
     expect(result).toBeNull();
   });
 
+  // ── habit_pomodoro_dual_win ───────────────────────────────────────────────
+  it("shouldFireDualWinWhenHabitsAllDoneAndPomodoroGoalMet", () => {
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("습관");
+    expect(result!.text).toContain("포모도로");
+  });
+
+  it("shouldFireDualWinWhenSessionsExceedGoal", () => {
+    // sessionsToday=5 > sessionGoal=3 still qualifies as goal met
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 5,
+      sessionGoal: 3,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관");
+    expect(result!.text).toContain("포모도로");
+  });
+
+  it("shouldFallThroughToPerfectDayWhenPomodoroGoalAbsent", () => {
+    // sessionGoal absent → only habits done → perfect_day fires, not dual_win
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 4,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽");
+    // must NOT be the dual_win badge
+    expect(result!.text).not.toContain("포모도로");
+  });
+
+  it("shouldFallThroughToPerfectDayWhenSessionGoalIsZero", () => {
+    // sessionGoal=0 is treated as "no configured goal" → perfect_day fires
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 4,
+      sessionGoal: 0,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽");
+    expect(result!.text).not.toContain("포모도로");
+  });
+
+  it("shouldFallThroughToPomodoroGoalReachedWhenHabitsNotAllDone", () => {
+    // habitsAllDoneDate !== TODAY → only pomodoro goal met → pomodoro_goal_reached fires
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: YESTERDAY,
+    });
+    expect(result).not.toBeNull();
+    // pomodoro_goal_reached fires — positively assert its (sessionsToday/sessionGoal) format
+    expect(result!.text).toContain("(4/4)");
+    // dual_win must NOT fire
+    expect(result!.text).not.toContain("습관");
+  });
+
+  it("shouldNotFireDualWinWhenPomodoroGoalNotYetMet", () => {
+    // sessionsToday=2 < sessionGoal=4 → habits done alone → perfect_day
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 2,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    // perfect_day fires
+    expect(result!.text).toContain("완벽");
+    expect(result!.text).not.toContain("포모도로");
+  });
+
+  it("shouldPreemptDualWinWithOpenIssues", () => {
+    // open_issues (3.9) preempts dual_win (3.95)
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+      projects: [{ name: "백엔드", status: "active", githubData: { ciStatus: null, openIssues: 6 } }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이슈"); // open_issues fires
+    expect(result!.text).not.toContain("습관"); // dual_win does NOT fire
+  });
+
+  it("shouldPreemptPerfectDayWithDualWin", () => {
+    // dual_win (3.95) preempts perfect_day (4) when both habits done and pomodoro goal met
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 3,
+      sessionGoal: 3,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    // dual_win fires (contains 포모도로), NOT plain perfect_day
+    expect(result!.text).toContain("포모도로");
+    expect(result!.text).toContain("습관");
+  });
+
   // ── perfect_day ────────────────────────────────────────────────────────────
   it("shouldReturnPerfectDayWhenAllHabitsDoneToday", () => {
     const result = calcTodayInsight({
@@ -514,7 +649,8 @@ describe("calcTodayInsight", () => {
   });
 
   it("shouldNotReturnPomodoroGoalReachedWhenPerfectDayActive", () => {
-    // perfect_day (priority 4) fires before pomodoro_goal_reached (7.5)
+    // dual_win (priority 3.95) fires when both habits done and pomodoro goal met,
+    // preempting both perfect_day (4) and pomodoro_goal_reached (7.5).
     const result = calcTodayInsight({
       habits: [habit("운동", 5, TODAY)],
       todayStr: TODAY,
@@ -525,7 +661,10 @@ describe("calcTodayInsight", () => {
       habitsAllDoneDate: TODAY,
     });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("완벽한"); // perfect_day wins
+    // dual_win fires — pomodoro_goal_reached must NOT fire (it would say "포모도로 목표 달성! (N/N)")
+    expect(result!.text).not.toContain("(3/3)"); // not pomodoro_goal_reached format
+    expect(result!.text).toContain("습관"); // dual_win contains both domain markers
+    expect(result!.text).toContain("포모도로");
   });
 
   // ── pomodoro_goal_streak ────────────────────────────────────────────────────
