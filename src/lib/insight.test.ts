@@ -7111,10 +7111,10 @@ describe("calcTodayInsight — habit_week_declined (priority 10.37, after habit_
     expect(result).toBeNull();
   });
 
-  it("shouldNotFireWhenNoDecline", () => {
-    // prevRate=70, weekRate=80 → improvement → no badge
+  it("shouldBePreemptedByHabitWeekImprovedWhenRateRose", () => {
+    // prevRate=70, weekRate=80 → improvement=10pp → habit_week_improved (10.36) fires instead; declined badge does not fire
     const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 70 });
-    expect(result).toBeNull();
+    expect(result!.level).toBe("success"); // habit_week_improved preempts — not a warning
   });
 
   it("shouldNotFireWhenHabitWeekRateAbsent", () => {
@@ -7147,6 +7147,101 @@ describe("calcTodayInsight — habit_week_declined (priority 10.37, after habit_
     // Boundary: prevRate=79, weekRate=70 → decline=9pp (< 10pp threshold) → no badge
     const result = calcTodayInsight({ ...base(), habitWeekRate: 70, habitPrevWeekRate: 79 });
     expect(result).toBeNull();
+  });
+});
+
+// ── habit_week_improved ──────────────────────────────────────────
+describe("calcTodayInsight — habit_week_improved (priority 10.36, after habit_week_excellent, before habit_week_declined)", () => {
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+  it("shouldFireWhenImprovementExactlyTenPp", () => {
+    // prevRate=70, weekRate=80 → improvement=10pp → fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 70 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWhenImprovementGreaterThanTenPp", () => {
+    // prevRate=60, weekRate=80 → improvement=20pp → fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 60 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldIncludeCurrentRateInBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 65 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("80%");
+  });
+
+  it("shouldIncludeRiseSizeInBadgeText", () => {
+    // prevRate=65, weekRate=80 → rise=15pp → "15%p" in text
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 65 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("15%p");
+  });
+
+  it("shouldNotFireWhenImprovementBelowTenPp", () => {
+    // prevRate=73, weekRate=80 → improvement=7pp → no badge
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 73 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenRateEqual", () => {
+    // prevRate=75, weekRate=75 → no change → no badge
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 75, habitPrevWeekRate: 75 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenHabitWeekRateAbsent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: undefined, habitPrevWeekRate: 70 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenHabitPrevWeekRateAbsent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: undefined });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByHabitWeekExcellentWhenCurrentRateGeq90", () => {
+    // prevRate=79, weekRate=90 → improvement=11pp BUT habit_week_excellent (10.35) fires first
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 90, habitPrevWeekRate: 79 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("90%"); // habit_week_excellent badge text
+    expect(result!.level).toBe("success"); // still success — excellent preempts
+  });
+
+  it("shouldFireWhenCurrentRateBelowExcellentThreshold", () => {
+    // prevRate=70, weekRate=89 → improvement=19pp AND rate<90 → habit_week_improved fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 89, habitPrevWeekRate: 70 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("89%");
+  });
+
+  it("shouldNotFireWhenImprovementExactlyNinePp", () => {
+    // Boundary: prevRate=71, weekRate=80 → improvement=9pp (< 10pp threshold) → no badge
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 71 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireBeforeHabitWeekDeclinedWhenBothCouldApply", () => {
+    // This case cannot both apply simultaneously: improvement and decline are mutually exclusive.
+    // Verified by shouldNotFireWhenNoDecline in habit_week_declined block.
+    // Guard: when weekRate > prevRate by ≥10pp, level is "success" not "warning"
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 82, habitPrevWeekRate: 70 });
+    expect(result!.level).toBe("success");
+    expect(result!.level).not.toBe("warning");
   });
 });
 
