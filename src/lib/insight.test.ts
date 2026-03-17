@@ -6918,3 +6918,158 @@ describe("calcTodayInsight — habit_week_excellent (priority 10.35, between alm
   });
 });
 
+// ── habit_diversity_warning (priority 10.22, after habit_consecutive_miss, before almost_perfect_day) ─────
+describe("calcTodayInsight — habit_diversity_warning (priority 10.22)", () => {
+  // nowHour:14 bypasses all morning-only checks (period_start/no_focus_project/weak_day_ahead < 12).
+  // All habits checked TODAY → remaining=0, so almost_perfect_day (≥14h, 1–2 left) cannot fire.
+  // habitsAllDoneDate:undefined → perfect_day (priority 4) does not fire.
+  // bestStreak:5 on lagging habit → prevents habit_first_check_in (requires bestStreak≤1).
+  const base = {
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  };
+
+  it("shouldFireWhenOneHabitStreakFarBelowOthersAverage", () => {
+    // 운동:1, avgOthers=(10+14)/2=12 → 1 < 12*0.3=3.6 → warning badge fires
+    const result = calcTodayInsight({
+      ...base,
+      habits: [
+        { name: "운동", streak: 1, lastChecked: TODAY, bestStreak: 5 },
+        { name: "독서", streak: 10, lastChecked: TODAY },
+        { name: "명상", streak: 14, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("뒤처져");
+  });
+
+  it("shouldNotFireWithFewerThanThreeHabits", () => {
+    // ≥3 habits required for a meaningful peer comparison; 2 habits → no badge
+    const result = calcTodayInsight({
+      ...base,
+      habits: [
+        { name: "운동", streak: 1, lastChecked: TODAY, bestStreak: 5 },
+        { name: "독서", streak: 20, lastChecked: TODAY },
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenHabitsHaveSimilarStreaks", () => {
+    // 운동:5, avgOthers=(8+7)/2=7.5 → 5 < 7.5*0.3=2.25? No → no badge
+    const result = calcTodayInsight({
+      ...base,
+      habits: [
+        { name: "운동", streak: 5, lastChecked: TODAY },
+        { name: "독서", streak: 8, lastChecked: TODAY },
+        { name: "명상", streak: 7, lastChecked: TODAY },
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenOthersAverageIsBelowNoiseFloor", () => {
+    // 운동:1, avgOthers=(3+2)/2=2.5 — below noise floor of 4 → no badge
+    const result = calcTodayInsight({
+      ...base,
+      habits: [
+        { name: "운동", streak: 1, lastChecked: TODAY, bestStreak: 5 },
+        { name: "독서", streak: 3, lastChecked: TODAY },
+        { name: "명상", streak: 2, lastChecked: TODAY },
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenCandidateStreakIsZero", () => {
+    // streak=0 excluded by streak≥1 guard; habit_consecutive_miss handles fully-stopped habits.
+    // nowHour:12 prevents almost_perfect_day (≥14h) from firing on the unchecked 운동.
+    const result = calcTodayInsight({
+      ...base,
+      nowHour: 12,
+      habits: [
+        { name: "운동", streak: 0 }, // no lastChecked, no checkHistory
+        { name: "독서", streak: 10, lastChecked: TODAY },
+        { name: "명상", streak: 14, lastChecked: TODAY },
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPickMostLaggingHabitByRatioWhenMultipleQualify", () => {
+    // 운동:1 avgOthers=(2+14+12)/3=9.33 → ratio 0.107
+    // 수영:2 avgOthers=(1+14+12)/3=9.0 → 2 < 9.0*0.3=2.7 → ratio 0.222
+    // 운동 has smaller ratio → most lagging → picked
+    const result = calcTodayInsight({
+      ...base,
+      habits: [
+        { name: "운동", streak: 1, lastChecked: TODAY, bestStreak: 5 },
+        { name: "수영", streak: 2, lastChecked: TODAY, bestStreak: 5 },
+        { name: "독서", streak: 14, lastChecked: TODAY },
+        { name: "명상", streak: 12, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동"); // most lagging by ratio
+  });
+
+  it("shouldExcludeZeroStreakHabitsFromPeerAverage", () => {
+    // streak=0 peers must be excluded from avgOthers calculation.
+    // Without fix: [운동:1, 독서:0, 명상:0, 필사:8] → avgOthers=(0+0+8)/3=2.67 < 4 → badge suppressed (wrong).
+    // With fix: active peers for 운동 = [필사:8], avgOthers=8 → 1 < 8*0.3=2.4 → badge fires (correct).
+    // nowHour:12 prevents almost_perfect_day (≥14h) on the unchecked 독서/명상.
+    const result = calcTodayInsight({
+      ...base,
+      nowHour: 12,
+      habits: [
+        { name: "운동", streak: 1, lastChecked: TODAY, bestStreak: 5 },
+        { name: "독서", streak: 0 }, // inactive — excluded from peer average
+        { name: "명상", streak: 0 }, // inactive — excluded from peer average
+        { name: "필사", streak: 8, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("뒤처져");
+  });
+
+  it("shouldBePrecededByHabitConsecutiveMiss", () => {
+    // habit_consecutive_miss (10.2) fires before diversity_warning (10.22).
+    // 독서: streak=0, 3 consecutive misses → consecutive_miss fires; chain terminates before diversity_warning.
+    const result = calcTodayInsight({
+      ...base,
+      habits: [
+        { name: "독서", streak: 0, checkHistory: [DAYS_4_AGO] },
+        { name: "운동", streak: 10, lastChecked: TODAY },
+        { name: "명상", streak: 14, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연속 미완료"); // habit_consecutive_miss wins
+  });
+
+  it("shouldPrecedeAlmostPerfectDay", () => {
+    // diversity_warning (10.22) fires before almost_perfect_day (10.3).
+    // 운동 unchecked today (remaining=1, nowHour=15) → almost_perfect_day would fire.
+    // 운동:1 << avgOthers=(12+10)/2=11 → diversity_warning fires first.
+    const result = calcTodayInsight({
+      ...base,
+      nowHour: 15,
+      habits: [
+        { name: "운동", streak: 1, lastChecked: YESTERDAY, bestStreak: 5 },
+        { name: "독서", streak: 12, lastChecked: TODAY },
+        { name: "명상", streak: 10, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("뒤처져"); // diversity_warning fires
+    expect(result!.text).not.toContain("완벽한 하루까지"); // almost_perfect_day suppressed
+  });
+});
+
