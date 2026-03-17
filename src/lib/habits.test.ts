@@ -1759,4 +1759,23 @@ describe("calcYearlyHabitReport", () => {
     expect(msg).toContain("60");
     expect(msg).toContain("올해엔 더 해봐요"); // must not fall to low tier at 60%
   });
+
+  it("shouldReturnNullWhenWindowIsEmpty", () => {
+    // Empty prevYearDays → calcHabitsWeekRate returns null → null
+    const h = makeHabit({ checkHistory: YEARLY_REPORT_WINDOW.slice(0, 5) });
+    expect(calcYearlyHabitReport([h], [])).toBeNull();
+  });
+
+  it("shouldShowLowTierMessageForProductionRealisticData", () => {
+    // Production-realistic case: checkHistory is capped at 14 entries (calcCheckInPatch line 140).
+    // 14 check-ins in a 366-day window → round(14/366 * 100) = round(3.83) = 4% → ⚠️ low tier.
+    // This is the actual message users will see in production (unless the cap is raised).
+    const h = makeHabit({ checkHistory: YEARLY_REPORT_WINDOW.slice(0, 14) });
+    const msg = calcYearlyHabitReport([h], YEARLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("4%");
+    expect(msg).toContain("다시 도전해봐요"); // low tier at ~4%
+    expect(msg).not.toContain("훌륭해요");
+    expect(msg).not.toContain("올해엔 더 해봐요");
+  });
 });
