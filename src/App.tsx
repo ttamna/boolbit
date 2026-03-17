@@ -1314,6 +1314,8 @@ export default function App() {
     pomodoroRecentAvg,
     intentionConsecutiveDays,
     intentionDoneStreak,
+    // momentumStreak: consecutive days with momentum score ≥ 40; fires milestone badge at 7/14/30 days.
+    momentumStreak,
     focusStreak,
     // perfectDayStreak: consecutive days all habits completed including today — same 14-day window used by HabitStreak.
     // When ≥ 3, the perfect_day badge shows the streak count instead of a generic celebration.

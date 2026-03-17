@@ -6452,3 +6452,122 @@ describe("calcTodayInsight — pomodoro_week_record (priority 7.495, between pom
     expect(result!.text).not.toContain("목표 달성");
   });
 });
+
+describe("calcTodayInsight — momentum_streak_milestone (priority 10.46, between pomodoro_today_above_avg and momentum_rise)", () => {
+  // Base: afternoon, intention set, no habits, no sessions — no competing insights at this priority band.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  // today's entry with score ≥ 40 is required for the badge to fire (double-fire guard)
+  const todayQualifying = [{ date: TODAY, score: 55, tier: "mid" as const }];
+
+  it("shouldReturnMilestoneAt7Days", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 7, momentumHistory: todayQualifying });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7");
+    expect(result!.text).toContain("모멘텀");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldReturnMilestoneAt14Days", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 14, momentumHistory: todayQualifying });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldReturnMilestoneAt30Days", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 30, momentumHistory: todayQualifying });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("30");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireForNonMilestoneStreak8", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 8, momentumHistory: todayQualifying });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireForNonMilestoneStreak6", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 6, momentumHistory: todayQualifying });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireForStreak0", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 0, momentumHistory: todayQualifying });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenMomentumStreakAbsent", () => {
+    const result = calcTodayInsight({ ...base(), momentumHistory: todayQualifying });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenTodayEntryAbsentFromHistory", () => {
+    // today entry absent → score unknown → treat as not qualifying (same as score < 40)
+    const result = calcTodayInsight({
+      ...base(),
+      momentumStreak: 7,
+      momentumHistory: [{ date: YESTERDAY, score: 70, tier: "high" as const }], // no today entry
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByPomodoroAboveAvgWhenBothConditionsMet", () => {
+    // pomodoro_today_above_avg (10.45) fires BEFORE momentum_streak_milestone (10.46) in the priority chain
+    const result = calcTodayInsight({
+      ...base(),
+      momentumStreak: 7,
+      momentumHistory: todayQualifying, // today qualifies so milestone guard passes
+      sessionsToday: 5,
+      pomodoroRecentAvg: 3, // 5 - 3 = 2 ≥ 2 → above_avg fires first
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("평소보다"); // above_avg badge shown
+    expect(result!.text).not.toContain("연속"); // milestone badge suppressed
+  });
+
+  it("shouldFireBeforeMomentumRiseWhenBothConditionsMet", () => {
+    // momentum_streak_milestone (10.46) fires BEFORE momentum_rise (10.5) in the priority chain
+    const rising = [
+      { date: DAYS_2_AGO, score: 50, tier: "mid" as const },
+      { date: YESTERDAY, score: 60, tier: "mid" as const },
+      { date: TODAY, score: 70, tier: "mid" as const },
+    ];
+    const result = calcTodayInsight({
+      ...base(),
+      momentumStreak: 7,
+      momentumHistory: rising, // 3-day rising trend also qualifies; today score=70 ≥ 40 → milestone fires
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7");
+    expect(result!.text).toContain("모멘텀");
+    expect(result!.text).not.toContain("상승"); // momentum_rise message suppressed
+  });
+
+  it("shouldNotFireWhenTodayScoreNotQualifyingPreventingDoubleFire", () => {
+    // Simulates day-8 morning: streak=7 returned by calcMomentumStreak (counting days 1-7),
+    // but today's score is 10 (no activity yet, score < 40) — badge must be suppressed.
+    const result = calcTodayInsight({
+      ...base(),
+      momentumStreak: 7,
+      momentumHistory: [
+        { date: DAYS_6_AGO, score: 50, tier: "mid" as const },
+        { date: DAYS_5_AGO, score: 55, tier: "mid" as const },
+        { date: DAYS_4_AGO, score: 60, tier: "mid" as const },
+        { date: DAYS_3_AGO, score: 45, tier: "mid" as const },
+        { date: DAYS_2_AGO, score: 50, tier: "mid" as const },
+        { date: YESTERDAY, score: 70, tier: "high" as const },
+        { date: TODAY, score: 10, tier: "low" as const }, // today's activity not yet done
+      ],
+    });
+    expect(result).toBeNull(); // double-fire guard prevents re-emission
+  });
+});
