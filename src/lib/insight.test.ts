@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_done, pomodoro_today_above_avg)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, pomodoro_week_record, momentum_decline + momentum_rise, open_issues, intention_done, pomodoro_today_above_avg)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -6177,4 +6177,76 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     });
   });
 
+});
+
+describe("calcTodayInsight — pomodoro_week_record (priority 7.495, between pomodoro_day_record and pomodoro_goal_reached)", () => {
+  // Base: afternoon, intention set, no habits, no goal, no competing insights.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 3,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldReturnWeekRecordWhenPomodoroWeekRecordIsPositiveNumber", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroWeekRecord: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("주간 신기록");
+    expect(result!.text).toContain("7");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotReturnWeekRecordWhenPomodoroWeekRecordIsFalse", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroWeekRecord: false });
+    expect(result?.text ?? "").not.toContain("주간 신기록");
+  });
+
+  it("shouldNotReturnWeekRecordWhenPomodoroWeekRecordAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result?.text ?? "").not.toContain("주간 신기록");
+  });
+
+  it("shouldBePreemptedByPomodoroDayRecord", () => {
+    // day_record (7.49) fires before week_record (7.495) when both conditions are met.
+    // sessionsToday=6 > pomodoroSessionBest=5 → day record fires; week record not shown.
+    const result = calcTodayInsight({
+      ...base(), sessionsToday: 6, pomodoroSessionBest: 5, pomodoroWeekRecord: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("오늘 포모도로 신기록"); // day record wins
+    expect(result!.text).not.toContain("주간 신기록");
+  });
+
+  it("shouldFireWhenDayRecordConditionNotMet", () => {
+    // sessionsToday=4 equals pomodoroSessionBest=4 → day record does NOT fire (not strictly greater).
+    // week record fires instead.
+    const result = calcTodayInsight({
+      ...base(), sessionsToday: 4, pomodoroSessionBest: 4, pomodoroWeekRecord: 9,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("주간 신기록");
+    expect(result!.text).toContain("9");
+  });
+
+  it("shouldFireBeforeGoalReachedWhenBothConditionsMet", () => {
+    // week_record (7.495) fires before goal_reached (7.5) when both are true.
+    const result = calcTodayInsight({
+      ...base(), sessionsToday: 4, sessionGoal: 4, pomodoroWeekRecord: 9,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("주간 신기록"); // week record preempts goal_reached
+    expect(result!.text).not.toContain("목표 달성");
+  });
+
+  it("shouldFireGoalReachedWhenNoWeekRecord", () => {
+    // When week record is absent/false, goal_reached fires as expected.
+    const result = calcTodayInsight({
+      ...base(), sessionsToday: 4, sessionGoal: 4, pomodoroWeekRecord: false,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("목표 달성");
+  });
 });

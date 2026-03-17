@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -1240,6 +1240,9 @@ export default function App() {
   // excluded inside calcPomodoroRecentAvg via the todayStr filter — this exclusion is load-bearing.
   // Passed to calcTodayInsight for the pomodoro_today_above_avg badge (priority 10.45).
   const pomodoroRecentAvg = calcPomodoroRecentAvg(data.pomodoroHistory ?? [], todayStr);
+  // pomodoroWeekRecord: current ISO-week total when it beats the same-length prev-week window, or false.
+  // Passed to calcTodayInsight for the pomodoro_week_record badge (priority 7.495).
+  const pomodoroWeekRecord = calcPomodoroWeekRecord(data.pomodoroHistory ?? [], todayStr);
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1295,6 +1298,7 @@ export default function App() {
     pomodoroGoalStreak,
     pomodoroSessionBest,
     pomodoroRecentAvg,
+    pomodoroWeekRecord,
     intentionConsecutiveDays,
     focusStreak,
     // todayIsWeakHabitDay / todayIsBestHabitDay: derived from the same per-weekday rates computed once.

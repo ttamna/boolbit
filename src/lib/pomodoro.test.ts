@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, goal-streak consecutive past days, and recent rolling average sessions (today excluded)
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), and week-over-week session record detection
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./pomodoro";
 import { colors } from "../theme";
 import type { PomodoroDay } from "../types";
 
@@ -954,6 +954,128 @@ describe("calcPomodoroRecentAvg", () => {
       { date: "2026-03-14", count: 4 },
     ];
     expect(calcPomodoroRecentAvg(history, TODAY)).toBe(2); // (0+4)/2
+  });
+});
+
+describe("calcPomodoroWeekRecord", () => {
+  // Fixtures anchored to 2026-03-17 (Tuesday).
+  // ISO week: Mon 2026-03-16 – Tue 2026-03-17 (current), Mon 2026-03-09 – Tue 2026-03-10 (prev, same window).
+  const TUESDAY = "2026-03-17";
+
+  it("shouldReturnFalseForEmptyHistory", () => {
+    expect(calcPomodoroWeekRecord([], TUESDAY)).toBe(false);
+  });
+
+  it("shouldReturnFalseWhenNoPrevWeekData", () => {
+    // Only current-week entries — prev window has no data, so no record can be claimed.
+    const history: PomodoroDay[] = [
+      { date: "2026-03-16", count: 3 },
+      { date: "2026-03-17", count: 4 },
+    ];
+    expect(calcPomodoroWeekRecord(history, TUESDAY)).toBe(false);
+  });
+
+  it("shouldReturnFalseWhenCurrentWeekHasNoSessions", () => {
+    // Prev week has sessions; current week total = 0 — no record.
+    const history: PomodoroDay[] = [
+      { date: "2026-03-09", count: 3 },
+      { date: "2026-03-10", count: 2 },
+    ];
+    expect(calcPomodoroWeekRecord(history, TUESDAY)).toBe(false);
+  });
+
+  it("shouldReturnCurrentWeekTotalWhenItExceedsPrevWeek", () => {
+    // Prev Mon-Tue: 3+2=5; current Mon-Tue: 3+4=7 → 7 > 5 → returns 7 (current week total).
+    const history: PomodoroDay[] = [
+      { date: "2026-03-09", count: 3 },
+      { date: "2026-03-10", count: 2 },
+      { date: "2026-03-16", count: 3 },
+      { date: "2026-03-17", count: 4 },
+    ];
+    expect(calcPomodoroWeekRecord(history, TUESDAY)).toBe(7);
+  });
+
+  it("shouldReturnFalseWhenCurrentWeekEqualsPrevWeek", () => {
+    // Equal totals (5 vs 5) do not constitute a record.
+    const history: PomodoroDay[] = [
+      { date: "2026-03-09", count: 3 },
+      { date: "2026-03-10", count: 2 },
+      { date: "2026-03-16", count: 2 },
+      { date: "2026-03-17", count: 3 },
+    ];
+    expect(calcPomodoroWeekRecord(history, TUESDAY)).toBe(false);
+  });
+
+  it("shouldReturnFalseWhenCurrentWeekBelowPrevWeek", () => {
+    // Prev: 4+4=8; current: 2+3=5 → behind, not a record.
+    const history: PomodoroDay[] = [
+      { date: "2026-03-09", count: 4 },
+      { date: "2026-03-10", count: 4 },
+      { date: "2026-03-16", count: 2 },
+      { date: "2026-03-17", count: 3 },
+    ];
+    expect(calcPomodoroWeekRecord(history, TUESDAY)).toBe(false);
+  });
+
+  it("shouldWorkForMondayComparingOnlyOneDay", () => {
+    // today = Monday 2026-03-16; window = Mon only. Prev Mon 2026-03-09: 2 sessions, current: 3 → returns 3.
+    const monday = "2026-03-16";
+    const history: PomodoroDay[] = [
+      { date: "2026-03-09", count: 2 },
+      { date: "2026-03-16", count: 3 },
+    ];
+    expect(calcPomodoroWeekRecord(history, monday)).toBe(3);
+  });
+
+  it("shouldWorkForSundayComparingFullWeek", () => {
+    // today = Sunday 2026-03-15; window = Mon 2026-03-09 through Sun 2026-03-15 (current, total 21),
+    //   Mon 2026-03-02 through Sun 2026-03-08 (prev, total 14). Fits within 14-day history cap.
+    const sunday = "2026-03-15";
+    const history: PomodoroDay[] = [
+      { date: "2026-03-02", count: 2 }, { date: "2026-03-03", count: 2 }, { date: "2026-03-04", count: 2 },
+      { date: "2026-03-05", count: 2 }, { date: "2026-03-06", count: 2 }, { date: "2026-03-07", count: 2 },
+      { date: "2026-03-08", count: 2 }, // prev week: 14 total
+      { date: "2026-03-09", count: 3 }, { date: "2026-03-10", count: 3 }, { date: "2026-03-11", count: 3 },
+      { date: "2026-03-12", count: 3 }, { date: "2026-03-13", count: 3 }, { date: "2026-03-14", count: 3 },
+      { date: "2026-03-15", count: 3 }, // current week: 21 total
+    ];
+    expect(calcPomodoroWeekRecord(history, sunday)).toBe(21); // current week: 7 × 3 = 21
+  });
+
+  it("shouldHandleMonthBoundaryCorrectly", () => {
+    // today = 2026-03-02 (Monday); prev Mon = 2026-02-23. Returns 4 (current Mon sessions).
+    const monday = "2026-03-02";
+    const history: PomodoroDay[] = [
+      { date: "2026-02-23", count: 3 },
+      { date: "2026-03-02", count: 4 },
+    ];
+    expect(calcPomodoroWeekRecord(history, monday)).toBe(4);
+  });
+
+  it("shouldComparePrevWeekUsingOnlyAvailableHistoryEntries", () => {
+    // When some prev-week entries are absent (e.g. evicted by 14-day rolling cap or user inactivity),
+    // only the entries present in history are counted — absent dates contribute 0 to prevWeekTotal.
+    // In this fixture, prev-week Mon (2026-03-09) is absent; only Tue (2026-03-10, 4 sessions) exists.
+    // currentWeekTotal: 5 (Mon 3) + 3 (Tue 2) = but wait — let me set up clearly:
+    // prev window (Mon-Tue): only Tue present → prevWeekTotal = 2.
+    // current window (Mon-Tue): both present → thisWeekTotal = 3+4 = 7 > 2 → returns 7.
+    const history: PomodoroDay[] = [
+      { date: "2026-03-10", count: 2 }, // only Tue of prev week (Mon 2026-03-09 absent)
+      { date: "2026-03-16", count: 3 }, // current Mon
+      { date: "2026-03-17", count: 4 }, // current Tue
+    ];
+    expect(calcPomodoroWeekRecord(history, TUESDAY)).toBe(7); // 7 > 2 (partial prev) → 7
+  });
+
+  it("shouldIgnoreEntriesOutsideBothWindows", () => {
+    // Entry 3 weeks ago should not be counted in either window.
+    // Prev Mon-Tue (2026-03-09, 2026-03-10) both absent → prevWeekTotal=0 → false.
+    const history: PomodoroDay[] = [
+      { date: "2026-02-28", count: 10 }, // 3 weeks ago — not in either window
+      { date: "2026-03-16", count: 5 },  // current Mon
+      { date: "2026-03-17", count: 3 },  // current Tue
+    ];
+    expect(calcPomodoroWeekRecord(history, TUESDAY)).toBe(false);
   });
 });
 

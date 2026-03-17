@@ -1,5 +1,5 @@
 // ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, and lifetime milestone notifications
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, goal-streak consecutive past days, and recent rolling average sessions (today excluded)
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, goal-streak consecutive past days, recent rolling average sessions (today excluded), and week-over-week session record detection
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -319,6 +319,51 @@ export function calcPomodoroRecentAvg(
   const past = history.filter(d => d.date !== todayStr);
   if (past.length === 0) return 0;
   return past.reduce((sum, d) => sum + d.count, 0) / past.length;
+}
+
+// Returns the current ISO-week session total when it strictly exceeds the previous ISO week's total
+// for the same-length window (Mon–today vs. Mon–same-weekday-last-week), or false when not a record.
+// Returning the current total (rather than a boolean) lets callers display the count in a badge.
+// Comparison is anchored to the same weekday so a Monday-only current week is compared only against
+// the previous Monday — fair at any point in the week, not just at week-end.
+// Uses local-midnight Date arithmetic to avoid timezone shifts; same pattern as calcPomodoroGoalStreak.
+// Returns false when either window has zero sessions (no meaningful baseline to beat).
+// Exported for unit testing; pure function with no side effects.
+export function calcPomodoroWeekRecord(
+  history: PomodoroDay[],
+  todayStr: string,
+): number | false {
+  // Uses local-midnight Date arithmetic (same pattern as calcPomodoroGoalStreak) to avoid UTC shifts.
+  const [yr, mo, day] = todayStr.split("-").map(Number);
+  const today = new Date(yr, mo - 1, day); // local midnight
+  const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon … 6=Sat
+  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // ISO: Mon=0 offset
+
+  // Build date sets for current and prev windows (same number of days, Mon–today in each).
+  // Note: prevDates uses only the subset of the previous week that mirrors the current-week window
+  // (e.g. Monday-only on a Monday, Mon–Wed on a Wednesday). This makes the comparison pace-fair.
+  // When prev-week entries are absent from history (evicted by the 14-day rolling cap or user inactivity),
+  // only the available entries are summed — absent dates contribute 0. prevWeekTotal=0 returns false.
+  const currentDates = new Set<string>();
+  const prevDates = new Set<string>();
+  for (let i = 0; i <= daysFromMonday; i++) {
+    const cur = new Date(yr, mo - 1, day - daysFromMonday + i);
+    currentDates.add(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`);
+
+    const prev = new Date(yr, mo - 1, day - daysFromMonday + i - 7);
+    prevDates.add(`${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}-${String(prev.getDate()).padStart(2, "0")}`);
+  }
+
+  let thisWeekTotal = 0;
+  let prevWeekTotal = 0;
+  for (const entry of history) {
+    if (currentDates.has(entry.date)) thisWeekTotal += entry.count;
+    else if (prevDates.has(entry.date)) prevWeekTotal += entry.count;
+  }
+
+  return thisWeekTotal > 0 && prevWeekTotal > 0 && thisWeekTotal > prevWeekTotal
+    ? thisWeekTotal
+    : false;
 }
 
 // Returns the desktop notification body when the daily pomodoro goal has not been reached by evening.
