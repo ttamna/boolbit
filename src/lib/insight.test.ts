@@ -7400,3 +7400,195 @@ describe("calcTodayInsight — habit_diversity_warning (priority 10.22)", () => 
   });
 });
 
+// ── habit_target_halfway ──────────────────────────────────────────
+describe("calcTodayInsight — habit_target_halfway (priority 11.06, between habit_target_near and intention_streak)", () => {
+  // weekGoal: "test" suppresses period_start nudge (TODAY = "2024-01-15" is a Monday).
+  // todayIntentionDate: TODAY suppresses intention_missing.
+
+  it("shouldReturnHabitTargetHalfwayWhenAtMidpoint", () => {
+    // streak=15, targetStreak=30 → midpoint=15 → fires
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 15, lastChecked: TODAY, targetStreak: 30 }],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("15");
+    expect(result!.text).toContain("30");
+    expect(result!.text).toContain("절반");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldReturnHabitTargetHalfwayForOddTarget", () => {
+    // streak=10, targetStreak=21 → Math.floor(21/2)=10 → fires
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 10, lastChecked: TODAY, targetStreak: 21 }],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("독서");
+    expect(result!.text).toContain("10");
+    expect(result!.text).toContain("21");
+    expect(result!.text).toContain("절반");
+  });
+
+  it("shouldNotFireWhenNotCheckedToday", () => {
+    // streak=15, targetStreak=30, lastChecked=YESTERDAY → today's check-in guard not met → no fire
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 15, lastChecked: YESTERDAY, targetStreak: 30 }],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenTargetTooSmall", () => {
+    // targetStreak=12 < 14 minimum → no fire even at exact midpoint (streak=6)
+    const result = calcTodayInsight({
+      habits: [{ name: "명상", streak: 6, lastChecked: TODAY, targetStreak: 12 }],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenNotAtMidpoint", () => {
+    // streak=14, targetStreak=30 → midpoint=15, 14≠15 → no fire
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 14, lastChecked: TODAY, targetStreak: 30 }],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldHabitTargetNearFireBeforeHabitTargetHalfway", () => {
+    // 독서: streak=9, targetStreak=10, gap=1 → habit_target_near (11.05) fires
+    // 운동: streak=15, targetStreak=30, halfway → habit_target_halfway (11.06) would fire
+    // habit_target_near has higher priority (11.05 < 11.06)
+    // Both checked today: confirms ordering is due to priority, not missing lastChecked guard.
+    const result = calcTodayInsight({
+      habits: [
+        { name: "독서", streak: 9, lastChecked: TODAY, targetStreak: 10 },
+        { name: "운동", streak: 15, lastChecked: TODAY, targetStreak: 30 },
+      ],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("10일까지 1일"); // habit_target_near fires
+    expect(result!.text).not.toContain("절반"); // habit_target_halfway suppressed
+  });
+
+  it("shouldReturnHabitTargetHalfwayForMinimumTarget", () => {
+    // targetStreak=14 (minimum), streak=7, bestStreak=12.
+    // bestStreak=12: gap=5 > 2 → approachBest(11.02) skips; bestStreak < 14 → habit_comeback(6.9) skips;
+    // bestStreak ≠ streak → personal_best(11) skips. habit_target_halfway fires.
+    const result = calcTodayInsight({
+      habits: [{ name: "명상", streak: 7, lastChecked: TODAY, targetStreak: 14, bestStreak: 12 }],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("명상");
+    expect(result!.text).toContain("7");
+    expect(result!.text).toContain("14");
+    expect(result!.text).toContain("절반");
+  });
+
+  it("shouldPersonalBestSuppressHabitTargetHalfway", () => {
+    // targetStreak=14, streak=7, bestStreak=7: 7 is in PERSONAL_BEST_MILESTONES and bestStreak===streak
+    // → personal_best (priority 11) fires before habit_target_halfway (11.06)
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 7, lastChecked: TODAY, targetStreak: 14, bestStreak: 7 }],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("역대 최고"); // personal_best fires
+    expect(result!.text).not.toContain("절반"); // habit_target_halfway suppressed
+  });
+
+  it("shouldHabitComebackSuppressHabitTargetHalfway", () => {
+    // targetStreak=14, streak=7, bestStreak=14: habit_comeback (6.9) fires
+    // (bestStreak≥14, streak≥3, streak < bestStreak, lastChecked=today)
+    const result = calcTodayInsight({
+      habits: [{ name: "독서", streak: 7, lastChecked: TODAY, targetStreak: 14, bestStreak: 14 }],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("회복 중"); // habit_comeback fires
+    expect(result!.text).not.toContain("절반"); // habit_target_halfway suppressed
+  });
+
+  it("shouldPickHabitWithHighestTargetWhenMultipleAtMidpoint", () => {
+    // 두 습관 모두 midpoint: 독서(15/30), 운동(50/100). targetStreak 높은 것(100) 우선.
+    const result = calcTodayInsight({
+      habits: [
+        { name: "독서", streak: 15, lastChecked: TODAY, targetStreak: 30 },
+        { name: "운동", streak: 50, lastChecked: TODAY, targetStreak: 100 },
+      ],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      weekGoal: "test",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동"); // higher target (100) selected
+    expect(result!.text).toContain("50");
+    expect(result!.text).toContain("100");
+    expect(result!.text).not.toContain("독서");
+  });
+});
+
