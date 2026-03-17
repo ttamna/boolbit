@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, and per-weekday best/weak day detection
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, and per-weekday best/weak day detection
 
 import type { Habit } from "../types";
 
@@ -448,4 +448,19 @@ export function calcHabitMorningReminder(
   if (habits.length === 0) return null;
   if (habits.some(h => h.lastChecked === todayStr)) return null;
   return `✅ 오늘의 습관을 시작해보세요! ${habits.length}개가 기다리고 있어요.`;
+}
+
+// Returns a desktop-notification body summarising last month's average daily habit completion rate.
+// Fires on the 1st of each month at 09:00+ via the monthlyHabitReportDate guard in App.tsx.
+// prevMonthDays: all calendar days of the previous month — caller uses calcLastNDays(yesterday, yesterday.getDate())
+//   so the window length matches the actual month length (28/29/30/31) rather than a fixed 30 days.
+// Returns null when habits is empty or no habit has any check-in within the window.
+// Exported for unit testing; pure function with no side effects.
+export function calcMonthlyHabitReport(habits: Habit[], prevMonthDays: string[]): string | null {
+  const rate = calcHabitsWeekRate(habits, prevMonthDays);
+  if (rate === null) return null;
+  if (rate === 100) return `🌟 지난달 습관 완료율 100% — 완벽한 한 달!`;
+  if (rate >= 80) return `✅ 지난달 습관 완료율 ${rate}% — 훌륭해요!`;
+  if (rate >= 60) return `📊 지난달 습관 완료율 ${rate}% — 이번 달엔 더 해봐요!`;
+  return `⚠️ 지난달 습관 완료율 ${rate}% — 다시 도전해봐요!`;
 }

@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, and calcHabitMorningReminder pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, per-weekday habit completion rate analysis, and morning habit activation nudge
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, and calcHabitMorningReminder pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, per-weekday habit completion rate analysis, and morning habit activation nudge
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -1479,5 +1479,100 @@ describe("calcHabitMorningReminder — morning habit activation nudge (9:00+, no
     const result = calcHabitMorningReminder(habits, TODAY);
     expect(result).not.toBeNull();
     expect(result).toContain("1개");
+  });
+});
+
+// December 2025 (31 days): mirrors the production window on 2026-01-01 where yesterday = 2025-12-31
+// and calcLastNDays("2025-12-31", 31) = 2025-12-01 … 2025-12-31.
+// Uses new Date(y, m, d) + toLocaleDateString("sv") to avoid UTC offset shifting the date string
+// (toISOString() uses UTC which causes off-by-one at UTC+N timezones like KST UTC+9).
+const MONTHLY_REPORT_WINDOW: string[] = Array.from({ length: 31 }, (_, i) => {
+  const d = new Date(2025, 11, 1 + i); // month 11 = December
+  return d.toLocaleDateString("sv"); // YYYY-MM-DD in local timezone
+});
+
+describe("calcMonthlyHabitReport", () => {
+  it("shouldReturnNullWhenHabitsIsEmpty", () => {
+    expect(calcMonthlyHabitReport([], MONTHLY_REPORT_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenNoCheckHistoryInWindow", () => {
+    // checkHistory entirely outside the monthly window (November 2025, not December 2025)
+    const h = makeHabit({ checkHistory: ["2025-11-01", "2025-11-30"] });
+    expect(calcMonthlyHabitReport([h], MONTHLY_REPORT_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenHabitHasNoCheckHistory", () => {
+    // checkHistory absent — no data to report
+    const h = makeHabit();
+    expect(calcMonthlyHabitReport([h], MONTHLY_REPORT_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturn100PctMessageWhenAllHabitsCompletedEveryDay", () => {
+    // 1 habit checked all 30 days → rate = 100%
+    const h = makeHabit({ checkHistory: [...MONTHLY_REPORT_WINDOW] });
+    const msg = calcMonthlyHabitReport([h], MONTHLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("100");
+    expect(msg).toContain("완벽한 한 달");
+  });
+
+  it("shouldReturnHighTierMessageWhenRateAtLeast80", () => {
+    // 1 habit, 26/31 days → round(26/31 * 100) = 84% (≥80, <100)
+    const h = makeHabit({ checkHistory: MONTHLY_REPORT_WINDOW.slice(0, 26) });
+    const msg = calcMonthlyHabitReport([h], MONTHLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("84");
+    expect(msg).toContain("훌륭해요");
+    expect(msg).not.toContain("이번 달엔 더 해봐요");
+    expect(msg).not.toContain("다시 도전해봐요");
+  });
+
+  it("shouldReturnMidTierMessageWhenRateBetween60And80", () => {
+    // 1 habit, 22/31 days → round(22/31 * 100) = 71% (≥60, <80)
+    const h = makeHabit({ checkHistory: MONTHLY_REPORT_WINDOW.slice(0, 22) });
+    const msg = calcMonthlyHabitReport([h], MONTHLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("71");
+    expect(msg).toContain("이번 달엔 더 해봐요");
+  });
+
+  it("shouldReturnLowTierMessageWhenRateBelow60", () => {
+    // 1 habit, 18/31 days → round(18/31 * 100) = 58% (<60)
+    const h = makeHabit({ checkHistory: MONTHLY_REPORT_WINDOW.slice(0, 18) });
+    const msg = calcMonthlyHabitReport([h], MONTHLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("58");
+    expect(msg).toContain("다시 도전해봐요");
+  });
+
+  it("shouldHandleMultipleHabitsAllComplete", () => {
+    // 2 habits both checked all 31 days → 100%
+    const h1 = makeHabit({ checkHistory: [...MONTHLY_REPORT_WINDOW] });
+    const h2 = makeHabit({ checkHistory: [...MONTHLY_REPORT_WINDOW] });
+    const msg = calcMonthlyHabitReport([h1, h2], MONTHLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("100");
+  });
+
+  it("shouldReturnHighTierMessageAtExactly80Pct", () => {
+    // Use 5-day sub-window: 4/5 days → round(4/5 * 100) = 80% — exact boundary of ≥80 (high tier)
+    const window5 = MONTHLY_REPORT_WINDOW.slice(0, 5);
+    const h = makeHabit({ checkHistory: window5.slice(0, 4) });
+    const msg = calcMonthlyHabitReport([h], window5);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("80");
+    expect(msg).toContain("훌륭해요"); // must be high tier at exactly 80%
+    expect(msg).not.toContain("이번 달엔 더 해봐요"); // must not fall to mid tier at 80%
+  });
+
+  it("shouldReturnMidTierMessageAtExactly60Pct", () => {
+    // Use 5-day sub-window: 3/5 days → round(3/5 * 100) = 60% — exact boundary of ≥60 (mid tier)
+    const window5 = MONTHLY_REPORT_WINDOW.slice(0, 5);
+    const h = makeHabit({ checkHistory: window5.slice(0, 3) });
+    const msg = calcMonthlyHabitReport([h], window5);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("60");
+    expect(msg).toContain("이번 달엔 더 해봐요"); // must not fall to low tier at 60%
   });
 });
