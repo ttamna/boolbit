@@ -1,5 +1,5 @@
 // ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
-// ABOUTME: updateMomentumHistory — upserts today's score into rolling 7-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection; calcMomentumEveningDigest — end-of-day score summary notification body; calcWeeklyMomentumReport — Monday morning last-week avg + tier distribution report
+// ABOUTME: updateMomentumHistory — upserts today's score into rolling 31-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection; calcMomentumEveningDigest — end-of-day score summary notification body; calcWeeklyMomentumReport — Monday morning last-week avg + tier distribution report; calcMonthlyMomentumReport — 1st-of-month previous calendar month avg + tier distribution report
 
 import type { MomentumEntry } from "../types";
 
@@ -72,13 +72,13 @@ export function calcDailyScore(params: DailyScoreParams): DailyScore {
   return { score, tier, breakdown: { habits: habitsScore, pomodoro: pomodoroScore, intention: intentionScore } };
 }
 
-const MOMENTUM_HISTORY_CAP = 7;
+const MOMENTUM_HISTORY_CAP = 31;
 
 /**
- * Upserts today's momentum score into a rolling 7-day history array.
+ * Upserts today's momentum score into a rolling 31-day history array.
  * - If today's date already exists, updates its score and tier.
  * - Otherwise appends a new entry (newest last).
- * - Caps the array at 7 entries, dropping the oldest when exceeded.
+ * - Caps the array at 31 entries, dropping the oldest when exceeded.
  */
 export function updateMomentumHistory(
   history: MomentumEntry[],
@@ -135,9 +135,9 @@ export function calcMomentumStreak(history: MomentumEntry[], todayStr: string): 
 }
 
 /**
- * Returns the rounded average momentum score across the provided history window.
- * history is expected to be the rolling 7-day array managed by updateMomentumHistory
- * (capped at MOMENTUM_HISTORY_CAP=7) — the "Week" in the name reflects that contract.
+ * Returns the rounded average momentum score across the provided history entries.
+ * Callers typically pass the full rolling history (up to 31 days) and rely on the average
+ * as a "recent weeks" signal — the "Week" in the name reflects the original 7-day contract.
  * Returns null when there are fewer than 2 entries — a single data point does not
  * constitute a meaningful window average.
  */
@@ -221,4 +221,39 @@ export function calcWeeklyMomentumReport(history: MomentumEntry[], last7Days: st
   if (avg >= 75) return `🔥 지난주 모멘텀 평균 ${avg}점 — 최고의 한 주!${dist}`;
   if (avg >= 40) return `✅ 지난주 모멘텀 평균 ${avg}점 — 잘 하고 있어요!${dist}`;
   return `💪 지난주 모멘텀 평균 ${avg}점 — 이번 주엔 더 힘내봐요!${dist}`;
+}
+
+/**
+ * Returns the 1st-of-month morning retrospective for the previous calendar month's momentum.
+ * prevMonthDays: YYYY-MM-DD strings for every day of the previous calendar month (28–31 entries).
+ * history: rolling MomentumEntry array; only entries whose date is in prevMonthDays are used.
+ * Returns null when fewer than 10 entries fall within the window (insufficient data for a meaningful report).
+ * Tier distribution format: "🔥N ✅N 💪N" — zero-count tiers are omitted.
+ * Lead emoji mirrors calcWeeklyMomentumReport tier thresholds: avg≥75=🔥, avg≥40=✅, else=💪.
+ * Hour/day guards (1st of month, getHours() >= 9) live in the caller (App.tsx useEffect).
+ * Callers check monthlyMomentumReportDate before invoking to ensure once-per-month delivery.
+ * Exported for unit testing; pure function with no side effects.
+ */
+export function calcMonthlyMomentumReport(history: MomentumEntry[], prevMonthDays: string[]): string | null {
+  const window = new Set(prevMonthDays);
+  const entries = history.filter(e => window.has(e.date));
+  if (entries.length < 10) return null;
+
+  const avg = Math.round(entries.reduce((s, e) => s + e.score, 0) / entries.length);
+
+  const highDays = entries.filter(e => e.tier === "high").length;
+  const midDays = entries.filter(e => e.tier === "mid").length;
+  const lowDays = entries.filter(e => e.tier === "low").length;
+
+  const tierParts = [
+    highDays > 0 ? `🔥${highDays}` : null,
+    midDays > 0 ? `✅${midDays}` : null,
+    lowDays > 0 ? `💪${lowDays}` : null,
+  ].filter(Boolean).join(" ");
+
+  const dist = tierParts ? ` (${tierParts})` : "";
+
+  if (avg >= 75) return `🔥 지난달 모멘텀 평균 ${avg}점 — 최고의 한 달!${dist}`;
+  if (avg >= 40) return `✅ 지난달 모멘텀 평균 ${avg}점 — 잘 하고 있어요!${dist}`;
+  return `💪 지난달 모멘텀 평균 ${avg}점 — 이번 달엔 더 힘내봐요!${dist}`;
 }

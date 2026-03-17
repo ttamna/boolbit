@@ -20,7 +20,7 @@ import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./lib/pomodoro";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport } from "./lib/momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
@@ -769,6 +769,35 @@ export default function App() {
     })();
   }, [data.momentumHistory, data.weeklyMomentumReportDate, loaded, persist]);
 
+  // 1st-of-month morning monthly momentum avg + tier distribution report — fires once per month-1st at 9:00+.
+  // Reports the previous calendar month's average score and tier breakdown (requires ≥10 entries in the window).
+  // monthlyMomentumReportDate persists the guard so it fires only once per month-1st even after restart.
+  // Design: yesterday-ending window (= last day of prev month) covers all calendar days of the previous month.
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.monthlyMomentumReportDate === today) return;
+    if (now.getDate() !== 1) return;  // only 1st of month
+    if (now.getHours() < 9) return;   // after 09:00
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    // yesterday.getDate() = last day of prev month = total days in prev month (28–31)
+    const prevMonthDays = calcLastNDays(yesterday.toLocaleDateString("sv"), yesterday.getDate());
+    const msg = calcMonthlyMomentumReport(data.momentumHistory ?? [], prevMonthDays);
+    if (!msg) return;
+    persist({ ...dataRef.current, monthlyMomentumReportDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.momentumHistory, data.monthlyMomentumReportDate, loaded, persist]);
+
   // Monday morning weekly pomodoro session count report — fires once per Monday at 9:00+.
   // Reports the previous week's (7 days ending yesterday) total session count and active-day count.
   // weeklyPomodoroReportDate persists the guard so it fires only once per Monday even after restart.
@@ -1385,7 +1414,7 @@ export default function App() {
   });
   // momentumStreak: consecutive days with momentum score ≥ 40; shown as 🔥Nd badge when ≥ 2
   const momentumStreak = calcMomentumStreak(data.momentumHistory ?? [], todayStr);
-  // momentumWeekAvg: rounded average of the 7-day momentum history; null when < 2 entries
+  // momentumWeekAvg: rounded average of the rolling momentum history (up to 31 days); null when < 2 entries
   const momentumWeekAvg = calcMomentumWeekAvg(data.momentumHistory ?? []);
   // pomodoroGoalStreak: consecutive PAST days (not today) where sessionGoal was met or exceeded.
   // undefined when sessionGoal is not set (no goal means streak is meaningless).
@@ -1576,7 +1605,7 @@ export default function App() {
       };
     })(),
   });
-  // Persist today's momentum score whenever it changes — upserts into rolling 7-day history.
+  // Persist today's momentum score whenever it changes — upserts into rolling 31-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
   // (e.g. pomodoro session or habit check-in that updates data between renders).
   useEffect(() => {

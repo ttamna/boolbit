@@ -105,7 +105,7 @@ export interface WidgetData {
   yearGoalDone?: boolean; // true when user marks yearly goal as accomplished; absent/false = not done
   pomodoroLifetimeMins?: number; // cumulative focus minutes across all sessions; absent = 0 (pre-feature)
   habitLifetimeTotalCheckins?: number; // cumulative check-ins across all habits; absent = 0 (pre-feature)
-  momentumHistory?: MomentumEntry[]; // rolling 7-day daily momentum scores; newest last; absent = no history
+  momentumHistory?: MomentumEntry[]; // rolling 31-day daily momentum scores; newest last; absent = no history
   habitsAllDoneDate?: string;   // YYYY-MM-DD date when the "all habits done today" notification was sent; absent = not sent
   habitMorningRemindDate?: string;  // YYYY-MM-DD date when the morning habit activation nudge was sent; absent = not sent
   habitEveningRemindDate?: string; // YYYY-MM-DD date when the evening unchecked-habits reminder was sent; absent = not sent
@@ -127,6 +127,7 @@ export interface WidgetData {
   monthlyHabitReportDate?: string;     // YYYY-MM-DD (1st of month) when the monthly habit completion rate report was last sent; absent = not sent
   momentumEveningDigestDate?: string;  // YYYY-MM-DD when the evening momentum score digest notification was last sent; absent = not sent
   weeklyMomentumReportDate?: string;   // YYYY-MM-DD (Monday) when the weekly momentum avg+tier report was last sent; absent = not sent
+  monthlyMomentumReportDate?: string;  // YYYY-MM-DD (1st of month) when the monthly momentum avg+tier report was last sent; absent = not sent
   weeklyPomodoroReportDate?: string;   // YYYY-MM-DD (Monday) when the weekly pomodoro session count report was last sent; absent = not sent
   weeklyIntentionReportDate?: string;  // YYYY-MM-DD (Monday) when the weekly intention done-rate report was last sent; absent = not sent
   monthGoalRemindDate?: string;        // YYYY-MM-DD when the end-of-month goal review nudge was last sent; absent = not sent

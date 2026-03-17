@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcWeeklyMomentumReport — score, tier, history edge cases
+// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcWeeklyMomentumReport, calcMonthlyMomentumReport — score, tier, history cap (31 entries), edge cases
 // ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, 3-day trend detection, and weekly report
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcWeeklyMomentumReport } from "./momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -252,27 +252,32 @@ describe("updateMomentumHistory", () => {
     expect(result[2]).toEqual({ date: "2026-03-16", score: 30, tier: "low" });
   });
 
-  it("caps history at 7 entries, keeping newest", () => {
-    const existing = Array.from({ length: 7 }, (_, i) => ({
-      date: `2026-03-${String(i + 1).padStart(2, "0")}`,
-      score: i * 10,
-      tier: "low" as const,
-    }));
-    const result = updateMomentumHistory(existing, "2026-03-08", 99, "high");
-    expect(result).toHaveLength(7);
-    expect(result[0].date).toBe("2026-03-02"); // oldest dropped
-    expect(result[6]).toEqual({ date: "2026-03-08", score: 99, tier: "high" });
+  it("caps history at 31 entries, keeping newest", () => {
+    // Fill 31 entries (MOMENTUM_HISTORY_CAP) using a base date + offset to avoid month-boundary fragility.
+    // Jan 1 + 0..30 = Jan 1..31 — all valid dates.
+    const base = new Date("2026-01-01T00:00:00");
+    const existing = Array.from({ length: 31 }, (_, i) => {
+      const d = new Date(base);
+      d.setDate(d.getDate() + i);
+      return { date: d.toLocaleDateString("sv"), score: i * 3, tier: "low" as const };
+    });
+    const result = updateMomentumHistory(existing, "2026-02-01", 99, "high");
+    expect(result).toHaveLength(31);
+    expect(result[0].date).toBe(existing[1].date); // oldest (existing[0] = Jan 1) dropped
+    expect(result[30]).toEqual({ date: "2026-02-01", score: 99, tier: "high" });
   });
 
-  it("does not exceed 7 entries when upsert keeps same length", () => {
-    const existing = Array.from({ length: 7 }, (_, i) => ({
-      date: `2026-03-${String(i + 1).padStart(2, "0")}`,
-      score: 50,
-      tier: "mid" as const,
-    }));
-    const result = updateMomentumHistory(existing, "2026-03-07", 75, "high");
-    expect(result).toHaveLength(7);
-    expect(result[6]).toEqual({ date: "2026-03-07", score: 75, tier: "high" });
+  it("does not exceed 31 entries when upsert keeps same length", () => {
+    const base = new Date("2026-01-01T00:00:00");
+    const existing = Array.from({ length: 31 }, (_, i) => {
+      const d = new Date(base);
+      d.setDate(d.getDate() + i);
+      return { date: d.toLocaleDateString("sv"), score: 50, tier: "mid" as const };
+    });
+    // Upsert an existing date — length stays at 31 (no new append)
+    const result = updateMomentumHistory(existing, existing[30].date, 75, "high");
+    expect(result).toHaveLength(31);
+    expect(result[30]).toEqual({ date: existing[30].date, score: 75, tier: "high" });
   });
 
   it("stores entry with empty string date (passthrough — caller is responsible for valid dates)", () => {
@@ -868,5 +873,145 @@ describe("calcWeeklyMomentumReport", () => {
     ];
     const msg = calcWeeklyMomentumReport(history, last7)!;
     expect(msg).toMatch(/^💪/);
+  });
+});
+
+describe("calcMonthlyMomentumReport", () => {
+  // February 2026: 28 days (non-leap year), window used as prevMonthDays
+  const feb2026 = Array.from({ length: 28 }, (_, i) =>
+    `2026-02-${String(i + 1).padStart(2, "0")}`,
+  );
+
+  it("should return null when history is empty", () => {
+    expect(calcMonthlyMomentumReport([], feb2026)).toBeNull();
+  });
+
+  it("should return null when fewer than 10 entries fall within prevMonthDays", () => {
+    const history = feb2026.slice(0, 9).map(date => ({ date, score: 80, tier: "high" as const }));
+    expect(calcMonthlyMomentumReport(history, feb2026)).toBeNull();
+  });
+
+  it("should return a message when exactly 10 entries are present (minimum threshold)", () => {
+    const history = feb2026.slice(0, 10).map(date => ({ date, score: 80, tier: "high" as const }));
+    const msg = calcMonthlyMomentumReport(history, feb2026);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("80");
+  });
+
+  it("should compute correct avg score across a full 28-day February window", () => {
+    // avg = (28 * 60) / 28 = 60
+    const history = feb2026.map(date => ({ date, score: 60, tier: "mid" as const }));
+    const msg = calcMonthlyMomentumReport(history, feb2026)!;
+    expect(msg).toContain("60");
+    expect(msg).toContain("✅"); // avg 40–74 → ✅ lead
+  });
+
+  it("should return 🔥 lead message for monthly avg ≥75", () => {
+    const history = feb2026.map(date => ({ date, score: 80, tier: "high" as const }));
+    const msg = calcMonthlyMomentumReport(history, feb2026)!;
+    expect(msg).toMatch(/^🔥/);
+    expect(msg).toContain("최고의 한 달");
+  });
+
+  it("should return ✅ lead message for monthly avg 40–74", () => {
+    const history = feb2026.map(date => ({ date, score: 55, tier: "mid" as const }));
+    const msg = calcMonthlyMomentumReport(history, feb2026)!;
+    expect(msg).toMatch(/^✅/);
+    expect(msg).toContain("잘 하고 있어요");
+  });
+
+  it("should return 💪 lead message for monthly avg <40", () => {
+    const history = feb2026.map(date => ({ date, score: 20, tier: "low" as const }));
+    const msg = calcMonthlyMomentumReport(history, feb2026)!;
+    expect(msg).toMatch(/^💪/);
+    expect(msg).toContain("이번 달엔 더 힘내봐요");
+  });
+
+  it("should include tier distribution counts in the message", () => {
+    const history = [
+      ...feb2026.slice(0, 10).map(date => ({ date, score: 80, tier: "high" as const })),
+      ...feb2026.slice(10, 20).map(date => ({ date, score: 55, tier: "mid" as const })),
+      ...feb2026.slice(20, 28).map(date => ({ date, score: 20, tier: "low" as const })),
+    ];
+    // avg = (10*80 + 10*55 + 8*20) / 28 = (800+550+160)/28 = 1510/28 ≈ 53.9 → 54 → ✅
+    const msg = calcMonthlyMomentumReport(history, feb2026)!;
+    expect(msg).toContain("🔥10");
+    expect(msg).toContain("✅10");
+    expect(msg).toContain("💪8");
+  });
+
+  it("should omit tier parts with zero count from distribution", () => {
+    const history = feb2026.slice(0, 15).map(date => ({ date, score: 80, tier: "high" as const }));
+    const msg = calcMonthlyMomentumReport(history, feb2026)!;
+    expect(msg).toContain("🔥15");
+    expect(msg).not.toContain("✅");
+    expect(msg).not.toContain("💪");
+  });
+
+  it("should ignore entries outside prevMonthDays even if history is large", () => {
+    const history = [
+      ...feb2026.slice(0, 10).map(date => ({ date, score: 20, tier: "low" as const })),
+      // outside window entries that would inflate avg if not ignored
+      { date: "2026-01-15", score: 100, tier: "high" as const },
+      { date: "2026-03-01", score: 100, tier: "high" as const },
+    ];
+    // only 10 in-window entries at score=20 → avg=20 → 💪
+    const msg = calcMonthlyMomentumReport(history, feb2026)!;
+    expect(msg).toMatch(/^💪/);
+    expect(msg).toContain("20");
+  });
+
+  it("should return 🔥 lead exactly at avg=75 boundary", () => {
+    // 10 entries at score 75 each → avg = 75
+    const history = feb2026.slice(0, 10).map(date => ({ date, score: 75, tier: "high" as const }));
+    const msg = calcMonthlyMomentumReport(history, feb2026)!;
+    expect(msg).toMatch(/^🔥/);
+    expect(msg).toContain("75");
+  });
+
+  it("should return ✅ lead exactly at avg=74 (just below 🔥 threshold)", () => {
+    const history = feb2026.slice(0, 10).map(date => ({ date, score: 74, tier: "mid" as const }));
+    const msg = calcMonthlyMomentumReport(history, feb2026)!;
+    expect(msg).toMatch(/^✅/);
+    expect(msg).toContain("74");
+  });
+
+  it("should return ✅ lead exactly at avg=40 boundary", () => {
+    const history = feb2026.slice(0, 10).map(date => ({ date, score: 40, tier: "mid" as const }));
+    const msg = calcMonthlyMomentumReport(history, feb2026)!;
+    expect(msg).toMatch(/^✅/);
+  });
+
+  it("should return 💪 lead exactly at avg=39 (just below ✅ threshold)", () => {
+    const history = feb2026.slice(0, 10).map(date => ({ date, score: 39, tier: "low" as const }));
+    const msg = calcMonthlyMomentumReport(history, feb2026)!;
+    expect(msg).toMatch(/^💪/);
+  });
+
+  it("should handle a 31-day January window (maximum prevMonthDays length matching MOMENTUM_HISTORY_CAP)", () => {
+    // January 2026: 31 days. All 31 entries fit exactly at the cap.
+    const jan2026 = Array.from({ length: 31 }, (_, i) =>
+      `2026-01-${String(i + 1).padStart(2, "0")}`,
+    );
+    const history = jan2026.map(date => ({ date, score: 80, tier: "high" as const }));
+    const msg = calcMonthlyMomentumReport(history, jan2026)!;
+    expect(msg).toMatch(/^🔥/);
+    expect(msg).toContain("80");
+    expect(msg).toContain("🔥31"); // all 31 days are high
+  });
+
+  it("should exclude a current-month entry (e.g. the 1st) that falls outside prevMonthDays", () => {
+    // Simulate: on March 1st, history may include a 2026-03-01 entry alongside Feb entries.
+    // prevMonthDays = February — 2026-03-01 must be excluded by the window filter.
+    const history = [
+      ...feb2026.slice(0, 10).map(date => ({ date, score: 80, tier: "high" as const })),
+      { date: "2026-03-01", score: 100, tier: "high" as const }, // today (1st of current month)
+    ];
+    // Only 10 Feb entries are in window → avg = 80
+    const msg = calcMonthlyMomentumReport(history, feb2026)!;
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("80");
+    // Tier distribution should show exactly 10 high days, not 11
+    expect(msg).toContain("🔥10");
   });
 });
