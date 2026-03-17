@@ -129,6 +129,7 @@ export interface WidgetData {
   weeklyMomentumReportDate?: string;   // YYYY-MM-DD (Monday) when the weekly momentum avg+tier report was last sent; absent = not sent
   monthlyMomentumReportDate?: string;  // YYYY-MM-DD (1st of month) when the monthly momentum avg+tier report was last sent; absent = not sent
   weeklyPomodoroReportDate?: string;   // YYYY-MM-DD (Monday) when the weekly pomodoro session count report was last sent; absent = not sent
+  monthlyPomodoroReportDate?: string;  // YYYY-MM-DD (1st of month) when the monthly pomodoro session count report was last sent; absent = not sent
   weeklyIntentionReportDate?: string;  // YYYY-MM-DD (Monday) when the weekly intention done-rate report was last sent; absent = not sent
   monthGoalRemindDate?: string;        // YYYY-MM-DD when the end-of-month goal review nudge was last sent; absent = not sent
   quarterGoalRemindDate?: string;      // YYYY-MM-DD when the end-of-quarter goal review nudge was last sent; absent = not sent

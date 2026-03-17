@@ -1,5 +1,5 @@
-// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, and lifetime milestone notifications
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, goal-streak consecutive past days, recent rolling average sessions (today excluded), and ISO-week record pace comparison (current week vs same-length prev-week window)
+// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, lifetime milestone notifications, and monthly session report
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), and ISO-week record pace comparison (current week vs same-length prev-week window)
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -264,6 +264,34 @@ export function calcWeeklyPomodoroReport(
   if (total >= 25) return `🔥 지난주 포모도로 ${total}세션 — 집중력 최고! (${days}일 활성)`;
   if (total >= 10) return `✅ 지난주 포모도로 ${total}세션 — 잘 집중했어요 (${days}일 활성)`;
   return `💪 지난주 포모도로 ${total}세션 — 이번 주엔 더 집중해봐요 (${days}일 활성)`;
+}
+
+/**
+ * Returns a desktop-notification body summarising last month's pomodoro sessions from available history.
+ * Fires on the 1st of each month at 09:00+ via the monthlyPomodoroReportDate guard in App.tsx.
+ * prevMonthDays: all calendar days of the previous month — caller uses calcLastNDays(yesterday, yesterday.getDate())
+ *   so the window length matches the actual month length (28/29/30/31) rather than a fixed 30 days.
+ * Data constraint: pomodoroHistory is capped at 14 days by updatePomodoroHistory, so this function
+ *   aggregates at most the last 14 days of the previous month (same constraint as calcMonthlyHabitReport).
+ *   The report is a useful approximation of recent effort, not a full-month total.
+ * Returns null when fewer than 3 active days (count > 0) are found within the window.
+ * Thresholds: ≥100 sessions=🔥, ≥40=✅, else=💪.
+ * Exported for unit testing; pure function with no side effects.
+ */
+export function calcMonthlyPomodoroReport(
+  history: PomodoroDay[],
+  prevMonthDays: string[],
+): string | null {
+  const dateWindow = new Set(prevMonthDays);
+  const active = history.filter(e => dateWindow.has(e.date) && e.count > 0);
+  if (active.length < 3) return null;
+
+  const total = active.reduce((s, e) => s + e.count, 0);
+  const days = active.length;
+
+  if (total >= 100) return `🔥 지난달 포모도로 ${total}세션 — 집중력 최고! (${days}일 활성)`;
+  if (total >= 40) return `✅ 지난달 포모도로 ${total}세션 — 잘 집중했어요 (${days}일 활성)`;
+  return `💪 지난달 포모도로 ${total}세션 — 이번 달엔 더 집중해봐요 (${days}일 활성)`;
 }
 
 // Returns the desktop notification body when no pomodoro sessions have been completed today, null otherwise.

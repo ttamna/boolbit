@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -740,6 +740,38 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.habits, data.monthlyHabitReportDate, loaded, persist]);
+
+  // 1st-of-month morning monthly pomodoro total session count report — fires once per month at 9:00+.
+  // Reports the previous month's total sessions and active-day count.
+  // monthlyPomodoroReportDate persists the guard so it fires only once per month-1st even after restart.
+  // Design: yesterday-ending window spans the full previous calendar month, but pomodoroHistory
+  //   is capped at 14 days — so the report aggregates at most the last 14 days of the prev month.
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.monthlyPomodoroReportDate === today) return;
+    if (now.getDate() !== 1) return;  // only 1st of month
+    if (now.getHours() < 9) return;   // after 09:00
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    // Use yesterday.getDate() (= last day of prev month = total days in prev month)
+    // to build a window spanning the full previous calendar month (e.g. 31 for Dec, 28/29 for Feb).
+    // Note: pomodoroHistory is capped at 14 days, so only the last ≤14 days of prevMonthDays will match.
+    const prevMonthDays = calcLastNDays(yesterday.toLocaleDateString("sv"), yesterday.getDate());
+    const msg = calcMonthlyPomodoroReport(data.pomodoroHistory ?? [], prevMonthDays);
+    if (!msg) return;
+    persist({ ...dataRef.current, monthlyPomodoroReportDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.pomodoroHistory, data.monthlyPomodoroReportDate, loaded, persist]);
 
   // Monday morning weekly momentum avg + tier distribution report — fires once per Monday at 9:00+.
   // Reports the previous week's (7 days ending yesterday, Mon–Sun) average score and tier breakdown.
