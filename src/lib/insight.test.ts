@@ -2881,8 +2881,9 @@ describe("calcTodayInsight", () => {
     expect(result).toBeNull();
   });
 
-  it("shouldReturnNullWhenStreakNotAtMilestone", () => {
-    // streak=10 is not a milestone (milestones are 7/30/100) — fires only at milestone boundaries
+  it("shouldNotReturnPersonalBestWhenStreakNotAtMilestone", () => {
+    // streak=10 is not a milestone (milestones are 7/30/100) — personal_best does not fire.
+    // habit_streak_record (11.01) fires instead: streak === bestStreak, non-milestone, bestStreak > 3.
     const result = calcTodayInsight({
       habits: [{ name: "운동", streak: 10, lastChecked: TODAY, bestStreak: 10 }],
       todayStr: TODAY,
@@ -2892,11 +2893,14 @@ describe("calcTodayInsight", () => {
       sessionGoal: undefined,
       habitsAllDoneDate: undefined,
     });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("역대 최고"); // habit_streak_record fires
+    expect(result!.text).not.toContain("(10d)"); // personal_best format absent
   });
 
-  it("shouldReturnNullAtDayAfterFirstMilestone", () => {
-    // streak=8 is the day after the first milestone (7) — must not re-trigger
+  it("shouldNotReturnPersonalBestAtDayAfterFirstMilestone", () => {
+    // streak=8 is the day after the first milestone (7) — personal_best must not re-trigger.
+    // habit_streak_record (11.01) fires instead: streak=8=bestStreak, non-milestone, bestStreak > 3.
     const result = calcTodayInsight({
       habits: [{ name: "운동", streak: 8, lastChecked: TODAY, bestStreak: 8 }],
       todayStr: TODAY,
@@ -2906,7 +2910,9 @@ describe("calcTodayInsight", () => {
       sessionGoal: undefined,
       habitsAllDoneDate: undefined,
     });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("역대 최고"); // habit_streak_record fires
+    expect(result!.text).not.toContain("(8d)"); // personal_best format absent
   });
 
   it("shouldReturnPersonalBestAtFirstMilestone7", () => {
@@ -6274,12 +6280,15 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     });
 
     it("shouldNotReturnHabitComebackWhenStreakEqualsBestStreak", () => {
-      // streak === bestStreak: user is back at peak; personal_best covers this milestone
+      // streak=20 === bestStreak=20: habit_comeback requires streak < bestStreak → does not fire.
+      // habit_streak_record (11.01) fires instead: streak === bestStreak, non-milestone, bestStreak > 3.
       const result = calcTodayInsight({
         ...comebackBase(),
         habits: [habit("독서", 20, TODAY, 20)],
       });
-      expect(result).toBeNull();
+      expect(result).not.toBeNull();
+      expect(result!.text).not.toContain("회복"); // habit_comeback suppressed
+      expect(result!.text).toContain("역대 최고"); // habit_streak_record fires
     });
 
     it("shouldNotReturnHabitComebackWhenNotCheckedInToday", () => {
@@ -6689,6 +6698,129 @@ describe("calcTodayInsight — momentum_streak_milestone (priority 10.46, betwee
   });
 });
 
+// ── habit_streak_record ──────────────────────────────────────────────────
+describe("calcTodayInsight — habit_streak_record (priority 11.01, between personal_best and habit_best_streak_approach)", () => {
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      // nowHour: 12 — above morning blocks (<12) and below almost_perfect_day gate (≥14)
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+  it("shouldFireWhenStreakEqualsBestStreakAndNotMilestone", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 10, lastChecked: TODAY, bestStreak: 10 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("10");
+    expect(result!.text).toContain("역대 최고");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWhenStreakIsPersonalBestMilestone7", () => {
+    // streak=7=bestStreak → personal_best (11) fires; habit_streak_record blocked by PERSONAL_BEST_MILESTONES guard.
+    // Distinguishing: personal_best format is "역대 최고! (7d)", streak_record format is "7일 — 역대 최고!".
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 7, lastChecked: TODAY, bestStreak: 7 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("(7d)"); // personal_best format — confirms personal_best fired, not streak_record
+    expect(result!.text).not.toContain("일 — 역대 최고!"); // streak_record format absent
+  });
+
+  it("shouldNotFireWhenStreakLessThanBestStreak", () => {
+    // streak < bestStreak: habit_best_streak_approach territory (gap=1)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 9, lastChecked: TODAY, bestStreak: 10 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("역대 최고까지"); // habit_best_streak_approach fires
+    expect(result!.text).not.toContain("역대 최고!"); // streak_record suppressed
+  });
+
+  it("shouldNotFireWhenLastCheckedNotToday", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 10, lastChecked: YESTERDAY, bestStreak: 10 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenBestStreakAbsent", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 10, lastChecked: TODAY, bestStreak: undefined }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenBestStreak3OrLess", () => {
+    // bestStreak ≤ 3: trivial streaks not remarkable
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 3, lastChecked: TODAY, bestStreak: 3 }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPickHabitWithHighestBestStreakWhenMultipleQualify", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "독서", streak: 8, lastChecked: TODAY, bestStreak: 8 },  // non-milestone
+        { name: "운동", streak: 12, lastChecked: TODAY, bestStreak: 12 }, // non-milestone, higher
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동"); // higher bestStreak wins
+    expect(result!.text).toContain("12");
+  });
+
+  it("shouldFireForHighBestStreakNotMilestone", () => {
+    // bestStreak=45 is not 7/30/100: personal_best does not fire; habit_streak_record fires
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "명상", streak: 45, lastChecked: TODAY, bestStreak: 45 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("명상");
+    expect(result!.text).toContain("45");
+    expect(result!.text).toContain("역대 최고");
+  });
+
+  it("shouldBePreemptedByPersonalBestAtMilestone30", () => {
+    // streak=30=bestStreak → personal_best fires; habit_streak_record blocked by PERSONAL_BEST_MILESTONES guard.
+    // Distinguishing: personal_best format is "역대 최고! (30d)", streak_record format is "30일 — 역대 최고!".
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 30, lastChecked: TODAY, bestStreak: 30 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("(30d)"); // personal_best format — confirms personal_best fired, not streak_record
+    expect(result!.text).not.toContain("일 — 역대 최고!"); // streak_record format absent
+  });
+
+  it("shouldFireWhenBestStreakJustAboveThreshold", () => {
+    // bestStreak=4 > 3 guard passes → fires (boundary: bestStreak=3 would be suppressed)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 4, lastChecked: TODAY, bestStreak: 4 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("역대 최고");
+  });
+});
+
 // ── habit_best_streak_approach ──────────────────────────────────────────
 describe("calcTodayInsight — habit_best_streak_approach (priority 11.02, between personal_best and habit_target_near)", () => {
   function base() {
@@ -6734,13 +6866,17 @@ describe("calcTodayInsight — habit_best_streak_approach (priority 11.02, betwe
       expect(result).toBeNull();
     });
 
-    it("shouldNotFireWhenGap0StreakEqualsBest", () => {
-      // bestStreak=10 is not a fixed milestone (7/30/100), so personal_best also does not fire
+    it("shouldNotFireApproachBestWhenGap0ButStreakRecordFires", () => {
+      // bestStreak=10 is not a fixed milestone (7/30/100), so personal_best does not fire.
+      // habit_best_streak_approach: streak < bestStreak → 10 < 10 = false → does not fire.
+      // habit_streak_record (11.01): streak === bestStreak, not milestone, bestStreak > 3 → fires instead.
       const result = calcTodayInsight({
         ...base(),
         habits: [{ name: "운동", streak: 10, lastChecked: TODAY, bestStreak: 10 }],
       });
-      expect(result).toBeNull();
+      expect(result).not.toBeNull();
+      expect(result!.text).toContain("역대 최고"); // habit_streak_record fires
+      expect(result!.text).not.toContain("역대 최고까지"); // habit_best_streak_approach suppressed
     });
 
     it("shouldNotFireWhenBestStreakAbsent", () => {
