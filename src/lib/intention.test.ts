@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, and calcIntentionDoneStreak helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, and calcWeeklyIntentionReport helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak } from "./intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport } from "./intention";
 import type { IntentionEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
@@ -475,5 +475,132 @@ describe("calcIntentionDoneStreak", () => {
       { date: "2026-03-14", text: "t", done: true },
     ];
     expect(calcIntentionDoneStreak(history, false, TODAY)).toBe(6);
+  });
+});
+
+// Arbitrary 7-day window used as test fixture (App.tsx would pass yesterday-ending 7 days on Monday)
+// Window: 2026-03-09 → 2026-03-15; 2026-03-16 (a Monday) would be the report-send day in production.
+const LAST7_WEEK = ["2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-14", "2026-03-15"];
+
+describe("calcWeeklyIntentionReport", () => {
+  it("should return null when history is empty", () => {
+    expect(calcWeeklyIntentionReport([], LAST7_WEEK)).toBeNull();
+  });
+
+  it("should return null when only 1 intention was set in the window (insufficient data)", () => {
+    const history: IntentionEntry[] = [{ date: "2026-03-11", text: "one", done: true }];
+    expect(calcWeeklyIntentionReport(history, LAST7_WEEK)).toBeNull();
+  });
+
+  it("should return a message when exactly 2 intentions were set (minimum threshold)", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-03-09", text: "a", done: true },
+      { date: "2026-03-10", text: "b", done: false },
+    ];
+    const result = calcWeeklyIntentionReport(history, LAST7_WEEK);
+    expect(result).not.toBeNull();
+    expect(result).toContain("1/2");
+  });
+
+  it("should return null when history entries fall outside the window", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-03-05", text: "old", done: true },
+      { date: "2026-03-06", text: "old", done: true },
+      { date: "2026-03-07", text: "old", done: true },
+    ];
+    expect(calcWeeklyIntentionReport(history, LAST7_WEEK)).toBeNull();
+  });
+
+  it("should return 100% message when all set intentions were done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-03-09", text: "a", done: true },
+      { date: "2026-03-10", text: "b", done: true },
+      { date: "2026-03-11", text: "c", done: true },
+      { date: "2026-03-12", text: "d", done: true },
+    ];
+    const result = calcWeeklyIntentionReport(history, LAST7_WEEK);
+    expect(result).not.toBeNull();
+    expect(result).toContain("100%");
+    expect(result).toContain("4/4");
+  });
+
+  it("should return high (≥70%) message when 3/4 done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-03-09", text: "a", done: true },
+      { date: "2026-03-10", text: "b", done: true },
+      { date: "2026-03-11", text: "c", done: true },
+      { date: "2026-03-12", text: "d", done: false },
+    ];
+    const result = calcWeeklyIntentionReport(history, LAST7_WEEK);
+    expect(result).not.toBeNull();
+    expect(result).toContain("75%");
+    expect(result).toContain("3/4");
+  });
+
+  it("should return medium (≥40%) message when 2/4 done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-03-09", text: "a", done: true },
+      { date: "2026-03-10", text: "b", done: true },
+      { date: "2026-03-11", text: "c", done: false },
+      { date: "2026-03-12", text: "d", done: false },
+    ];
+    const result = calcWeeklyIntentionReport(history, LAST7_WEEK);
+    expect(result).not.toBeNull();
+    expect(result).toContain("50%");
+    expect(result).toContain("2/4");
+  });
+
+  it("should return low (<40%) message when 1/5 done", () => {
+    const history: IntentionEntry[] = [
+      { date: "2026-03-09", text: "a", done: true },
+      { date: "2026-03-10", text: "b", done: false },
+      { date: "2026-03-11", text: "c", done: false },
+      { date: "2026-03-12", text: "d", done: false },
+      { date: "2026-03-13", text: "e", done: false },
+    ];
+    const result = calcWeeklyIntentionReport(history, LAST7_WEEK);
+    expect(result).not.toBeNull();
+    expect(result).toContain("20%");
+    expect(result).toContain("1/5");
+  });
+
+  it("should count absent done field as not done", () => {
+    // done absent (undefined) → treated as false
+    const history: IntentionEntry[] = [
+      { date: "2026-03-09", text: "a" },
+      { date: "2026-03-10", text: "b", done: true },
+      { date: "2026-03-11", text: "c" },
+    ];
+    const result = calcWeeklyIntentionReport(history, LAST7_WEEK);
+    expect(result).not.toBeNull();
+    expect(result).toContain("1/3");
+  });
+
+  it("should only count entries within the last7Days window", () => {
+    // 2026-03-08 is outside LAST7_WEEK window → should be ignored
+    const history: IntentionEntry[] = [
+      { date: "2026-03-08", text: "old", done: true },  // outside window
+      { date: "2026-03-09", text: "a", done: true },
+      { date: "2026-03-10", text: "b", done: true },
+      { date: "2026-03-11", text: "c", done: false },
+    ];
+    const result = calcWeeklyIntentionReport(history, LAST7_WEEK);
+    expect(result).not.toBeNull();
+    expect(result).toContain("2/3");
+  });
+
+  it("should deduplicate by date so duplicate history entries do not inflate setCount", () => {
+    // Two entries for 2026-03-09 — only the first should count (dedup by date)
+    const history: IntentionEntry[] = [
+      { date: "2026-03-09", text: "first", done: true },
+      { date: "2026-03-09", text: "dup", done: false },  // duplicate — should be ignored
+      { date: "2026-03-10", text: "b", done: true },
+      { date: "2026-03-11", text: "c", done: true },
+    ];
+    const result = calcWeeklyIntentionReport(history, LAST7_WEEK);
+    expect(result).not.toBeNull();
+    // setCount = 3 (not 4), doneCount = 3 → 100%
+    expect(result).toContain("100%");
+    expect(result).toContain("3/3");
   });
 });
