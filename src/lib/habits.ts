@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, and per-weekday best/weak day detection
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, yearly habit completion rate report, and per-weekday best/weak day detection
 
 import type { Habit } from "../types";
 
@@ -480,4 +480,22 @@ export function calcQuarterlyHabitReport(habits: Habit[], prevQtrDays: string[])
   if (rate >= 80) return `✅ 지난 분기 습관 완료율 ${rate}% — 훌륭해요!`;
   if (rate >= 60) return `📊 지난 분기 습관 완료율 ${rate}% — 이번 분기엔 더 해봐요!`;
   return `⚠️ 지난 분기 습관 완료율 ${rate}% — 다시 도전해봐요!`;
+}
+
+// Returns a desktop-notification body summarising last year's average daily habit completion rate.
+// Fires on Jan 1 at 09:00+ via the yearlyHabitReportDate guard in App.tsx.
+// prevYearDays: all calendar days of the previous year — caller uses
+//   calcLastNDays(yesterday, totalDaysInYear(yesterday)) so the window covers exactly Jan 1 – Dec 31.
+// Note: checkHistory is capped at 14 entries (calcCheckInPatch), so the yearly rate reflects
+//   at most 14 matched days out of the full 365–366 day window (≤ round(14/366 * 100) ≈ 4%).
+//   The message tiers are preserved for forward compatibility if the cap is ever raised.
+// Returns null when habits is empty or no habit has any check-in within the window.
+// Exported for unit testing; pure function with no side effects.
+export function calcYearlyHabitReport(habits: Habit[], prevYearDays: string[]): string | null {
+  const rate = calcHabitsWeekRate(habits, prevYearDays);
+  if (rate === null) return null;
+  if (rate === 100) return `🌟 지난 해 습관 완료율 100% — 완벽한 한 해!`;
+  if (rate >= 80) return `✅ 지난 해 습관 완료율 ${rate}% — 훌륭해요!`;
+  if (rate >= 60) return `📊 지난 해 습관 완료율 ${rate}% — 올해엔 더 해봐요!`;
+  return `⚠️ 지난 해 습관 완료율 ${rate}% — 다시 도전해봐요!`;
 }
