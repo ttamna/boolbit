@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, habit_pomodoro_dual_win, intention_done, pomodoro_today_above_avg)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, habit_pomodoro_dual_win, habit_all_done_early, intention_done, pomodoro_today_above_avg)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -353,6 +353,103 @@ describe("calcTodayInsight", () => {
     expect(result!.text).toContain("습관"); // dual_win fires
     expect(result!.text).toContain("포모도로");
     expect(result!.text).not.toContain("신기록 페이스"); // week_record badge must NOT fire
+  });
+
+  // ── habit_all_done_early ──────────────────────────────────────────────────
+  it("shouldFireHabitAllDoneEarlyWhenAllHabitsDoneBeforeNoon", () => {
+    // morning (< 12h) + all habits done today → early-completion celebration
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("오전");
+  });
+
+  it("shouldNotFireHabitAllDoneEarlyWhenAfternoon", () => {
+    // afternoon (nowHour=14) → all_done_early skipped; perfect_day fires instead
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("오전");
+    expect(result!.text).toContain("완벽"); // perfect_day fires
+  });
+
+  it("shouldNotFireHabitAllDoneEarlyWhenNoon", () => {
+    // exactly noon (nowHour=12) is NOT morning (< 12) → perfect_day fires
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("오전"); // all_done_early does NOT fire
+    expect(result!.text).toContain("완벽"); // perfect_day fires
+  });
+
+  it("shouldNotFireHabitAllDoneEarlyWhenHabitsNotAllDone", () => {
+    // habitsAllDoneDate = YESTERDAY → not all habits done today → early badge must NOT fire
+    // weekGoal set prevents period_start; no other conditions fire → result is null
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, YESTERDAY)],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      weekGoal: "weekly goal set", // prevent period_start from firing to isolate the assertion
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: YESTERDAY,
+    });
+    // with habits not all done, no insight fires in this minimal fixture → null
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireHabitAllDoneEarlyWhenNoHabits", () => {
+    // habits array is empty → no habits to complete; early-morning badge must NOT fire
+    // (perfect_day may still fire since habitsAllDoneDate=TODAY — only verifying "오전" badge is absent)
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TODAY,
+      nowHour: 9,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result?.text ?? "").not.toContain("오전");
+  });
+
+  it("shouldFireDualWinNotAllDoneEarlyWhenPomodoroGoalAlsoMetMorning", () => {
+    // morning + habits done + pomodoro goal met → dual_win (3.95) preempts all_done_early (3.97)
+    const result = calcTodayInsight({
+      habits: [habit("운동", 3, TODAY)],
+      todayStr: TODAY,
+      nowHour: 10,
+      todayIntentionDate: TODAY,
+      sessionsToday: 4,
+      sessionGoal: 4,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("포모도로"); // dual_win fires
+    expect(result!.text).not.toContain("오전");  // all_done_early does NOT fire
   });
 
   // ── perfect_day ────────────────────────────────────────────────────────────
