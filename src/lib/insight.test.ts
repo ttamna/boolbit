@@ -6816,3 +6816,105 @@ describe("calcTodayInsight — habit_best_streak_approach (priority 11.02, betwe
     });
 });
 
+// ── habit_week_excellent ──────────────────────────────────────────
+describe("calcTodayInsight — habit_week_excellent (priority 10.35, between almost_perfect_day and pomodoro_today_above_avg)", () => {
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      // nowHour: 12 — below morning blocks (nowHour < 12 = false) and below almost_perfect_day gate (≥14)
+      nowHour: 12,
+      todayIntentionDate: TODAY, // intention already set — avoids intention_missing (requires nowHour<12 too, but safer)
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+  it("shouldFireAt90Percent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 90 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("90");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireAt95Percent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 95 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("95");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireAt100Percent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 100 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("100");
+  });
+
+  it("shouldNotFireAt89Percent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 89 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenAbsent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: undefined });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireAt0Percent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 0 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByAlmostPerfectDay", () => {
+    // nowHour=14, 1 habit unchecked today → almost_perfect_day (10.3) fires before habit_week_excellent (10.35)
+    const result = calcTodayInsight({
+      ...base(),
+      nowHour: 14,
+      habits: [
+        { name: "운동", streak: 3, lastChecked: TODAY },
+        { name: "독서", streak: 2, lastChecked: YESTERDAY }, // unchecked today
+      ],
+      habitsAllDoneDate: YESTERDAY,
+      habitWeekRate: 90,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽한 하루까지"); // almost_perfect_day wins
+    expect(result!.text).not.toContain("90"); // habit_week_excellent suppressed
+  });
+
+  it("shouldFireWhenAlmostPerfectDayConditionsNotMet", () => {
+    // nowHour=12 (below 14) → almost_perfect_day cannot fire; habit_week_excellent fires
+    const result = calcTodayInsight({
+      ...base(),
+      nowHour: 12,
+      habits: [
+        { name: "운동", streak: 3, lastChecked: TODAY },
+        { name: "독서", streak: 2, lastChecked: YESTERDAY }, // unchecked today
+      ],
+      habitsAllDoneDate: YESTERDAY,
+      habitWeekRate: 90,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("90"); // habit_week_excellent fires since nowHour < 14
+  });
+
+  it("shouldIncludeRateInBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 92 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("92%");
+  });
+
+  it("shouldBePreemptedByPerfectDayWhenAllHabitsDoneToday", () => {
+    // habitsAllDoneDate === TODAY → perfect_day (priority 4) fires before habit_week_excellent (10.35)
+    const result = calcTodayInsight({
+      ...base(),
+      habitsAllDoneDate: TODAY,
+      habitWeekRate: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽한 습관"); // perfect_day badge text
+    expect(result!.text).not.toContain("100"); // habit_week_excellent suppressed
+  });
+});
+
