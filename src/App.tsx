@@ -1308,6 +1308,15 @@ export default function App() {
       (data.quarterGoalHistory ?? []).filter(e => e.done === true),
       renderDate,
     ) - 1),
+    // Past consecutive done years (excludes current year): mirrors quarterGoalPastDoneStreak pattern.
+    // calcYearGoalStreak counts years a goal was SET; filtering history to done===true repurposes
+    // it to count years a goal was ACHIEVED. Subtract 1 to exclude the current (not-yet-done) year.
+    yearGoalPastDoneStreak: Math.max(0, calcYearGoalStreak(
+      data.yearGoal,
+      data.yearGoalDate,
+      (data.yearGoalHistory ?? []).filter(e => e.done === true),
+      renderDate,
+    ) - 1),
     pomodoroGoalStreak,
     pomodoroSessionBest,
     pomodoroWeekRecord,
