@@ -6918,6 +6918,92 @@ describe("calcTodayInsight — habit_week_excellent (priority 10.35, between alm
   });
 });
 
+// ── habit_week_declined ──────────────────────────────────────────
+describe("calcTodayInsight — habit_week_declined (priority 10.37, after habit_week_excellent, before pomodoro_today_above_avg)", () => {
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+  it("shouldFireWhenDeclineExactlyTenPp", () => {
+    // prevRate=80, weekRate=70 → decline=10pp → warning fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 70, habitPrevWeekRate: 80 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+  });
+
+  it("shouldFireWhenDeclineGreaterThanTenPp", () => {
+    // prevRate=80, weekRate=60 → decline=20pp → warning fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 60, habitPrevWeekRate: 80 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+  });
+
+  it("shouldIncludeCurrentRateInBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, habitPrevWeekRate: 80 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("65%");
+  });
+
+  it("shouldIncludeDropSizeInBadgeText", () => {
+    // prevRate=80, weekRate=65 → drop=15pp → "15%p" in text
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, habitPrevWeekRate: 80 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("15%p");
+  });
+
+  it("shouldNotFireWhenDeclineBelowTenPp", () => {
+    // prevRate=80, weekRate=72 → decline=8pp → no badge
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 72, habitPrevWeekRate: 80 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenNoDecline", () => {
+    // prevRate=70, weekRate=80 → improvement → no badge
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 70 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenHabitWeekRateAbsent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: undefined, habitPrevWeekRate: 80 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenHabitPrevWeekRateAbsent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 70, habitPrevWeekRate: undefined });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByHabitWeekExcellentWhenCurrentRateGeq90", () => {
+    // prevRate=100, weekRate=90 → decline=10pp BUT habit_week_excellent (10.35) fires first
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 90, habitPrevWeekRate: 100 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("90%"); // habit_week_excellent badge text
+    expect(result!.level).toBe("success"); // not a warning — excellent preempts
+  });
+
+  it("shouldFireWhenCurrentRateBelowExcellentThreshold", () => {
+    // prevRate=99, weekRate=89 → decline=10pp AND rate<90 → habit_week_declined fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 89, habitPrevWeekRate: 99 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("89%");
+  });
+
+  it("shouldNotFireWhenDeclineExactlyNinePp", () => {
+    // Boundary: prevRate=79, weekRate=70 → decline=9pp (< 10pp threshold) → no badge
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 70, habitPrevWeekRate: 79 });
+    expect(result).toBeNull();
+  });
+});
+
 // ── habit_diversity_warning (priority 10.22, after habit_consecutive_miss, before almost_perfect_day) ─────
 describe("calcTodayInsight — habit_diversity_warning (priority 10.22)", () => {
   // nowHour:14 bypasses all morning-only checks (period_start/no_focus_project/weak_day_ahead < 12).

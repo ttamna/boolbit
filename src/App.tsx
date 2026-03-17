@@ -1261,6 +1261,10 @@ export default function App() {
   // habitsBadge, and projectsBadge — single source of truth for the current 7-day window.
   const last7Days = calcLastNDays(todayStr, 7);
   const habitsWeekRate = calcHabitsWeekRate(habitsArr, last7Days);
+  // habitsPrevWeekRate: declared before calcTodayInsight so habitPrevWeekRate feeds the
+  // habit_week_declined insight (priority 10.37). Reused below for habitsWeekTrend.
+  // Uses last14Days (already declared above) — slice(0,7) = days 7–13 ago (previous 7-day window).
+  const habitsPrevWeekRate = calcHabitsWeekRate(habitsArr, last14Days.slice(0, 7));
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1335,6 +1339,8 @@ export default function App() {
     // When ≥ 3, the perfect_day badge shows the streak count instead of a generic celebration.
     perfectDayStreak: habitsPerfectStreak,
     habitWeekRate: habitsWeekRate ?? undefined,
+    // habitPrevWeekRate: same 14-day window's first half (days 7–13 ago) — already computed for habitsWeekTrend.
+    habitPrevWeekRate: habitsPrevWeekRate ?? undefined,
     // todayIsWeakHabitDay / todayIsBestHabitDay: derived from the same per-weekday rates computed once.
     // Uses last28Days (4 full weeks) so each weekday has exactly 4 data points.
     ...(() => {
@@ -1446,7 +1452,6 @@ export default function App() {
     calcIntentionWeek(last7Days, todayStr, data.todayIntention, data.todayIntentionDone, data.intentionHistory ?? []);
 
   // habitsWeekTrend: week-over-week direction — compares cur-7 rate vs prev-7 rate using the same 14-day window.
-  const habitsPrevWeekRate = calcHabitsWeekRate(habitsArr, last14Days.slice(0, 7));
   const habitsWeekTrend = calcHabitsWeekTrend(habitsWeekRate, habitsPrevWeekRate);
   const habitsBadge = calcHabitsBadge({
     habitCount: habitsArr.length,
