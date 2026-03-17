@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, and calcHabitMorningReminder pure helpers
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, and calcHabitMorningReminder pure helpers
 // ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, per-weekday habit completion rate analysis, and morning habit activation nudge
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder } from "./habits";
 import type { Habit } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -1574,5 +1574,96 @@ describe("calcMonthlyHabitReport", () => {
     expect(msg).not.toBeNull();
     expect(msg).toContain("60");
     expect(msg).toContain("이번 달엔 더 해봐요"); // must not fall to low tier at 60%
+  });
+});
+
+// Q4 2025: Oct 1 – Dec 31 = 92 days (Oct 31 + Nov 30 + Dec 31)
+const QUARTERLY_REPORT_WINDOW: string[] = Array.from({ length: 92 }, (_, i) => {
+  const d = new Date(2025, 9, 1 + i); // month 9 = October (0-indexed)
+  return d.toLocaleDateString("sv");
+});
+
+describe("calcQuarterlyHabitReport", () => {
+  it("shouldReturnNullWhenHabitsIsEmpty", () => {
+    expect(calcQuarterlyHabitReport([], QUARTERLY_REPORT_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenNoCheckHistoryInWindow", () => {
+    // checkHistory entirely outside Q4 2025 (in Q3 2025)
+    const h = makeHabit({ checkHistory: ["2025-07-01", "2025-09-30"] });
+    expect(calcQuarterlyHabitReport([h], QUARTERLY_REPORT_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenHabitHasNoCheckHistory", () => {
+    const h = makeHabit();
+    expect(calcQuarterlyHabitReport([h], QUARTERLY_REPORT_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturn100PctMessageWhenAllHabitsCompletedEveryDay", () => {
+    // 1 habit checked all 92 days → rate = 100%
+    const h = makeHabit({ checkHistory: [...QUARTERLY_REPORT_WINDOW] });
+    const msg = calcQuarterlyHabitReport([h], QUARTERLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("100");
+    expect(msg).toContain("완벽한 분기");
+  });
+
+  it("shouldReturnHighTierMessageWhenRateAtLeast80", () => {
+    // 1 habit, 75/92 days → round(75/92 * 100) = round(81.5) = 82% (≥80, <100)
+    const h = makeHabit({ checkHistory: QUARTERLY_REPORT_WINDOW.slice(0, 75) });
+    const msg = calcQuarterlyHabitReport([h], QUARTERLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("82");
+    expect(msg).toContain("훌륭해요");
+    expect(msg).not.toContain("이번 분기엔 더 해봐요");
+    expect(msg).not.toContain("다시 도전해봐요");
+  });
+
+  it("shouldReturnMidTierMessageWhenRateBetween60And80", () => {
+    // 1 habit, 60/92 days → round(60/92 * 100) = round(65.2) = 65% (≥60, <80)
+    const h = makeHabit({ checkHistory: QUARTERLY_REPORT_WINDOW.slice(0, 60) });
+    const msg = calcQuarterlyHabitReport([h], QUARTERLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("65");
+    expect(msg).toContain("이번 분기엔 더 해봐요");
+  });
+
+  it("shouldReturnLowTierMessageWhenRateBelow60", () => {
+    // 1 habit, 50/92 days → round(50/92 * 100) = round(54.3) = 54% (<60)
+    const h = makeHabit({ checkHistory: QUARTERLY_REPORT_WINDOW.slice(0, 50) });
+    const msg = calcQuarterlyHabitReport([h], QUARTERLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("54");
+    expect(msg).toContain("다시 도전해봐요");
+  });
+
+  it("shouldHandleMultipleHabitsAllComplete", () => {
+    // 2 habits both checked all 92 days → 100%
+    const h1 = makeHabit({ checkHistory: [...QUARTERLY_REPORT_WINDOW] });
+    const h2 = makeHabit({ checkHistory: [...QUARTERLY_REPORT_WINDOW] });
+    const msg = calcQuarterlyHabitReport([h1, h2], QUARTERLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("100");
+  });
+
+  it("shouldReturnHighTierMessageAtExactly80Pct", () => {
+    // Use 5-day sub-window: 4/5 days → round(4/5 * 100) = 80% — exact boundary of ≥80 (high tier)
+    const window5 = QUARTERLY_REPORT_WINDOW.slice(0, 5);
+    const h = makeHabit({ checkHistory: window5.slice(0, 4) });
+    const msg = calcQuarterlyHabitReport([h], window5);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("80");
+    expect(msg).toContain("훌륭해요"); // must be high tier at exactly 80%
+    expect(msg).not.toContain("이번 분기엔 더 해봐요"); // must not fall to mid tier at 80%
+  });
+
+  it("shouldReturnMidTierMessageAtExactly60Pct", () => {
+    // Use 5-day sub-window: 3/5 days → round(3/5 * 100) = 60% — exact boundary of ≥60 (mid tier)
+    const window5 = QUARTERLY_REPORT_WINDOW.slice(0, 5);
+    const h = makeHabit({ checkHistory: window5.slice(0, 3) });
+    const msg = calcQuarterlyHabitReport([h], window5);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("60");
+    expect(msg).toContain("이번 분기엔 더 해봐요"); // must not fall to low tier at 60%
   });
 });

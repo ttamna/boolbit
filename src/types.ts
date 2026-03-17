@@ -125,6 +125,7 @@ export interface WidgetData {
   yearlyGoalReportDate?: string;         // YYYY-MM-DD (Jan 1) when the yearly goal achievement report was last sent; absent = not sent
   weeklyHabitReportDate?: string;      // YYYY-MM-DD (Monday) when the weekly habit completion rate report was last sent; absent = not sent
   monthlyHabitReportDate?: string;     // YYYY-MM-DD (1st of month) when the monthly habit completion rate report was last sent; absent = not sent
+  quarterlyHabitReportDate?: string;   // YYYY-MM-DD (quarter-start) when the quarterly habit completion rate report was last sent; absent = not sent
   momentumEveningDigestDate?: string;  // YYYY-MM-DD when the evening momentum score digest notification was last sent; absent = not sent
   weeklyMomentumReportDate?: string;   // YYYY-MM-DD (Monday) when the weekly momentum avg+tier report was last sent; absent = not sent
   monthlyMomentumReportDate?: string;  // YYYY-MM-DD (1st of month) when the monthly momentum avg+tier report was last sent; absent = not sent

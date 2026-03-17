@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, and per-weekday best/weak day detection
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, and per-weekday best/weak day detection
 
 import type { Habit } from "../types";
 
@@ -463,4 +463,21 @@ export function calcMonthlyHabitReport(habits: Habit[], prevMonthDays: string[])
   if (rate >= 80) return `✅ 지난달 습관 완료율 ${rate}% — 훌륭해요!`;
   if (rate >= 60) return `📊 지난달 습관 완료율 ${rate}% — 이번 달엔 더 해봐요!`;
   return `⚠️ 지난달 습관 완료율 ${rate}% — 다시 도전해봐요!`;
+}
+
+// Returns a desktop-notification body summarising last quarter's average daily habit completion rate.
+// Fires on the first day of each quarter (Jan 1, Apr 1, Jul 1, Oct 1) at 09:00+ via the
+//   quarterlyHabitReportDate guard in App.tsx.
+// prevQtrDays: all calendar days of the previous quarter — caller uses
+//   calcLastNDays(yesterday, totalDaysInQuarter(yesterday)) so the window covers exactly Q1–Q4
+//   (e.g. 90 days for Q1, 91 days for Q2/Q3/Q4 in regular years, 91 for Q1 in leap years).
+// Returns null when habits is empty or no habit has any check-in within the window.
+// Exported for unit testing; pure function with no side effects.
+export function calcQuarterlyHabitReport(habits: Habit[], prevQtrDays: string[]): string | null {
+  const rate = calcHabitsWeekRate(habits, prevQtrDays);
+  if (rate === null) return null;
+  if (rate === 100) return `🌟 지난 분기 습관 완료율 100% — 완벽한 분기!`;
+  if (rate >= 80) return `✅ 지난 분기 습관 완료율 ${rate}% — 훌륭해요!`;
+  if (rate >= 60) return `📊 지난 분기 습관 완료율 ${rate}% — 이번 분기엔 더 해봐요!`;
+  return `⚠️ 지난 분기 습관 완료율 ${rate}% — 다시 도전해봐요!`;
 }
