@@ -20,7 +20,7 @@ import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./lib/pomodoro";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport } from "./lib/momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
@@ -947,6 +947,34 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.momentumHistory, data.quarterlyMomentumReportDate, loaded, persist]);
+
+  // New Year's morning yearly momentum avg + tier distribution report — fires once per year on Jan 1 at 9:00+.
+  // Reports the previous calendar year's average momentum score and tier breakdown (requires ≥10 entries in the window).
+  // yearlyMomentumReportDate persists the guard so it fires only once per Jan 1 even after restart.
+  // Design: momentumHistory is capped at 31 days, so only the last ≤31 days of the year will match.
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.yearlyMomentumReportDate === today) return;
+    if (now.getHours() < 9) return;   // after 09:00
+    if (now.getMonth() !== 0 || now.getDate() !== 1) return;  // only Jan 1
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const prevYearDays = calcLastNDays(yesterday.toLocaleDateString("sv"), totalDaysInYear(yesterday));
+    const msg = calcYearlyMomentumReport(data.momentumHistory ?? [], prevYearDays);
+    if (!msg) return;
+    persist({ ...dataRef.current, yearlyMomentumReportDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.momentumHistory, data.yearlyMomentumReportDate, loaded, persist]);
 
   // Monday morning weekly pomodoro session count report — fires once per Monday at 9:00+.
   // Reports the previous week's (7 days ending yesterday) total session count and active-day count.

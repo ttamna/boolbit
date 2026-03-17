@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport — score, tier, history cap (31 entries), edge cases
-// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, 3-day trend detection, evening digest, morning reminder, weekly/monthly/quarterly reports
+// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport — score, tier, history cap (31 entries), edge cases
+// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, 3-day trend detection, evening digest, morning reminder, weekly/monthly/quarterly/yearly reports
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcMomentumMorningReminder } from "./momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcMomentumMorningReminder, calcYearlyMomentumReport } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -1202,5 +1202,168 @@ describe("calcMomentumMorningReminder", () => {
     expect(msg).toContain("30");
     expect(msg).not.toContain("90");
     expect(msg).not.toContain("80");
+  });
+});
+
+describe("calcYearlyMomentumReport", () => {
+  // prevYearDays = all 366 days of 2024 (Jan 1 – Dec 31, leap year).
+  // Jan: 31, Feb: 29 (leap), Mar: 31, Apr: 30, May: 31, Jun: 30,
+  // Jul: 31, Aug: 31, Sep: 30, Oct: 31, Nov: 30, Dec: 31 = 366 total.
+  // Design note: momentumHistory is capped at 31 entries (MOMENTUM_HISTORY_CAP), so at most the
+  // last ≤31 days of the year (Dec 2024) will match. Minimum-entry threshold (10) is shared with
+  // calcMonthlyMomentumReport / calcQuarterlyMomentumReport for the same reason.
+  const YEAR_2024: string[] = [
+    ...Array.from({ length: 31 }, (_, i) => `2024-01-${String(i + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 29 }, (_, i) => `2024-02-${String(i + 1).padStart(2, "0")}`), // leap year
+    ...Array.from({ length: 31 }, (_, i) => `2024-03-${String(i + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 30 }, (_, i) => `2024-04-${String(i + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 31 }, (_, i) => `2024-05-${String(i + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 30 }, (_, i) => `2024-06-${String(i + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 31 }, (_, i) => `2024-07-${String(i + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 31 }, (_, i) => `2024-08-${String(i + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 30 }, (_, i) => `2024-09-${String(i + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 31 }, (_, i) => `2024-10-${String(i + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 30 }, (_, i) => `2024-11-${String(i + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 31 }, (_, i) => `2024-12-${String(i + 1).padStart(2, "0")}`),
+  ];
+
+  it("should return null when history is empty", () => {
+    expect(calcYearlyMomentumReport([], YEAR_2024)).toBeNull();
+  });
+
+  it("should return null when fewer than 10 entries fall within prevYearDays", () => {
+    // 9 entries from Dec 23–31 (one below the 10-entry minimum threshold)
+    const history = Array.from({ length: 9 }, (_, i) =>
+      ({ date: `2024-12-${String(i + 23).padStart(2, "0")}`, score: 80, tier: "high" as const }),
+    );
+    expect(calcYearlyMomentumReport(history, YEAR_2024)).toBeNull();
+  });
+
+  it("should return a message when exactly 10 entries are present (minimum threshold)", () => {
+    const history = Array.from({ length: 10 }, (_, i) =>
+      ({ date: `2024-12-${String(i + 22).padStart(2, "0")}`, score: 80, tier: "high" as const }),
+    );
+    const msg = calcYearlyMomentumReport(history, YEAR_2024);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("80");
+  });
+
+  it("should return 🔥 lead message for yearly avg ≥75", () => {
+    const history = Array.from({ length: 10 }, (_, i) =>
+      ({ date: `2024-12-${String(i + 22).padStart(2, "0")}`, score: 80, tier: "high" as const }),
+    );
+    const msg = calcYearlyMomentumReport(history, YEAR_2024)!;
+    expect(msg).toMatch(/^🔥/);
+    expect(msg).toContain("최고의 한 해");
+  });
+
+  it("should return ✅ lead message for yearly avg 40–74", () => {
+    const history = Array.from({ length: 10 }, (_, i) =>
+      ({ date: `2024-12-${String(i + 22).padStart(2, "0")}`, score: 55, tier: "mid" as const }),
+    );
+    const msg = calcYearlyMomentumReport(history, YEAR_2024)!;
+    expect(msg).toMatch(/^✅/);
+    expect(msg).toContain("잘 하고 있어요");
+  });
+
+  it("should return 💪 lead message for yearly avg <40", () => {
+    const history = Array.from({ length: 10 }, (_, i) =>
+      ({ date: `2024-12-${String(i + 22).padStart(2, "0")}`, score: 20, tier: "low" as const }),
+    );
+    const msg = calcYearlyMomentumReport(history, YEAR_2024)!;
+    expect(msg).toMatch(/^💪/);
+    expect(msg).toContain("이번 해엔 더 힘내봐요");
+  });
+
+  it("should include tier distribution counts in the message", () => {
+    const history = [
+      ...Array.from({ length: 10 }, (_, i) =>
+        ({ date: `2024-12-${String(i + 1).padStart(2, "0")}`, score: 80, tier: "high" as const })),
+      ...Array.from({ length: 5 }, (_, i) =>
+        ({ date: `2024-12-${String(i + 11).padStart(2, "0")}`, score: 55, tier: "mid" as const })),
+      ...Array.from({ length: 5 }, (_, i) =>
+        ({ date: `2024-12-${String(i + 16).padStart(2, "0")}`, score: 20, tier: "low" as const })),
+    ];
+    const msg = calcYearlyMomentumReport(history, YEAR_2024)!;
+    expect(msg).toContain("🔥10");
+    expect(msg).toContain("✅5");
+    expect(msg).toContain("💪5");
+  });
+
+  it("should omit tier parts with zero count from distribution", () => {
+    const history = Array.from({ length: 10 }, (_, i) =>
+      ({ date: `2024-12-${String(i + 22).padStart(2, "0")}`, score: 80, tier: "high" as const }),
+    );
+    const msg = calcYearlyMomentumReport(history, YEAR_2024)!;
+    // Only high-tier entries — no ✅ or 💪 in tier distribution
+    expect(msg).not.toMatch(/✅\d/);
+    expect(msg).not.toMatch(/💪\d/);
+    expect(msg).toContain("🔥10");
+  });
+
+  it("should ignore entries outside prevYearDays even if history is large", () => {
+    const history = [
+      ...Array.from({ length: 10 }, (_, i) =>
+        ({ date: `2024-12-${String(i + 22).padStart(2, "0")}`, score: 20, tier: "low" as const })),
+      // outside window — must not affect avg or tier counts
+      { date: "2025-01-01", score: 100, tier: "high" as const },
+      { date: "2023-12-31", score: 100, tier: "high" as const },
+    ];
+    // only 10 in-window entries at score=20 → avg=20 → 💪
+    const msg = calcYearlyMomentumReport(history, YEAR_2024)!;
+    expect(msg).toMatch(/^💪/);
+    expect(msg).toContain("20");
+  });
+
+  it("should return 🔥 lead exactly at avg=75 boundary", () => {
+    const history = Array.from({ length: 10 }, (_, i) =>
+      ({ date: `2024-12-${String(i + 22).padStart(2, "0")}`, score: 75, tier: "high" as const }),
+    );
+    const msg = calcYearlyMomentumReport(history, YEAR_2024)!;
+    expect(msg).toMatch(/^🔥/);
+    expect(msg).toContain("75");
+  });
+
+  it("should return ✅ lead exactly at avg=74 (just below 🔥 threshold)", () => {
+    const history = Array.from({ length: 10 }, (_, i) =>
+      ({ date: `2024-12-${String(i + 22).padStart(2, "0")}`, score: 74, tier: "mid" as const }),
+    );
+    const msg = calcYearlyMomentumReport(history, YEAR_2024)!;
+    expect(msg).toMatch(/^✅/);
+    expect(msg).toContain("74");
+  });
+
+  it("should return ✅ lead exactly at avg=40 boundary", () => {
+    const history = Array.from({ length: 10 }, (_, i) =>
+      ({ date: `2024-12-${String(i + 22).padStart(2, "0")}`, score: 40, tier: "mid" as const }),
+    );
+    const msg = calcYearlyMomentumReport(history, YEAR_2024)!;
+    expect(msg).toMatch(/^✅/);
+  });
+
+  it("should return 💪 lead exactly at avg=39 (just below ✅ threshold)", () => {
+    const history = Array.from({ length: 10 }, (_, i) =>
+      ({ date: `2024-12-${String(i + 22).padStart(2, "0")}`, score: 39, tier: "low" as const }),
+    );
+    const msg = calcYearlyMomentumReport(history, YEAR_2024)!;
+    expect(msg).toMatch(/^💪/);
+  });
+
+  it("should include Feb 29 in the 2024 leap year window (366 days total)", () => {
+    expect(YEAR_2024).toHaveLength(366);
+    expect(YEAR_2024).toContain("2024-02-29");
+    expect(YEAR_2024).not.toContain("2024-02-30");
+    // Pure-function test: verifies that prevYearDays correctly includes Feb 29 for a leap year
+    // and that calcYearlyMomentumReport counts it. In production the 31-day history cap means
+    // Feb 29 entries would have been evicted by Jan 1 of the next year, but this test confirms
+    // the filtering logic handles arbitrary dates within the window correctly.
+    const history = [
+      ...Array.from({ length: 9 }, (_, i) =>
+        ({ date: `2024-12-${String(i + 23).padStart(2, "0")}`, score: 80, tier: "high" as const })),
+      { date: "2024-02-29", score: 80, tier: "high" as const },
+    ];
+    const msg = calcYearlyMomentumReport(history, YEAR_2024);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("🔥10");
   });
 });
