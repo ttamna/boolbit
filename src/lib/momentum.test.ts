@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcWeeklyMomentumReport, calcMonthlyMomentumReport — score, tier, history cap (31 entries), edge cases
-// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, 3-day trend detection, and weekly report
+// ABOUTME: Tests for calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport — score, tier, history cap (31 entries), edge cases
+// ABOUTME: Covers no-activity baseline, full score, partial inputs, tier thresholds, history upsert/cap, streak counting, 7-day average, 3-day trend detection, weekly/monthly/quarterly reports
 
 import { describe, it, expect } from "vitest";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport } from "./momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport } from "./momentum";
 
 describe("calcDailyScore", () => {
   it("returns score 0 and tier 'low' with no activity", () => {
@@ -1012,6 +1012,137 @@ describe("calcMonthlyMomentumReport", () => {
     expect(msg).not.toBeNull();
     expect(msg).toContain("80");
     // Tier distribution should show exactly 10 high days, not 11
+    expect(msg).toContain("🔥10");
+  });
+});
+
+describe("calcQuarterlyMomentumReport", () => {
+  // prevQtrDays = all 92 days of Q4 2024 (Oct 1 – Dec 31).
+  // Oct: 31 days, Nov: 30 days, Dec: 31 days = 92 total.
+  // Design note: momentumHistory is capped at 31 entries (MOMENTUM_HISTORY_CAP), so at most the
+  // last ≤31 days of the quarter will match. Minimum-entry threshold (10) is shared with
+  // calcMonthlyMomentumReport for the same reason — the effective data window is ≤31 days.
+  const Q4_2024: string[] = [
+    ...Array.from({ length: 31 }, (_, i) => `2024-10-${String(i + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 30 }, (_, i) => `2024-11-${String(i + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 31 }, (_, i) => `2024-12-${String(i + 1).padStart(2, "0")}`),
+  ];
+
+  it("should return null when history is empty", () => {
+    expect(calcQuarterlyMomentumReport([], Q4_2024)).toBeNull();
+  });
+
+  it("should return null when fewer than 10 entries fall within prevQtrDays", () => {
+    // slice(61, 70) = 9 entries (one below the 10-entry minimum threshold)
+    const history = Q4_2024.slice(61, 70).map(date => ({ date, score: 80, tier: "high" as const }));
+    expect(calcQuarterlyMomentumReport(history, Q4_2024)).toBeNull();
+  });
+
+  it("should return a message when exactly 10 entries are present (minimum threshold)", () => {
+    const history = Q4_2024.slice(82, 92).map(date => ({ date, score: 80, tier: "high" as const }));
+    const msg = calcQuarterlyMomentumReport(history, Q4_2024);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("80");
+  });
+
+  it("should return 🔥 lead message for quarterly avg ≥75", () => {
+    const history = Q4_2024.slice(82).map(date => ({ date, score: 80, tier: "high" as const }));
+    const msg = calcQuarterlyMomentumReport(history, Q4_2024)!;
+    expect(msg).toMatch(/^🔥/);
+    expect(msg).toContain("최고의 한 분기");
+  });
+
+  it("should return ✅ lead message for quarterly avg 40–74", () => {
+    const history = Q4_2024.slice(82).map(date => ({ date, score: 55, tier: "mid" as const }));
+    const msg = calcQuarterlyMomentumReport(history, Q4_2024)!;
+    expect(msg).toMatch(/^✅/);
+    expect(msg).toContain("잘 하고 있어요");
+  });
+
+  it("should return 💪 lead message for quarterly avg <40", () => {
+    const history = Q4_2024.slice(82).map(date => ({ date, score: 20, tier: "low" as const }));
+    const msg = calcQuarterlyMomentumReport(history, Q4_2024)!;
+    expect(msg).toMatch(/^💪/);
+    expect(msg).toContain("이번 분기엔 더 힘내봐요");
+  });
+
+  it("should include tier distribution counts in the message", () => {
+    const history = [
+      ...Q4_2024.slice(72, 82).map(date => ({ date, score: 80, tier: "high" as const })),
+      ...Q4_2024.slice(82, 87).map(date => ({ date, score: 55, tier: "mid" as const })),
+      ...Q4_2024.slice(87, 92).map(date => ({ date, score: 20, tier: "low" as const })),
+    ];
+    // 10 high, 5 mid, 5 low in window — all within Q4_2024
+    const msg = calcQuarterlyMomentumReport(history, Q4_2024)!;
+    expect(msg).toContain("🔥10");
+    expect(msg).toContain("✅5");
+    expect(msg).toContain("💪5");
+  });
+
+  it("should omit tier parts with zero count from distribution", () => {
+    const history = Q4_2024.slice(82).map(date => ({ date, score: 80, tier: "high" as const }));
+    const msg = calcQuarterlyMomentumReport(history, Q4_2024)!;
+    // Only high-tier entries — no ✅ or 💪 in tier distribution
+    expect(msg).not.toMatch(/✅\d/);
+    expect(msg).not.toMatch(/💪\d/);
+    expect(msg).toContain("🔥10");
+  });
+
+  it("should ignore entries outside prevQtrDays even if history is large", () => {
+    const history = [
+      ...Q4_2024.slice(82, 92).map(date => ({ date, score: 20, tier: "low" as const })),
+      // outside window — must not affect avg or tier counts
+      { date: "2025-01-01", score: 100, tier: "high" as const },
+      { date: "2024-09-30", score: 100, tier: "high" as const },
+    ];
+    // only 10 in-window entries at score=20 → avg=20 → 💪
+    const msg = calcQuarterlyMomentumReport(history, Q4_2024)!;
+    expect(msg).toMatch(/^💪/);
+    expect(msg).toContain("20");
+  });
+
+  it("should return 🔥 lead exactly at avg=75 boundary", () => {
+    const history = Q4_2024.slice(82, 92).map(date => ({ date, score: 75, tier: "high" as const }));
+    const msg = calcQuarterlyMomentumReport(history, Q4_2024)!;
+    expect(msg).toMatch(/^🔥/);
+    expect(msg).toContain("75");
+  });
+
+  it("should return ✅ lead exactly at avg=74 (just below 🔥 threshold)", () => {
+    const history = Q4_2024.slice(82, 92).map(date => ({ date, score: 74, tier: "mid" as const }));
+    const msg = calcQuarterlyMomentumReport(history, Q4_2024)!;
+    expect(msg).toMatch(/^✅/);
+    expect(msg).toContain("74");
+  });
+
+  it("should return ✅ lead exactly at avg=40 boundary", () => {
+    const history = Q4_2024.slice(82, 92).map(date => ({ date, score: 40, tier: "mid" as const }));
+    const msg = calcQuarterlyMomentumReport(history, Q4_2024)!;
+    expect(msg).toMatch(/^✅/);
+  });
+
+  it("should return 💪 lead exactly at avg=39 (just below ✅ threshold)", () => {
+    const history = Q4_2024.slice(82, 92).map(date => ({ date, score: 39, tier: "low" as const }));
+    const msg = calcQuarterlyMomentumReport(history, Q4_2024)!;
+    expect(msg).toMatch(/^💪/);
+  });
+
+  it("should work correctly with Q1 window (Jan–Mar 2025, 90 days) and exclude Feb 29 from non-leap year", () => {
+    // Q1 2025: Jan 31 + Feb 28 (non-leap) + Mar 31 = 90 days. "2025-02-29" does not exist.
+    const Q1_2025: string[] = [
+      ...Array.from({ length: 31 }, (_, i) => `2025-01-${String(i + 1).padStart(2, "0")}`),
+      ...Array.from({ length: 28 }, (_, i) => `2025-02-${String(i + 1).padStart(2, "0")}`),
+      ...Array.from({ length: 31 }, (_, i) => `2025-03-${String(i + 1).padStart(2, "0")}`),
+    ];
+    expect(Q1_2025).toHaveLength(90); // not 91 (no Feb 29 in 2025)
+    expect(Q1_2025).not.toContain("2025-02-29"); // non-leap year guard
+    // 10 entries in Mar 22–31 — all within Q1_2025 window
+    const history = Array.from({ length: 10 }, (_, i) =>
+      ({ date: `2025-03-${String(i + 22).padStart(2, "0")}`, score: 80, tier: "high" as const }),
+    );
+    const msg = calcQuarterlyMomentumReport(history, Q1_2025)!;
+    expect(msg).toMatch(/^🔥/);
+    expect(msg).toContain("지난 분기");
     expect(msg).toContain("🔥10");
   });
 });

@@ -20,7 +20,7 @@ import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord } from "./lib/pomodoro";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport } from "./lib/momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
@@ -889,6 +889,36 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.momentumHistory, data.monthlyMomentumReportDate, loaded, persist]);
+
+  // Quarter-start morning quarterly momentum avg + tier distribution report — fires once per quarter-start at 9:00+.
+  // Reports the previous quarter's average score and tier breakdown (requires ≥10 entries in the window).
+  // quarterlyMomentumReportDate persists the guard so it fires only once per quarter-start even after restart.
+  // Design: momentumHistory is capped at 31 days, so only the last ≤31 days of the quarter will match.
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.quarterlyMomentumReportDate === today) return;
+    if (now.getHours() < 9) return;   // after 09:00
+    // Quarter starts on Jan 1, Apr 1, Jul 1, Oct 1
+    const month = now.getMonth() + 1; // 1-based
+    if (!((month === 1 || month === 4 || month === 7 || month === 10) && now.getDate() === 1)) return;
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const prevQtrDays = calcLastNDays(yesterday.toLocaleDateString("sv"), totalDaysInQuarter(yesterday));
+    const msg = calcQuarterlyMomentumReport(data.momentumHistory ?? [], prevQtrDays);
+    if (!msg) return;
+    persist({ ...dataRef.current, quarterlyMomentumReportDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.momentumHistory, data.quarterlyMomentumReportDate, loaded, persist]);
 
   // Monday morning weekly pomodoro session count report — fires once per Monday at 9:00+.
   // Reports the previous week's (7 days ending yesterday) total session count and active-day count.

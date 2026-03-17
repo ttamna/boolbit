@@ -1,5 +1,5 @@
 // ABOUTME: calcDailyScore — computes a 0-100 momentum score from today's habits, pomodoro, and intention
-// ABOUTME: updateMomentumHistory — upserts today's score into rolling 31-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection; calcMomentumEveningDigest — end-of-day score summary notification body; calcWeeklyMomentumReport — Monday morning last-week avg + tier distribution report; calcMonthlyMomentumReport — 1st-of-month previous calendar month avg + tier distribution report
+// ABOUTME: updateMomentumHistory — upserts today's score into rolling 31-day history; calcMomentumStreak — consecutive qualifying days (score≥40); calcMomentumWeekAvg — 7-day average score; calcMomentumTrend — 3-day strict monotone trend detection; calcMomentumEveningDigest — end-of-day score summary notification body; calcWeeklyMomentumReport — Monday morning last-week avg + tier distribution report; calcMonthlyMomentumReport — 1st-of-month previous calendar month avg + tier distribution report; calcQuarterlyMomentumReport — quarter-start morning previous quarter avg + tier distribution report
 
 import type { MomentumEntry } from "../types";
 
@@ -256,4 +256,42 @@ export function calcMonthlyMomentumReport(history: MomentumEntry[], prevMonthDay
   if (avg >= 75) return `🔥 지난달 모멘텀 평균 ${avg}점 — 최고의 한 달!${dist}`;
   if (avg >= 40) return `✅ 지난달 모멘텀 평균 ${avg}점 — 잘 하고 있어요!${dist}`;
   return `💪 지난달 모멘텀 평균 ${avg}점 — 이번 달엔 더 힘내봐요!${dist}`;
+}
+
+/**
+ * Returns the quarter-start morning retrospective for the previous quarter's momentum.
+ * prevQtrDays: YYYY-MM-DD strings for every day of the previous quarter (90–92 entries).
+ * history: rolling MomentumEntry array; only entries whose date is in prevQtrDays are used.
+ * Returns null when fewer than 10 entries fall within the window (insufficient data for a meaningful report).
+ * Tier distribution format: "🔥N ✅N 💪N" — zero-count tiers are omitted.
+ * Lead emoji mirrors calcMonthlyMomentumReport tier thresholds: avg≥75=🔥, avg≥40=✅, else=💪.
+ * Design note: momentumHistory is capped at 31 days (MOMENTUM_HISTORY_CAP), so at most the last ≤31
+ *   days of the quarter will match — effective data window is the same ≤31 entries as calcMonthlyMomentumReport.
+ *   The minimum-entry threshold (10) is shared with calcMonthlyMomentumReport for this reason.
+ * Hour/day guards (quarter-start, getHours() >= 9) live in the caller (App.tsx useEffect).
+ * Callers check quarterlyMomentumReportDate before invoking to ensure once-per-quarter delivery.
+ * Exported for unit testing; pure function with no side effects.
+ */
+export function calcQuarterlyMomentumReport(history: MomentumEntry[], prevQtrDays: string[]): string | null {
+  const window = new Set(prevQtrDays);
+  const entries = history.filter(e => window.has(e.date));
+  if (entries.length < 10) return null;
+
+  const avg = Math.round(entries.reduce((s, e) => s + e.score, 0) / entries.length);
+
+  const highDays = entries.filter(e => e.tier === "high").length;
+  const midDays = entries.filter(e => e.tier === "mid").length;
+  const lowDays = entries.filter(e => e.tier === "low").length;
+
+  const tierParts = [
+    highDays > 0 ? `🔥${highDays}` : null,
+    midDays > 0 ? `✅${midDays}` : null,
+    lowDays > 0 ? `💪${lowDays}` : null,
+  ].filter(Boolean).join(" ");
+
+  const dist = tierParts ? ` (${tierParts})` : "";
+
+  if (avg >= 75) return `🔥 지난 분기 모멘텀 평균 ${avg}점 — 최고의 한 분기!${dist}`;
+  if (avg >= 40) return `✅ 지난 분기 모멘텀 평균 ${avg}점 — 잘 하고 있어요!${dist}`;
+  return `💪 지난 분기 모멘텀 평균 ${avg}점 — 이번 분기엔 더 힘내봐요!${dist}`;
 }

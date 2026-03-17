@@ -129,6 +129,7 @@ export interface WidgetData {
   momentumEveningDigestDate?: string;  // YYYY-MM-DD when the evening momentum score digest notification was last sent; absent = not sent
   weeklyMomentumReportDate?: string;   // YYYY-MM-DD (Monday) when the weekly momentum avg+tier report was last sent; absent = not sent
   monthlyMomentumReportDate?: string;  // YYYY-MM-DD (1st of month) when the monthly momentum avg+tier report was last sent; absent = not sent
+  quarterlyMomentumReportDate?: string; // YYYY-MM-DD (quarter-start) when the quarterly momentum avg+tier report was last sent; absent = not sent
   weeklyPomodoroReportDate?: string;   // YYYY-MM-DD (Monday) when the weekly pomodoro session count report was last sent; absent = not sent
   monthlyPomodoroReportDate?: string;  // YYYY-MM-DD (1st of month) when the monthly pomodoro session count report was last sent; absent = not sent
   quarterlyPomodoroReportDate?: string; // YYYY-MM-DD (quarter-start) when the quarterly pomodoro session count report was last sent; absent = not sent
