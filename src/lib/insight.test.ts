@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_improved, pomodoro_week_declined, week_balanced, habit_month_perfect, habit_month_excellent, intention_month_perfect, intention_month_excellent, momentum_month_strong, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_improved, pomodoro_week_declined, week_balanced, habit_month_perfect, habit_month_excellent, intention_month_perfect, intention_month_excellent, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -12221,6 +12221,248 @@ describe("calcTodayInsight — intention_month_excellent (priority 10.43, after 
     expect(result).not.toBeNull();
     expect(result!.text).toContain("전 습관 개근"); // habit_month_perfect fires first
     expect(result!.text).not.toContain("의도 달성률");
+  });
+});
+
+// ── intention_month_improved (priority 10.4301, after intention_month_excellent, before momentum_month_strong) ──
+describe("calcTodayInsight — intention_month_improved (priority 10.4301, after intention_month_excellent and before momentum_month_strong)", () => {
+  // TODAY = "2024-02-15" → currentMonthDay = 15.
+  const TODAY = "2024-02-15";
+  const YESTERDAY = "2024-02-14";
+
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: undefined as string | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+  it("shouldFireWhenCurrentMonthRateExceedsPrevByThreshold", () => {
+    // curr=70, prev=55 → diff=15 ≥ 10 → fires
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 70,
+      intentionPrevMonthDoneRate: 55,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 달");
+    expect(result!.text).toContain("의도 달성률");
+    expect(result!.text).toContain("올랐어요");
+  });
+
+  it("shouldIncludeRiseDeltaAndCurrentRateInText", () => {
+    // curr=70, prev=55 → diff=15; text shows "70%" and "15"
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 70,
+      intentionPrevMonthDoneRate: 55,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("70%");
+    expect(result!.text).toContain("15");
+  });
+
+  it("shouldFireAtExactDiffThreshold", () => {
+    // curr=65, prev=55 → diff=10 exactly → fires
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 65,
+      intentionPrevMonthDoneRate: 55,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWhenDiffBelowThreshold", () => {
+    // curr=64, prev=55 → diff=9 < 10 → no badge; base has no other badge sources → null
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 64,
+      intentionPrevMonthDoneRate: 55,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPrevRateAbsent", () => {
+    // intentionPrevMonthDoneRate missing → guard fails silently
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 70,
+      intentionPrevMonthDoneRate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenCurrentRateAbsent", () => {
+    // intentionMonthDoneRate missing → badge skipped
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: undefined,
+      intentionPrevMonthDoneRate: 55,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByIntentionMonthExcellent", () => {
+    // curr=90 ≥ 80 → intention_month_excellent fires at 10.43 before improved at 10.4301
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 90,
+      intentionPrevMonthDoneRate: 55,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("훌륭한 실천"); // excellent fires
+    expect(result!.text).not.toContain("올랐어요"); // improved suppressed
+  });
+
+  it("shouldFireBeforeMomentumMonthStrong", () => {
+    // intention_month_improved (10.4301) fires before momentum_month_strong (10.44)
+    const monthHistory = Array.from({ length: 14 }, (_, i) => ({
+      date: `2024-02-${String(i + 1).padStart(2, "0")}`,
+      score: 70,
+      tier: "high" as const,
+    }));
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 70,
+      intentionPrevMonthDoneRate: 55,
+      momentumHistory: monthHistory, // would trigger momentum_month_strong
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("올랐어요"); // improved fires first
+    expect(result!.text).not.toContain("최고의 한 달"); // momentum_month_strong suppressed
+  });
+});
+
+// ── intention_month_declined (priority 10.4302, after intention_month_improved, before momentum_month_strong) ──
+describe("calcTodayInsight — intention_month_declined (priority 10.4302, after intention_month_improved and before momentum_month_strong)", () => {
+  const TODAY = "2024-02-15";
+  const YESTERDAY = "2024-02-14";
+
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: undefined as string | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+  it("shouldFireWhenCurrentMonthRateDropsBelowPrevByThreshold", () => {
+    // curr=55, prev=70 → drop=15 ≥ 10 → fires
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 55,
+      intentionPrevMonthDoneRate: 70,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("이번 달");
+    expect(result!.text).toContain("의도 달성률");
+    expect(result!.text).toContain("낮아요");
+  });
+
+  it("shouldIncludeDropDeltaAndCurrentRateInText", () => {
+    // curr=55, prev=70 → drop=15; text shows "55%" and "15"
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 55,
+      intentionPrevMonthDoneRate: 70,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("55%");
+    expect(result!.text).toContain("15");
+  });
+
+  it("shouldFireAtExactDropThreshold", () => {
+    // curr=55, prev=65 → drop=10 exactly → fires
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 55,
+      intentionPrevMonthDoneRate: 65,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+  });
+
+  it("shouldNotFireWhenDropBelowThreshold", () => {
+    // curr=56, prev=65 → drop=9 < 10 → no badge
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 56,
+      intentionPrevMonthDoneRate: 65,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPrevRateAbsent", () => {
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 55,
+      intentionPrevMonthDoneRate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenCurrentRateAbsent", () => {
+    // intentionMonthDoneRate missing → guard fails silently (same guard as improved)
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: undefined,
+      intentionPrevMonthDoneRate: 70,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByIntentionMonthExcellent", () => {
+    // curr=85 ≥ 80 AND drop=14 ≥ 10 → intention_month_excellent fires at 10.43, declined suppressed
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 85,
+      intentionPrevMonthDoneRate: 99,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("훌륭한 실천"); // excellent fires
+    expect(result!.text).not.toContain("낮아요"); // declined suppressed
+  });
+
+  it("shouldBePreemptedByIntentionMonthImproved", () => {
+    // curr=70, prev=55 → improved fires (not declined) — mutually exclusive
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 70,
+      intentionPrevMonthDoneRate: 55,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("올랐어요"); // improved fires
+    expect(result!.text).not.toContain("낮아요"); // declined suppressed
+  });
+
+  it("shouldFireBeforeMomentumMonthStrong", () => {
+    // intention_month_declined (10.4302) fires before momentum_month_strong (10.44)
+    const monthHistory = Array.from({ length: 14 }, (_, i) => ({
+      date: `2024-02-${String(i + 1).padStart(2, "0")}`,
+      score: 70,
+      tier: "high" as const,
+    }));
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 55,
+      intentionPrevMonthDoneRate: 70,
+      momentumHistory: monthHistory, // would trigger momentum_month_strong
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("낮아요"); // declined fires first
+    expect(result!.text).not.toContain("최고의 한 달"); // momentum_month_strong suppressed
   });
 });
 

@@ -1876,6 +1876,21 @@ export default function App() {
     data.todayIntention,
     data.todayIntentionDone,
   );
+  // intentionPrevMonthDoneRate: previous calendar month's intention done rate (0–100), or undefined
+  // when fewer than 10 intentions were set in the previous month (insufficient comparison baseline).
+  // intentionHistory is capped at 35 days (types.ts) — enough to cover the full previous calendar month.
+  // Computed inline: filter intentionHistory to prevMonthPrefix, compute done/set ratio.
+  const intentionPrevMonthDoneRate = (() => {
+    const yr = +todayStr.slice(0, 4);
+    const mo = +todayStr.slice(5, 7);
+    const prevMonthPrefix = mo === 1
+      ? `${yr - 1}-12`
+      : `${yr}-${String(mo - 1).padStart(2, "0")}`;
+    const prevEntries = (data.intentionHistory ?? []).filter(e => e.date.startsWith(prevMonthPrefix));
+    if (prevEntries.length < 10) return undefined;
+    const doneCount = prevEntries.filter(e => e.done === true).length;
+    return Math.round((doneCount / prevEntries.length) * 100);
+  })();
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2013,6 +2028,8 @@ export default function App() {
     intentionPrevWeekDoneRate,
     // intentionMonthDoneRate: current calendar month done rate — undefined when setCount < 14.
     intentionMonthDoneRate,
+    // intentionPrevMonthDoneRate: previous calendar month done rate — undefined when prevEntries < 10.
+    intentionPrevMonthDoneRate,
     // pomodoroWeekSessions / pomodoroPrevWeekSessions: rolling 7-day session totals for week-comparison badges.
     pomodoroWeekSessions,
     pomodoroPrevWeekSessions,
