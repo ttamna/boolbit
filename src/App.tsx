@@ -93,6 +93,7 @@ export default function App() {
   const [showQuarterGoalHistory, setShowQuarterGoalHistory] = useState(false);
   const [showYearGoalHistory, setShowYearGoalHistory] = useState(false);
   const { settings, updateSettings, loaded: settingsLoaded } = useSettings();
+  const [hiddenSections, setHiddenSections] = useState<SectionKey[]>([]);
 
   useWindowSync({
     settings,
@@ -147,6 +148,7 @@ export default function App() {
             ...(yearGoalStale ? { yearGoal: undefined, yearGoalDate: undefined, yearGoalDone: undefined } : {}),
           } : saved;
           setData(resolvedData);
+          if (resolvedData.hiddenSections !== undefined) setHiddenSections(resolvedData.hiddenSections);
           if (needsSave) await invoke("save_data", { data: resolvedData });
         }
       } finally {
@@ -155,14 +157,20 @@ export default function App() {
     })();
   }, []);
 
-  const persist = useCallback(async (next: WidgetData) => {
-    setData(next);
-    await invoke("save_data", { data: next });
-  }, []);
-
   // Mirror current data in a ref so interval callbacks always see the latest state (avoids stale closure)
   const dataRef = useRef(data);
   dataRef.current = data;
+  const hiddenSectionsRef = useRef(hiddenSections);
+  hiddenSectionsRef.current = hiddenSections;
+
+  const persist = useCallback(async (next: WidgetData) => {
+    const withHidden: WidgetData = next.hiddenSections !== undefined
+      ? next
+      : { ...next, hiddenSections: hiddenSectionsRef.current };
+    setData(withHidden);
+    await invoke("save_data", { data: withHidden });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updateHabit = useCallback((i: number, patch: Partial<Habit>) => {
     const snapshot = dataRef.current;
@@ -1645,9 +1653,14 @@ export default function App() {
 
   const moveSection = useCallback((section: SectionKey, dir: -1 | 1) => {
     const snapshot = dataRef.current;
+    const hidden = hiddenSectionsRef.current;
     const order = snapshot.sectionOrder ?? DEFAULT_SECTION_ORDER;
     const i = order.indexOf(section);
-    const j = i + dir;
+    // Find nearest visible section in the given direction
+    let j = i + dir;
+    while (j >= 0 && j < order.length && hidden.includes(order[j])) {
+      j += dir;
+    }
     if (j < 0 || j >= order.length) return;
     const next = [...order];
     [next[i], next[j]] = [next[j], next[i]];
@@ -2199,8 +2212,11 @@ export default function App() {
         />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {
-          const up = idx > 0 ? () => moveSection(key, -1) : undefined;
-          const dn = idx < order.length - 1 ? () => moveSection(key, 1) : undefined;
+          if (hiddenSections.includes(key)) return null;
+          const visibleOrder = order.filter(k => !hiddenSections.includes(k));
+          const visibleIdx = visibleOrder.indexOf(key);
+          const up = visibleIdx > 0 ? () => moveSection(key, -1) : undefined;
+          const dn = visibleIdx < visibleOrder.length - 1 ? () => moveSection(key, 1) : undefined;
           if (key === "projects") return (
             <Fragment key="projects">
               <SectionLabel accent={themeAccent} collapsed={collapsed.includes("projects")} onToggle={() => toggleSection("projects")} badge={projectsBadge} onMoveUp={up} onMoveDown={dn}>Projects</SectionLabel>
@@ -2703,7 +2719,7 @@ export default function App() {
 
       {/* ── Settings panel ── */}
       {settingsOpen && (
-        <SettingsPanel settings={settings} onUpdate={updateSettings} widgetData={data} onImport={persist} />
+        <SettingsPanel settings={settings} onUpdate={updateSettings} widgetData={data} onImport={(imported) => { if (imported.hiddenSections !== undefined) { setHiddenSections(imported.hiddenSections); hiddenSectionsRef.current = imported.hiddenSections; } persist(imported); }} hiddenSections={hiddenSections} onHiddenSectionsChange={(next) => { setHiddenSections(next); hiddenSectionsRef.current = next; persist({ ...dataRef.current, hiddenSections: next }); }} />
       )}
     </div>
   );

@@ -86,6 +86,7 @@ export interface WidgetData {
   pomodoroHistory?: PomodoroDay[];    // rolling 14-day daily session counts for the 7-day heatmap
   collapsedSections?: SectionKey[];  // section names currently collapsed
   sectionOrder?: SectionKey[];       // display order of sections; absent = default order
+  hiddenSections?: SectionKey[];     // section names currently hidden from view; absent = all visible
   quoteInterval?: number;            // auto-rotation interval in seconds (default 8)
   todayIntention?: string;           // one-line daily intention set by user; absent = not set
   todayIntentionDate?: string;       // YYYY-MM-DD when todayIntention was last set; absent = not tracked
