@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_maintained, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -9488,8 +9488,11 @@ describe("calcTodayInsight — habit_week_excellent (priority 10.35, between alm
   });
 
   it("shouldNotFireAt89Percent", () => {
+    // 89 < 90 → habit_week_maintained (10.351) fires instead; excellent requires ≥ 90
     const result = calcTodayInsight({ ...base(), habitWeekRate: 89 });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("지속력이 빛나요"); // habit_week_excellent suppressed
+    expect(result!.text).toContain("유지"); // habit_week_maintained fires instead
   });
 
   it("shouldNotFireWhenAbsent", () => {
@@ -9560,6 +9563,106 @@ describe("calcTodayInsight — habit_week_excellent (priority 10.35, between alm
   });
 });
 
+// ── habit_week_maintained ──────────────────────────────────────────
+describe("calcTodayInsight — habit_week_maintained (priority 10.351, after habit_week_excellent, before habit_week_improved and habit_week_declined)", () => {
+  // habit_week_maintained fires when habitWeekRate ∈ [70, 90).
+  // Preempts habit_week_improved (10.36) and habit_week_declined (10.37):
+  //   a 70–89% week is a positive sustained-effort signal regardless of relative change.
+  // habit_week_excellent (10.35) fires first when rate ≥ 90; maintained only reaches here at 70–89.
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+  it("shouldFireAtLowerBoundary70Percent", () => {
+    // avg === 70 → lower boundary of maintained range → fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 70 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("70");
+  });
+
+  it("shouldFireAtMidRange80Percent", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 80 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("유지");
+  });
+
+  it("shouldFireAtUpperBoundary89Percent", () => {
+    // 89 < 90 → maintained fires; excellent requires ≥ 90
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 89 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("89");
+  });
+
+  it("shouldNotFireAt90Percent", () => {
+    // 90 → habit_week_excellent (10.35) fires instead
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 90 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("지속력이 빛나요"); // excellent badge fires
+    expect(result!.text).not.toContain("유지"); // maintained suppressed
+  });
+
+  it("shouldNotFireBelow70Percent", () => {
+    // 69 < 70 → below maintained threshold → no positive badge
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 69 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldIncludeRateInBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 78 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("78");
+  });
+
+  it("shouldPreemptHabitWeekImprovedWhenRateIn70to89AndImproved", () => {
+    // rate=80 ∈ [70,90), improvement=15pp → maintained fires at 10.351 before improved at 10.36
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 65 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("유지"); // maintained, not improved
+    expect(result!.text).not.toContain("올랐어요"); // improved text suppressed
+  });
+
+  it("shouldPreemptHabitWeekDeclinedWhenRateIn70to89AndDeclined", () => {
+    // rate=75 ∈ [70,90), decline=15pp → maintained fires at 10.351 before declined at 10.37
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 75, habitPrevWeekRate: 90 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // maintained is "success", not "warning"
+    expect(result!.text).toContain("유지"); // maintained fires
+    expect(result!.text).not.toContain("낮아요"); // declined text suppressed
+  });
+
+  it("shouldBePreemptedByWeekBalancedWhenAllDomainsInRange", () => {
+    // week_balanced (10.33) fires before habit_week_maintained (10.351) when all three domains are active.
+    // habitWeekRate=80 ∈ [70,90), intentionWeekDoneRate=75 ≥70, momentumWeekAvg7d=50 ∈ [40,65)
+    // → week_balanced wins; "균형" in text, "유지" suppressed
+    const result = calcTodayInsight({
+      ...base(),
+      habitWeekRate: 80,
+      intentionWeekDoneRate: 75,
+      momentumWeekAvg7d: 50,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("균형"); // week_balanced fires
+    expect(result!.text).not.toContain("유지"); // habit_week_maintained suppressed
+  });
+});
+
 // ── habit_week_declined ──────────────────────────────────────────
 describe("calcTodayInsight — habit_week_declined (priority 10.37, after habit_week_excellent, before pomodoro_today_above_avg)", () => {
   function base() {
@@ -9575,8 +9678,8 @@ describe("calcTodayInsight — habit_week_declined (priority 10.37, after habit_
   }
 
   it("shouldFireWhenDeclineExactlyTenPp", () => {
-    // prevRate=80, weekRate=70 → decline=10pp → warning fires
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 70, habitPrevWeekRate: 80 });
+    // prevRate=70, weekRate=60 → decline=10pp AND rate<70 (below maintained threshold) → warning fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 60, habitPrevWeekRate: 70 });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("warning");
   });
@@ -9602,14 +9705,15 @@ describe("calcTodayInsight — habit_week_declined (priority 10.37, after habit_
   });
 
   it("shouldNotFireWhenDeclineBelowTenPp", () => {
-    // prevRate=80, weekRate=72 → decline=8pp → no badge
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 72, habitPrevWeekRate: 80 });
+    // prevRate=70, weekRate=62 → decline=8pp (< 10pp threshold) AND rate<70 → no badge fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 62, habitPrevWeekRate: 70 });
     expect(result).toBeNull();
   });
 
   it("shouldBePreemptedByHabitWeekImprovedWhenRateRose", () => {
-    // prevRate=70, weekRate=80 → improvement=10pp → habit_week_improved (10.36) fires instead; declined badge does not fire
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 70 });
+    // prevRate=50, weekRate=65 → improvement=15pp AND rate<70 (maintained doesn't preempt)
+    // → habit_week_improved (10.36) fires instead of declined; not a warning
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, habitPrevWeekRate: 50 });
     expect(result!.level).toBe("success"); // habit_week_improved preempts — not a warning
   });
 
@@ -9619,7 +9723,8 @@ describe("calcTodayInsight — habit_week_declined (priority 10.37, after habit_
   });
 
   it("shouldNotFireWhenHabitPrevWeekRateAbsent", () => {
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 70, habitPrevWeekRate: undefined });
+    // habitPrevWeekRate absent AND rate<70 → declined cannot fire; maintained also suppressed → null
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 60, habitPrevWeekRate: undefined });
     expect(result).toBeNull();
   });
 
@@ -9632,16 +9737,16 @@ describe("calcTodayInsight — habit_week_declined (priority 10.37, after habit_
   });
 
   it("shouldFireWhenCurrentRateBelowExcellentThreshold", () => {
-    // prevRate=99, weekRate=89 → decline=10pp AND rate<90 → habit_week_declined fires
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 89, habitPrevWeekRate: 99 });
+    // prevRate=70, weekRate=60 → decline=10pp AND rate<70 (below maintained threshold) → declined fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 60, habitPrevWeekRate: 70 });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("warning");
-    expect(result!.text).toContain("89%");
+    expect(result!.text).toContain("60%");
   });
 
   it("shouldNotFireWhenDeclineExactlyNinePp", () => {
-    // Boundary: prevRate=79, weekRate=70 → decline=9pp (< 10pp threshold) → no badge
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 70, habitPrevWeekRate: 79 });
+    // Boundary: prevRate=69, weekRate=60 → decline=9pp (< 10pp threshold) AND rate<70 → no badge
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 60, habitPrevWeekRate: 69 });
     expect(result).toBeNull();
   });
 
@@ -9650,6 +9755,15 @@ describe("calcTodayInsight — habit_week_declined (priority 10.37, after habit_
     const result = calcTodayInsight({ ...base(), habitWeekRate: 100, habitPrevWeekRate: 80 });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("완벽한 한 주"); // habit_week_perfect wins
+  });
+
+  it("shouldBePreemptedByHabitWeekMaintainedWhenRateIn70to89", () => {
+    // rate=75 ∈ [70,90), decline=15pp → maintained (10.351) fires before declined (10.37)
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 75, habitPrevWeekRate: 90 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // maintained is "success", not "warning"
+    expect(result!.text).toContain("유지"); // maintained fires
+    expect(result!.text).not.toContain("낮아요"); // declined suppressed
   });
 });
 
@@ -9668,41 +9782,42 @@ describe("calcTodayInsight — habit_week_improved (priority 10.36, after habit_
   }
 
   it("shouldFireWhenImprovementExactlyTenPp", () => {
-    // prevRate=70, weekRate=80 → improvement=10pp → fires
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 70 });
+    // prevRate=55, weekRate=65 → improvement=10pp AND rate<70 (below maintained threshold) → habit_week_improved fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, habitPrevWeekRate: 55 });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
   });
 
   it("shouldFireWhenImprovementGreaterThanTenPp", () => {
-    // prevRate=60, weekRate=80 → improvement=20pp → fires
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 60 });
+    // prevRate=45, weekRate=65 → improvement=20pp AND rate<70 (below maintained threshold) → habit_week_improved fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, habitPrevWeekRate: 45 });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
   });
 
   it("shouldIncludeCurrentRateInBadgeText", () => {
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 65 });
+    // rate=65 < 70 (maintained doesn't preempt); prev=50 → delta=15pp ≥ 10 → improved fires; text includes "65%"
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, habitPrevWeekRate: 50 });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("80%");
+    expect(result!.text).toContain("65%");
   });
 
   it("shouldIncludeRiseSizeInBadgeText", () => {
-    // prevRate=65, weekRate=80 → rise=15pp → "15%p" in text
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 65 });
+    // prevRate=50, weekRate=65 → rise=15pp AND rate<70 (maintained doesn't preempt) → "15%p" in text
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, habitPrevWeekRate: 50 });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("15%p");
   });
 
   it("shouldNotFireWhenImprovementBelowTenPp", () => {
-    // prevRate=73, weekRate=80 → improvement=7pp → no badge
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 73 });
+    // prevRate=58, weekRate=65 → improvement=7pp (< 10pp threshold) AND rate<70 → no badge fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, habitPrevWeekRate: 58 });
     expect(result).toBeNull();
   });
 
   it("shouldNotFireWhenRateEqual", () => {
-    // prevRate=75, weekRate=75 → no change → no badge
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 75, habitPrevWeekRate: 75 });
+    // prevRate=60, weekRate=60 → no change AND rate<70 → no badge fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 60, habitPrevWeekRate: 60 });
     expect(result).toBeNull();
   });
 
@@ -9712,8 +9827,17 @@ describe("calcTodayInsight — habit_week_improved (priority 10.36, after habit_
   });
 
   it("shouldNotFireWhenHabitPrevWeekRateAbsent", () => {
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: undefined });
+    // habitPrevWeekRate absent AND rate<70 → improved cannot fire; maintained also suppressed → null
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, habitPrevWeekRate: undefined });
     expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByHabitWeekMaintainedWhenRateIn70to89", () => {
+    // rate=80 ∈ [70,90), delta=15pp ≥ 10 → improved would fire, BUT habit_week_maintained (10.351) fires first
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 65 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("유지"); // maintained fires
+    expect(result!.text).not.toContain("올랐어요"); // improved text suppressed
   });
 
   it("shouldBePreemptedByHabitWeekExcellentWhenCurrentRateGeq90", () => {
@@ -9724,17 +9848,18 @@ describe("calcTodayInsight — habit_week_improved (priority 10.36, after habit_
     expect(result!.level).toBe("success"); // still success — excellent preempts
   });
 
-  it("shouldFireWhenCurrentRateBelowExcellentThreshold", () => {
-    // prevRate=70, weekRate=89 → improvement=19pp AND rate<90 → habit_week_improved fires
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 89, habitPrevWeekRate: 70 });
+  it("shouldFireWhenCurrentRateBelowMaintainedAndExcellentThresholds", () => {
+    // prevRate=50, weekRate=65 → improvement=15pp AND rate<70 (below maintained threshold) AND rate<90 (below excellent)
+    // habit_week_improved fires — not preempted by maintained (10.351) or excellent (10.35)
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, habitPrevWeekRate: 50 });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
-    expect(result!.text).toContain("89%");
+    expect(result!.text).toContain("65%");
   });
 
   it("shouldNotFireWhenImprovementExactlyNinePp", () => {
-    // Boundary: prevRate=71, weekRate=80 → improvement=9pp (< 10pp threshold) → no badge
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 80, habitPrevWeekRate: 71 });
+    // Boundary: prevRate=56, weekRate=65 → improvement=9pp (< 10pp threshold) AND rate<70 → no badge
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, habitPrevWeekRate: 56 });
     expect(result).toBeNull();
   });
 
@@ -9749,8 +9874,8 @@ describe("calcTodayInsight — habit_week_improved (priority 10.36, after habit_
   it("shouldFireBeforeHabitWeekDeclinedWhenBothCouldApply", () => {
     // This case cannot both apply simultaneously: improvement and decline are mutually exclusive.
     // Verified by shouldNotFireWhenNoDecline in habit_week_declined block.
-    // Guard: when weekRate > prevRate by ≥10pp, level is "success" not "warning"
-    const result = calcTodayInsight({ ...base(), habitWeekRate: 82, habitPrevWeekRate: 70 });
+    // Guard: when weekRate > prevRate by ≥10pp AND rate<70 (maintained doesn't preempt), level is "success" not "warning"
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, habitPrevWeekRate: 50 });
     expect(result!.level).toBe("success");
     expect(result!.level).not.toBe("warning");
   });
@@ -11667,8 +11792,10 @@ describe("calcTodayInsight — intention_week_excellent (priority 10.372, betwee
   });
 
   it("shouldNotFireWhenDoneRateBelow70", () => {
+    // 69 < 70 → excellent suppressed; intention_week_maintained fires instead (69 ∈ [50, 70))
     const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 69 });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull(); // maintained fires
+    expect(result!.text).not.toContain("훌륭한 실천"); // excellent text absent
   });
 
   it("shouldNotFireWhenAbsent", () => {
@@ -11677,8 +11804,83 @@ describe("calcTodayInsight — intention_week_excellent (priority 10.372, betwee
   });
 });
 
-// ── intention_week_improved (priority 10.373, between intention_week_excellent and intention_week_declined) ──
-describe("calcTodayInsight — intention_week_improved (priority 10.373, between intention_week_excellent and intention_week_declined)", () => {
+// ── intention_week_maintained (priority 10.3725, between intention_week_excellent and intention_week_improved) ──
+describe("calcTodayInsight — intention_week_maintained (priority 10.3725, between intention_week_excellent and intention_week_improved)", () => {
+  // intention_week_maintained fires when intentionWeekDoneRate ∈ [50, 70).
+  // Preempts intention_week_improved (10.373) and intention_week_declined (10.374):
+  //   a 50–69% week is a positive sustained-effort signal regardless of relative change.
+  // intention_week_excellent (10.372) fires first when rate ≥ 70; maintained only reaches here at 50–69.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireAtLowerBoundary50Percent", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 50 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("50");
+  });
+
+  it("shouldFireAtMidRange60Percent", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("꾸준한 실천");
+  });
+
+  it("shouldFireAtUpperBoundary69Percent", () => {
+    // 69 < 70 → excellent requires ≥ 70; maintained fires
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 69 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("69");
+  });
+
+  it("shouldNotFireAt70Percent", () => {
+    // 70 → intention_week_excellent (10.372) fires instead
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 70 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("훌륭한 실천"); // excellent fires
+    expect(result!.text).not.toContain("꾸준한 실천"); // maintained suppressed
+  });
+
+  it("shouldNotFireBelow50Percent", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 49 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPreemptIntentionWeekImprovedWhenRateIn50to69AndImproved", () => {
+    // doneRate=60 ∈ [50, 70), improvement=10pp → maintained fires at 10.3725 before improved at 10.373
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60, intentionPrevWeekDoneRate: 50 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("꾸준한 실천"); // maintained fires, not improved
+    expect(result!.text).not.toContain("올랐어요"); // improved suppressed
+  });
+
+  it("shouldPreemptIntentionWeekDeclinedWhenRateIn50to69AndDeclined", () => {
+    // doneRate=60 ∈ [50, 70), decline=10pp → maintained fires; declined suppressed
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60, intentionPrevWeekDoneRate: 70 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // maintained is "success", not "warning"
+    expect(result!.text).toContain("꾸준한 실천"); // maintained fires
+    expect(result!.text).not.toContain("낮아요"); // declined suppressed
+  });
+});
+
+// ── intention_week_improved (priority 10.373, between intention_week_maintained and intention_week_declined) ──
+describe("calcTodayInsight — intention_week_improved (priority 10.373, between intention_week_maintained and intention_week_declined)", () => {
   const base = () => ({
     habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
     todayStr: TODAY,
@@ -11690,34 +11892,35 @@ describe("calcTodayInsight — intention_week_improved (priority 10.373, between
   });
 
   it("shouldFireWhenRiseExactly10pp", () => {
-    // doneRate=60, prevRate=50 → rise=10pp → fires
-    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60, intentionPrevWeekDoneRate: 50 });
+    // doneRate=40, prevRate=30 → rise=10pp, rate < 50 (no maintained) → improved fires
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 40, intentionPrevWeekDoneRate: 30 });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
   });
 
   it("shouldFireWhenRiseGreaterThan10pp", () => {
-    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 65, intentionPrevWeekDoneRate: 40 });
+    // doneRate=40, prevRate=25 → rise=15pp, rate < 50 → improved fires
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 40, intentionPrevWeekDoneRate: 25 });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
   });
 
   it("shouldIncludeRiseSizeInBadgeText", () => {
-    // doneRate=60, prevRate=40 → rise=20pp
-    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60, intentionPrevWeekDoneRate: 40 });
+    // doneRate=40, prevRate=20 → rise=20pp
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 40, intentionPrevWeekDoneRate: 20 });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("20");
   });
 
   it("shouldIncludeCurrentRateInBadgeText", () => {
-    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60, intentionPrevWeekDoneRate: 40 });
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 40, intentionPrevWeekDoneRate: 20 });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("60");
+    expect(result!.text).toContain("40");
   });
 
   it("shouldNotFireWhenRiseBelow10pp", () => {
-    // delta=9 (below threshold) → no badge
-    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 59, intentionPrevWeekDoneRate: 50 });
+    // doneRate=40, prevRate=32 → delta=8 < 10pp, rate < 50 (no maintained) → no badge
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 40, intentionPrevWeekDoneRate: 32 });
     expect(result).toBeNull();
   });
 
@@ -11727,8 +11930,17 @@ describe("calcTodayInsight — intention_week_improved (priority 10.373, between
   });
 
   it("shouldNotFireWhenPrevRateAbsent", () => {
-    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60 });
+    // doneRate=40 (< 50 so no maintained), no prevRate → improved also cannot fire → null
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 40 });
     expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByIntentionWeekMaintainedWhenCurrentRateIn50to69", () => {
+    // doneRate=60 ∈ [50, 70) → maintained (10.3725) fires before improved (10.373)
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60, intentionPrevWeekDoneRate: 50 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("올랐어요"); // improved text suppressed
+    expect(result!.text).toContain("꾸준한 실천"); // maintained fires instead
   });
 
   it("shouldBePreemptedByIntentionWeekExcellentWhenCurrentRateGeq70", () => {
@@ -11754,8 +11966,8 @@ describe("calcTodayInsight — intention_week_declined (priority 10.374, between
   });
 
   it("shouldFireWhenDeclineExactly10pp", () => {
-    // prevRate=60, doneRate=50 → decline=10pp → fires
-    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 50, intentionPrevWeekDoneRate: 60 });
+    // prevRate=50, doneRate=40 → decline=10pp, rate < 50 (no maintained) → fires
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 40, intentionPrevWeekDoneRate: 50 });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("warning");
     expect(result!.text).toContain("낮아요"); // intention_week_declined text
@@ -11781,8 +11993,8 @@ describe("calcTodayInsight — intention_week_declined (priority 10.374, between
   });
 
   it("shouldNotFireWhenDeclineBelow10pp", () => {
-    // delta=9 (below threshold) → no badge
-    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 51, intentionPrevWeekDoneRate: 60 });
+    // delta=9 (below threshold), rate < 50 (no maintained) → no badge
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 40, intentionPrevWeekDoneRate: 49 });
     expect(result).toBeNull();
   });
 
@@ -13131,9 +13343,10 @@ describe("calcTodayInsight — week_balanced (priority 10.33, between almost_per
   });
 
   it("shouldNotFireWhenIntentionBelowThreshold", () => {
-    // intentionWeekDoneRate=65 < 70 → week_balanced suppressed; intention_week_excellent also suppressed (needs ≥70) → null
+    // intentionWeekDoneRate=40 < 50 → week_balanced suppressed; intention_week_maintained also suppressed (needs ≥50)
+    // habitWeekRate=65 < 70 → habit_week_maintained suppressed; no prev → improved/declined don't fire
     // momentumWeekAvg7d=35 < 40 → below maintained threshold; no prev for improved/declined → null
-    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 65, momentumWeekAvg7d: 35 });
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, intentionWeekDoneRate: 40, momentumWeekAvg7d: 35 });
     expect(result).toBeNull();
   });
 
@@ -13153,8 +13366,9 @@ describe("calcTodayInsight — week_balanced (priority 10.33, between almost_per
 
   it("shouldNotFireWhenIntentionAbsent", () => {
     // intentionWeekDoneRate undefined → all-three-defined guard fails AND no other badge fires → null
+    // habitWeekRate=65 < 70 → habit_week_maintained suppressed; no prev → improved/declined don't fire
     // momentumWeekAvg7d=35 < 40 → below maintained threshold; no prev for improved/declined → null
-    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: undefined, momentumWeekAvg7d: 35 });
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, intentionWeekDoneRate: undefined, momentumWeekAvg7d: 35 });
     expect(result).toBeNull();
   });
 
@@ -13203,11 +13417,10 @@ describe("calcTodayInsight — week_balanced (priority 10.33, between almost_per
   });
 
   it("shouldNotFireWhenIntentionPerfect_100percent", () => {
-    // intentionWeekDoneRate=100 ≥ 100 → upper-bound guard fails; nothing else fires → null
-    // (habit_week_* don't fire because habitWeekRate=80; intention_week_perfect=10.371 fires if we got there,
-    //  but with habitWeekRate=80 and no prevWeekRate, nothing fires between 10.34–10.37, then
-    //  intention_week_perfect fires at 10.371 — but we must first check there's no earlier badge)
-    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 100 });
+    // intentionWeekDoneRate=100 ≥ 100 → upper-bound guard fails; week_balanced suppressed
+    // habitWeekRate=65 < 70 → habit_week_maintained suppressed; no prev → improved/declined don't fire
+    // → intention_week_perfect (10.371) fires: text contains "의도"
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65, intentionWeekDoneRate: 100 });
     expect(result).not.toBeNull();
     expect(result!.text).not.toContain("균형"); // week_balanced suppressed
     expect(result!.text).toContain("의도"); // intention_week_perfect fires instead
@@ -13222,7 +13435,8 @@ describe("calcTodayInsight — week_balanced (priority 10.33, between almost_per
   });
 
   it("shouldFireAtHabitUpperBoundary_89percent", () => {
-    // habitWeekRate=89 (one below the 90 upper bound) → still fires
+    // habitWeekRate=89 ∈ [70,90) → habit_week_maintained (10.351) could fire, BUT week_balanced (10.33)
+    // fires first because all three domains are in range (base has intentionWeekDoneRate=75 ≥70, momentumWeekAvg7d=50 ∈ [40,65))
     const result = calcTodayInsight({ ...base(), habitWeekRate: 89 });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("균형");
@@ -13754,6 +13968,82 @@ describe("calcTodayInsight — habit_month_excellent (priority 10.41, ≥ 2 habi
   });
 });
 
+// ── habit_month_maintained (priority 10.411, between habit_month_excellent and habit_month_improved) ──
+describe("calcTodayInsight — habit_month_maintained (priority 10.411, between habit_month_excellent and habit_month_improved)", () => {
+  // TODAY = "2024-01-15" → currentMonthDay = 15 ≥ 14; habitMonthRate undefined when < 14 (enforced in App.tsx).
+  // Empty habits array → habit_month_perfect/excellent cannot preempt.
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: undefined as string | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+    };
+  }
+
+  it("shouldFireAtLowerBoundary70Percent", () => {
+    // habitMonthRate=70 ∈ [70, 80) → maintained fires
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 70 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("70");
+  });
+
+  it("shouldFireAtMidRange75Percent", () => {
+    // habitMonthRate=75 ∈ [70, 80) → maintained fires; text contains "꾸준한 한 달"
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 75 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("꾸준한 한 달");
+  });
+
+  it("shouldFireAtUpperBoundary79Percent", () => {
+    // habitMonthRate=79 ∈ [70, 80) → maintained fires
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 79 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("79");
+  });
+
+  it("shouldNotFireAt80Percent", () => {
+    // habitMonthRate=80 ≥ 80 → maintained upper-bound guard fails; habit_month_excellent (streak-based)
+    // doesn't fire with empty habits array → result is null (maintained not triggered)
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 80 });
+    expect(result).toBeNull(); // maintained stops at 79; nothing else fires with empty habits
+  });
+
+  it("shouldNotFireBelow70Percent", () => {
+    // habitMonthRate=69 < 70 → no maintained, no improved (no prev) → null
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 69 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPreemptHabitMonthImprovedWhenRateIn70to79AndImproved", () => {
+    // habitMonthRate=75 ∈ [70, 80) → maintained fires at 10.411 before improved (10.413)
+    // even though prevRate=65 → rise=10pp would qualify improved
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 75, habitPrevMonthRate: 65 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("올랐어요"); // improved text suppressed
+    expect(result!.text).toContain("꾸준한 한 달"); // maintained fires instead
+  });
+
+  it("shouldPreemptHabitMonthDeclinedWhenRateIn70to79AndDeclined", () => {
+    // habitMonthRate=75 ∈ [70, 80) → maintained fires at 10.411 before declined (10.414)
+    // even though prevRate=90 → drop=15pp would qualify declined
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 75, habitPrevMonthRate: 90 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("낮아요"); // declined text suppressed
+    expect(result!.text).toContain("꾸준한 한 달"); // maintained fires instead
+  });
+});
+
 // ── habit_month_improved ──────────────────────────────────────────
 describe("calcTodayInsight — habit_month_improved (priority 10.413, after habit_month_excellent, before habit_month_declined)", () => {
   // TODAY = "2024-01-15" → currentMonthDay = 15 ≥ 14; habitMonthRate undefined when < 14 (enforced in App.tsx).
@@ -13804,7 +14094,8 @@ describe("calcTodayInsight — habit_month_improved (priority 10.413, after habi
   });
 
   it("shouldNotFireWhenRateEqual", () => {
-    const result = calcTodayInsight({ ...base(), habitMonthRate: 75, habitPrevMonthRate: 75 });
+    // rate < 70 to avoid maintained tier; equal rates → no improved badge
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 65, habitPrevMonthRate: 65 });
     expect(result).toBeNull();
   });
 
@@ -13858,8 +14149,8 @@ describe("calcTodayInsight — habit_month_declined (priority 10.414, after habi
   }
 
   it("shouldFireWhenDeclineExactlyTenPp", () => {
-    // prevRate=80, monthRate=70 → decline=10pp → fires
-    const result = calcTodayInsight({ ...base(), habitMonthRate: 70, habitPrevMonthRate: 80 });
+    // prevRate=70, monthRate=60 → decline=10pp, rate < 70 (no maintained) → fires
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 60, habitPrevMonthRate: 70 });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("warning");
   });
@@ -13872,16 +14163,16 @@ describe("calcTodayInsight — habit_month_declined (priority 10.414, after habi
   });
 
   it("shouldIncludeCurrentRateAndDropInBadgeText", () => {
-    // prevRate=80, monthRate=70 → drop=10pp → "70%" and "10%p" in text
-    const result = calcTodayInsight({ ...base(), habitMonthRate: 70, habitPrevMonthRate: 80 });
+    // prevRate=70, monthRate=60 → drop=10pp, rate < 70 (no maintained) → "60%" and "10%p" in text
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 60, habitPrevMonthRate: 70 });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("70%");
+    expect(result!.text).toContain("60%");
     expect(result!.text).toContain("10%p");
   });
 
   it("shouldNotFireWhenDeclineBelowTenPp", () => {
-    // prevRate=78, monthRate=70 → decline=8pp < threshold → no badge
-    const result = calcTodayInsight({ ...base(), habitMonthRate: 70, habitPrevMonthRate: 78 });
+    // prevRate=68, monthRate=60 → decline=8pp < threshold, rate < 70 (no maintained) → no badge
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 60, habitPrevMonthRate: 68 });
     expect(result).toBeNull();
   });
 
@@ -13891,7 +14182,8 @@ describe("calcTodayInsight — habit_month_declined (priority 10.414, after habi
   });
 
   it("shouldNotFireWhenHabitPrevMonthRateAbsent", () => {
-    const result = calcTodayInsight({ ...base(), habitMonthRate: 70, habitPrevMonthRate: undefined });
+    // rate < 70 (no maintained), no prev → no badge
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 60, habitPrevMonthRate: undefined });
     expect(result).toBeNull();
   });
 
