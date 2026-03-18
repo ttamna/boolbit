@@ -619,7 +619,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           {/* Controls */}
           <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={async () => {
+              onClick={() => {
                 if (!running && !isPaused) {
                   // At rest: always start from focus phase regardless of which tab is shown.
                   if (phase !== "focus") {
@@ -628,7 +628,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
                     setPresetsPhase(null);
                     cycleCountRef.current = 0;
                   }
-                  if (notifyRef.current) await notify("Vision Widget", "🎯 집중 시작!");
+                  if (notifyRef.current) void notify("Vision Widget", "🎯 집중 시작!");
                   setRunning(true);
                 } else {
                   // Paused or running: toggle pause/resume for the current phase.
