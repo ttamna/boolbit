@@ -11928,6 +11928,158 @@ describe("calcTodayInsight — pomodoro_week_declined (priority 10.384, after po
   });
 });
 
+// ── week_quadrafecta_flawless ─────────────────────────────
+describe("calcTodayInsight — week_quadrafecta_flawless (priority 10.3289, before week_trifecta_flawless)", () => {
+  // FRIDAY = "2024-01-19" → ISO week Friday, daysLeftWeek=3, daysElapsedInWeek=5 ≥ MIN_WEEK_TRIFECTA_DAYS(5).
+  // All four domains flawless:
+  //   1. Habit: streak=5 ≥ 5, lastChecked=FRIDAY.
+  //   2. Pomodoro: focusStreak=5 ≥ 5, sessionsToday=3 > 0.
+  //   3. Momentum: momentumStreak=5 ≥ 5, today score=50 ≥ 40.
+  //   4. Intention: todayIntentionDone=true, intentionDoneStreak=5 ≥ 5.
+  // todayIntentionDate=undefined suppresses intention_done (needs todayIntentionDate===todayStr).
+  // todayIntentionDone=true still enables the quadrafecta guard while keeping intention_done suppressed.
+  // momentum_near_tier: score=(1/1)*50+(3/5)*30+20[intentionDone=true]=88 → 88 > nearHigh upper(75) → suppressed.
+  // focusStreak=5: NOT in FOCUS_STREAK_MILESTONES([7,14,30]) → focus_streak_milestone suppressed.
+  // momentumStreak=5: NOT in MOMENTUM_STREAK_MILESTONES([7,14,30]) → momentum_streak_milestone suppressed.
+  const FRIDAY = "2024-01-19";
+  const THURSDAY = "2024-01-18";
+  const SATURDAY = "2024-01-20";
+  const SUNDAY = "2024-01-21";
+
+  function base() {
+    return {
+      habits: [{ name: "운동", streak: 5, lastChecked: FRIDAY }],
+      todayStr: FRIDAY,
+      nowHour: 12,
+      todayIntentionDate: undefined as string | undefined, // suppress intention_done (needs todayIntentionDate===todayStr)
+      todayIntentionDone: true as boolean | undefined,      // needed for quadrafecta intention guard
+      sessionsToday: 3,
+      sessionGoal: 5 as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      daysLeftWeek: 3, // Friday → 5 days elapsed in ISO week
+      focusStreak: 5 as number | undefined,
+      momentumStreak: 5 as number | undefined,
+      momentumHistory: [{ date: FRIDAY, score: 50, tier: "mid" as const }],
+      intentionDoneStreak: 5 as number | undefined,
+    };
+  }
+
+  it("shouldFireWhenAllFourDomainsFlawlessOnFriday", () => {
+    // daysElapsedInWeek=5 ≥ 5, all four conditions met → 🏆 text shows all four domains and day count.
+    const result = calcTodayInsight(base());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("습관·의도·집중·모멘텀");
+    expect(result!.text).toContain("5일");
+  });
+
+  it("shouldFireOnSaturdayShowingSixDays", () => {
+    // Saturday: daysLeftWeek=2, daysElapsedInWeek=6 ≥ 5; all four streaks must be ≥ 6.
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: SATURDAY,
+      habits: [{ name: "운동", streak: 6, lastChecked: SATURDAY }],
+      daysLeftWeek: 2,
+      focusStreak: 6,
+      momentumStreak: 6,
+      momentumHistory: [{ date: SATURDAY, score: 50, tier: "mid" as const }],
+      intentionDoneStreak: 6,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·의도·집중·모멘텀");
+    expect(result!.text).toContain("6일");
+  });
+
+  it("shouldFireOnSundayShowingSevenDays", () => {
+    // Sunday: daysLeftWeek=1, daysElapsedInWeek=7; all four streaks must be ≥ 7.
+    // focusStreak=8 and momentumStreak=8: ≥ 7 AND not in milestone values ([7,14,30] → 7 IS a milestone!).
+    // Use streak=8 to avoid focus_streak_milestone and momentum_streak_milestone firing instead.
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: SUNDAY,
+      habits: [{ name: "운동", streak: 8, lastChecked: SUNDAY }],
+      daysLeftWeek: 1,
+      focusStreak: 8,
+      momentumStreak: 8,
+      momentumHistory: [{ date: SUNDAY, score: 50, tier: "mid" as const }],
+      intentionDoneStreak: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·의도·집중·모멘텀");
+    expect(result!.text).toContain("7일");
+  });
+
+  it("shouldNotFireWhenTodayIntentionNotDone_TriFectaFiresInstead", () => {
+    // todayIntentionDone=false → intention condition fails → quadrafecta suppressed.
+    // Habit+pomodoro+momentum all flawless → week_trifecta_flawless (10.329) fires instead.
+    // momentum score with intentionDone=false: 50+18+0=68; nearHigh: pomodoroGain=(1/5)*30=6 < gap=7 → near_tier suppressed.
+    const result = calcTodayInsight({ ...base(), todayIntentionDone: false });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·집중·모멘텀");   // trifecta fires
+    expect(result!.text).not.toContain("습관·의도·집중·모멘텀"); // quadrafecta NOT firing
+  });
+
+  it("shouldNotFireWhenTodayIntentionDoneAbsent_TriFectaFiresInstead", () => {
+    // todayIntentionDone=undefined → treated as false → quadrafecta suppressed; trifecta fires.
+    const result = calcTodayInsight({ ...base(), todayIntentionDone: undefined });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·집중·모멘텀");   // trifecta fires
+    expect(result!.text).not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenIntentionDoneStreakInsufficient_TriFectaFiresInstead", () => {
+    // intentionDoneStreak=4 < daysElapsedInWeek(5) → at least one intention was missed; quadrafecta suppressed.
+    // todayIntentionDone remains true; trifecta condition is independent and fires.
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 4 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·집중·모멘텀");   // trifecta fires
+    expect(result!.text).not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenIntentionDoneStreakAbsent_TriFectaFiresInstead", () => {
+    // intentionDoneStreak=undefined → no streak data; quadrafecta silently skipped; trifecta fires.
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: undefined });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·집중·모멘텀");
+    expect(result!.text).not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenFocusStreakInsufficient", () => {
+    // focusStreak=4 < daysElapsedInWeek(5) → pomodoro domain fails; quadrafecta suppressed.
+    // trifecta also requires focusStreak ≥ daysElapsedInWeek, so it does not fire either.
+    const result = calcTodayInsight({ ...base(), focusStreak: 4 });
+    expect(result?.text ?? "").not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenMomentumStreakInsufficient", () => {
+    // momentumStreak=4 < daysElapsedInWeek(5) → momentum domain fails; quadrafecta suppressed.
+    // trifecta also requires momentumStreak ≥ daysElapsedInWeek, so it does not fire either.
+    const result = calcTodayInsight({ ...base(), momentumStreak: 4 });
+    expect(result?.text ?? "").not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenHabitStreakInsufficient", () => {
+    // habit streak=4 < daysElapsedInWeek(5) → habit domain fails; quadrafecta suppressed.
+    // trifecta also requires habit streak ≥ daysElapsedInWeek, so it does not fire either.
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "운동", streak: 4, lastChecked: FRIDAY }] });
+    expect(result?.text ?? "").not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireOnThursday", () => {
+    // Thursday: daysLeftWeek=4, daysElapsedInWeek=4 < MIN_WEEK_TRIFECTA_DAYS(5) → too early.
+    // Neither quadrafecta nor trifecta fires (same MIN_WEEK_TRIFECTA_DAYS gate applies to both).
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: THURSDAY,
+      habits: [{ name: "운동", streak: 5, lastChecked: THURSDAY }],
+      daysLeftWeek: 4,
+      momentumHistory: [{ date: THURSDAY, score: 50, tier: "mid" as const }],
+    });
+    expect(result?.text ?? "").not.toContain("습관·의도·집중·모멘텀");
+    expect(result?.text ?? "").not.toContain("습관·집중·모멘텀");
+  });
+});
+
 // ── week_trifecta_flawless ────────────────────────────────
 describe("calcTodayInsight — week_trifecta_flawless (priority 10.329, before week_balanced)", () => {
   // FRIDAY = "2024-01-19" → ISO week Friday, daysLeftWeek=3, daysElapsedInWeek=5 ≥ MIN_WEEK_TRIFECTA_DAYS(5).
