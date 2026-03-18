@@ -1805,6 +1805,16 @@ export default function App() {
   // habit_week_declined insight (priority 10.37). Reused below for habitsWeekTrend.
   // Uses last14Days (already declared above) — slice(0,7) = days 7–13 ago (previous 7-day window).
   const habitsPrevWeekRate = calcHabitsWeekRate(habitsArr, last14Days.slice(0, 7));
+  // momentumWeekAvg7d: 7-day momentum average for momentum_week_strong/improved/declined badges.
+  // Filters momentumHistory to last7Days entries then averages — null when < 2 entries in window.
+  const momentumWeekAvg7d = calcMomentumWeekAvg(
+    (data.momentumHistory ?? []).filter(e => last7Days.includes(e.date))
+  );
+  // momentumPrevWeekAvg7d: previous 7-day window (days 7–13 ago) for week-over-week comparison.
+  // Uses the first 7 entries of last14Days which are the oldest 7 days in that window.
+  const momentumPrevWeekAvg7d = calcMomentumWeekAvg(
+    (data.momentumHistory ?? []).filter(e => last14Days.slice(0, 7).includes(e.date))
+  );
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1932,6 +1942,10 @@ export default function App() {
         todayIsBestMomentumDay: calcBestMomentumDay(momAvg) === todayDow,
       };
     })(),
+    // momentumWeekAvg7d / momentumPrevWeekAvg7d: 7-day window averages for week-rate insight badges.
+    // Both computed before this call (above) — passed as undefined when < 2 history entries in window.
+    momentumWeekAvg7d: momentumWeekAvg7d ?? undefined,
+    momentumPrevWeekAvg7d: momentumPrevWeekAvg7d ?? undefined,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 31-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
