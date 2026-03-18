@@ -7628,6 +7628,117 @@ describe("calcTodayInsight — focus_streak_milestone_approach (priority 7.421, 
   });
 });
 
+// ── intention_done_streak_milestone_approach ─────────────────────────────
+describe("calcTodayInsight — intention_done_streak_milestone_approach (priority 7.422, between focus_streak_milestone_approach and pomodoro_lifetime_milestone)", () => {
+  // ABOUTME: Tests for intention_done_streak_milestone_approach badge — fires 1-2 days before
+  // ABOUTME: the next intention done streak milestone (7/14/30), no todayIntentionDone guard.
+  // Base: afternoon, intention set but not yet completed today, no habits, no sessions —
+  // no competing insights at this priority band.
+  // No todayIntentionDone guard: badge fires as a morning nudge regardless of today's completion.
+  // intentionDoneStreak reflects PAST consecutive done days.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    todayIntentionDone: false as boolean | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWith2DaysToMilestone7WhenStreak5", () => {
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 5 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("5일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone7WhenStreak6", () => {
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 6 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("6일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith2DaysToMilestone14WhenStreak12", () => {
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 12 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("12일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("14일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone14WhenStreak13", () => {
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 13 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("13일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("14일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith2DaysToMilestone30WhenStreak28", () => {
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 28 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("28일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("30일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone30WhenStreak29", () => {
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 29 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("29일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("30일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireEvenWhenTodayIntentionNotYetDone", () => {
+    // No todayIntentionDone guard: approach fires regardless of today's intention completion
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 6, todayIntentionDone: false });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("6일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("7일 마일스톤");
+  });
+
+  it("shouldNotFireWhenStreak4TooFarFromMilestone7", () => {
+    // 7 - 4 = 3 > 2 — not within approach window
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 4 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenStreak8PastMilestone7TooFarFromMilestone14", () => {
+    // 14 - 8 = 6 > 2 — past 7, not yet close to 14
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 8 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenIntentionDoneStreakAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireAtExactMilestone7DueToStructuralExclusion", () => {
+    // Structural mutual exclusion: approach condition is `m > intentionDoneStreak && m - intentionDoneStreak <= 2`.
+    // At streak=7, no milestone m satisfies m > 7 AND m - 7 <= 2 (next is 14, gap=7), so approach cannot fire —
+    //   this is a mathematical impossibility, not a priority preemption.
+    // The milestone badge (4.5 tier) fires instead when todayIntentionDone === true.
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 7, todayIntentionDone: true });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도 달성 7일 연속 마일스톤"); // milestone celebration text
+    expect(result!.text).not.toContain("더 달성하면");               // approach badge text absent
+  });
+});
+
 describe("calcTodayInsight — pomodoro_lifetime_milestone (priority 7.43, between focus_streak_milestone and pomodoro_goal_streak)", () => {
   // Base: Monday afternoon, intention set, no habits, no pomodoro goal, no competing insights.
   // TODAY = "2024-01-15" is a Monday — afternoon avoids morning-only gates.
@@ -8475,14 +8586,14 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     });
 
     it("shouldNotFireWhenNotDoneEvenWithHighStreak", () => {
-      // streak=5 but todayIntentionDone=false → no badge
-      const result = calcTodayInsight({ ...intentionDoneBase(), todayIntentionDone: false, intentionDoneStreak: 5 });
+      // streak=4 but todayIntentionDone=false → no badge (4 is outside approach window: 7-4=3>2)
+      const result = calcTodayInsight({ ...intentionDoneBase(), todayIntentionDone: false, intentionDoneStreak: 4 });
       expect(result).toBeNull();
     });
 
     it("shouldNotFireWhenDateMismatchEvenWithHighStreak", () => {
-      // done but date from yesterday → stale state guard blocks it
-      const result = calcTodayInsight({ ...intentionDoneBase(), todayIntentionDate: YESTERDAY, intentionDoneStreak: 5 });
+      // done but date from yesterday → stale state guard blocks it (4 is outside approach window)
+      const result = calcTodayInsight({ ...intentionDoneBase(), todayIntentionDate: YESTERDAY, intentionDoneStreak: 4 });
       expect(result).toBeNull();
     });
 
@@ -12902,11 +13013,12 @@ describe("calcTodayInsight — week_quadrafecta_flawless (priority 10.3289, befo
   //   1. Habit: streak=5 ≥ 5, lastChecked=FRIDAY.
   //   2. Pomodoro: focusStreak=8 ≥ 5, sessionsToday=3 > 0.
   //   3. Momentum: momentumStreak=5 ≥ 5, today score=50 ≥ 40.
-  //   4. Intention: todayIntentionDone=true, intentionDoneStreak=5 ≥ 5.
+  //   4. Intention: todayIntentionDone=true, intentionDoneStreak=8 ≥ 5.
   // todayIntentionDate=undefined suppresses intention_done (needs todayIntentionDate===todayStr).
   // todayIntentionDone=true still enables the quadrafecta guard while keeping intention_done suppressed.
   // momentum_near_tier: score=(1/1)*50+(3/5)*30+20[intentionDone=true]=88 → 88 > nearHigh upper(75) → suppressed.
   // focusStreak=8: NOT in FOCUS_STREAK_MILESTONES([7,14,30]) AND NOT in approach window([5,6,12,13,28,29]) → focus_streak_milestone and focus_streak_milestone_approach suppressed.
+  // intentionDoneStreak=8: ≥ 5 required; NOT in intention_done_streak_milestone_approach window([5,6,12,13,28,29]) → suppressed.
   // momentumStreak=5: ≥ 5 required; momentum_streak_milestone_approach(10.461) fires after quadrafecta(10.3289) → suppressed.
   const FRIDAY = "2024-01-19";
   const THURSDAY = "2024-01-18";
@@ -12927,7 +13039,7 @@ describe("calcTodayInsight — week_quadrafecta_flawless (priority 10.3289, befo
       focusStreak: 8 as number | undefined,
       momentumStreak: 5 as number | undefined,
       momentumHistory: [{ date: FRIDAY, score: 50, tier: "mid" as const }],
-      intentionDoneStreak: 5 as number | undefined,
+      intentionDoneStreak: 8 as number | undefined, // 8 satisfies ≥5 (Friday) and is outside approach window
     };
   }
 
@@ -12942,6 +13054,7 @@ describe("calcTodayInsight — week_quadrafecta_flawless (priority 10.3289, befo
 
   it("shouldFireOnSaturdayShowingSixDays", () => {
     // Saturday: daysLeftWeek=2, daysElapsedInWeek=6 ≥ 5; all four streaks must be ≥ 6.
+    // intentionDoneStreak=8: satisfies ≥6 (Saturday) and is outside approach window [5,6,12,13,28,29].
     const result = calcTodayInsight({
       ...base(),
       todayStr: SATURDAY,
@@ -12950,7 +13063,7 @@ describe("calcTodayInsight — week_quadrafecta_flawless (priority 10.3289, befo
       focusStreak: 8,
       momentumStreak: 6,
       momentumHistory: [{ date: SATURDAY, score: 50, tier: "mid" as const }],
-      intentionDoneStreak: 6,
+      intentionDoneStreak: 8,
     });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("습관·의도·집중·모멘텀");
@@ -13478,7 +13591,8 @@ describe("calcTodayInsight — intention_week_flawless (priority 10.3294, after 
   // habits: streak=3 < 5 → habit NOT flawless → habit_week_flawless suppressed.
   // focusStreak=3/sessionsToday=0 → pomodoro NOT flawless → pomodoro_week_flawless suppressed.
   // momentumStreak=3/score absent → momentum NOT flawless → momentum_week_flawless suppressed.
-  // intentionDoneStreak=5 ≥ 5, todayIntentionDone=true → intention IS flawless.
+  // intentionDoneStreak=8 ≥ 5, todayIntentionDone=true → intention IS flawless.
+  // intentionDoneStreak=8: outside approach window [5,6,12,13,28,29] → intention_done_streak_milestone_approach suppressed.
   const FRIDAY = "2024-01-19";
   const THURSDAY = "2024-01-18";
 
@@ -13498,12 +13612,12 @@ describe("calcTodayInsight — intention_week_flawless (priority 10.3294, after 
       focusStreak: 3 as number | undefined,    // < 5 → pomodoro NOT flawless
       momentumStreak: 3 as number | undefined, // < 5 → momentum NOT flawless
       momentumHistory: [] as Array<{ date: string; score: number; tier: "high" | "mid" | "low" }>,
-      intentionDoneStreak: 5 as number | undefined, // ≥ 5 → intention IS flawless
+      intentionDoneStreak: 8 as number | undefined, // ≥ 5 → intention IS flawless; 8 outside approach window
     };
   }
 
   it("shouldFireOnFridayWhenOnlyIntentionIsFlawless", () => {
-    // intentionDoneStreak=5 ≥ daysElapsedInWeek(5), todayIntentionDone=true, other domains not flawless → fires
+    // intentionDoneStreak=8 ≥ daysElapsedInWeek(5), todayIntentionDone=true, other domains not flawless → fires
     const result = calcTodayInsight(base());
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
@@ -13539,19 +13653,21 @@ describe("calcTodayInsight — intention_week_flawless (priority 10.3294, after 
     // daysLeftWeek=4, daysElapsedInWeek=4 < MIN_WEEK_TRIFECTA_DAYS(5) → too early for weekly badge.
     // habits.lastChecked=THURSDAY (consistent with todayStr) so almost_perfect_day is suppressed and
     //   the MIN_WEEK_TRIFECTA_DAYS gate is the actual reason the badge does not fire.
-    // intentionDoneStreak=5 > daysElapsedInWeek(4): streak alone would qualify — the day-count gate is the sole blocker.
+    // intentionDoneStreak=8: outside approach window([5,6,12,13,28,29]) → approach badge suppressed;
+    //   streak 8 > daysElapsedInWeek(4) so the day-count gate is the sole blocker for the flawless badge.
     const result = calcTodayInsight({
       ...base(),
       todayStr: THURSDAY,
       habits: [{ name: "운동", streak: 3, lastChecked: THURSDAY }],
       daysLeftWeek: 4,
-      intentionDoneStreak: 5,
+      intentionDoneStreak: 8,
     });
-    expect(result?.text ?? "").not.toContain("이번 주 매일 의도 달성");
+    expect(result).toBeNull();
   });
 
   it("shouldFireOnSaturdayShowingSixDays", () => {
-    // Saturday: daysLeftWeek=2, daysElapsedInWeek=6; streak=6 qualifies; text shows 6일.
+    // Saturday: daysLeftWeek=2, daysElapsedInWeek=6; streak=8 (≥6) qualifies; text shows 6일.
+    // intentionDoneStreak=8: outside approach window → approach badge suppressed.
     // habit.lastChecked=SATURDAY prevents almost_perfect_day from preempting (habit done today).
     const SATURDAY = "2024-01-20";
     const result = calcTodayInsight({
@@ -13559,7 +13675,7 @@ describe("calcTodayInsight — intention_week_flawless (priority 10.3294, after 
       todayStr: SATURDAY,
       habits: [{ name: "운동", streak: 3, lastChecked: SATURDAY }],
       daysLeftWeek: 2,
-      intentionDoneStreak: 6,
+      intentionDoneStreak: 8,
     });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("이번 주 매일 의도 달성");
