@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_trifecta_flawless, week_balanced, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, week_balanced, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -12103,6 +12103,252 @@ describe("calcTodayInsight — week_trifecta_flawless (priority 10.329, before w
     expect(result).not.toBeNull();
     expect(result!.text).toContain("이번 주 습관·집중·모멘텀 모두 개근");
     expect(result!.text).not.toContain("균형"); // week_balanced text contains "균형"
+  });
+});
+
+// ── habit_week_flawless ───────────────────────────────────
+describe("calcTodayInsight — habit_week_flawless (priority 10.3291, after week_trifecta_flawless, before week_balanced)", () => {
+  // FRIDAY = "2024-01-19" → ISO week Friday, daysLeftWeek=3, daysElapsedInWeek=5 ≥ MIN_WEEK_TRIFECTA_DAYS(5).
+  // nowHour=15 (afternoon): suppresses all morning-only badges (intention_missing, period_start, weak_day_ahead, etc.).
+  // focusStreak=3, momentumStreak=3: both < 5 → week_trifecta_flawless suppressed (not all three flawless).
+  // sessionsToday=0 → pomodoro_week_flawless suppressed. habitsAllDoneDate=undefined → perfect_day suppressed.
+  const FRIDAY = "2024-01-19";
+  const THURSDAY = "2024-01-18";
+
+  function base() {
+    return {
+      habits: [{ name: "운동", streak: 5, lastChecked: FRIDAY }],
+      todayStr: FRIDAY,
+      nowHour: 15,
+      todayIntentionDate: FRIDAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      daysLeftWeek: 3, // Friday → 5 days elapsed in ISO week
+      focusStreak: 3 as number | undefined,   // < 5 → pomodoro NOT flawless
+      momentumStreak: 3 as number | undefined, // < 5 → momentum NOT flawless
+      momentumHistory: [] as Array<{ date: string; score: number; tier: "high" | "mid" | "low" }>,
+    };
+  }
+
+  it("shouldFireOnFridayWhenOnlyHabitIsFlawless", () => {
+    // daysElapsedInWeek=5, habit streak=5 ≥ 5 and checked today → fires
+    const result = calcTodayInsight(base());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("이번 주 개근");
+    expect(result!.text).toContain("5일");
+  });
+
+  it("shouldNotFireWhenTrifectaFlawlessPreemptsIt", () => {
+    // All three domains flawless → week_trifecta_flawless (10.329) fires first, not habit_week_flawless.
+    // sessionsToday=3, sessionGoal=5: score=(1/1)*50+(3/5)*30+8=76 ≥ 75 → NOT in nearHigh [63,75) →
+    //   momentum_near_tier suppressed, allowing week_trifecta_flawless to surface.
+    const result = calcTodayInsight({
+      ...base(),
+      sessionsToday: 3,
+      sessionGoal: 5 as number | undefined,
+      focusStreak: 5,    // pomodoro also flawless
+      momentumStreak: 5, // momentum also flawless
+      momentumHistory: [{ date: FRIDAY, score: 50, tier: "mid" as const }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이번 주 습관·집중·모멘텀 모두 개근"); // trifecta fires
+    expect(result!.text).not.toContain("🗓️"); // habit_week_flawless NOT fired (unique emoji anchor)
+  });
+
+  it("shouldNotFireWhenHabitStreakBelowElapsed", () => {
+    // streak=4 < daysElapsedInWeek(5) → missed at least one day this week
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 4, lastChecked: FRIDAY }],
+    });
+    expect(result?.text ?? "").not.toContain("이번 주 개근");
+  });
+
+  it("shouldNotFireWhenHabitNotCheckedToday", () => {
+    // lastChecked=THURSDAY → today not yet checked; week may not be fully covered
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 5, lastChecked: THURSDAY }],
+    });
+    expect(result?.text ?? "").not.toContain("이번 주 개근");
+  });
+
+  it("shouldNotFireOnThursday", () => {
+    // Thursday: daysLeftWeek=4, daysElapsedInWeek=4 < MIN_WEEK_TRIFECTA_DAYS(5) → too early.
+    // streak=4 intentionally equals daysElapsedInWeek(4) — the streak alone would qualify,
+    //   but the min-days gate (≥5) blocks the badge regardless.
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: THURSDAY,
+      todayIntentionDate: THURSDAY,
+      daysLeftWeek: 4,
+      habits: [{ name: "운동", streak: 4, lastChecked: THURSDAY }],
+    });
+    expect(result?.text ?? "").not.toContain("이번 주 개근");
+  });
+
+  it("shouldPickHabitWithHighestStreakWhenMultipleQualify", () => {
+    // Two habits both qualify; badge shows the one with the higher streak (수영 streak=7 > 운동 streak=5)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 5, lastChecked: FRIDAY },
+        { name: "수영", streak: 7, lastChecked: FRIDAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("수영"); // higher streak wins
+    expect(result!.text).not.toContain("운동");
+  });
+});
+
+// ── pomodoro_week_flawless ─────────────────────────────────
+describe("calcTodayInsight — pomodoro_week_flawless (priority 10.3292, after habit_week_flawless, before momentum_week_flawless)", () => {
+  // FRIDAY = "2024-01-19" → daysLeftWeek=3, daysElapsedInWeek=5.
+  // habits: streak=3 < 5 → habit NOT flawless → habit_week_flawless suppressed.
+  // momentumStreak=3 < 5 → momentum NOT flawless → week_trifecta_flawless suppressed.
+  // sessionsToday=3, sessionGoal=5: score=(1/1)*50+(3/5)*30+8=76 ≥ 75 → NOT in nearHigh [63,75) →
+  //   momentum_near_tier suppressed. focusStreak=5 ≥ 5 → pomodoro IS flawless.
+  const FRIDAY = "2024-01-19";
+  const THURSDAY = "2024-01-18";
+
+  function base() {
+    return {
+      habits: [{ name: "운동", streak: 3, lastChecked: FRIDAY }], // streak < 5 → habit NOT flawless
+      todayStr: FRIDAY,
+      nowHour: 15,
+      todayIntentionDate: FRIDAY,
+      sessionsToday: 3,
+      sessionGoal: 5 as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      daysLeftWeek: 3,
+      focusStreak: 5 as number | undefined,    // ≥ 5 → pomodoro IS flawless
+      momentumStreak: 3 as number | undefined, // < 5 → momentum NOT flawless
+      momentumHistory: [] as Array<{ date: string; score: number; tier: "high" | "mid" | "low" }>,
+    };
+  }
+
+  it("shouldFireWhenOnlyPomodoroIsFlawless", () => {
+    // focusStreak=5 ≥ 5, sessionsToday=3 > 0, habit streak=3 < 5 → fires
+    const result = calcTodayInsight(base());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 주 매일 집중");
+    expect(result!.text).toContain("5일");
+  });
+
+  it("shouldBePreemptedByHabitWeekFlawless", () => {
+    // habit streak bumped to 5 → habit_week_flawless (10.3291) fires before pomodoro_week_flawless (10.3292)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 5, lastChecked: FRIDAY }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이번 주 개근"); // habit flawless fires first
+    expect(result!.text).not.toContain("이번 주 매일 집중");
+  });
+
+  it("shouldNotFireWhenFocusStreakInsufficient", () => {
+    // focusStreak=4 < 5 → at least one day this week had no focus session
+    const result = calcTodayInsight({ ...base(), focusStreak: 4 });
+    expect(result?.text ?? "").not.toContain("이번 주 매일 집중");
+  });
+
+  it("shouldNotFireWhenSessionsTodayIsZero", () => {
+    // sessionsToday=0 → today not yet completed; focusStreak may lag
+    const result = calcTodayInsight({ ...base(), sessionsToday: 0 });
+    expect(result?.text ?? "").not.toContain("이번 주 매일 집중");
+  });
+
+  it("shouldNotFireOnThursday", () => {
+    // daysLeftWeek=4, daysElapsedInWeek=4 < 5 → too early for weekly badge
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: THURSDAY,
+      todayIntentionDate: THURSDAY,
+      daysLeftWeek: 4,
+      focusStreak: 4,
+    });
+    expect(result?.text ?? "").not.toContain("이번 주 매일 집중");
+  });
+});
+
+// ── momentum_week_flawless ─────────────────────────────────
+describe("calcTodayInsight — momentum_week_flawless (priority 10.3293, after pomodoro_week_flawless, before week_balanced)", () => {
+  // FRIDAY = "2024-01-19" → daysLeftWeek=3, daysElapsedInWeek=5.
+  // habits: streak=3 < 5 → habit NOT flawless. focusStreak=3/sessionsToday=0 → pomodoro NOT flawless.
+  // momentumStreak=5 ≥ 5 AND today's score=50 ≥ 40 → momentum IS flawless.
+  const FRIDAY = "2024-01-19";
+  const THURSDAY = "2024-01-18";
+
+  function base() {
+    return {
+      habits: [{ name: "운동", streak: 3, lastChecked: FRIDAY }], // habit NOT flawless
+      todayStr: FRIDAY,
+      nowHour: 15,
+      todayIntentionDate: FRIDAY,
+      sessionsToday: 0,            // no sessions → pomodoro_week_flawless suppressed
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      daysLeftWeek: 3,
+      focusStreak: 3 as number | undefined,    // < 5 → pomodoro NOT flawless
+      momentumStreak: 5 as number | undefined, // ≥ 5 → momentum IS flawless (if streak not a milestone 7/14/30)
+      momentumHistory: [{ date: FRIDAY, score: 50, tier: "mid" as const }],
+    };
+  }
+
+  it("shouldFireWhenOnlyMomentumIsFlawless", () => {
+    // momentumStreak=5 ≥ 5, score=50 ≥ 40, habit and pomodoro NOT flawless → fires
+    const result = calcTodayInsight(base());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 주 매일 모멘텀");
+    expect(result!.text).toContain("5일");
+  });
+
+  it("shouldBePreemptedByPomodoroWeekFlawless", () => {
+    // focusStreak bumped to 5 and sessionsToday=3/sessionGoal=5 → pomodoro_week_flawless (10.3292) fires first.
+    // score=(1/1)*50+(3/5)*30+8=76 ≥ 75 → NOT in nearHigh [63,75) → momentum_near_tier suppressed.
+    const result = calcTodayInsight({
+      ...base(),
+      focusStreak: 5,
+      sessionsToday: 3,
+      sessionGoal: 5 as number | undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이번 주 매일 집중"); // pomodoro fires first
+    expect(result!.text).not.toContain("이번 주 매일 모멘텀");
+  });
+
+  it("shouldNotFireWhenMomentumStreakInsufficient", () => {
+    // momentumStreak=4 < 5 → at least one day this week below threshold
+    const result = calcTodayInsight({ ...base(), momentumStreak: 4 });
+    expect(result?.text ?? "").not.toContain("이번 주 매일 모멘텀");
+  });
+
+  it("shouldNotFireWhenTodayScoreBelowThreshold", () => {
+    // today's score=30 < 40 → today does not qualify
+    const result = calcTodayInsight({
+      ...base(),
+      momentumHistory: [{ date: FRIDAY, score: 30, tier: "low" as const }],
+    });
+    expect(result?.text ?? "").not.toContain("이번 주 매일 모멘텀");
+  });
+
+  it("shouldNotFireOnThursday", () => {
+    // daysLeftWeek=4, daysElapsedInWeek=4 < 5 → too early
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: THURSDAY,
+      todayIntentionDate: THURSDAY,
+      daysLeftWeek: 4,
+      momentumStreak: 4,
+      momentumHistory: [{ date: THURSDAY, score: 50, tier: "mid" as const }],
+    });
+    expect(result?.text ?? "").not.toContain("이번 주 매일 모멘텀");
   });
 });
 
