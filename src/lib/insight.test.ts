@@ -9927,10 +9927,11 @@ describe("calcTodayInsight — habit_target_halfway (priority 11.06, between hab
   });
 
   it("shouldPickHabitWithHighestTargetWhenMultipleAtMidpoint", () => {
-    // 두 습관 모두 midpoint: 독서(15/30), 운동(50/100). targetStreak 높은 것(100) 우선.
+    // 두 습관 모두 midpoint: 독서(14/28), 운동(50/100). targetStreak 높은 것(100) 우선.
+    // 독서 streak=14 < currentMonthDay(15) → habit_month_perfect/habit_month_excellent 발동 방지.
     const result = calcTodayInsight({
       habits: [
-        { name: "독서", streak: 15, lastChecked: TODAY, targetStreak: 30 },
+        { name: "독서", streak: 14, lastChecked: TODAY, targetStreak: 28 },
         { name: "운동", streak: 50, lastChecked: TODAY, targetStreak: 100 },
       ],
       todayStr: TODAY,
@@ -10059,12 +10060,13 @@ describe("calcTodayInsight — habit_target_hit (priority 11.04, between habit_b
 
   it("shouldHabitTargetHitPreemptHabitTargetNear", () => {
     // 독서: streak=15, targetStreak=15 → habit_target_hit (11.04)
-    // 운동: streak=19, targetStreak=20, gap=1 → habit_target_near (11.05) candidate
+    // 운동: streak=13, targetStreak=14, gap=1 → habit_target_near (11.05) candidate
+    // 운동 streak=13 < currentMonthDay(15) → habit_month_perfect/habit_month_excellent 발동 방지
     // habit_target_hit fires first (11.04 < 11.05)
     const result = calcTodayInsight({
       habits: [
         { name: "독서", streak: 15, lastChecked: TODAY, targetStreak: 15 },
-        { name: "운동", streak: 19, lastChecked: TODAY, targetStreak: 20 },
+        { name: "운동", streak: 13, lastChecked: TODAY, targetStreak: 14 },
       ],
       todayStr: TODAY,
       nowHour: 9,
@@ -10219,11 +10221,12 @@ describe("calcTodayInsight — habit_month_flawless (priority 11.07, after habit
   });
 
   it("shouldPickHabitWithHighestStreak", () => {
-    // two qualifying habits: 운동(streak=20) and 독서(streak=15) → 운동 selected (highest streak)
+    // 운동(streak=20) qualifies (≥15=currentMonthDay); 독서(streak=12) does not → 운동 selected.
+    // 독서 streak=12 < currentMonthDay(15) prevents habit_month_perfect from preempting.
     const result = calcTodayInsight({
       ...base(),
       habits: [
-        { name: "독서", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 12, lastChecked: TODAY },
         { name: "운동", streak: 20, lastChecked: TODAY },
       ],
     });
@@ -11775,6 +11778,267 @@ describe("calcTodayInsight — week_balanced (priority 10.33, between almost_per
     });
     expect(result).not.toBeNull();
     expect(result!.text).not.toContain("균형"); // week_balanced suppressed by streak_at_risk
+  });
+});
+
+// ── habit_month_perfect ──────────────────────────────────────────
+describe("calcTodayInsight — habit_month_perfect (priority 10.40, after momentum_recovery and before pomodoro_today_above_avg)", () => {
+  // TODAY = "2024-01-15" → currentMonthDay = 15 ≥ 14 threshold.
+  // Streak-based detection: all habits need streak >= 15 AND lastChecked === TODAY.
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+      // habitWeekRate intentionally absent — prevents habit_week_perfect/excellent from firing
+    };
+  }
+
+  it("shouldFireWhenAllHabitsArePerfectThisMonth", () => {
+    // Both habits have streak=15 (>= currentMonthDay=15) and lastChecked=TODAY
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 15, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 달");
+    expect(result!.text).toContain("개근");
+  });
+
+  it("shouldContainDayCount", () => {
+    // Badge text should include the number of days into the month (15 for TODAY).
+    // Uses 2 habits to satisfy habits.length >= 2 guard (single-habit case → habit_month_flawless, not here).
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 20, lastChecked: TODAY },
+        { name: "독서", streak: 18, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("전 습관 개근"); // habit_month_perfect fires
+    expect(result!.text).toContain("15일");
+  });
+
+  it("shouldNotFireWhenOneHabitMissedToday", () => {
+    // One habit not checked today → allPerfectMonth false → habit_month_perfect won't fire.
+    // flawlessCount=1 (only 운동 qualifies) < 2 → habit_month_excellent also won't fire.
+    // habit_month_flawless (11.07) fires for 운동 instead.
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 14, lastChecked: YESTERDAY }, // not checked today
+      ],
+    });
+    expect(result).not.toBeNull(); // habit_month_flawless fires for 운동
+    expect(result!.text).not.toContain("전 습관 개근"); // not habit_month_perfect
+    expect(result!.text).not.toMatch(/\d+\/\d+개 습관 개근/); // not habit_month_excellent
+  });
+
+  it("shouldNotFireBeforeDay14", () => {
+    // currentMonthDay = 13 → below the 14-day threshold
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: "2024-01-13",
+      habits: [
+        { name: "운동", streak: 13, lastChecked: "2024-01-13" },
+        { name: "독서", streak: 13, lastChecked: "2024-01-13" },
+      ],
+    });
+    // Even if habits are perfect, badge must not fire on day 13
+    expect(result).not.toBeNull(); // habit_month_flawless (MIN_MONTH_DAYS=10) fires instead
+    expect(result!.text).not.toContain("전 습관 개근");
+  });
+
+  it("shouldFireOnExactDay14Boundary", () => {
+    // currentMonthDay = 14 — exactly at the >= 14 threshold; badge MUST fire
+    const result = calcTodayInsight({
+      habits: [
+        { name: "운동", streak: 14, lastChecked: "2024-01-14" },
+        { name: "독서", streak: 14, lastChecked: "2024-01-14" },
+      ],
+      todayStr: "2024-01-14",
+      nowHour: 12,
+      todayIntentionDate: "2024-01-14",
+      sessionsToday: 0,
+      habitsAllDoneDate: "2024-01-13",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("전 습관 개근");
+    expect(result!.text).toContain("(14일)");
+  });
+
+  it("shouldNotFireWithSingleHabit", () => {
+    // habits.length < 2 → habit_month_perfect requires ≥ 2 habits (single habit → habit_month_flawless at 11.07)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 15, lastChecked: TODAY }],
+    });
+    // habit_month_flawless fires for the single flawless habit, not habit_month_perfect
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("전 습관 개근"); // habit_month_perfect text absent
+  });
+
+  it("shouldBePreemptedByHabitWeekPerfect", () => {
+    // habit_week_perfect (10.34) fires before habit_month_perfect (10.40)
+    const result = calcTodayInsight({
+      ...base(),
+      habitWeekRate: 100,
+      habits: [
+        { name: "운동", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 15, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("완벽한 한 주"); // habit_week_perfect fires first
+    expect(result!.text).not.toContain("전 습관 개근"); // habit_month_perfect suppressed
+  });
+
+  it("shouldFireBeforeHabitMonthFlawless", () => {
+    // habit_month_perfect (10.40) fires before habit_month_flawless (11.07) when ALL habits qualify
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 15, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("전 습관 개근"); // habit_month_perfect — "전 습관" distinct from per-habit flawless
+    expect(result!.text).not.toContain("운동 이번 달"); // habit_month_flawless per-habit text absent
+  });
+});
+
+// ── habit_month_excellent ──────────────────────────────────────────
+describe("calcTodayInsight — habit_month_excellent (priority 10.41, ≥ 2 habits flawless this month)", () => {
+  // TODAY = "2024-01-15" → currentMonthDay = 15 ≥ 14 threshold.
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+      // habitWeekRate intentionally absent — prevents habit_week_* from firing
+    };
+  }
+
+  it("shouldFireWhenMajorityOfHabitsArePerfectThisMonth", () => {
+    // 2 out of 3 habits flawless → flawlessCount=2 >= threshold(2) → fires
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 15, lastChecked: TODAY },
+        { name: "명상", streak: 5, lastChecked: TODAY }, // not flawless this month
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 달");
+    expect(result!.text).toContain("2/3");
+  });
+
+  it("shouldContainFlawlessCountAndTotal", () => {
+    // Badge text shows flawless / total count.
+    // Streaks: 20 ≥ 15 ✓, 16 ≥ 15 ✓, 6 < 15 ✗. flawlessCount=2, habits.length=3.
+    // streak=6 < 7 → habit_multi_streak (3+ habits each ≥7d) won't fire.
+    // streak=6 ≥ 30% of avg(20,16)=18 → habit_diversity_warning won't fire (6/18 ≈ 33% > 30%).
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 20, lastChecked: TODAY },
+        { name: "독서", streak: 16, lastChecked: TODAY },
+        { name: "명상", streak: 6, lastChecked: TODAY }, // below 15 and below 7 (no multi_streak)
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("2/3");
+    expect(result!.text).toContain("15일");
+  });
+
+  it("shouldNotFireWithOnlyOneHabit", () => {
+    // habits.length < 2 → badge requires ≥2 habits
+    // habit_month_flawless (11.07) fires instead for the single qualifying habit
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 15, lastChecked: TODAY }],
+    });
+    expect(result).not.toBeNull(); // habit_month_flawless fires
+    expect(result!.text).not.toMatch(/\d+\/\d+개 습관 개근/); // not habit_month_excellent (N/M format)
+  });
+
+  it("shouldNotFireWhenFewerThan2HabitsAreFlawless", () => {
+    // 1 out of 3 habits flawless → flawlessCount=1 < 2 threshold → habit_month_excellent does NOT fire.
+    // habit_month_flawless (11.07) may fire for the single flawless habit, but that's a different badge.
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 5, lastChecked: TODAY },
+        { name: "명상", streak: 3, lastChecked: TODAY },
+      ],
+    });
+    // habit_month_excellent shows "N/M개" — assert this pattern is absent
+    expect(result).not.toBeNull(); // habit_month_flawless fires for 운동
+    expect(result!.text).not.toMatch(/\d+\/\d+개 습관 개근/); // habit_month_excellent count format absent
+  });
+
+  it("shouldBePreemptedByHabitMonthPerfect", () => {
+    // All 2 habits flawless → habit_month_perfect (10.40) fires before habit_month_excellent (10.41)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 15, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("전 습관 개근"); // habit_month_perfect fires
+    expect(result!.text).not.toContain("2/2"); // habit_month_excellent count text not shown
+  });
+
+  it("shouldNotFireBeforeDay14", () => {
+    // currentMonthDay = 13 → threshold not met
+    // habit_month_flawless (MIN_MONTH_DAYS=10) fires for 운동/독서 instead.
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: "2024-01-13",
+      habits: [
+        { name: "운동", streak: 13, lastChecked: "2024-01-13" },
+        { name: "독서", streak: 13, lastChecked: "2024-01-13" },
+        { name: "명상", streak: 3, lastChecked: "2024-01-13" },
+      ],
+    });
+    expect(result).not.toBeNull(); // habit_month_flawless fires
+    expect(result!.text).not.toMatch(/\d+\/\d+개 습관 개근/); // not habit_month_excellent
+  });
+
+  it("shouldBePreemptedByHabitWeekExcellent", () => {
+    // habit_week_excellent (10.35) fires before habit_month_excellent (10.41)
+    const result = calcTodayInsight({
+      ...base(),
+      habitWeekRate: 92,
+      habits: [
+        { name: "운동", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 15, lastChecked: TODAY },
+        { name: "명상", streak: 5, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이번 주 습관 완료율 92%"); // habit_week_excellent fires first (unique text)
+    expect(result!.text).not.toContain("이번 달"); // habit_month_excellent suppressed
   });
 });
 
