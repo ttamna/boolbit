@@ -148,7 +148,7 @@ describe("calcTodayInsight", () => {
   it("shouldNotReturnMilestoneNearForStreakThatIsNotNearMilestone", () => {
     // Use Tuesday 2024-01-16 so week_start (Monday-only) and other period triggers don't fire.
     const result = calcTodayInsight({
-      habits: [habit("운동", 5, "2024-01-15")],
+      habits: [habit("운동", 4, "2024-01-15")],
       todayStr: "2024-01-16", // Tuesday — no period_start triggers
       nowHour: 10,
       todayIntentionDate: "2024-01-16",
@@ -229,7 +229,7 @@ describe("calcTodayInsight", () => {
     // habitsAllDoneDate !== TODAY → dual_win skipped; pomodoroGoalStreak/SessionBest/WeekRecord
     // absent → 7.41/7.49/7.495 skipped; pomodoro_goal_reached (7.5) fires
     const result = calcTodayInsight({
-      habits: [habit("운동", 5, YESTERDAY)],
+      habits: [habit("운동", 4, YESTERDAY)],
       todayStr: TODAY,
       nowHour: 15,
       todayIntentionDate: TODAY,
@@ -1075,7 +1075,7 @@ describe("calcTodayInsight", () => {
   it("shouldNotFirePerfectDayStreakWhenHabitsNotDoneToday", () => {
     const result = calcTodayInsight({
       // Non-empty habits so the only reason perfect_day is skipped is the outer guard
-      habits: [habit("운동", 5, TODAY)],
+      habits: [habit("운동", 4, TODAY)],
       todayStr: TODAY,
       nowHour: 15,
       todayIntentionDate: TODAY,
@@ -3947,7 +3947,7 @@ describe("calcTodayInsight", () => {
     // bestStreak < streak is a data-corruption state (bestStreak should always be ≥ streak).
     // The filter condition streak === bestStreak correctly rejects this case.
     const result = calcTodayInsight({
-      habits: [{ name: "운동", streak: 12, lastChecked: TODAY, bestStreak: 8 }],
+      habits: [{ name: "운동", streak: 11, lastChecked: TODAY, bestStreak: 8 }],
       todayStr: TODAY,
       nowHour: 14,
       todayIntentionDate: TODAY,
@@ -3997,13 +3997,13 @@ describe("calcTodayInsight", () => {
   });
 
   it("shouldReturnNullWhenStreakRecordStreakBelowBestStreak", () => {
-    // streak=5 < bestStreak=10 (gap=5): not at all-time high — streak_record does not fire.
-    // Gap=5 falls outside habit_best_streak_approach range (gap 1–2), so approachBest also silent.
-    // habit_first_check_in: streak=5 > 1 → excluded. habit_comeback: bestStreak=10 < 14 → excluded.
+    // streak=4 < bestStreak=10 (gap=6): not at all-time high — streak_record does not fire.
+    // Gap=6 falls outside habit_best_streak_approach range (gap 1–2), so approachBest also silent.
+    // habit_first_check_in: streak=4 > 1 → excluded. habit_comeback: bestStreak=10 < 14 → excluded.
     // nowHour=10 avoids almost_perfect_day (≥14h) and streak_at_risk (≥20h).
     // weekGoal prevents period_start (TODAY = "2024-01-15" is a Monday).
     const result = calcTodayInsight({
-      habits: [{ name: "운동", streak: 5, lastChecked: TODAY, bestStreak: 10 }],
+      habits: [{ name: "운동", streak: 4, lastChecked: TODAY, bestStreak: 10 }],
       todayStr: TODAY,
       nowHour: 10,
       todayIntentionDate: TODAY,
@@ -4394,10 +4394,10 @@ describe("calcTodayInsight", () => {
   });
 
   it("shouldNotReturnStreakRecessionWhenStreakBelow7", () => {
-    // streak=5 (below the 7-day significance threshold) — recession does not fire
+    // streak=4 (below the 7-day significance threshold) — recession does not fire
     // nowHour:12 prevents almost_perfect_day (≥14h) from firing on this single-habit fixture
     const result = calcTodayInsight({
-      habits: [habit("운동", 5, DAYS_2_AGO)],
+      habits: [habit("운동", 4, DAYS_2_AGO)],
       todayStr: TODAY,
       nowHour: 12,
       todayIntentionDate: TODAY,
@@ -4882,7 +4882,7 @@ describe("calcTodayInsight — momentum_rise (priority 10.5, after project_stale
     // habit checked yesterday → i=1 hits history immediately, count stays 0
     // nowHour:12 prevents almost_perfect_day (≥14h) from firing on this single-habit fixture
     const result = calcTodayInsight({
-      habits: [{ name: "운동", streak: 5, checkHistory: [YESTERDAY] }],
+      habits: [{ name: "운동", streak: 4, checkHistory: [YESTERDAY] }],
       todayStr: TODAY,
       nowHour: 12,
       todayIntentionDate: TODAY,
@@ -5994,7 +5994,7 @@ describe("calcTodayInsight — project_near_completion (priority 10.85, after pr
 describe("calcTodayInsight — almost_perfect_day (priority 10.3)", () => {
   it("shouldReturnAlmostPerfectDayWhenAfternoonAndOneHabitRemaining", () => {
     const result = calcTodayInsight({
-      habits: [habit("독서", 3, TODAY), habit("운동", 5, YESTERDAY)],
+      habits: [habit("독서", 3, TODAY), habit("운동", 4, YESTERDAY)],
       todayStr: TODAY,
       nowHour: 14,
       todayIntentionDate: TODAY,
@@ -6010,7 +6010,7 @@ describe("calcTodayInsight — almost_perfect_day (priority 10.3)", () => {
 
   it("shouldReturnAlmostPerfectDayWhenAfternoonAndTwoHabitsRemaining", () => {
     const result = calcTodayInsight({
-      habits: [habit("독서", 3, YESTERDAY), habit("운동", 5, YESTERDAY), habit("명상", 2, TODAY)],
+      habits: [habit("독서", 3, YESTERDAY), habit("운동", 4, YESTERDAY), habit("명상", 2, TODAY)],
       todayStr: TODAY,
       nowHour: 15,
       todayIntentionDate: TODAY,
@@ -6026,7 +6026,7 @@ describe("calcTodayInsight — almost_perfect_day (priority 10.3)", () => {
 
   it("shouldNotReturnAlmostPerfectDayBeforeAfternoon", () => {
     const result = calcTodayInsight({
-      habits: [habit("독서", 3, TODAY), habit("운동", 5, YESTERDAY)],
+      habits: [habit("독서", 3, TODAY), habit("운동", 4, YESTERDAY)],
       todayStr: TODAY,
       nowHour: 13,
       todayIntentionDate: TODAY,
@@ -6058,7 +6058,7 @@ describe("calcTodayInsight — almost_perfect_day (priority 10.3)", () => {
     const result = calcTodayInsight({
       habits: [
         habit("독서", 3, YESTERDAY),
-        habit("운동", 5, YESTERDAY),
+        habit("운동", 4, YESTERDAY),
         habit("명상", 2, YESTERDAY),
       ],
       todayStr: TODAY,
@@ -6276,9 +6276,9 @@ describe("calcTodayInsight — habit_target_near (priority 11.05, between person
   });
 
   it("shouldNotReturnHabitTargetNearWhenStreakExceedsTarget", () => {
-    // streak=12, targetStreak=10 → 이미 초과 달성 → null
+    // streak=11, targetStreak=10 → 이미 초과 달성 → null
     const result = calcTodayInsight({
-      habits: [{ name: "독서", streak: 12, lastChecked: YESTERDAY, targetStreak: 10 }],
+      habits: [{ name: "독서", streak: 11, lastChecked: YESTERDAY, targetStreak: 10 }],
       todayStr: TODAY,
       nowHour: 11,
       todayIntentionDate: TODAY,
@@ -7929,6 +7929,166 @@ describe("calcTodayInsight — pomodoro_goal_streak_milestone_approach (priority
   });
 });
 
+// ── habit_streak_milestone_approach ──────────────────────────────────────
+describe("calcTodayInsight — habit_streak_milestone_approach (priority 7.424, between pomodoro_goal_streak_milestone_approach and pomodoro_lifetime_milestone)", () => {
+  // ABOUTME: Tests for habit_streak_milestone_approach badge — fires 1-2 days before
+  // ABOUTME: the next habit streak milestone (7/14/30) for any qualifying habit.
+  // Base: afternoon, intention set, single habit far from any milestone, no sessions, no goal —
+  //   all approach badges at 7.421–7.423 suppressed (focusStreak=8, intentionDoneStreak=8,
+  //   sessionGoal=undefined), no pomodoro_lifetime_milestone (sessionsToday=0).
+  // Habits with streak outside approach window [5,6,12,13,28,29] suppress this badge.
+  const base = () => ({
+    habits: [{ name: "독서", streak: 3 }] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    focusStreak: 8,           // suppresses focus_streak_milestone_approach (14-8=6>2)
+    intentionDoneStreak: 8,   // suppresses intention_done_streak_milestone_approach (14-8=6>2)
+  });
+
+  it("shouldFireWith2DaysToMilestone7WhenHabitStreak5", () => {
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "운동", streak: 5 }] });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("5일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone7WhenHabitStreak6", () => {
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "운동", streak: 6, lastChecked: TODAY }] });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("6일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith2DaysToMilestone14WhenHabitStreak12", () => {
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "명상", streak: 12 }] });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("명상");
+    expect(result!.text).toContain("12일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("14일 마일스톤");
+  });
+
+  it("shouldFireWith1DayToMilestone14WhenHabitStreak13", () => {
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "명상", streak: 13 }] });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("명상");
+    expect(result!.text).toContain("13일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("14일 마일스톤");
+  });
+
+  it("shouldFireWith2DaysToMilestone30WhenHabitStreak28", () => {
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "독서", streak: 28 }] });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("독서");
+    expect(result!.text).toContain("28일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("30일 마일스톤");
+  });
+
+  it("shouldFireWith1DayToMilestone30WhenHabitStreak29", () => {
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "독서", streak: 29, lastChecked: TODAY }] });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("독서");
+    expect(result!.text).toContain("29일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("30일 마일스톤");
+  });
+
+  it("shouldNotFireWhenStreak4TooFarFromMilestone7", () => {
+    // 7-4=3>2 — not within approach window; falls through to lower-priority badges
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "운동", streak: 4 }] });
+    expect(result?.text ?? "").not.toContain("마일스톤");
+  });
+
+  it("shouldNotFireWhenStreak8TooFarFromMilestone14", () => {
+    // 14-8=6>2 — past milestone 7, not yet close to 14
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "운동", streak: 8 }] });
+    expect(result?.text ?? "").not.toContain("마일스톤");
+  });
+
+  it("shouldNotFireWhenStreakExactlyAtMilestone7", () => {
+    // streak=7 is exactly at milestone 7: find(m > 7) → next milestone is 14, 14-7=7>2 → approach suppressed.
+    // personal_best (11) would fire only if bestStreak===streak — not in this fixture (no lastChecked).
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "운동", streak: 7 }] });
+    expect(result?.text ?? "").not.toContain("더 유지하면");
+  });
+
+  it("shouldNotFireWhenStreakExactlyAtMilestone14", () => {
+    // streak=14: find(m > 14) → next is 30, 30-14=16>2 → approach suppressed.
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "명상", streak: 14 }] });
+    expect(result?.text ?? "").not.toContain("더 유지하면");
+  });
+
+  it("shouldNotFireWhenStreakExactlyAtMilestone30", () => {
+    // streak=30: find(m > 30) → none in [7,14,30] → approach suppressed.
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "독서", streak: 30 }] });
+    expect(result?.text ?? "").not.toContain("더 유지하면");
+  });
+
+  it("shouldNotFireWhenHabitsEmpty", () => {
+    const result = calcTodayInsight({ ...base(), habits: [] });
+    expect(result?.text ?? "").not.toContain("마일스톤");
+  });
+
+  it("shouldPickHabitWithSmallestDaysLeft", () => {
+    // 운동: streak=5 → 2 days to 7; 독서: streak=13 → 1 day to 14 → picks 독서 (daysLeft=1 < daysLeft=2)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 5 },
+        { name: "독서", streak: 13 },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("독서");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("14일 마일스톤");
+  });
+
+  it("shouldPickHigherStreakHabitOnDaysLeftTie", () => {
+    // 운동: streak=6 → 1 day to 7; 독서: streak=13 → 1 day to 14 → tie in daysLeft, pick higher streak (독서=13)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 6, lastChecked: TODAY },
+        { name: "독서", streak: 13, lastChecked: TODAY },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("독서");
+    expect(result!.text).toContain("13일");
+    expect(result!.text).toContain("14일 마일스톤");
+  });
+
+  it("shouldBePreemptedByPomodoroGoalStreakMilestoneApproach7423", () => {
+    // pomodoro_goal_streak_milestone_approach (7.423) fires before habit_streak_milestone_approach (7.424).
+    // effectiveStreak=5 (sessionsToday=0<sessionGoal=3) → 2 days to pomodoro milestone 7.
+    // habit streak=6 → 1 day to habit milestone 7 — preempted.
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 6, lastChecked: TODAY }],
+      pomodoroGoalStreak: 5,
+      sessionGoal: 3,
+      sessionsToday: 0,
+    });
+    expect(result).not.toBeNull();
+    // pomodoro approach wins: text contains pomodoro keyword, not habit name
+    expect(result!.text).toContain("포모도로");
+    expect(result!.text).not.toContain("운동");
+  });
+});
+
 describe("calcTodayInsight — pomodoro_lifetime_milestone (priority 7.43, between focus_streak_milestone and pomodoro_goal_streak)", () => {
   // Base: Monday afternoon, intention set, no habits, no pomodoro goal, no competing insights.
   // TODAY = "2024-01-15" is a Monday — afternoon avoids morning-only gates.
@@ -9111,10 +9271,10 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     });
 
     it("shouldNotFireWhenThreeHabitsExistButStreaksBelow7", () => {
-      // streaks 5, 4, 3 — all below 7; avoids streak=6 which is 1 away from milestone (7)
+      // streaks 4, 3, 2 — all below 7 and outside milestone_approach window
       const result = calcTodayInsight({
         ...multiStreakBase(),
-        habits: [habit("운동", 5), habit("독서", 4), habit("명상", 3)],
+        habits: [habit("운동", 4), habit("독서", 3), habit("명상", 2)],
       });
       expect(result).toBeNull();
     });
@@ -9126,10 +9286,10 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
 
     it("shouldCountOnlyHabitsWithStreakAtLeastSeven", () => {
       // 2 habits qualify (streak ≥ 7), 2 do not (streak < 7) → total = 2, below threshold
-      // Using streak=5 instead of 6 to avoid milestone_near (6 is 1 away from the 7-day milestone)
+      // Using streak=4 to avoid habit_streak_milestone_approach (5/6 are in approach window)
       const result = calcTodayInsight({
         ...multiStreakBase(),
-        habits: [habit("운동", 7), habit("독서", 10), habit("명상", 3), habit("일기", 5)],
+        habits: [habit("운동", 7), habit("독서", 10), habit("명상", 3), habit("일기", 4)],
       });
       expect(result).toBeNull();
     });
@@ -10433,11 +10593,11 @@ describe("calcTodayInsight — habit_diversity_warning (priority 10.22)", () => 
   });
 
   it("shouldNotFireWhenHabitsHaveSimilarStreaks", () => {
-    // 운동:5, avgOthers=(8+7)/2=7.5 → 5 < 7.5*0.3=2.25? No → no badge
+    // 운동:4, avgOthers=(8+7)/2=7.5 → 4 < 7.5*0.3=2.25? No → no badge
     const result = calcTodayInsight({
       ...base,
       habits: [
-        { name: "운동", streak: 5, lastChecked: TODAY },
+        { name: "운동", streak: 4, lastChecked: TODAY },
         { name: "독서", streak: 8, lastChecked: TODAY },
         { name: "명상", streak: 7, lastChecked: TODAY },
       ],
@@ -10474,8 +10634,8 @@ describe("calcTodayInsight — habit_diversity_warning (priority 10.22)", () => 
   });
 
   it("shouldPickMostLaggingHabitByRatioWhenMultipleQualify", () => {
-    // 운동:1 avgOthers=(2+14+12)/3=9.33 → ratio 0.107
-    // 수영:2 avgOthers=(1+14+12)/3=9.0 → 2 < 9.0*0.3=2.7 → ratio 0.222
+    // 운동:1 avgOthers=(2+14+11)/3=9.0 → ratio 0.111
+    // 수영:2 avgOthers=(1+14+11)/3=8.67 → 2 < 8.67*0.3=2.6 → ratio 0.231
     // 운동 has smaller ratio → most lagging → picked
     const result = calcTodayInsight({
       ...base,
@@ -10483,7 +10643,7 @@ describe("calcTodayInsight — habit_diversity_warning (priority 10.22)", () => 
         { name: "운동", streak: 1, lastChecked: TODAY, bestStreak: 5 },
         { name: "수영", streak: 2, lastChecked: TODAY, bestStreak: 5 },
         { name: "독서", streak: 14, lastChecked: TODAY },
-        { name: "명상", streak: 12, lastChecked: TODAY },
+        { name: "명상", streak: 11, lastChecked: TODAY },
       ],
     });
     expect(result).not.toBeNull();
@@ -10530,13 +10690,13 @@ describe("calcTodayInsight — habit_diversity_warning (priority 10.22)", () => 
   it("shouldPrecedeAlmostPerfectDay", () => {
     // diversity_warning (10.22) fires before almost_perfect_day (10.3).
     // 운동 unchecked today (remaining=1, nowHour=15) → almost_perfect_day would fire.
-    // 운동:1 << avgOthers=(12+10)/2=11 → diversity_warning fires first.
+    // 운동:1 << avgOthers=(11+10)/2=10.5 → diversity_warning fires first.
     const result = calcTodayInsight({
       ...base,
       nowHour: 15,
       habits: [
         { name: "운동", streak: 1, lastChecked: YESTERDAY, bestStreak: 5 },
-        { name: "독서", streak: 12, lastChecked: TODAY },
+        { name: "독서", streak: 11, lastChecked: TODAY },
         { name: "명상", streak: 10, lastChecked: TODAY },
       ],
     });
@@ -10606,9 +10766,9 @@ describe("calcTodayInsight — habit_target_halfway (priority 11.06, between hab
   });
 
   it("shouldNotFireWhenTargetTooSmall", () => {
-    // targetStreak=12 < 14 minimum → no fire even at exact midpoint (streak=6)
+    // targetStreak=8 < 14 minimum → no fire even at exact midpoint (streak=4)
     const result = calcTodayInsight({
-      habits: [{ name: "명상", streak: 6, lastChecked: TODAY, targetStreak: 12 }],
+      habits: [{ name: "명상", streak: 4, lastChecked: TODAY, targetStreak: 8 }],
       todayStr: TODAY,
       nowHour: 9,
       todayIntentionDate: TODAY,
@@ -10797,10 +10957,10 @@ describe("calcTodayInsight — habit_target_hit (priority 11.04, between habit_b
   });
 
   it("shouldNotFireWhenStreakExceedsTarget", () => {
-    // streak=12 > targetStreak=11: target already surpassed — result is null
-    // habit_target_near: gap = 11-12 = -1, guard gap >= 1 fails → doesn't fire
+    // streak=11 > targetStreak=10: target already surpassed — result is null
+    // habit_target_near: gap = 10-11 = -1, guard gap >= 1 fails → doesn't fire
     const result = calcTodayInsight({
-      habits: [{ name: "운동", streak: 12, lastChecked: TODAY, targetStreak: 11 }],
+      habits: [{ name: "운동", streak: 11, lastChecked: TODAY, targetStreak: 10 }],
       todayStr: TODAY,
       nowHour: 9,
       todayIntentionDate: TODAY,
@@ -10849,13 +11009,13 @@ describe("calcTodayInsight — habit_target_hit (priority 11.04, between habit_b
 
   it("shouldHabitTargetHitPreemptHabitTargetNear", () => {
     // 독서: streak=15, targetStreak=15 → habit_target_hit (11.04)
-    // 운동: streak=13, targetStreak=14, gap=1 → habit_target_near (11.05) candidate
-    // 운동 streak=13 < currentMonthDay(15) → habit_month_perfect/habit_month_excellent 발동 방지
+    // 운동: streak=11, targetStreak=12, gap=1 → habit_target_near (11.05) candidate
+    // 운동 streak=11 < currentMonthDay(15) → habit_month_perfect/habit_month_excellent 발동 방지
     // habit_target_hit fires first (11.04 < 11.05)
     const result = calcTodayInsight({
       habits: [
         { name: "독서", streak: 15, lastChecked: TODAY, targetStreak: 15 },
-        { name: "운동", streak: 13, lastChecked: TODAY, targetStreak: 14 },
+        { name: "운동", streak: 11, lastChecked: TODAY, targetStreak: 12 },
       ],
       todayStr: TODAY,
       nowHour: 9,
@@ -10899,7 +11059,7 @@ describe("calcTodayInsight — habit_target_hit (priority 11.04, between habit_b
   it("shouldNotFireWhenNoTargetSet", () => {
     // No targetStreak defined → habit_target_hit cannot fire; result is null
     const result = calcTodayInsight({
-      habits: [{ name: "운동", streak: 12, lastChecked: TODAY }],
+      habits: [{ name: "운동", streak: 11, lastChecked: TODAY }],
       todayStr: TODAY,
       nowHour: 9,
       todayIntentionDate: TODAY,
@@ -11320,12 +11480,12 @@ describe("calcTodayInsight — habit_month_flawless (priority 11.07, after habit
   });
 
   it("shouldPickHabitWithHighestStreak", () => {
-    // 운동(streak=20) qualifies (≥15=currentMonthDay); 독서(streak=12) does not → 운동 selected.
-    // 독서 streak=12 < currentMonthDay(15) prevents habit_month_perfect from preempting.
+    // 운동(streak=20) qualifies (≥15=currentMonthDay); 독서(streak=11) does not → 운동 selected.
+    // 독서 streak=11 < currentMonthDay(15) prevents habit_month_perfect from preempting.
     const result = calcTodayInsight({
       ...base(),
       habits: [
-        { name: "독서", streak: 12, lastChecked: TODAY },
+        { name: "독서", streak: 11, lastChecked: TODAY },
         { name: "운동", streak: 20, lastChecked: TODAY },
       ],
     });
@@ -13219,7 +13379,7 @@ describe("calcTodayInsight — week_quadrafecta_flawless (priority 10.3289, befo
 
   function base() {
     return {
-      habits: [{ name: "운동", streak: 5, lastChecked: FRIDAY }],
+      habits: [{ name: "운동", streak: 8, lastChecked: FRIDAY }],
       todayStr: FRIDAY,
       nowHour: 12,
       todayIntentionDate: undefined as string | undefined, // suppress intention_done (needs todayIntentionDate===todayStr)
@@ -13247,10 +13407,11 @@ describe("calcTodayInsight — week_quadrafecta_flawless (priority 10.3289, befo
   it("shouldFireOnSaturdayShowingSixDays", () => {
     // Saturday: daysLeftWeek=2, daysElapsedInWeek=6 ≥ 5; all four streaks must be ≥ 6.
     // intentionDoneStreak=8: satisfies ≥6 (Saturday) and is outside approach window [5,6,12,13,28,29].
+    // habit streak=8: ≥6 and outside approach window.
     const result = calcTodayInsight({
       ...base(),
       todayStr: SATURDAY,
-      habits: [{ name: "운동", streak: 6, lastChecked: SATURDAY }],
+      habits: [{ name: "운동", streak: 8, lastChecked: SATURDAY }],
       daysLeftWeek: 2,
       focusStreak: 8,
       momentumStreak: 6,
@@ -13368,7 +13529,7 @@ describe("calcTodayInsight — week_trifecta_flawless (priority 10.329, before w
 
   function base() {
     return {
-      habits: [{ name: "운동", streak: 5, lastChecked: FRIDAY }],
+      habits: [{ name: "운동", streak: 8, lastChecked: FRIDAY }],
       todayStr: FRIDAY,
       nowHour: 12,
       todayIntentionDate: FRIDAY,
@@ -13412,13 +13573,14 @@ describe("calcTodayInsight — week_trifecta_flawless (priority 10.329, before w
 
   it("shouldFireOnSaturday", () => {
     // Saturday: daysLeftWeek=2, daysElapsedInWeek=6 ≥ 5 → fires with streaks ≥ 6
+    // habit streak=8: ≥6 and outside approach window [5,6,12,13,28,29]
     const SATURDAY = "2024-01-20";
     const result = calcTodayInsight({
       ...base(),
       todayStr: SATURDAY,
       todayIntentionDate: SATURDAY,
       daysLeftWeek: 2,
-      habits: [{ name: "운동", streak: 6, lastChecked: SATURDAY }],
+      habits: [{ name: "운동", streak: 8, lastChecked: SATURDAY }],
       focusStreak: 8,
       momentumStreak: 6,
       momentumHistory: [{ date: SATURDAY, score: 50, tier: "mid" as const }],
@@ -13536,12 +13698,13 @@ describe("calcTodayInsight — habit_week_flawless (priority 10.3291, after week
   // nowHour=15 (afternoon): suppresses all morning-only badges (intention_missing, period_start, weak_day_ahead, etc.).
   // focusStreak=3, momentumStreak=3: both < 5 → week_trifecta_flawless suppressed (not all three flawless).
   // sessionsToday=0 → pomodoro_week_flawless suppressed. habitsAllDoneDate=undefined → perfect_day suppressed.
+  // habit streak=8: ≥5 required AND outside approach window [5,6,12,13,28,29].
   const FRIDAY = "2024-01-19";
   const THURSDAY = "2024-01-18";
 
   function base() {
     return {
-      habits: [{ name: "운동", streak: 5, lastChecked: FRIDAY }],
+      habits: [{ name: "운동", streak: 8, lastChecked: FRIDAY }],
       todayStr: FRIDAY,
       nowHour: 15,
       todayIntentionDate: FRIDAY,
@@ -13615,11 +13778,11 @@ describe("calcTodayInsight — habit_week_flawless (priority 10.3291, after week
   });
 
   it("shouldPickHabitWithHighestStreakWhenMultipleQualify", () => {
-    // Two habits both qualify; badge shows the one with the higher streak (수영 streak=7 > 운동 streak=5)
+    // Two habits: 수영 streak=7 qualifies (≥5); 운동 streak=4 does not → 수영 selected
     const result = calcTodayInsight({
       ...base(),
       habits: [
-        { name: "운동", streak: 5, lastChecked: FRIDAY },
+        { name: "운동", streak: 4, lastChecked: FRIDAY },
         { name: "수영", streak: 7, lastChecked: FRIDAY },
       ],
     });
@@ -13665,10 +13828,11 @@ describe("calcTodayInsight — pomodoro_week_flawless (priority 10.3292, after h
   });
 
   it("shouldBePreemptedByHabitWeekFlawless", () => {
-    // habit streak bumped to 5 → habit_week_flawless (10.3291) fires before pomodoro_week_flawless (10.3292)
+    // habit streak bumped to 8 → habit_week_flawless (10.3291) fires before pomodoro_week_flawless (10.3292)
+    // streak=8 ≥ daysElapsed(5) and outside approach window [5,6,12,13,28,29]
     const result = calcTodayInsight({
       ...base(),
-      habits: [{ name: "운동", streak: 5, lastChecked: FRIDAY }],
+      habits: [{ name: "운동", streak: 8, lastChecked: FRIDAY }],
     });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("이번 주 개근"); // habit flawless fires first
@@ -13892,11 +14056,12 @@ describe("calcTodayInsight — intention_week_flawless (priority 10.3294, after 
   it("shouldBePreemptedByHabitWeekFlawless", () => {
     // todayIntentionDate=undefined suppresses intention_done (which needs todayIntentionDate===todayStr).
     // todayIntentionDone=true still holds so intention_week_flawless would qualify, but
-    // habit streak=5 ≥ 5, lastChecked=FRIDAY → habit_week_flawless (10.3291) fires first.
+    // habit streak=8 ≥ 5, lastChecked=FRIDAY → habit_week_flawless (10.3291) fires first.
+    // streak=8 is outside approach window [5,6,12,13,28,29].
     const result = calcTodayInsight({
       ...base(),
       todayIntentionDate: undefined,
-      habits: [{ name: "운동", streak: 5, lastChecked: FRIDAY }],
+      habits: [{ name: "운동", streak: 8, lastChecked: FRIDAY }],
     });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("이번 주 개근"); // habit fires first
@@ -14057,8 +14222,8 @@ describe("calcTodayInsight — week_balanced (priority 10.33, between almost_per
       ...base(),
       nowHour: 14,
       habits: [
-        { name: "운동", streak: 5, lastChecked: TODAY },
-        { name: "독서", streak: 5, lastChecked: YESTERDAY }, // not yet checked today
+        { name: "운동", streak: 4, lastChecked: TODAY },
+        { name: "독서", streak: 4, lastChecked: YESTERDAY }, // not yet checked today
       ],
       habitsAllDoneDate: YESTERDAY,
     });
@@ -14462,12 +14627,14 @@ describe("calcTodayInsight — habit_month_excellent (priority 10.41, ≥ 2 habi
 
   it("shouldFireWhenMajorityOfHabitsArePerfectThisMonth", () => {
     // 2 out of 3 habits flawless → flawlessCount=2 >= threshold(2) → fires
+    // 명상 streak=0: not flawless (0<15); excluded from diversity_warning (streak≥1 guard);
+    // habit_multi_streak requires 3 habits each ≥7 → only 2 qualify → suppressed.
     const result = calcTodayInsight({
       ...base(),
       habits: [
         { name: "운동", streak: 15, lastChecked: TODAY },
         { name: "독서", streak: 15, lastChecked: TODAY },
-        { name: "명상", streak: 5, lastChecked: TODAY }, // not flawless this month
+        { name: "명상", streak: 0 }, // not flawless this month, streak=0 excluded from peer avg
       ],
     });
     expect(result).not.toBeNull();
@@ -14478,15 +14645,15 @@ describe("calcTodayInsight — habit_month_excellent (priority 10.41, ≥ 2 habi
 
   it("shouldContainFlawlessCountAndTotal", () => {
     // Badge text shows flawless / total count.
-    // Streaks: 20 ≥ 15 ✓, 16 ≥ 15 ✓, 6 < 15 ✗. flawlessCount=2, habits.length=3.
-    // streak=6 < 7 → habit_multi_streak (3+ habits each ≥7d) won't fire.
-    // streak=6 ≥ 30% of avg(20,16)=18 → habit_diversity_warning won't fire (6/18 ≈ 33% > 30%).
+    // Streaks: 20 ≥ 15 ✓, 16 ≥ 15 ✓, 0 < 15 ✗. flawlessCount=2, habits.length=3.
+    // streak=0: excluded from diversity_warning (streak≥1 guard); not counted in habit_multi_streak.
+    // Only 2 habits have streak ≥7 → multi_streak suppressed (needs 3+).
     const result = calcTodayInsight({
       ...base(),
       habits: [
         { name: "운동", streak: 20, lastChecked: TODAY },
         { name: "독서", streak: 16, lastChecked: TODAY },
-        { name: "명상", streak: 6, lastChecked: TODAY }, // below 15 and below 7 (no multi_streak)
+        { name: "명상", streak: 0 }, // below 15, excluded from peer avg calc
       ],
     });
     expect(result).not.toBeNull();
@@ -14553,12 +14720,13 @@ describe("calcTodayInsight — habit_month_excellent (priority 10.41, ≥ 2 habi
 
   it("shouldFireOnExactDay14Boundary", () => {
     // currentMonthDay = 14 — exactly at the >= 14 threshold; 2/3 flawless → badge MUST fire
-    // 명상 streak=5: not flawless (5 < 14) and >= 30% of avg(14,14)=4.2 → no diversity_warning
+    // 명상 streak=0: not flawless; excluded from diversity_warning peer avg (requires streak>=1);
+    // streak=0 → no approach window, no multi_streak contribution.
     const result = calcTodayInsight({
       habits: [
         { name: "운동", streak: 14, lastChecked: "2024-01-14" },
         { name: "독서", streak: 14, lastChecked: "2024-01-14" },
-        { name: "명상", streak: 5, lastChecked: "2024-01-14" }, // not flawless (streak < 14)
+        { name: "명상", streak: 0, lastChecked: "2024-01-14" }, // not flawless (streak < 14)
       ],
       todayStr: "2024-01-14",
       nowHour: 12,
@@ -14574,13 +14742,15 @@ describe("calcTodayInsight — habit_month_excellent (priority 10.41, ≥ 2 habi
 
   it("shouldBePreemptedByHabitWeekExcellent", () => {
     // habit_week_excellent (10.35) fires before habit_month_excellent (10.41)
+    // 명상 streak=0: not flawless; excluded from diversity_warning peer avg (streak>=1 required);
+    // no approach window, no habit_multi_streak contribution.
     const result = calcTodayInsight({
       ...base(),
       habitWeekRate: 92,
       habits: [
         { name: "운동", streak: 15, lastChecked: TODAY },
         { name: "독서", streak: 15, lastChecked: TODAY },
-        { name: "명상", streak: 5, lastChecked: TODAY },
+        { name: "명상", streak: 0, lastChecked: TODAY },
       ],
     });
     expect(result).not.toBeNull();
@@ -14733,12 +14903,14 @@ describe("calcTodayInsight — habit_month_improved (priority 10.413, after habi
 
   it("shouldBePreemptedByHabitMonthExcellentWhen2HabitsFlawless", () => {
     // habit_month_excellent (10.41) fires first when 2+ habits have streak >= currentMonthDay (15).
+    // 명상 streak=0: not flawless; excluded from diversity_warning peer avg (streak>=1 required);
+    // no approach window, no habit_multi_streak contribution.
     const result = calcTodayInsight({
       ...base(),
       habits: [
         { name: "운동", streak: 15, lastChecked: TODAY },
         { name: "독서", streak: 15, lastChecked: TODAY },
-        { name: "명상", streak: 5, lastChecked: TODAY }, // not flawless → prevents habit_month_perfect
+        { name: "명상", streak: 0, lastChecked: TODAY }, // not flawless → prevents habit_month_perfect
       ],
       habitMonthRate: 80,
       habitPrevMonthRate: 65, // 15pp rise — would fire improved
@@ -14917,12 +15089,14 @@ describe("calcTodayInsight — intention_month_perfect (priority 10.42, after ha
 
   it("shouldBePreemptedByHabitMonthExcellent", () => {
     // habit_month_excellent (10.41) fires before intention_month_perfect (10.42)
+    // 명상 streak=0: not flawless; excluded from diversity_warning peer avg (streak>=1 required);
+    // no approach window, no habit_multi_streak contribution.
     const result = calcTodayInsight({
       ...base(),
       habits: [
         { name: "운동", streak: 15, lastChecked: TODAY },
         { name: "독서", streak: 15, lastChecked: TODAY },
-        { name: "명상", streak: 5, lastChecked: TODAY },
+        { name: "명상", streak: 0, lastChecked: TODAY },
       ],
       intentionMonthDoneRate: 100,
     });
