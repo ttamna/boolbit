@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, monthly pomodoro session report, quarterly pomodoro session report, yearly pomodoro session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), per-weekday pomodoro session average with weak/best day detection, and weekly goal-hit day count (calcPomodoroWeekGoalDays)
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMonthGoalDays
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, monthly pomodoro session report, quarterly pomodoro session report, yearly pomodoro session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), per-weekday pomodoro session average with weak/best day detection, weekly goal-hit day count (calcPomodoroWeekGoalDays), and 14-day rolling goal-hit day count for monthly badge (calcPomodoroMonthGoalDays)
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMonthGoalDays } from "./pomodoro";
 import { colors } from "../theme";
 import type { PomodoroDay } from "../types";
 
@@ -1749,6 +1749,74 @@ describe("calcPomodoroWeekGoalDays", () => {
       { date: "2026-03-14", count: 4 },  // in window (yesterday)
     ];
     expect(calcPomodoroWeekGoalDays(history, 4, last7, 0, TODAY)).toBe(1);
+  });
+});
+
+describe("calcPomodoroMonthGoalDays", () => {
+  // last14 from 2026-03-02 (13 days ago) to 2026-03-15 (today)
+  const TODAY = "2026-03-15";
+  const last14 = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date("2026-03-02T00:00:00");
+    d.setDate(d.getDate() + i);
+    return d.toLocaleDateString("sv");
+  }); // ["2026-03-02", ..., "2026-03-15"]
+
+  it("shouldReturn0WhenSessionGoalIsZero", () => {
+    const history: PomodoroDay[] = last14.map(d => ({ date: d, count: 5 }));
+    expect(calcPomodoroMonthGoalDays(history, 0, last14, 5, TODAY)).toBe(0);
+  });
+
+  it("shouldReturn0WhenSessionGoalIsNegative", () => {
+    const history: PomodoroDay[] = last14.map(d => ({ date: d, count: 5 }));
+    expect(calcPomodoroMonthGoalDays(history, -1, last14, 5, TODAY)).toBe(0);
+  });
+
+  it("shouldReturn0WhenHistoryIsEmptyAndSessionsTodayBelowGoal", () => {
+    expect(calcPomodoroMonthGoalDays([], 4, last14, 3, TODAY)).toBe(0);
+  });
+
+  it("shouldCountDaysFromHistoryWhereCountMeetsOrExceedsGoal", () => {
+    // 8 past days (Mar 2–9) meet goal=4; Mar 10–11 not in history (count as 0, below goal);
+    // Mar 12–14 below goal; today=2 does not meet goal → 8 total days with goal met
+    const history: PomodoroDay[] = [
+      { date: "2026-03-02", count: 4 },
+      { date: "2026-03-03", count: 4 },
+      { date: "2026-03-04", count: 4 },
+      { date: "2026-03-05", count: 4 },
+      { date: "2026-03-06", count: 4 },
+      { date: "2026-03-07", count: 4 },
+      { date: "2026-03-08", count: 4 },
+      { date: "2026-03-09", count: 4 },
+      { date: "2026-03-12", count: 3 }, // below goal
+      { date: "2026-03-13", count: 2 }, // below goal
+      { date: "2026-03-14", count: 1 }, // below goal (yesterday)
+    ];
+    expect(calcPomodoroMonthGoalDays(history, 4, last14, 2, TODAY)).toBe(8);
+  });
+
+  it("shouldUseLiveSessionsTodayForTodayNotHistory", () => {
+    // history has today=2 but live sessionsToday=4 (meets goal)
+    const history: PomodoroDay[] = [{ date: "2026-03-15", count: 2 }];
+    expect(calcPomodoroMonthGoalDays(history, 4, last14, 4, TODAY)).toBe(1);
+  });
+
+  it("shouldIgnoreHistoryEntryForTodayWhenLiveTodayBelowGoal", () => {
+    // history has today=10 but live sessionsToday=1 (below goal)
+    const history: PomodoroDay[] = [{ date: "2026-03-15", count: 10 }];
+    expect(calcPomodoroMonthGoalDays(history, 4, last14, 1, TODAY)).toBe(0);
+  });
+
+  it("shouldReturn14WhenAllDaysMeetOrExceedGoal", () => {
+    const history: PomodoroDay[] = last14.slice(0, 13).map(d => ({ date: d, count: 4 }));
+    expect(calcPomodoroMonthGoalDays(history, 4, last14, 4, TODAY)).toBe(14);
+  });
+
+  it("shouldIgnoreHistoryEntriesOutsideLast14Window", () => {
+    const history: PomodoroDay[] = [
+      { date: "2026-03-01", count: 10 }, // outside window
+      { date: "2026-03-14", count: 4 },  // in window (yesterday)
+    ];
+    expect(calcPomodoroMonthGoalDays(history, 4, last14, 0, TODAY)).toBe(1);
   });
 });
 

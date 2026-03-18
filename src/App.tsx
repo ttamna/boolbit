@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMonthGoalDays } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport, calcDayOfWeekMomentumAvg, calcWeakMomentumDay, calcBestMomentumDay } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -1860,6 +1860,12 @@ export default function App() {
   const pomodoroWeekGoalDays = (data.pomodoroSessionGoal && data.pomodoroSessionGoal > 0)
     ? calcPomodoroWeekGoalDays(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, last7Days, pomodoroSessionsToday, todayStr)
     : undefined;
+  // pomodoroMonthGoalDays: days in last14Days where session count >= sessionGoal; undefined when no goal set.
+  // When currentMonthDay ≥ 14 (the badge guard in insight.ts), last14Days lies entirely within the
+  // current calendar month, giving a meaningful "this month" goal-hit count for the monthly badge.
+  const pomodoroMonthGoalDays = (data.pomodoroSessionGoal && data.pomodoroSessionGoal > 0)
+    ? calcPomodoroMonthGoalDays(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, last14Days, pomodoroSessionsToday, todayStr)
+    : undefined;
   // intentionMonthDoneRate: current calendar month's intention done rate (0–100), or undefined when
   // fewer than 14 intentions were set this month (insufficient data for a meaningful signal).
   // Delegates to calcIntentionMonthDoneRate which excludes today from intentionHistory to avoid
@@ -2012,6 +2018,8 @@ export default function App() {
     pomodoroPrevWeekSessions,
     // pomodoroWeekGoalDays: days in last7Days goal was met; undefined when sessionGoal not set.
     pomodoroWeekGoalDays,
+    // pomodoroMonthGoalDays: days in last14Days goal was met; undefined when sessionGoal not set.
+    pomodoroMonthGoalDays,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 31-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes

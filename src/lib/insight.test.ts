@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_improved, pomodoro_week_declined, week_balanced, habit_month_perfect, habit_month_excellent, intention_month_perfect, intention_month_excellent, momentum_month_strong)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_improved, pomodoro_week_declined, week_balanced, habit_month_perfect, habit_month_excellent, intention_month_perfect, intention_month_excellent, momentum_month_strong, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -12345,6 +12345,163 @@ describe("calcTodayInsight — momentum_month_strong (priority 10.44, after inte
     expect(result!.text).toContain("이번 달"); // momentum_month_strong fires
     expect(result!.text).toContain("모멘텀");
     expect(result!.text).not.toContain("평소보다"); // pomodoro_today_above_avg text suppressed
+  });
+});
+
+// ── pomodoro_month_goal_perfect (priority 10.441, after momentum_month_strong, before pomodoro_month_goal_excellent) ──
+describe("calcTodayInsight — pomodoro_month_goal_perfect (priority 10.441, after momentum_month_strong and before pomodoro_today_above_avg)", () => {
+  // TODAY = "2024-01-15" → currentMonthDay = 15, which is ≥ 14 (guard passes).
+  // pomodoroMonthGoalDays = 14 means all 14 rolling days met the daily session goal.
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: undefined as string | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+    };
+  }
+
+  it("shouldFireWhenAll14DaysMeetGoal", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroMonthGoalDays: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldInclude14of14InBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroMonthGoalDays: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14/14일");
+  });
+
+  it("shouldNotFirePerfectWhenOnly13DaysMeetGoal", () => {
+    // 13/14 fires pomodoro_month_goal_excellent (10.442), not perfect (10.441)
+    const result = calcTodayInsight({ ...base(), pomodoroMonthGoalDays: 13 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // excellent fires
+    expect(result!.text).toContain("13/14"); // excellent badge text
+    expect(result!.text).not.toContain("14/14일"); // perfect text suppressed
+  });
+
+  it("shouldNotFireWhenPomodoroMonthGoalDaysIsUndefined", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroMonthGoalDaysIsZero", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroMonthGoalDays: 0 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenCurrentMonthDayBelow14", () => {
+    // currentMonthDay = 13 (< 14 guard) — badge must not fire even if pomodoroMonthGoalDays = 14
+    const result = calcTodayInsight({ ...base(), todayStr: "2024-01-13", pomodoroMonthGoalDays: 14 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByMomentumMonthStrong", () => {
+    // momentum_month_strong (10.44) fires before pomodoro_month_goal_perfect (10.441)
+    const history = Array.from({ length: 14 }, (_, i) => ({
+      date: `2024-01-${String(i + 1).padStart(2, "0")}`,
+      score: 80,
+      tier: "high" as const,
+    }));
+    const result = calcTodayInsight({ ...base(), pomodoroMonthGoalDays: 14, momentumHistory: history });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("모멘텀"); // momentum_month_strong fires first
+    expect(result!.text).not.toContain("포모도로"); // perfect suppressed
+  });
+
+  it("shouldPreemptPomodoroTodayAboveAvgWhenBothConditionsMet", () => {
+    // pomodoro_month_goal_perfect (10.441) fires before pomodoro_today_above_avg (10.45)
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroMonthGoalDays: 14,
+      pomodoroRecentAvg: 2,
+      sessionsToday: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14/14일"); // perfect fires
+    expect(result!.text).not.toContain("평소보다"); // pomodoro_today_above_avg suppressed
+  });
+});
+
+// ── pomodoro_month_goal_excellent (priority 10.442, after pomodoro_month_goal_perfect, before pomodoro_today_above_avg) ──
+describe("calcTodayInsight — pomodoro_month_goal_excellent (priority 10.442, after pomodoro_month_goal_perfect and before pomodoro_today_above_avg)", () => {
+  // TODAY = "2024-01-15" → currentMonthDay = 15, which is ≥ 14 (guard passes).
+  // pomodoroMonthGoalDays = 12 or 13 triggers excellent badge (12–13/14 ≈ 85–93%).
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: undefined as string | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+    };
+  }
+
+  it("shouldFireWhen12DaysMeetGoal", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroMonthGoalDays: 12 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("12/14");
+  });
+
+  it("shouldFireWhen13DaysMeetGoal", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroMonthGoalDays: 13 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("13/14");
+  });
+
+  it("shouldNotFireExcellentWhen14DaysMeetGoal", () => {
+    // 14/14 fires pomodoro_month_goal_perfect (10.441), not excellent (10.442)
+    const result = calcTodayInsight({ ...base(), pomodoroMonthGoalDays: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14/14일"); // perfect fires
+    expect(result!.text).toContain("완벽한 집중이에요"); // perfect-only suffix (absent from excellent)
+  });
+
+  it("shouldNotFireWhenOnlyElevenDaysMeetGoal", () => {
+    // 11/14 is below the ≥12 threshold
+    const result = calcTodayInsight({ ...base(), pomodoroMonthGoalDays: 11 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroMonthGoalDaysIsUndefined", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenCurrentMonthDayBelow14", () => {
+    // currentMonthDay = 13 (< 14 guard) — badge must not fire
+    const result = calcTodayInsight({ ...base(), todayStr: "2024-01-13", pomodoroMonthGoalDays: 13 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByPomodoroMonthGoalPerfect", () => {
+    // pomodoro_month_goal_perfect (10.441) fires before pomodoro_month_goal_excellent (10.442)
+    const result = calcTodayInsight({ ...base(), pomodoroMonthGoalDays: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14/14일"); // perfect fires
+    expect(result!.text).toContain("완벽한 집중이에요"); // perfect-only suffix (excellent has none)
+  });
+
+  it("shouldPreemptPomodoroTodayAboveAvgWhenBothConditionsMet", () => {
+    // pomodoro_month_goal_excellent (10.442) fires before pomodoro_today_above_avg (10.45)
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroMonthGoalDays: 12,
+      pomodoroRecentAvg: 2,
+      sessionsToday: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("12/14"); // excellent fires
+    expect(result!.text).not.toContain("평소보다"); // pomodoro_today_above_avg suppressed
   });
 });
 

@@ -1,5 +1,5 @@
 // ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, lifetime milestone notifications, weekly/monthly/quarterly/yearly session reports, per-weekday session average for weak/best day detection, and weekly goal-hit day count
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, quarterly session report, yearly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), calcDayOfWeekPomodoroAvg/calcWeakPomodoroDay/calcBestPomodoroDay for todayIsWeakPomodoroDay/todayIsBestPomodoroDay insight params, and calcPomodoroWeekGoalDays for pomodoro_week_goal_perfect badge
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, quarterly session report, yearly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), calcDayOfWeekPomodoroAvg/calcWeakPomodoroDay/calcBestPomodoroDay for todayIsWeakPomodoroDay/todayIsBestPomodoroDay insight params, calcPomodoroWeekGoalDays for pomodoro_week_goal_perfect badge, and calcPomodoroMonthGoalDays for pomodoro_month_goal_perfect badge
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -552,6 +552,30 @@ export function calcPomodoroWeekGoalDays(
   const dateMap = new Map<string, number>(history.map(e => [e.date, e.count]));
   let count = 0;
   for (const day of last7Days) {
+    const sessions = day === todayStr ? sessionsToday : (dateMap.get(day) ?? 0);
+    if (sessions >= sessionGoal) count++;
+  }
+  return count;
+}
+
+/** Returns the number of days in `last14Days` on which the user met or exceeded `sessionGoal`.
+ *  Identical logic to calcPomodoroWeekGoalDays but accepts a 14-day window array.
+ *  Uses live `sessionsToday` for todayStr, and history for all past days.
+ *  Returns 0 when sessionGoal ≤ 0.
+ *  Caller (App.tsx) passes last14Days which, when currentMonthDay ≥ 14, lies entirely within
+ *  the current calendar month — giving a meaningful "this month" goal-hit count.
+ */
+export function calcPomodoroMonthGoalDays(
+  history: PomodoroDay[],
+  sessionGoal: number,
+  last14Days: string[],
+  sessionsToday: number,
+  todayStr: string,
+): number {
+  if (sessionGoal <= 0) return 0;
+  const dateMap = new Map<string, number>(history.map(e => [e.date, e.count]));
+  let count = 0;
+  for (const day of last14Days) {
     const sessions = day === todayStr ? sessionsToday : (dateMap.get(day) ?? 0);
     if (sessions >= sessionGoal) count++;
   }
