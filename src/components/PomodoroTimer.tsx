@@ -66,6 +66,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     return () => clearInterval(id);
   }, []);
   const [phase, setPhase] = useState<Phase>("focus");
+  const [viewPhase, setViewPhase] = useState<Phase>("focus");
   const [durations, setDurations] = useState<Record<Phase, number>>({
     ...DEFAULT_DURATION,
     ...(initialDurations ?? {}),
@@ -160,6 +161,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           if (soundRef.current) playPhaseDone(currentPhase);
         }
         setPhase(next);
+        setViewPhase(next);
         setRemaining(durationsRef.current[next] * 60);
         if (autoStartRef.current) {
           // Bump runKey so useEffect re-fires with running still true, creating a fresh interval
@@ -183,6 +185,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
 
   const reset = () => {
     setRunning(false);
+    setViewPhase(phase);
     setRemaining(durations[phase] * 60);
   };
 
@@ -204,6 +207,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
       next = "focus";
     }
     setPhase(next);
+    setViewPhase(next);
     setRemaining(durationsRef.current[next] * 60);
     if (running && autoStart) {
       freshStartRef.current = true;
@@ -214,21 +218,23 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   };
 
   const switchPhase = (p: Phase) => {
-    setRunning(false);
-    setPhase(p);
-    setRemaining(durations[p] * 60);
+    setViewPhase(p);
     setCustomMode(null);
     setShowPresets(false);
-    // Reset cycle count when manually navigating phases to avoid unexpected long break
-    cycleCountRef.current = 0;
+    if (!running) {
+      setPhase(p);
+      setRemaining(durations[p] * 60);
+      // Reset cycle count when manually navigating phases to avoid unexpected long break
+      cycleCountRef.current = 0;
+    }
   };
 
   const applyDuration = (p: Phase, mins: number) => {
-    if (running) return;
+    if (running && p === phase) return;
     const next = { ...durations, [p]: mins };
     setDurations(next);
     onDurationsChange?.(next);
-    if (p === phase) setRemaining(mins * 60);
+    if (p === phase && !running) setRemaining(mins * 60);
     setCustomMode(null);
     setShowPresets(false);
   };
@@ -257,6 +263,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const focusColor = accent ?? colors.statusActive;
   // phaseColor: focus phase uses the theme accent; break phases keep semantic colors for clear phase distinction.
   const phaseColor = phase === "focus" ? focusColor : phaseAccent(phase);
+  // viewPhaseColor: color for the currently selected tab (may differ from running phase color)
+  const viewPhaseColor = viewPhase === "focus" ? focusColor : phaseAccent(viewPhase);
 
   // Last 14 days (oldest to newest) derived from todayStr — recomputed at midnight.
   // pomodoroHistory is capped at 14 entries in lib.rs sanitize; rendering all 14 uses stored data fully.
@@ -421,12 +429,12 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               return (
                 <button
                   key={p}
-                  onClick={() => p === phase ? setShowPresets(v => !v) : switchPhase(p)}
+                  onClick={() => p === viewPhase ? setShowPresets(v => !v) : switchPhase(p)}
                   style={{
                     flex: 1, padding: "4px 0", borderRadius: radius.bar,
-                    background: phase === p ? `${tabAccent}22` : "transparent",
-                    border: `1px solid ${phase === p ? tabAccent + "44" : colors.borderFaint}`,
-                    color: phase === p ? tabAccent : colors.textSubtle,
+                    background: viewPhase === p ? `${tabAccent}22` : "transparent",
+                    border: `1px solid ${viewPhase === p ? tabAccent + "44" : colors.borderFaint}`,
+                    color: viewPhase === p ? tabAccent : colors.textSubtle,
                     fontSize: fontSizes.xs, cursor: "pointer",
                   }}
                 >
@@ -438,24 +446,24 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
 
           {/* Duration presets — visible only when active tab is clicked */}
           {showPresets && <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-            {PRESETS[phase].map(mins => (
+            {PRESETS[viewPhase].map(mins => (
               <button
                 key={mins}
-                onClick={() => applyDuration(phase, mins)}
-                disabled={running}
+                onClick={() => applyDuration(viewPhase, mins)}
+                disabled={running && viewPhase === phase}
                 style={{
                   flex: 1, padding: "3px 0", borderRadius: radius.chip,
-                  background: durations[phase] === mins && customMode === null ? `${phaseColor}22` : "transparent",
-                  border: `1px solid ${durations[phase] === mins && customMode === null ? phaseColor + "55" : colors.borderFaint}`,
-                  color: durations[phase] === mins && customMode === null ? phaseColor : colors.textPhantom,
-                  fontSize: fontSizes.mini, cursor: running ? "default" : "pointer",
-                  opacity: running ? 0.5 : 1,
+                  background: durations[viewPhase] === mins && customMode === null ? `${viewPhaseColor}22` : "transparent",
+                  border: `1px solid ${durations[viewPhase] === mins && customMode === null ? viewPhaseColor + "55" : colors.borderFaint}`,
+                  color: durations[viewPhase] === mins && customMode === null ? viewPhaseColor : colors.textPhantom,
+                  fontSize: fontSizes.mini, cursor: (running && viewPhase === phase) ? "default" : "pointer",
+                  opacity: (running && viewPhase === phase) ? 0.5 : 1,
                 }}
               >
                 {mins}분
               </button>
             ))}
-            {customMode === phase ? (
+            {customMode === viewPhase ? (
               <input
                 type="number"
                 value={customValue}
@@ -471,23 +479,23 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
                 style={{
                   flex: 1, padding: "3px 4px", borderRadius: radius.chip,
                   background: "transparent",
-                  border: `1px solid ${phaseColor}55`,
-                  color: phaseColor, fontSize: fontSizes.mini,
+                  border: `1px solid ${viewPhaseColor}55`,
+                  color: viewPhaseColor, fontSize: fontSizes.mini,
                   fontFamily: fonts.mono, textAlign: "center",
                   outline: "none", minWidth: 0,
                 }}
               />
             ) : (
               <button
-                onClick={() => { if (running) return; setCustomMode(phase); setCustomValue(String(durations[phase])); }}
-                disabled={running}
+                onClick={() => { if (running && viewPhase === phase) return; setCustomMode(viewPhase); setCustomValue(String(durations[viewPhase])); }}
+                disabled={running && viewPhase === phase}
                 style={{
                   flex: 1, padding: "3px 0", borderRadius: radius.chip,
                   background: "transparent",
                   border: `1px solid ${colors.borderFaint}`,
                   color: colors.textPhantom,
-                  fontSize: fontSizes.mini, cursor: running ? "default" : "pointer",
-                  opacity: running ? 0.5 : 1,
+                  fontSize: fontSizes.mini, cursor: (running && viewPhase === phase) ? "default" : "pointer",
+                  opacity: (running && viewPhase === phase) ? 0.5 : 1,
                 }}
               >
                 직접
@@ -592,9 +600,18 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           {/* Controls */}
           <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={async () => {
-                if (!running && !isPaused && phase === "focus" && notifyRef.current) {
-                  await notify("Vision Widget", "🎯 집중 시작!");
+              onClick={() => {
+                if (!running) {
+                  // 항상 focus 세션으로 시작. focus에서 일시정지된 경우만 resume (reset 안 함).
+                  // break/longBreak 탭에 있거나 focus에서 fresh-start이면 focus로 전환.
+                  if (phase !== "focus" || !isPaused) {
+                    setPhase("focus");
+                    setViewPhase("focus");
+                    setRemaining(durations.focus * 60);
+                    // fire-and-forget: setRunning은 notify 완료를 기다리지 않음.
+                    // await 시 권한 다이얼로그 대기 중 중복 클릭 버그 방지.
+                    if (notifyRef.current) void notify("Vision Widget", "🎯 집중 시작!");
+                  }
                 }
                 setRunning(r => !r);
               }}

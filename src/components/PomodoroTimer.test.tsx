@@ -140,3 +140,93 @@ describe("PomodoroTimer autoStart phase transitions", () => {
     expect(screen.queryByText("⏸ 일시정지")).not.toBeNull();
   });
 });
+
+describe("PomodoroTimer start button always starts focus phase (Bug #43)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should switch to focus phase and start timer when start button is clicked from break tab", async () => {
+    // Arrange: render with break tab active
+    render(
+      <PomodoroTimer
+        initialDurations={{ focus: FOCUS_MINS, break: BREAK_MINS }}
+        initialOpen={true}
+      />
+    );
+
+    // Switch to break tab manually — match exactly "휴식 N분" (not "긴 휴식 N분")
+    const breakTab = screen.getByText(/^휴식 \d+분$/);
+    await act(async () => { breakTab.click(); });
+
+    // Act: click start button while on break tab
+    const startBtn = screen.getByText("▶ 시작");
+    await act(async () => { startBtn.click(); });
+
+    // Assert: timer should be running in focus phase, not break phase
+    // "⏸ 일시정지" means running; header should show focus indicator
+    expect(screen.queryByText("⏸ 일시정지")).not.toBeNull();
+    // The running phase should be focus — header shows "집중 MM:SS" pattern
+    const focusIndicator = screen.queryByText(/집중 \d{2}:\d{2}/);
+    expect(focusIndicator).not.toBeNull();
+  });
+});
+
+describe("PomodoroTimer tab click should not stop running timer (Bug #43)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should keep timer running when break tab is clicked during focus timer", async () => {
+    // Arrange: start focus timer
+    renderTimer({ initialAutoStart: false });
+
+    const startBtn = screen.getByText("▶ 시작");
+    await act(async () => { startBtn.click(); });
+
+    // Verify timer is running
+    expect(screen.queryByText("⏸ 일시정지")).not.toBeNull();
+
+    // Act: click break tab while focus timer is running — match exactly "휴식 N분" (not "긴 휴식 N분")
+    const breakTab = screen.getByText(/^휴식 \d+분$/);
+    await act(async () => { breakTab.click(); });
+
+    // Assert: timer must still be running — only ⏸ button should stop it
+    expect(screen.queryByText("⏸ 일시정지")).not.toBeNull();
+  });
+
+  it("should switch to focus and start fresh when start is pressed while break timer is paused", async () => {
+    // Arrange: start break timer (autoStart on, run through focus, now in break)
+    renderTimer({ initialAutoStart: true });
+
+    const startBtn = screen.getByText("▶ 시작");
+    await act(async () => { startBtn.click(); });
+
+    // Run through focus → break auto-starts
+    await advanceSecs(62);
+
+    // Pause the break timer explicitly
+    const pauseBtn = screen.getByText("⏸ 일시정지");
+    await act(async () => { pauseBtn.click(); });
+
+    // Now in break phase, paused
+    expect(screen.queryByText("▶ 시작")).not.toBeNull();
+
+    // Act: press start — should switch to focus and start, not resume break
+    const startBtn2 = screen.getByText("▶ 시작");
+    await act(async () => { startBtn2.click(); });
+
+    // Assert: focus timer should now be running
+    expect(screen.queryByText("⏸ 일시정지")).not.toBeNull();
+    const focusIndicator = screen.queryByText(/집중 \d{2}:\d{2}/);
+    expect(focusIndicator).not.toBeNull();
+  });
+});
