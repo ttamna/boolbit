@@ -10138,6 +10138,146 @@ describe("calcTodayInsight — habit_target_hit (priority 11.04, between habit_b
   });
 });
 
+// ── month_quadrafecta_flawless ────────────────────────────────────────────────
+describe("calcTodayInsight — month_quadrafecta_flawless (priority 11.064, before month_trifecta_flawless)", () => {
+  // TODAY = "2024-01-15" → day 15 of January, currentMonthDay = 15 ≥ MIN_MONTH_DAYS (10)
+  // All four domains flawless:
+  //   1. Habit: streak=15 ≥ 15, lastChecked=TODAY.
+  //   2. Pomodoro: focusStreak=15 ≥ 15, sessionsToday=3 > 0.
+  //   3. Momentum: momentumStreak=15 ≥ 15, today score=50 ≥ 40.
+  //   4. Intention: todayIntentionDone=true, intentionDoneStreak=15 ≥ 15.
+  // todayIntentionDate=undefined suppresses intention_done (needs todayIntentionDate===todayStr).
+  // todayIntentionDone=true still enables the quadrafecta guard while keeping intention_done suppressed.
+  // sessionGoal=5: avoids pomodoro_goal_reached (sessionsToday=3 < 5) and momentum_near_tier.
+  // momentumStreak=15: NOT in MOMENTUM_STREAK_MILESTONES([7,14,30]) → milestone suppressed.
+  // focusStreak=15: NOT in FOCUS_STREAK_MILESTONES([7,14,30]) → focus_streak_milestone suppressed.
+  function base() {
+    return {
+      habits: [{ name: "운동", streak: 15, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: undefined as string | undefined, // suppress intention_done
+      todayIntentionDone: true as boolean | undefined,
+      sessionsToday: 3,
+      sessionGoal: 5 as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      focusStreak: 15 as number | undefined,
+      momentumStreak: 15 as number | undefined,
+      momentumHistory: [{ date: TODAY, score: 50, tier: "mid" as const }],
+      intentionDoneStreak: 15 as number | undefined,
+    };
+  }
+
+  it("shouldFireWhenAllFourDomainsFlawless", () => {
+    // All four conditions met → 🏆 text includes all four domains and day count.
+    const result = calcTodayInsight(base());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("습관·의도·집중·모멘텀");
+    expect(result!.text).toContain("15일");
+  });
+
+  it("shouldNotFireBeforeDay10", () => {
+    // currentMonthDay=9 < MIN_MONTH_DAYS(10) → too early to celebrate
+    const day9 = "2024-01-09";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day9,
+      habits: [{ name: "운동", streak: 9, lastChecked: day9 }],
+      focusStreak: 9,
+      momentumStreak: 9,
+      momentumHistory: [{ date: day9, score: 50, tier: "mid" as const }],
+      intentionDoneStreak: 9,
+    });
+    expect(result?.text ?? "").not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldFireExactlyOnDay10", () => {
+    // currentMonthDay=10 === MIN_MONTH_DAYS(10) → boundary fires
+    const day10 = "2024-01-10";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day10,
+      habits: [{ name: "운동", streak: 10, lastChecked: day10 }],
+      focusStreak: 10,
+      momentumStreak: 10,
+      momentumHistory: [{ date: day10, score: 50, tier: "mid" as const }],
+      intentionDoneStreak: 10,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·의도·집중·모멘텀");
+    expect(result!.text).toContain("10일");
+  });
+
+  it("shouldNotFireWhenHabitStreakBelowCurrentMonthDay", () => {
+    // habit streak=14 < currentMonthDay(15) → habit missed at least one day
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 14, lastChecked: TODAY }],
+    });
+    expect(result?.text ?? "").not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenHabitNotCheckedToday", () => {
+    // lastChecked=YESTERDAY → today not checked, month coverage broken
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 15, lastChecked: YESTERDAY }],
+    });
+    expect(result?.text ?? "").not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenFocusStreakBelowCurrentMonthDay", () => {
+    // focusStreak=13 < currentMonthDay(15) → pomodoro domain fails; 13 ∉ [7,14,30] → no milestone
+    const result = calcTodayInsight({ ...base(), focusStreak: 13 });
+    expect(result?.text ?? "").not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenNoSessionsToday", () => {
+    // sessionsToday=0 → today's focus not yet recorded
+    const result = calcTodayInsight({ ...base(), sessionsToday: 0 });
+    expect(result?.text ?? "").not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenMomentumStreakBelowCurrentMonthDay", () => {
+    // momentumStreak=13 < currentMonthDay(15); 13 ∉ [7,14,30] → milestone suppressed
+    const result = calcTodayInsight({ ...base(), momentumStreak: 13 });
+    expect(result?.text ?? "").not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenTodayMomentumNotRecorded", () => {
+    // momentumStreak=15 but no today entry → todayMomentumQualifies=false
+    const result = calcTodayInsight({ ...base(), momentumHistory: [] });
+    expect(result?.text ?? "").not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenTodayIntentionNotDone_TriFectaFiresInstead", () => {
+    // todayIntentionDone=false → intention condition fails → quadrafecta suppressed.
+    // Habit+pomodoro+momentum all flawless → month_trifecta_flawless (11.065) fires instead.
+    const result = calcTodayInsight({ ...base(), todayIntentionDone: false });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·집중·모멘텀");    // trifecta fires
+    expect(result!.text).not.toContain("습관·의도·집중·모멘텀"); // quadrafecta suppressed
+  });
+
+  it("shouldNotFireWhenIntentionDoneStreakBelowCurrentMonthDay_TriFectaFiresInstead", () => {
+    // intentionDoneStreak=14 < currentMonthDay(15) → at least one intention missed; quadrafecta suppressed.
+    // todayIntentionDone=true but streak insufficient → trifecta fires for the 3-domain flawless.
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·집중·모멘텀");    // trifecta fires
+    expect(result!.text).not.toContain("습관·의도·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenIntentionDoneStreakAbsent_TriFectaFiresInstead", () => {
+    // intentionDoneStreak=undefined → no streak data; quadrafecta silently skipped; trifecta fires.
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: undefined });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·집중·모멘텀");
+    expect(result!.text).not.toContain("습관·의도·집중·모멘텀");
+  });
+});
+
 // ── month_trifecta_flawless ───────────────────────────────────────────────────
 describe("calcTodayInsight — month_trifecta_flawless (priority 11.065, after habit_target_halfway, before habit_month_flawless)", () => {
   // TODAY = "2024-01-15" → day 15 of January, currentMonthDay = 15 ≥ MIN_MONTH_DAYS (10)
