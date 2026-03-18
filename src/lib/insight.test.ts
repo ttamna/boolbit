@@ -9153,9 +9153,12 @@ describe("calcTodayInsight — momentum_streak_milestone (priority 10.46, betwee
     expect(result).toBeNull();
   });
 
-  it("shouldNotFireForNonMilestoneStreak6", () => {
+  it("shouldNotFireMilestoneBadgeForStreak6ButApproachBadgeFires", () => {
+    // streak=6 is 1 day from milestone 7 → approach badge (10.461) fires, not the milestone badge
     const result = calcTodayInsight({ ...base(), momentumStreak: 6, momentumHistory: todayQualifying });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("6일");
+    expect(result!.text).toContain("7일 마일스톤");
   });
 
   it("shouldNotFireForStreak0", () => {
@@ -9230,6 +9233,103 @@ describe("calcTodayInsight — momentum_streak_milestone (priority 10.46, betwee
       ],
     });
     expect(result).toBeNull(); // double-fire guard prevents re-emission
+  });
+});
+
+// ── momentum_streak_milestone_approach ──────────────────────────────────
+describe("calcTodayInsight — momentum_streak_milestone_approach (priority 10.461, between momentum_streak_milestone and momentum_rise)", () => {
+  // Base: afternoon, intention set, no habits, no sessions — no competing insights at this priority band.
+  // No todayQualifying history required: badge fires as a morning nudge regardless of today's entry.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWith2DaysToMilestone7WhenStreak5", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 5 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("5일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone7WhenStreak6", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 6 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("6일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith2DaysToMilestone14WhenStreak12", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 12 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("12일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("14일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone14WhenStreak13", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 13 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("13일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("14일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith2DaysToMilestone30WhenStreak28", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 28 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("28일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("30일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone30WhenStreak29", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 29 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("29일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("30일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWhenStreak4TooFarFromMilestone7", () => {
+    // 7 - 4 = 3 > 2 — not within approach window
+    const result = calcTodayInsight({ ...base(), momentumStreak: 4 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenStreak8PastMilestone7TooFarFromMilestone14", () => {
+    // 14 - 8 = 6 > 2 — past 7, not yet close to 14
+    const result = calcTodayInsight({ ...base(), momentumStreak: 8 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenMomentumStreakAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireMilestoneBadgeAtExactMilestoneStreak7", () => {
+    // Structural mutual exclusion: approach badge condition is `m > momentumStreak && m - momentumStreak <= 2`.
+    // At streak=7, no milestone m satisfies m > 7 AND m ≤ 9, so the approach block can never fire at exact milestone values.
+    // The milestone badge (10.46) fires instead when today qualifies.
+    const todayQualifying = [{ date: TODAY, score: 55, tier: "mid" as const }];
+    const result = calcTodayInsight({ ...base(), momentumStreak: 7, momentumHistory: todayQualifying });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7일 연속 모멘텀 달성"); // milestone celebration text
+    expect(result!.text).not.toContain("더 유지하면");       // approach badge text absent
   });
 });
 
