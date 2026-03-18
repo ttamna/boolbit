@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -1180,12 +1180,13 @@ describe("calcTodayInsight", () => {
   });
 
   it("shouldNotReturnPomodoroLastOneWhenGoalNotSet", () => {
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
     const result = calcTodayInsight({
       habits: [],
       todayStr: TODAY,
       nowHour: 14,
       todayIntentionDate: TODAY,
-      sessionsToday: 3,
+      sessionsToday: 2,
       sessionGoal: undefined,
       habitsAllDoneDate: undefined,
     });
@@ -1272,12 +1273,13 @@ describe("calcTodayInsight", () => {
   });
 
   it("shouldNotReturnPomodoroGoalReachedWhenGoalUndefined", () => {
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
     const result = calcTodayInsight({
       habits: [],
       todayStr: TODAY,
       nowHour: 14,
       todayIntentionDate: TODAY,
-      sessionsToday: 3,
+      sessionsToday: 2,
       sessionGoal: undefined,
       habitsAllDoneDate: undefined,
     });
@@ -1299,12 +1301,13 @@ describe("calcTodayInsight", () => {
   });
 
   it("shouldNotReturnPomodoroGoalReachedWhenGoalIsZero", () => {
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
     const result = calcTodayInsight({
       habits: [],
       todayStr: TODAY,
       nowHour: 14,
       todayIntentionDate: TODAY,
-      sessionsToday: 3,
+      sessionsToday: 2,
       sessionGoal: 0,
       habitsAllDoneDate: undefined,
     });
@@ -6916,9 +6919,10 @@ describe("calcTodayInsight — pomodoro_goal_streak_milestone (priority 7.41, be
 
   it("shouldNotReturnGoalStreakMilestoneWhenSessionGoalAbsent", () => {
     // sessionGoal absent → no configured daily goal → milestone skipped → null
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
     const result = calcTodayInsight({
       ...base(),
-      sessionsToday: 4,
+      sessionsToday: 2,
       sessionGoal: undefined,
       pomodoroGoalStreak: 6,
     });
@@ -6927,9 +6931,10 @@ describe("calcTodayInsight — pomodoro_goal_streak_milestone (priority 7.41, be
 
   it("shouldNotReturnGoalStreakMilestoneWhenSessionGoalIsZero", () => {
     // sessionGoal=0 treated as "no goal" → skipped → null
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
     const result = calcTodayInsight({
       ...base(),
-      sessionsToday: 4,
+      sessionsToday: 2,
       sessionGoal: 0,
       pomodoroGoalStreak: 6,
     });
@@ -7016,12 +7021,14 @@ describe("calcTodayInsight — pomodoro_day_record (priority 7.49, between pomod
   });
 
   it("shouldNotReturnPomodoroDayRecordWhenSessionsBelowHistoricalBest", () => {
-    const result = calcTodayInsight({ ...base(), sessionsToday: 3, pomodoroSessionBest: 4 });
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
+    const result = calcTodayInsight({ ...base(), sessionsToday: 2, pomodoroSessionBest: 4 });
     expect(result).toBeNull();
   });
 
   it("shouldNotReturnPomodoroDayRecordWhenPomodoroSessionBestAbsent", () => {
-    const result = calcTodayInsight({ ...base(), sessionsToday: 5 });
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
+    const result = calcTodayInsight({ ...base(), sessionsToday: 2 });
     expect(result).toBeNull();
   });
 
@@ -7109,12 +7116,14 @@ describe("calcTodayInsight — pomodoro_session_best_tie (priority 7.491, after 
   });
 
   it("shouldNotReturnSessionBestTieWhenSessionsBelowBest", () => {
-    const result = calcTodayInsight({ ...base(), sessionsToday: 3, pomodoroSessionBest: 4 });
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
+    const result = calcTodayInsight({ ...base(), sessionsToday: 2, pomodoroSessionBest: 4 });
     expect(result).toBeNull();
   });
 
   it("shouldNotReturnSessionBestTieWhenBestAbsent", () => {
-    const result = calcTodayInsight({ ...base(), sessionsToday: 4 });
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
+    const result = calcTodayInsight({ ...base(), sessionsToday: 2 });
     expect(result).toBeNull();
   });
 
@@ -7195,7 +7204,8 @@ describe("calcTodayInsight — focus_streak_milestone (priority 7.42, between po
   it("shouldNotReturnFocusStreakMilestoneOnNonMilestoneStreak", () => {
     // streak=8 is not a milestone (7, 14, 30 only); sessionGoal=undefined so no pomodoro_goal_reached
     // or pomodoro_day_record fires either → overall result is null
-    const result = calcTodayInsight({ ...base(), sessionsToday: 3, focusStreak: 8 });
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
+    const result = calcTodayInsight({ ...base(), sessionsToday: 2, focusStreak: 8 });
     expect(result).toBeNull();
   });
 
@@ -7207,7 +7217,8 @@ describe("calcTodayInsight — focus_streak_milestone (priority 7.42, between po
 
   it("shouldNotReturnFocusStreakMilestoneWhenFocusStreakAbsent", () => {
     // absent focusStreak → skipped silently
-    const result = calcTodayInsight({ ...base(), sessionsToday: 5 });
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
+    const result = calcTodayInsight({ ...base(), sessionsToday: 2 });
     expect(result).toBeNull();
   });
 
@@ -8593,6 +8604,133 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     });
   });
 
+describe("calcTodayInsight — momentum_recovery (priority 10.39, between habit_week_declined and pomodoro_today_above_avg)", () => {
+  // Base: afternoon, no habits, no sessions, no projects, no goals, no intention.
+  // Only momentumHistory is set per test. Avoids all higher-priority badges.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  // Recovery history: 2daysAgo=35 (low), yesterday=30 (low), today=45 (mid) — classic 2-day slump then bounce
+  const RECOVERY_HISTORY = [
+    { date: "2024-01-13", score: 35, tier: "low" as const },
+    { date: "2024-01-14", score: 30, tier: "low" as const },
+    { date: "2024-01-15", score: 45, tier: "mid" as const },
+  ];
+
+  it("shouldFireWhenTwoDaysBelowTierAndTodayRecovered", () => {
+    const result = calcTodayInsight({ ...base(), momentumHistory: RECOVERY_HISTORY });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("회복");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWhenOnlyYesterdayBelowTier", () => {
+    // 2daysAgo was fine (≥40) — not a 2-day slump, so recovery badge should not fire
+    const oneDaySlump = [
+      { date: "2024-01-13", score: 50, tier: "mid" as const }, // ≥40 → not a slump day
+      { date: "2024-01-14", score: 30, tier: "low" as const },
+      { date: "2024-01-15", score: 45, tier: "mid" as const },
+    ];
+    const result = calcTodayInsight({ ...base(), momentumHistory: oneDaySlump });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenTodayStillBelowTier", () => {
+    // today's score is 39 — below the 40 threshold
+    const stillLow = [
+      { date: "2024-01-13", score: 35, tier: "low" as const },
+      { date: "2024-01-14", score: 30, tier: "low" as const },
+      { date: "2024-01-15", score: 39, tier: "low" as const },
+    ];
+    const result = calcTodayInsight({ ...base(), momentumHistory: stillLow });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenMomentumHistoryAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenTodayEntryMissingFromHistory", () => {
+    // only yesterday and 2daysAgo are in history — today's score not yet recorded
+    const noToday = [
+      { date: "2024-01-13", score: 35, tier: "low" as const },
+      { date: "2024-01-14", score: 30, tier: "low" as const },
+    ];
+    const result = calcTodayInsight({ ...base(), momentumHistory: noToday });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenYesterdayEntryMissingFromHistory", () => {
+    // gap in history: 2daysAgo and today present but yesterday missing
+    const noYesterday = [
+      { date: "2024-01-13", score: 35, tier: "low" as const },
+      { date: "2024-01-15", score: 45, tier: "mid" as const },
+    ];
+    const result = calcTodayInsight({ ...base(), momentumHistory: noYesterday });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenTwoDaysAgoEntryMissingFromHistory", () => {
+    // today and yesterday both present but 2daysAgo is absent — requires all 3 dates
+    const noTwoDaysAgo = [
+      { date: "2024-01-14", score: 30, tier: "low" as const },
+      { date: "2024-01-15", score: 45, tier: "mid" as const },
+    ];
+    const result = calcTodayInsight({ ...base(), momentumHistory: noTwoDaysAgo });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireAtExactTierLowerBoundary", () => {
+    // today exactly 40 (the minimum qualifying score), yesterday=39, 2daysAgo=38
+    const exactBoundary = [
+      { date: "2024-01-13", score: 38, tier: "low" as const },
+      { date: "2024-01-14", score: 39, tier: "low" as const },
+      { date: "2024-01-15", score: 40, tier: "mid" as const },
+    ];
+    const result = calcTodayInsight({ ...base(), momentumHistory: exactBoundary });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("회복");
+  });
+
+  it("shouldBePreemptedByHabitWeekDeclined", () => {
+    // habit_week_declined (10.37) fires before momentum_recovery (10.39)
+    // habitPrevWeekRate - habitWeekRate = 80 - 60 = 20 ≥ 10 → declined badge fires
+    const result = calcTodayInsight({
+      ...base(),
+      momentumHistory: RECOVERY_HISTORY,
+      habitWeekRate: 60,
+      habitPrevWeekRate: 80,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("낮아요"); // habit_week_declined wins
+    expect(result!.text).not.toContain("회복"); // recovery badge suppressed
+  });
+
+  it("shouldPreemptPomodoroAboveAvgWhenBothConditionsMet", () => {
+    // momentum_recovery (10.39) fires before pomodoro_today_above_avg (10.45)
+    // Recovery: 2daysAgo=35, yesterday=30, today=45 in history
+    // Above-avg: sessionsToday=5, pomodoroRecentAvg=1.5 → 5 - 1.5 = 3.5 ≥ 2
+    // Expected: recovery fires (lower priority number = higher urgency)
+    const result = calcTodayInsight({
+      ...base(),
+      momentumHistory: RECOVERY_HISTORY,
+      sessionsToday: 5,
+      pomodoroRecentAvg: 1.5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("회복"); // recovery wins
+    expect(result!.text).not.toContain("평소보다"); // above_avg suppressed
+  });
+});
+
   describe("calcTodayInsight — pomodoro_today_above_avg (priority 10.45, between almost_perfect_day and momentum_rise)", () => {
     // Base: afternoon, intention set, no habits, no session goal, no competing insights
     const base = () => ({
@@ -8606,7 +8744,8 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     });
 
     it("shouldReturnAboveAvgWhenSessionsExceedAverageByAtLeastTwo", () => {
-      const result = calcTodayInsight({ ...base(), sessionsToday: 5, pomodoroRecentAvg: 3 });
+      // sessionGoal=8 (not yet met, 5≠7) → pomodoroScoreRaw=(5/8)*30=18.75, total=26.75, outside nearMid [37,40)
+      const result = calcTodayInsight({ ...base(), sessionsToday: 5, pomodoroRecentAvg: 3, sessionGoal: 8 });
       expect(result).not.toBeNull();
       expect(result!.text).toContain("평소보다");
       expect(result!.text).toContain("2");
@@ -8614,30 +8753,35 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     });
 
     it("shouldReturnAboveAvgWithCorrectExtraCountWhenDifferenceIsLarger", () => {
-      const result = calcTodayInsight({ ...base(), sessionsToday: 7, pomodoroRecentAvg: 2 });
+      // sessionGoal=10 (not yet met, 7≠9) → pomodoroScoreRaw=(7/10)*30=21, total=29, outside nearMid
+      const result = calcTodayInsight({ ...base(), sessionsToday: 7, pomodoroRecentAvg: 2, sessionGoal: 10 });
       expect(result).not.toBeNull();
       expect(result!.text).toContain("5");
     });
 
     it("shouldNotFireWhenDifferenceIsExactlyOne", () => {
-      const result = calcTodayInsight({ ...base(), sessionsToday: 4, pomodoroRecentAvg: 3 });
+      // sessionGoal=7 (not yet met, 4≠6) → pomodoroScoreRaw=(4/7)*30=17.14, total=25, outside nearMid [37,40)
+      const result = calcTodayInsight({ ...base(), sessionsToday: 4, pomodoroRecentAvg: 3, sessionGoal: 7 });
       expect(result).toBeNull();
     });
 
     it("shouldNotFireWhenFractionalDifferenceIsBelowTwo", () => {
       // avg=3.1, sessionsToday=5 → diff=1.9 < 2 → no badge (fractional boundary)
-      const result = calcTodayInsight({ ...base(), sessionsToday: 5, pomodoroRecentAvg: 3.1 });
+      // sessionGoal=8 (not yet met, 5≠7) → pomodoroScoreRaw=(5/8)*30=18.75, total=26.75, outside nearMid
+      const result = calcTodayInsight({ ...base(), sessionsToday: 5, pomodoroRecentAvg: 3.1, sessionGoal: 8 });
       expect(result).toBeNull();
     });
 
     it("shouldNotFireWhenDifferenceIsExactlyOnePointFive", () => {
       // avg=2.5, sessionsToday=4 → diff=1.5 < 2 → no badge
-      const result = calcTodayInsight({ ...base(), sessionsToday: 4, pomodoroRecentAvg: 2.5 });
+      // sessionGoal=7 (not yet met, 4≠6) → pomodoroScoreRaw=(4/7)*30=17.14, total=25, outside nearMid
+      const result = calcTodayInsight({ ...base(), sessionsToday: 4, pomodoroRecentAvg: 2.5, sessionGoal: 7 });
       expect(result).toBeNull();
     });
 
     it("shouldNotFireWhenPomodoroRecentAvgAbsent", () => {
-      const result = calcTodayInsight({ ...base(), sessionsToday: 10 });
+      // sessionGoal=13 (not yet met, 10≠12) → pomodoroScoreRaw=(10/13)*30=23.08, total=31, outside nearMid
+      const result = calcTodayInsight({ ...base(), sessionsToday: 10, sessionGoal: 13 });
       expect(result).toBeNull();
     });
 
@@ -8693,9 +8837,10 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     it("shouldYieldToMomentumRise", () => {
       // momentum_rise (10.5) fires AFTER pomodoro_today_above_avg (10.45)
       // When both conditions are true, pomodoro_today_above_avg fires first (lower priority number)
+      // sessionGoal=8 (not yet met, 5≠7) → pomodoroScoreRaw=(5/8)*30=18.75, total=26.75, outside nearMid
       const result = calcTodayInsight({
         ...base(),
-        sessionsToday: 5, pomodoroRecentAvg: 2,
+        sessionsToday: 5, pomodoroRecentAvg: 2, sessionGoal: 8,
         momentumHistory: RISING_HISTORY,
       });
       expect(result).not.toBeNull();
@@ -8747,10 +8892,11 @@ describe("calcTodayInsight — pomodoro_week_record (priority 7.495, between pom
 
   it("shouldNotFireWhenPrevWeekTotalIsZero", () => {
     // No prev-week baseline — any sessions this week would be a trivial "record"; skipped.
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
     const result = calcTodayInsight({
       ...base(),
-      sessionsToday: 3,
-      pomodoroWeekRecord: { currentWeekTotal: 3, prevWeekTotal: 0 },
+      sessionsToday: 2,
+      pomodoroWeekRecord: { currentWeekTotal: 2, prevWeekTotal: 0 },
     });
     expect(result).toBeNull();
   });
@@ -8765,9 +8911,10 @@ describe("calcTodayInsight — pomodoro_week_record (priority 7.495, between pom
   });
 
   it("shouldNotFireWhenTotalsAreEqual", () => {
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
     const result = calcTodayInsight({
       ...base(),
-      sessionsToday: 3,
+      sessionsToday: 2,
       pomodoroWeekRecord: { currentWeekTotal: 6, prevWeekTotal: 6 },
     });
     expect(result).toBeNull();
