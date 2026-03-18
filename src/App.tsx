@@ -1899,6 +1899,25 @@ export default function App() {
     const doneCount = prevEntries.filter(e => e.done === true).length;
     return Math.round((doneCount / prevEntries.length) * 100);
   })();
+  // habitMonthRate: current calendar month's average daily habit completion rate (0–100), or undefined
+  // when fewer than 14 days have passed in the month (too early for a meaningful monthly signal).
+  // Uses calcHabitsWeekRate which returns null when no habits have check history — mapped to undefined.
+  const habitMonthRate = (() => {
+    const day = renderDate.getDate();
+    if (day < 14) return undefined;
+    const rate = calcHabitsWeekRate(habitsArr, calcLastNDays(todayStr, day));
+    return rate ?? undefined;
+  })();
+  // habitPrevMonthRate: previous calendar month's average daily habit completion rate (0–100),
+  // or undefined when calcHabitsWeekRate returns null (no check history in that month).
+  // Uses the full previous calendar month's days as the window.
+  const habitPrevMonthRate = (() => {
+    const lastDayOfPrevMonth = new Date(renderDate.getFullYear(), renderDate.getMonth(), 0);
+    const daysInPrevMonth = lastDayOfPrevMonth.getDate();
+    const lastDayStr = lastDayOfPrevMonth.toLocaleDateString("sv");
+    const rate = calcHabitsWeekRate(habitsArr, calcLastNDays(lastDayStr, daysInPrevMonth));
+    return rate ?? undefined;
+  })();
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1983,6 +2002,10 @@ export default function App() {
     habitWeekRate: habitsWeekRate ?? undefined,
     // habitPrevWeekRate: same 14-day window's first half (days 7–13 ago) — already computed for habitsWeekTrend.
     habitPrevWeekRate: habitsPrevWeekRate ?? undefined,
+    // habitMonthRate / habitPrevMonthRate: month-over-month habit completion rate comparison.
+    // habitMonthRate is undefined when currentMonthDay < 14 (enforced in the computation above).
+    habitMonthRate,
+    habitPrevMonthRate,
     // todayIsWeakHabitDay / todayIsBestHabitDay: derived from the same per-weekday rates computed once.
     // Uses last28Days (4 full weeks) so each weekday has exactly 4 data points.
     ...(() => {
