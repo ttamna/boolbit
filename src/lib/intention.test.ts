@@ -1,9 +1,9 @@
-// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, and calcIntentionMonthDoneRate helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, per-weekday intention done rate, weak/best intention day detection, current calendar month done rate, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate, and calcIntentionMomentumCorrelation helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, per-weekday intention done rate, weak/best intention day detection, current calendar month done rate, intention-completion vs momentum-score correlation, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate } from "./intention";
-import type { IntentionEntry } from "../types";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate, calcIntentionMomentumCorrelation } from "./intention";
+import type { IntentionEntry, MomentumEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
   return dates.map(date => ({ date, text: "test", done }));
@@ -1225,5 +1225,141 @@ describe("calcIntentionMonthDoneRate", () => {
       { date: "2024-01-01", text: "jan", done: true },
     ];
     expect(calcIntentionMonthDoneRate(history, "2024-01-15", undefined, undefined)).toBeUndefined();
+  });
+});
+
+describe("calcIntentionMomentumCorrelation — intention done vs. momentum gap (≥5 samples each bucket, ≥15 pt gap)", () => {
+  // ABOUTME: Tests for calcIntentionMomentumCorrelation — compares avg momentum on intention-done days
+  // ABOUTME: vs intention-not-done/not-set days; returns the gap (≥15 pt) or null if insufficient data.
+  const TODAY = "2026-03-19";
+
+  function makeMomentumHistory(entries: { date: string; score: number }[]): MomentumEntry[] {
+    return entries.map(({ date, score }) => ({
+      date,
+      score,
+      tier: score >= 75 ? "high" : score >= 40 ? "mid" : "low",
+    }));
+  }
+
+  it("shouldReturnGapWhenIntentionDoneAverageIsHigherByAtLeast15", () => {
+    // doneDates: 5 days with score 80; notDoneDates: 5 days with score 60; gap = 20
+    const doneDates = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"];
+    const notDoneDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"];
+    const history: IntentionEntry[] = [
+      ...doneDates.map(date => ({ date, text: "test", done: true })),
+      ...notDoneDates.map(date => ({ date, text: "test", done: false })),
+    ];
+    const momentum = makeMomentumHistory([
+      ...doneDates.map(date => ({ date, score: 80 })),
+      ...notDoneDates.map(date => ({ date, score: 60 })),
+    ]);
+    const result = calcIntentionMomentumCorrelation(history, momentum, TODAY);
+    expect(result).toBe(20);
+  });
+
+  it("shouldReturnNullWhenGapBelow15", () => {
+    // done: score 74; not done: score 61; gap = 13 → null
+    const doneDates = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"];
+    const notDoneDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"];
+    const history: IntentionEntry[] = [
+      ...doneDates.map(date => ({ date, text: "test", done: true })),
+      ...notDoneDates.map(date => ({ date, text: "test", done: false })),
+    ];
+    const momentum = makeMomentumHistory([
+      ...doneDates.map(date => ({ date, score: 74 })),
+      ...notDoneDates.map(date => ({ date, score: 61 })),
+    ]);
+    const result = calcIntentionMomentumCorrelation(history, momentum, TODAY);
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenFewerThan5SamplesInDoneBucket", () => {
+    // Only 4 intention-done days — insufficient for correlation
+    const doneDates = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04"];
+    const notDoneDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"];
+    const history: IntentionEntry[] = [
+      ...doneDates.map(date => ({ date, text: "test", done: true })),
+      ...notDoneDates.map(date => ({ date, text: "test", done: false })),
+    ];
+    const momentum = makeMomentumHistory([
+      ...doneDates.map(date => ({ date, score: 90 })),
+      ...notDoneDates.map(date => ({ date, score: 50 })),
+    ]);
+    const result = calcIntentionMomentumCorrelation(history, momentum, TODAY);
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenFewerThan5SamplesInNotDoneBucket", () => {
+    // 5 done days but only 4 not-done days (momentum entries without a done history entry)
+    const doneDates = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"];
+    const notDoneDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09"];
+    const history: IntentionEntry[] = doneDates.map(date => ({ date, text: "test", done: true }));
+    const momentum = makeMomentumHistory([
+      ...doneDates.map(date => ({ date, score: 90 })),
+      ...notDoneDates.map(date => ({ date, score: 50 })),
+    ]);
+    const result = calcIntentionMomentumCorrelation(history, momentum, TODAY);
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenIntentionHistoryIsEmpty", () => {
+    const momentum = makeMomentumHistory([{ date: "2026-03-01", score: 80 }]);
+    expect(calcIntentionMomentumCorrelation([], momentum, TODAY)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenMomentumHistoryIsEmpty", () => {
+    const history: IntentionEntry[] = [{ date: "2026-03-01", text: "test", done: true }];
+    expect(calcIntentionMomentumCorrelation(history, [], TODAY)).toBeNull();
+  });
+
+  it("shouldExcludeTodayFromCorrelationCalculation", () => {
+    // 5 past done days with score 80; TODAY entry score 0 — today must be excluded
+    const doneDates = ["2026-03-13", "2026-03-14", "2026-03-15", "2026-03-16", "2026-03-17"];
+    const notDoneDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"];
+    const history: IntentionEntry[] = [
+      ...doneDates.map(date => ({ date, text: "test", done: true })),
+      { date: TODAY, text: "test", done: true }, // today's entry — excluded by doneDates filter (e.date < todayStr)
+    ];
+    const momentum = makeMomentumHistory([
+      ...doneDates.map(date => ({ date, score: 80 })),
+      { date: TODAY, score: 0 }, // in-progress today score — excluded by momentum loop guard (entry.date >= todayStr)
+      ...notDoneDates.map(date => ({ date, score: 60 })),
+    ]);
+    // Two-layer exclusion: (1) doneDates filter drops today's intention entry; (2) momentum loop skips today's score.
+    // Without today excluded: doneAvg = (80*5+0)/6 ≈ 66.7, gap vs 60 = 6.7 → null
+    // With today excluded: doneAvg = 80, gap vs 60 = 20 → 20
+    const result = calcIntentionMomentumCorrelation(history, momentum, TODAY);
+    expect(result).toBe(20);
+  });
+
+  it("shouldTreatNotSetDaysAsNotDoneBucket", () => {
+    // Days without an IntentionEntry (not set) are counted in the not-done bucket
+    const doneDates = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"];
+    // notDoneDates have no entry in history — they fall into not-done bucket by absence
+    const notSetDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"];
+    const history: IntentionEntry[] = doneDates.map(date => ({ date, text: "test", done: true }));
+    const momentum = makeMomentumHistory([
+      ...doneDates.map(date => ({ date, score: 80 })),
+      ...notSetDates.map(date => ({ date, score: 55 })),
+    ]);
+    const result = calcIntentionMomentumCorrelation(history, momentum, TODAY);
+    expect(result).toBe(25); // 80 - 55 = 25
+  });
+
+  it("shouldRoundGapCorrectly", () => {
+    // doneAvg = (75+76+76+75+76)/5 = 378/5 = 75.6; notDoneAvg = 60; gap = 15.6 → rounds to 16
+    const doneDates = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"];
+    const notDoneDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"];
+    const history: IntentionEntry[] = doneDates.map(date => ({ date, text: "test", done: true }));
+    const momentum = makeMomentumHistory([
+      { date: "2026-03-01", score: 75 },
+      { date: "2026-03-02", score: 76 },
+      { date: "2026-03-03", score: 76 },
+      { date: "2026-03-04", score: 75 },
+      { date: "2026-03-05", score: 76 },
+      ...notDoneDates.map(date => ({ date, score: 60 })),
+    ]);
+    const result = calcIntentionMomentumCorrelation(history, momentum, TODAY);
+    expect(result).toBe(16);
   });
 });

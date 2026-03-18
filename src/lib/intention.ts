@@ -1,7 +1,7 @@
-// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, evening reminder, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, per-weekday intention done-rate analysis, and current calendar month done rate logic
+// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, evening reminder, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, per-weekday intention done-rate analysis, current calendar month done rate, and intention-completion vs momentum-score correlation logic
 // ABOUTME: todayStr anchors all date arithmetic for DST safety; notification helpers guard duplicate sends via caller-managed date fields
 
-import type { IntentionEntry } from "../types";
+import type { IntentionEntry, MomentumEntry } from "../types";
 
 // Returns the number of consecutive days (including today) that the user has set an intention.
 // Returns 0 when todayIntention is absent or empty.
@@ -399,4 +399,46 @@ export function calcIntentionMonthDoneRate(
   const doneCount = monthHistory.filter(e => e.done === true).length + (todayDone ? 1 : 0);
   if (setCount < MIN_MONTH_INTENTION_SETCOUNT) return undefined;
   return Math.round((doneCount / setCount) * 100);
+}
+
+// Minimum samples required in each bucket (done / not-done) for a statistically meaningful correlation.
+// Mirrors MIN_CORRELATION_SAMPLES in habits.ts — keeps the threshold consistent across correlation badges.
+const MIN_CORRELATION_SAMPLES = 5;
+
+/**
+ * Computes the average momentum-score gap between days when the daily intention was completed (done===true)
+ * versus all other days (not set or set but not done) across the given momentumHistory (today excluded).
+ * Returns the rounded positive gap when it reaches the ≥15 pt signal threshold; null otherwise.
+ * Requires ≥5 samples in each bucket to avoid spurious correlations on sparse data.
+ * Pure function with no side effects.
+ */
+export function calcIntentionMomentumCorrelation(
+  history: IntentionEntry[],
+  momentumHistory: MomentumEntry[],
+  todayStr: string,
+): number | null {
+  if (history.length === 0 || momentumHistory.length === 0) return null;
+
+  // Build a set of past dates where the daily intention was marked done.
+  const doneDates = new Set(
+    history.filter(e => e.done === true && e.date < todayStr).map(e => e.date),
+  );
+
+  let doneTotal = 0, doneCount = 0;
+  let notDoneTotal = 0, notDoneCount = 0;
+
+  for (const entry of momentumHistory) {
+    if (entry.date >= todayStr) continue; // exclude today's in-progress score
+    if (doneDates.has(entry.date)) {
+      doneTotal += entry.score;
+      doneCount++;
+    } else {
+      notDoneTotal += entry.score;
+      notDoneCount++;
+    }
+  }
+
+  if (doneCount < MIN_CORRELATION_SAMPLES || notDoneCount < MIN_CORRELATION_SAMPLES) return null;
+  const gap = Math.round(doneTotal / doneCount - notDoneTotal / notDoneCount);
+  return gap >= 15 ? gap : null;
 }
