@@ -1,7 +1,7 @@
-// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, lifetime milestone notifications, weekly/monthly/quarterly/yearly session reports, per-weekday session average for weak/best day detection, and weekly goal-hit day count
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, quarterly session report, yearly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), calcDayOfWeekPomodoroAvg/calcWeakPomodoroDay/calcBestPomodoroDay for todayIsWeakPomodoroDay/todayIsBestPomodoroDay insight params, calcPomodoroWeekGoalDays for goal-hit day count (any window: 7-day week or 14-day month)
+// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, lifetime milestone notifications, weekly/monthly/quarterly/yearly session reports, per-weekday session average for weak/best day detection, weekly goal-hit day count, and goal-met vs not-met momentum correlation
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, quarterly session report, yearly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), calcDayOfWeekPomodoroAvg/calcWeakPomodoroDay/calcBestPomodoroDay for todayIsWeakPomodoroDay/todayIsBestPomodoroDay insight params, calcPomodoroWeekGoalDays for goal-hit day count (any window: 7-day week or 14-day month), calcPomodoroMomentumCorrelation for goal-met vs not-met momentum gap
 
-import type { PomodoroDay } from "../types";
+import type { PomodoroDay, MomentumEntry } from "../types";
 import { colors } from "../theme";
 
 /** The three phases of a pomodoro cycle. */
@@ -535,6 +535,10 @@ export function calcBestPomodoroDay(avgMap: Record<number, number | null>): numb
   return bestDow;
 }
 
+// Minimum samples per bucket required for calcPomodoroMomentumCorrelation to fire.
+// Mirrors MIN_CORRELATION_SAMPLES in habits.ts and intention.ts — keeps the threshold consistent.
+const MIN_CORRELATION_SAMPLES = 5;
+
 // Counts how many days in last7Days had session count >= sessionGoal.
 // For today (todayStr), uses the live sessionsToday value rather than the persisted history entry
 // so the badge responds to the current session even before the history is flushed.
@@ -556,5 +560,45 @@ export function calcPomodoroWeekGoalDays(
     if (sessions >= sessionGoal) count++;
   }
   return count;
+}
+
+// Returns the rounded momentum-score gap between days where the pomodoro session goal was met
+// (count >= sessionGoal) and days where it was not met (count < sessionGoal, including missing = 0).
+// Today is excluded so in-progress data doesn't skew the historical correlation.
+// Returns null when: sessionGoal is absent or ≤ 0, momentumHistory is empty,
+// or either bucket has fewer than MIN_CORRELATION_SAMPLES past entries.
+// Returns null (not the raw gap) when the gap < 15 — only statistically meaningful gaps surface.
+// Mirrors calcHabitMomentumCorrelation (habits.ts) and calcIntentionMomentumCorrelation (intention.ts).
+// Exported for unit testing; pure function with no side effects.
+export function calcPomodoroMomentumCorrelation(
+  history: PomodoroDay[],
+  momentumHistory: MomentumEntry[],
+  sessionGoal: number | undefined,
+  todayStr: string,
+): number | null {
+  if (sessionGoal == null || sessionGoal <= 0) return null;
+  if (momentumHistory.length === 0) return null;
+
+  // Build a date → session count map; dates absent from history default to 0 (no sessions that day).
+  const countMap = new Map<string, number>(history.map(e => [e.date, e.count]));
+
+  let goalMetTotal = 0, goalMetCount = 0;
+  let notGoalMetTotal = 0, notGoalMetCount = 0;
+
+  for (const entry of momentumHistory) {
+    if (entry.date >= todayStr) continue; // exclude today's in-progress score and any future dates
+    const count = countMap.get(entry.date) ?? 0;
+    if (count >= sessionGoal) {
+      goalMetTotal += entry.score;
+      goalMetCount++;
+    } else {
+      notGoalMetTotal += entry.score;
+      notGoalMetCount++;
+    }
+  }
+
+  if (goalMetCount < MIN_CORRELATION_SAMPLES || notGoalMetCount < MIN_CORRELATION_SAMPLES) return null;
+  const gap = Math.round(goalMetTotal / goalMetCount - notGoalMetTotal / notGoalMetCount);
+  return gap >= 15 ? gap : null;
 }
 

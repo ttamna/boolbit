@@ -1,10 +1,10 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, monthly pomodoro session report, quarterly pomodoro session report, yearly pomodoro session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), per-weekday pomodoro session average with weak/best day detection, weekly goal-hit day count and 14-day rolling goal-hit day count for monthly badge (both via calcPomodoroWeekGoalDays)
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, monthly pomodoro session report, quarterly pomodoro session report, yearly pomodoro session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), per-weekday pomodoro session average with weak/best day detection, weekly goal-hit day count and 14-day rolling goal-hit day count for monthly badge (both via calcPomodoroWeekGoalDays), pomodoro goal-met vs not-met momentum gap (calcPomodoroMomentumCorrelation)
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation } from "./pomodoro";
 import { colors } from "../theme";
-import type { PomodoroDay } from "../types";
+import type { PomodoroDay, MomentumEntry } from "../types";
 
 // Shared fixture: derived from calcLast14Days so partitioning assumptions stay consistent.
 // Any change to calcLast14Days semantics (e.g., today at index 12) would immediately fail
@@ -1818,6 +1818,164 @@ describe("calcPomodoroWeekGoalDays — 14-day window (month badge)", () => {
       { date: "2026-03-14", count: 4 },  // in window (yesterday)
     ];
     expect(calcPomodoroWeekGoalDays(history, 4, last14, 0, TODAY)).toBe(1);
+  });
+});
+
+describe("calcPomodoroMomentumCorrelation — pomodoro goal-met vs not-met momentum gap (≥5 samples each bucket, ≥15 pt gap)", () => {
+  // ABOUTME: Tests for calcPomodoroMomentumCorrelation — compares avg momentum on days where
+  // ABOUTME: sessionGoal was met (count >= goal) vs days where it was not met (count < goal, incl. missing=0).
+  // ABOUTME: Returns the rounded positive gap when ≥15 pts and each bucket has ≥5 past samples; null otherwise.
+  const TODAY = "2026-03-15";
+
+  // Helper: build a MomentumEntry array.
+  const mom = (date: string, score: number): MomentumEntry => ({ date, score, tier: "mid" });
+
+  // Helper: build a PomodoroDay with given count.
+  const pomo = (date: string, count: number): PomodoroDay => ({ date, count });
+
+  it("shouldReturnGapWhenGoalMetDaysHaveMeaningfullyHigherMomentum", () => {
+    // 5 goal-met days (count >= 3) avg=70, 5 not-met days (missing=0 < 3) avg=40 → gap=30 ≥ 15
+    const sessionGoal = 3;
+    // Goal-met bucket: odd dates have count=3+ in history
+    const history: PomodoroDay[] = [
+      pomo("2026-03-01", 3), pomo("2026-03-03", 4), pomo("2026-03-05", 3),
+      pomo("2026-03-07", 5), pomo("2026-03-09", 3),
+    ];
+    // Not-met bucket: even dates are absent from history → count=0 < sessionGoal=3
+    const momentum: MomentumEntry[] = [
+      // Goal-met days: avg=70
+      mom("2026-03-01", 70), mom("2026-03-03", 70), mom("2026-03-05", 70),
+      mom("2026-03-07", 70), mom("2026-03-09", 70),
+      // Not-met days (no history entry → 0 sessions): avg=40
+      mom("2026-03-02", 40), mom("2026-03-04", 40), mom("2026-03-06", 40),
+      mom("2026-03-08", 40), mom("2026-03-10", 40),
+    ];
+    const result = calcPomodoroMomentumCorrelation(history, momentum, sessionGoal, TODAY);
+    expect(result).toBe(30);
+  });
+
+  it("shouldReturnGapWhenExactlyAtMinimumThreshold15", () => {
+    // goal-met avg=55, not-met avg=40 → gap=15 (exactly threshold)
+    const sessionGoal = 2;
+    const history: PomodoroDay[] = [
+      pomo("2026-03-01", 2), pomo("2026-03-03", 3), pomo("2026-03-05", 2),
+      pomo("2026-03-07", 4), pomo("2026-03-09", 2),
+    ];
+    const momentum: MomentumEntry[] = [
+      mom("2026-03-01", 55), mom("2026-03-03", 55), mom("2026-03-05", 55),
+      mom("2026-03-07", 55), mom("2026-03-09", 55), // goal-met: avg=55
+      mom("2026-03-02", 40), mom("2026-03-04", 40), mom("2026-03-06", 40),
+      mom("2026-03-08", 40), mom("2026-03-10", 40), // not-met: avg=40
+    ];
+    const result = calcPomodoroMomentumCorrelation(history, momentum, sessionGoal, TODAY);
+    expect(result).toBe(15);
+  });
+
+  it("shouldReturnNullWhenGapBelowThreshold14", () => {
+    // goal-met avg=54, not-met avg=40 → gap=14 < 15 → null
+    const sessionGoal = 2;
+    const history: PomodoroDay[] = [
+      pomo("2026-03-01", 2), pomo("2026-03-03", 3), pomo("2026-03-05", 2),
+      pomo("2026-03-07", 4), pomo("2026-03-09", 2),
+    ];
+    const momentum: MomentumEntry[] = [
+      mom("2026-03-01", 54), mom("2026-03-03", 54), mom("2026-03-05", 54),
+      mom("2026-03-07", 54), mom("2026-03-09", 54), // goal-met: avg=54
+      mom("2026-03-02", 40), mom("2026-03-04", 40), mom("2026-03-06", 40),
+      mom("2026-03-08", 40), mom("2026-03-10", 40), // not-met: avg=40
+    ];
+    const result = calcPomodoroMomentumCorrelation(history, momentum, sessionGoal, TODAY);
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenSessionGoalIsUndefined", () => {
+    // No sessionGoal → cannot determine goal-met vs not-met → null
+    const momentum: MomentumEntry[] = [
+      mom("2026-03-01", 70), mom("2026-03-02", 40),
+    ];
+    expect(calcPomodoroMomentumCorrelation([], momentum, undefined, TODAY)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenSessionGoalIsZero", () => {
+    // sessionGoal=0 is meaningless — every day trivially "meets" the goal → null
+    const momentum: MomentumEntry[] = [
+      mom("2026-03-01", 70), mom("2026-03-02", 40),
+    ];
+    expect(calcPomodoroMomentumCorrelation([], momentum, 0, TODAY)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenMomentumHistoryIsEmpty", () => {
+    const history: PomodoroDay[] = [pomo("2026-03-01", 3)];
+    expect(calcPomodoroMomentumCorrelation(history, [], 3, TODAY)).toBeNull();
+  });
+
+  it("shouldExcludeTodayFromBuckets", () => {
+    // Only today's entries exist — all excluded → insufficient samples → null
+    const sessionGoal = 2;
+    const history: PomodoroDay[] = [pomo(TODAY, 5)];
+    const momentum: MomentumEntry[] = [mom(TODAY, 80)];
+    expect(calcPomodoroMomentumCorrelation(history, momentum, sessionGoal, TODAY)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenInsufficientGoalMetSamples", () => {
+    // Only 4 goal-met days — below MIN_CORRELATION_SAMPLES=5 → null
+    const sessionGoal = 2;
+    const history: PomodoroDay[] = [
+      pomo("2026-03-01", 2), pomo("2026-03-03", 3), pomo("2026-03-05", 2),
+      pomo("2026-03-07", 4), // only 4 goal-met entries
+    ];
+    const momentum: MomentumEntry[] = [
+      mom("2026-03-01", 70), mom("2026-03-03", 70), mom("2026-03-05", 70),
+      mom("2026-03-07", 70),
+      mom("2026-03-02", 30), mom("2026-03-04", 30), mom("2026-03-06", 30),
+      mom("2026-03-08", 30), mom("2026-03-09", 30),
+    ];
+    expect(calcPomodoroMomentumCorrelation(history, momentum, sessionGoal, TODAY)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenInsufficientNotMetSamples", () => {
+    // Only 4 not-met days — below MIN_CORRELATION_SAMPLES=5 → null
+    const sessionGoal = 2;
+    const history: PomodoroDay[] = [
+      pomo("2026-03-01", 2), pomo("2026-03-03", 3), pomo("2026-03-05", 2),
+      pomo("2026-03-07", 4), pomo("2026-03-09", 2), pomo("2026-03-11", 3),
+    ];
+    const momentum: MomentumEntry[] = [
+      mom("2026-03-01", 70), mom("2026-03-03", 70), mom("2026-03-05", 70),
+      mom("2026-03-07", 70), mom("2026-03-09", 70), mom("2026-03-11", 70),
+      mom("2026-03-02", 30), mom("2026-03-04", 30), mom("2026-03-06", 30),
+      mom("2026-03-08", 30), // only 4 not-met entries (no history entry = 0 < goal)
+    ];
+    expect(calcPomodoroMomentumCorrelation(history, momentum, sessionGoal, TODAY)).toBeNull();
+  });
+
+  it("shouldTreatMissingHistoryDatesAsZeroSessions", () => {
+    // Days absent from pomodoroHistory are treated as 0 sessions (not-met)
+    const sessionGoal = 3;
+    // No history entries at all — all momentum dates are treated as not-met
+    const momentum: MomentumEntry[] = [
+      mom("2026-03-01", 30), mom("2026-03-03", 30), mom("2026-03-05", 30),
+      mom("2026-03-07", 30), mom("2026-03-09", 30),
+    ];
+    // All 5 entries fall in not-met bucket; goal-met bucket empty → null
+    expect(calcPomodoroMomentumCorrelation([], momentum, sessionGoal, TODAY)).toBeNull();
+  });
+
+  it("shouldRoundGapToNearestInteger", () => {
+    // goal-met avg = (71+72+69+70+68)/5 = 70, not-met avg = (40+41+39+42+38)/5 = 40 → gap=30
+    const sessionGoal = 2;
+    const history: PomodoroDay[] = [
+      pomo("2026-03-01", 2), pomo("2026-03-03", 3), pomo("2026-03-05", 2),
+      pomo("2026-03-07", 4), pomo("2026-03-09", 2),
+    ];
+    const momentum: MomentumEntry[] = [
+      mom("2026-03-01", 71), mom("2026-03-03", 72), mom("2026-03-05", 69),
+      mom("2026-03-07", 70), mom("2026-03-09", 68), // goal-met: avg=70
+      mom("2026-03-02", 40), mom("2026-03-04", 41), mom("2026-03-06", 39),
+      mom("2026-03-08", 42), mom("2026-03-10", 38), // not-met: avg=40
+    ];
+    const result = calcPomodoroMomentumCorrelation(history, momentum, sessionGoal, TODAY);
+    expect(result).toBe(30);
   });
 });
 

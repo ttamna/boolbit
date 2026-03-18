@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport, calcDayOfWeekMomentumAvg, calcWeakMomentumDay, calcBestMomentumDay } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -1934,6 +1934,10 @@ export default function App() {
   // Derived from 31-day momentumHistory × intentionHistory done entries; requires ≥5 samples in each bucket.
   // Returns null when data is insufficient or gap < 15 pt; undefined coercion skips the badge silently.
   const intentionMomentumGap = calcIntentionMomentumCorrelation(data.intentionHistory ?? [], data.momentumHistory ?? [], todayStr) ?? undefined;
+  // pomodoroMomentumGap: point gap between avg momentum on pomodoro-goal-met days vs. not-met days.
+  // Derived from 14-day pomodoroHistory × 31-day momentumHistory; requires ≥5 samples in each bucket.
+  // Returns null when sessionGoal not set, data is insufficient, or gap < 15 pt; undefined coercion skips the badge silently.
+  const pomodoroMomentumGap = calcPomodoroMomentumCorrelation(data.pomodoroHistory ?? [], data.momentumHistory ?? [], data.pomodoroSessionGoal, todayStr) ?? undefined;
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2092,6 +2096,8 @@ export default function App() {
     habitMomentumGap,
     // intentionMomentumGap: avg momentum gap (intention-done days minus not-done/not-set days); undefined = insufficient data or gap < 15.
     intentionMomentumGap,
+    // pomodoroMomentumGap: avg momentum gap (goal-met days minus not-goal-met days); undefined = no sessionGoal, insufficient data, or gap < 15.
+    pomodoroMomentumGap,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 31-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes

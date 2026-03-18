@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, habit_momentum_correlation, intention_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -5471,6 +5471,95 @@ describe("calcTodayInsight — intention_momentum_correlation (priority 10.53, a
     expect(result).not.toBeNull();
     expect(result!.text).toContain("유지"); // momentum_maintained (10.51) wins
     expect(result!.text).not.toContain("+25");
+  });
+});
+
+describe("calcTodayInsight — pomodoro_momentum_correlation (priority 10.54, after intention_momentum_correlation, before goal_done)", () => {
+  // ABOUTME: Tests for pomodoro_momentum_correlation badge — fires when pomodoro-goal-met days correlate with
+  // ABOUTME: meaningfully higher momentum scores (≥15 pt gap vs goal-not-met days, ≥5 samples each bucket).
+  // Base: no higher-priority triggers (no habits, nowHour=14, no momentum trend active, no session goal set)
+  const base = () => ({
+    habits: [],
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldReturnPomodoroMomentumCorrelationWhenGapIs20", () => {
+    // pomodoroMomentumGap=20 ≥ 15 → correlation badge fires at priority 10.54
+    const result = calcTodayInsight({ ...base(), pomodoroMomentumGap: 20 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("+20");
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldReturnPomodoroMomentumCorrelationWhenGapIsExactly15", () => {
+    // boundary: gap=15 is the minimum threshold → badge fires
+    const result = calcTodayInsight({ ...base(), pomodoroMomentumGap: 15 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("+15");
+  });
+
+  it("shouldNotReturnPomodoroMomentumCorrelationWhenGapBelow15", () => {
+    // gap=14 < 15 → badge suppressed (not statistically meaningful)
+    const result = calcTodayInsight({ ...base(), pomodoroMomentumGap: 14 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotReturnPomodoroMomentumCorrelationWhenGapAbsent", () => {
+    // pomodoroMomentumGap absent → insufficient data; badge skipped silently
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldPrioritizeIntentionMomentumCorrelationOverPomodoroMomentumCorrelation", () => {
+    // intention_momentum_correlation (10.53) fires before pomodoro_momentum_correlation (10.54)
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMomentumGap: 18,
+      pomodoroMomentumGap: 25,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도"); // intention correlation (10.53) wins
+    expect(result!.text).not.toContain("포모도로");
+  });
+
+  it("shouldPrioritizePomodoroMomentumCorrelationOverGoalDone", () => {
+    // pomodoro_momentum_correlation (10.54) fires before goal_done (10.7)
+    // goal_done fires "🎉 주간 목표 달성! (N일 남음)" — unique "주간 목표 달성!" substring
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroMomentumGap: 20,
+      weekGoal: "주간 목표",
+      weekGoalDone: true,
+      daysLeftWeek: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("+20"); // correlation (10.54) fires before goal_done (10.7)
+    expect(result!.text).not.toContain("주간 목표 달성!"); // goal_done badge would say "🎉 주간 목표 달성! (5일 남음)"
+  });
+
+  it("shouldPrioritizeMomentumMaintainedOverPomodoroMomentumCorrelation", () => {
+    // momentum_maintained (10.51) fires before pomodoro_momentum_correlation (10.54)
+    // STABLE_HISTORY provides 3-day stable trend with avg≥40 → triggers momentum_maintained
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroMomentumGap: 25,
+      momentumHistory: STABLE_HISTORY, // stable trend avg=60 → momentum_maintained fires
+    });
+    expect(result).not.toBeNull(); // STABLE_HISTORY should always produce momentum_maintained
+    expect(result!.text).toContain("유지"); // momentum_maintained (10.51) wins
+    expect(result!.text).not.toContain("+25");
+  });
+
+  it("shouldContainPomodoroKeywordInText", () => {
+    // badge text must reference 포모도로 (pomodoro) to distinguish from habit/intention correlation badges
+    const result = calcTodayInsight({ ...base(), pomodoroMomentumGap: 22 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("포모도로");
   });
 });
 
