@@ -131,13 +131,14 @@ export function calcHabitsBadge(params: HabitsBadgeParams): string | undefined {
 }
 
 // Returns the Partial<Habit> patch to apply when checking in a habit today.
-// Adds today to checkHistory (deduplicates, sorts ascending, caps at 14 most-recent entries),
+// Adds today to checkHistory (deduplicates, sorts ascending, caps at 366 most-recent entries
+// — one full leap year — to keep yearly reports accurate while bounding storage),
 // increments streak by 1, sets lastChecked to today, and updates bestStreak when the new
 // streak surpasses the previous best (absent bestStreak is treated as 0).
 // Exported for unit testing; pure function with no side effects.
 export function calcCheckInPatch(habit: Habit, today: string): Partial<Habit> {
   const history = habit.checkHistory ?? [];
-  const newHistory = [...new Set([...history, today])].sort().slice(-14);
+  const newHistory = [...new Set([...history, today])].sort().slice(-366);
   const newStreak = habit.streak + 1;
   const patch: Partial<Habit> = {
     streak: newStreak,
@@ -170,8 +171,8 @@ export function calcUndoCheckInPatch(habit: Habit, today: string): Partial<Habit
 // If today is a perfect day (all habits checked), starts the streak from today.
 // If today is not perfect, falls back to yesterday so habits in progress don't reset the display.
 // Returns 0 when: habits is empty, window is empty, or neither today nor yesterday is perfect.
-// Note: because checkHistory is capped at 14 entries (see calcCheckInPatch), the returned streak
-// is implicitly bounded by the window length — typically 14 days maximum.
+// Note: the returned streak is bounded by the dayWindow length passed by the caller,
+// not by the checkHistory cap (366 entries — see calcCheckInPatch).
 // Exported for unit testing; pure function with no side effects.
 export function calcPerfectDayStreak(habits: Habit[], dayWindow: string[]): number {
   if (habits.length === 0 || dayWindow.length === 0) return 0;
@@ -486,9 +487,9 @@ export function calcQuarterlyHabitReport(habits: Habit[], prevQtrDays: string[])
 // Fires on Jan 1 at 09:00+ via the yearlyHabitReportDate guard in App.tsx.
 // prevYearDays: all calendar days of the previous year — caller uses
 //   calcLastNDays(yesterday, totalDaysInYear(yesterday)) so the window covers exactly Jan 1 – Dec 31.
-// Note: checkHistory is capped at 14 entries (calcCheckInPatch), so the yearly rate reflects
-//   at most 14 matched days out of the full 365–366 day window (≤ round(14/366 * 100) ≈ 4%).
-//   The message tiers are preserved for forward compatibility if the cap is ever raised.
+// Note: checkHistory is capped at 366 entries (calcCheckInPatch), covering one full leap year.
+//   For non-leap years (365 days) the oldest retained entry may fall one day outside the
+//   prevYearDays window, but calcHabitsWeekRate simply ignores it, so the rate is still exact.
 // Returns null when habits is empty or no habit has any check-in within the window.
 // Exported for unit testing; pure function with no side effects.
 export function calcYearlyHabitReport(habits: Habit[], prevYearDays: string[]): string | null {

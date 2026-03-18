@@ -440,24 +440,41 @@ describe("calcCheckInPatch", () => {
     expect(patch.checkHistory).toEqual(["2026-03-10", TODAY, "2026-03-17"]);
   });
 
-  it("should cap checkHistory at 14 entries, keeping most recent (15→14: drops oldest)", () => {
-    // 14 old entries + today = 15 → should drop oldest (2026-03-01)
+  it("should keep all 15 entries when 14 existing + today = 15 (well below 366 cap)", () => {
+    // 14 old entries + today = 15 → all retained; 15 < 366 so cap is not exceeded
+    // new Date(y, m, d) avoids ISO-date UTC-midnight + setDate local-time timezone mismatch
     const old14 = Array.from({ length: 14 }, (_, i) => {
-      const d = new Date(`2026-03-01`);
+      const d = new Date(2026, 2, 1); // March 1, 2026 in local time (month is 0-indexed)
       d.setDate(d.getDate() + i);
       return d.toLocaleDateString("sv");
     }); // 2026-03-01 … 2026-03-14
     const h = makeHabitForCheckIn({ checkHistory: old14 });
     const patch = calcCheckInPatch(h, TODAY);
-    expect(patch.checkHistory).toHaveLength(14);
+    expect(patch.checkHistory).toHaveLength(15);
     expect(patch.checkHistory?.[patch.checkHistory.length - 1]).toBe(TODAY);
-    expect(patch.checkHistory).not.toContain("2026-03-01");
+    expect(patch.checkHistory).toContain("2026-03-01");
+  });
+
+  it("should cap checkHistory at 366 entries, keeping most recent (367→366: drops oldest)", () => {
+    // 366 old entries (2025-03-14 … 2026-03-14) + today (2026-03-15) = 367 → drops oldest
+    // new Date(y, m, d) avoids ISO-date UTC-midnight + setDate local-time timezone mismatch
+    const old366 = Array.from({ length: 366 }, (_, i) => {
+      const d = new Date(2025, 2, 14); // March 14, 2025 in local time (month is 0-indexed)
+      d.setDate(d.getDate() + i);
+      return d.toLocaleDateString("sv");
+    }); // 2025-03-14 … 2026-03-14
+    const h = makeHabitForCheckIn({ checkHistory: old366 });
+    const patch = calcCheckInPatch(h, TODAY);
+    expect(patch.checkHistory).toHaveLength(366);
+    expect(patch.checkHistory?.[patch.checkHistory.length - 1]).toBe(TODAY);
+    expect(patch.checkHistory).not.toContain("2025-03-14");
+    expect(patch.checkHistory).toContain("2025-03-15");
   });
 
   it("should keep all entries when 13 existing + today = 14 (cap not exceeded)", () => {
     // 13 old entries + today = 14 → all retained, no drop
     const old13 = Array.from({ length: 13 }, (_, i) => {
-      const d = new Date("2026-03-01");
+      const d = new Date(2026, 2, 1); // March 1, 2026 in local time (month is 0-indexed)
       d.setDate(d.getDate() + i);
       return d.toLocaleDateString("sv");
     }); // 2026-03-01 … 2026-03-13
@@ -471,7 +488,7 @@ describe("calcCheckInPatch", () => {
   it("should keep 14 entries when today is already in a 14-entry history (dedup → no growth)", () => {
     // 13 old entries + today already present = 14 entries; dedup prevents adding duplicate
     const old13 = Array.from({ length: 13 }, (_, i) => {
-      const d = new Date("2026-03-01");
+      const d = new Date(2026, 2, 1); // March 1, 2026 in local time (month is 0-indexed)
       d.setDate(d.getDate() + i);
       return d.toLocaleDateString("sv");
     }); // 2026-03-01 … 2026-03-13
@@ -1766,10 +1783,8 @@ describe("calcYearlyHabitReport", () => {
     expect(calcYearlyHabitReport([h], [])).toBeNull();
   });
 
-  it("shouldShowLowTierMessageForProductionRealisticData", () => {
-    // Production-realistic case: checkHistory is capped at 14 entries (calcCheckInPatch line 140).
-    // 14 check-ins in a 366-day window → round(14/366 * 100) = round(3.83) = 4% → ⚠️ low tier.
-    // This is the actual message users will see in production (unless the cap is raised).
+  it("shouldShowLowTierMessageForInactiveUser", () => {
+    // Low-activity case: only 14 check-ins in a 366-day window → 4% → ⚠️ low tier.
     const h = makeHabit({ checkHistory: YEARLY_REPORT_WINDOW.slice(0, 14) });
     const msg = calcYearlyHabitReport([h], YEARLY_REPORT_WINDOW);
     expect(msg).not.toBeNull();
