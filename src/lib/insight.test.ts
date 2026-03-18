@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -11013,6 +11013,251 @@ describe("calcTodayInsight — momentum_week_declined (priority 10.382, after mo
     expect(result).not.toBeNull();
     expect(result!.text).not.toContain("회복"); // momentum_recovery suppressed
     expect(result!.level).toBe("warning");       // week_declined fires instead
+  });
+});
+
+// ── intention_week_perfect (priority 10.371, between habit_week_declined and momentum_week_strong) ──────
+describe("calcTodayInsight — intention_week_perfect (priority 10.371, between habit_week_declined and momentum_week_strong)", () => {
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWhenDoneRateIs100", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 100 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldInclude100InBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 100 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("100");
+  });
+
+  it("shouldNotFireWhenDoneRateIs99", () => {
+    // 99% → intention_week_excellent (10.372) fires instead, not perfect
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 99 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("완벽한 실행력"); // perfect text absent
+    expect(result!.text).toContain("훌륭한 실천"); // excellent fires instead
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWhenAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByHabitWeekDeclined", () => {
+    // habit_week_declined (10.37) fires before intention_week_perfect (10.371)
+    // prevRate=80, weekRate=50 → decline=30pp ≥ 10 → declined fires
+    const result = calcTodayInsight({
+      ...base(),
+      habitWeekRate: 50,
+      habitPrevWeekRate: 80,
+      intentionWeekDoneRate: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("완벽한 실행력"); // perfect suppressed
+    expect(result!.level).toBe("warning"); // habit_week_declined wins
+  });
+});
+
+// ── intention_week_excellent (priority 10.372, between intention_week_perfect and intention_week_improved) ──
+describe("calcTodayInsight — intention_week_excellent (priority 10.372, between intention_week_perfect and intention_week_improved)", () => {
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWhenDoneRateIs70", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 70 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWhenDoneRateIs90", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 90 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldIncludeDoneRateInBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 85 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("85");
+  });
+
+  it("shouldNotFireWhenDoneRateIs100", () => {
+    // 100% → intention_week_perfect (10.371) fires first
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 100 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("훌륭한 실천"); // excellent text absent
+    expect(result!.level).toBe("success"); // perfect still fires
+  });
+
+  it("shouldNotFireWhenDoneRateBelow70", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 69 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+});
+
+// ── intention_week_improved (priority 10.373, between intention_week_excellent and intention_week_declined) ──
+describe("calcTodayInsight — intention_week_improved (priority 10.373, between intention_week_excellent and intention_week_declined)", () => {
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWhenRiseExactly10pp", () => {
+    // doneRate=60, prevRate=50 → rise=10pp → fires
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60, intentionPrevWeekDoneRate: 50 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWhenRiseGreaterThan10pp", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 65, intentionPrevWeekDoneRate: 40 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldIncludeRiseSizeInBadgeText", () => {
+    // doneRate=60, prevRate=40 → rise=20pp
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60, intentionPrevWeekDoneRate: 40 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("20");
+  });
+
+  it("shouldIncludeCurrentRateInBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60, intentionPrevWeekDoneRate: 40 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("60");
+  });
+
+  it("shouldNotFireWhenRiseBelow10pp", () => {
+    // delta=9 (below threshold) → no badge
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 59, intentionPrevWeekDoneRate: 50 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPrevRateAbsent", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByIntentionWeekExcellentWhenCurrentRateGeq70", () => {
+    // doneRate=75 (≥70 → excellent fires at 10.372), prevRate=50 → improved by 25pp
+    // But excellent fires first because currentRate ≥ 70
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 75, intentionPrevWeekDoneRate: 50 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("올랐어요"); // improved text suppressed
+    expect(result!.level).toBe("success"); // excellent fires instead
+  });
+});
+
+// ── intention_week_declined (priority 10.374, between intention_week_improved and momentum_week_strong) ──
+describe("calcTodayInsight — intention_week_declined (priority 10.374, between intention_week_improved and momentum_week_strong)", () => {
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWhenDeclineExactly10pp", () => {
+    // prevRate=60, doneRate=50 → decline=10pp → fires
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 50, intentionPrevWeekDoneRate: 60 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("낮아요"); // intention_week_declined text
+  });
+
+  it("shouldFireWhenDeclineGreaterThan10pp", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 30, intentionPrevWeekDoneRate: 70 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+  });
+
+  it("shouldIncludeDropSizeInBadgeText", () => {
+    // prevRate=60, doneRate=40 → drop=20pp
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 40, intentionPrevWeekDoneRate: 60 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("20");
+  });
+
+  it("shouldIncludeCurrentRateInBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 40, intentionPrevWeekDoneRate: 60 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("40");
+  });
+
+  it("shouldNotFireWhenDeclineBelow10pp", () => {
+    // delta=9 (below threshold) → no badge
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 51, intentionPrevWeekDoneRate: 60 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPrevRateAbsent", () => {
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 40 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireBeforeMomentumWeekStrong", () => {
+    // intention_week_declined (10.374) preempts momentum_week_strong (10.38)
+    // prevRate=70, doneRate=40 → decline=30pp → declined fires despite high momentum
+    const result = calcTodayInsight({
+      ...base(),
+      intentionWeekDoneRate: 40,
+      intentionPrevWeekDoneRate: 70,
+      momentumWeekAvg7d: 70,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("모멘텀"); // momentum_week_strong suppressed
+    expect(result!.level).toBe("warning"); // declined fires instead
+  });
+
+  it("shouldBePreemptedByIntentionWeekExcellentWhenCurrentRateGeq70", () => {
+    // doneRate=75 (≥70 → excellent fires at 10.372), prevRate=90 → decline=15pp
+    // But excellent fires first because currentRate ≥ 70
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 75, intentionPrevWeekDoneRate: 90 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("낮아요"); // declined text suppressed
+    expect(result!.level).toBe("success"); // excellent fires instead
   });
 });
 

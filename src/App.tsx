@@ -1815,6 +1815,26 @@ export default function App() {
   const momentumPrevWeekAvg7d = calcMomentumWeekAvg(
     (data.momentumHistory ?? []).filter(e => last14Days.slice(0, 7).includes(e.date))
   );
+  // intentionWeek7: per-day set/done status for the last 7 days.
+  // Computed before calcTodayInsight so intentionWeekDoneRate feeds the intention_week_* badges.
+  // Reused below for the direction badge and intention heatmap UI.
+  const { days: intentionLast7, setCount: intentionSetCount7, doneCount: intentionDoneCount7 } =
+    calcIntentionWeek(last7Days, todayStr, data.todayIntention, data.todayIntentionDone, data.intentionHistory ?? []);
+  // intentionWeekDoneRate: done rate for the last 7 days — requires setCount ≥ 3 for a meaningful signal.
+  // Absent (undefined) when fewer than 3 intentions were set, to avoid noise from sparse weeks.
+  const intentionWeekDoneRate =
+    intentionSetCount7 >= 3
+      ? Math.round((intentionDoneCount7 / intentionSetCount7) * 100)
+      : undefined;
+  // intentionPrevWeekDoneRate: done rate for the previous 7-day window (days 7-13 ago).
+  // Uses calcIntentionWeek with last14Days.slice(0, 7); todayStr won't match that range so today's live
+  // state is effectively ignored. Requires setCount ≥ 2 for a meaningful comparison baseline.
+  const { setCount: intentionPrevSetCount7, doneCount: intentionPrevDoneCount7 } =
+    calcIntentionWeek(last14Days.slice(0, 7), todayStr, data.todayIntention, data.todayIntentionDone, data.intentionHistory ?? []);
+  const intentionPrevWeekDoneRate =
+    intentionPrevSetCount7 >= 2
+      ? Math.round((intentionPrevDoneCount7 / intentionPrevSetCount7) * 100)
+      : undefined;
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1946,6 +1966,10 @@ export default function App() {
     // Both computed before this call (above) — passed as undefined when < 2 history entries in window.
     momentumWeekAvg7d: momentumWeekAvg7d ?? undefined,
     momentumPrevWeekAvg7d: momentumPrevWeekAvg7d ?? undefined,
+    // intentionWeekDoneRate / intentionPrevWeekDoneRate: intention done rates for week-comparison badges.
+    // Both computed before this call (above) — undefined when insufficient sample (setCount < threshold).
+    intentionWeekDoneRate,
+    intentionPrevWeekDoneRate,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 31-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
@@ -2066,13 +2090,12 @@ export default function App() {
   const monthGoalStreak = calcMonthGoalStreak(data.monthGoal, data.monthGoalDate, data.monthGoalHistory ?? [], renderDate);
   const quarterGoalStreak = calcQuarterGoalStreak(data.quarterGoal, data.quarterGoalDate, data.quarterGoalHistory ?? [], renderDate);
   const yearGoalStreak = calcYearGoalStreak(data.yearGoal, data.yearGoalDate, data.yearGoalHistory ?? [], renderDate);
-  // intentionWeek: per-day set/done status for the last 7 days — pure function extracted to src/lib/intention.ts.
+  // intentionLast7 / intentionSetCount7 / intentionDoneCount7: already computed before calcTodayInsight
+  // (see above) so intentionWeekDoneRate could feed the intention_week_* insight badges.
   // Note: updateIntention preserves history entries when the user clears today's intention
   // ("leave history unchanged so the last set text is preserved for reflection"). So `set: !!entry`
   // signals engagement on that day (user set an intention), not necessarily that one was active at day end.
   // This aligns with the heatmap's purpose: visualizing daily intention practice, not end-of-day state.
-  const { days: intentionLast7, setCount: intentionSetCount7, doneCount: intentionDoneCount7 } =
-    calcIntentionWeek(last7Days, todayStr, data.todayIntention, data.todayIntentionDone, data.intentionHistory ?? []);
 
   // habitsWeekTrend: week-over-week direction — compares cur-7 rate vs prev-7 rate using the same 14-day window.
   const habitsWeekTrend = calcHabitsWeekTrend(habitsWeekRate, habitsPrevWeekRate);
