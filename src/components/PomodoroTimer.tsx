@@ -83,7 +83,9 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   // freshStart: when true, the new interval should start from full duration (phase just transitioned)
   const freshStartRef = useRef(false);
   const [customMode, setCustomMode] = useState<Phase | null>(null);
-  const [showPresets, setShowPresets] = useState(false);
+  // presetsPhase: which phase's duration presets are currently open (null = hidden).
+  // Decoupled from active `phase` so non-active phases can be edited while the timer runs.
+  const [presetsPhase, setPresetsPhase] = useState<Phase | null>(null);
   const [customValue, setCustomValue] = useState("");
   // goalEdit: true while the user is typing a new goal; goalDraft holds the input text
   // goalEditRef: sync shadow of goalEdit — used in commitGoal to guard against blur-after-Escape
@@ -161,6 +163,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
         }
         setPhase(next);
         setRemaining(durationsRef.current[next] * 60);
+        setPresetsPhase(null); // close presets on auto phase transition
         if (autoStartRef.current) {
           // Bump runKey so useEffect re-fires with running still true, creating a fresh interval
           freshStartRef.current = true;
@@ -184,6 +187,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const reset = () => {
     setRunning(false);
     setRemaining(durations[phase] * 60);
+    setPresetsPhase(null);
   };
 
   // Skip to next phase immediately — does NOT count as a completed session,
@@ -218,19 +222,20 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
     setPhase(p);
     setRemaining(durations[p] * 60);
     setCustomMode(null);
-    setShowPresets(false);
+    setPresetsPhase(null);
     // Reset cycle count when manually navigating phases to avoid unexpected long break
     cycleCountRef.current = 0;
   };
 
   const applyDuration = (p: Phase, mins: number) => {
-    if (running) return;
+    // Block changes to the currently running phase only; non-active phases can be edited freely.
+    if (running && p === phase) return;
     const next = { ...durations, [p]: mins };
     setDurations(next);
     onDurationsChange?.(next);
     if (p === phase) setRemaining(mins * 60);
     setCustomMode(null);
-    setShowPresets(false);
+    setPresetsPhase(null);
   };
 
   const commitCustom = () => {
@@ -257,6 +262,8 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const focusColor = accent ?? colors.statusActive;
   // phaseColor: focus phase uses the theme accent; break phases keep semantic colors for clear phase distinction.
   const phaseColor = phase === "focus" ? focusColor : phaseAccent(phase);
+  // presetsColor: color for the currently open presets panel — matches the phase being edited, not the active phase.
+  const presetsColor = presetsPhase ? (presetsPhase === "focus" ? focusColor : phaseAccent(presetsPhase)) : phaseColor;
 
   // Last 14 days (oldest to newest) derived from todayStr — recomputed at midnight.
   // pomodoroHistory is capped at 14 entries in lib.rs sanitize; rendering all 14 uses stored data fully.
@@ -421,7 +428,18 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
               return (
                 <button
                   key={p}
-                  onClick={() => p === phase ? setShowPresets(v => !v) : switchPhase(p)}
+                  onClick={() => {
+                    if (p !== phase && !running) {
+                      // Not running + non-active tab: switch to that phase (standard tab behavior).
+                      switchPhase(p);
+                    } else if (running && p !== phase) {
+                      // Running + non-active tab: open presets for that phase without stopping the timer.
+                      setPresetsPhase(v => v === p ? null : p);
+                    } else {
+                      // Active tab (running or not): toggle presets for the current phase.
+                      setPresetsPhase(v => v === p ? null : p);
+                    }
+                  }}
                   style={{
                     flex: 1, padding: "4px 0", borderRadius: radius.bar,
                     background: phase === p ? `${tabAccent}22` : "transparent",
@@ -436,26 +454,30 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
             })}
           </div>
 
-          {/* Duration presets — visible only when active tab is clicked */}
-          {showPresets && <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-            {PRESETS[phase].map(mins => (
-              <button
-                key={mins}
-                onClick={() => applyDuration(phase, mins)}
-                disabled={running}
-                style={{
-                  flex: 1, padding: "3px 0", borderRadius: radius.chip,
-                  background: durations[phase] === mins && customMode === null ? `${phaseColor}22` : "transparent",
-                  border: `1px solid ${durations[phase] === mins && customMode === null ? phaseColor + "55" : colors.borderFaint}`,
-                  color: durations[phase] === mins && customMode === null ? phaseColor : colors.textPhantom,
-                  fontSize: fontSizes.mini, cursor: running ? "default" : "pointer",
-                  opacity: running ? 0.5 : 1,
-                }}
-              >
-                {mins}분
-              </button>
-            ))}
-            {customMode === phase ? (
+          {/* Duration presets — visible when any phase tab is clicked.
+              presetsPhase tracks which phase is being edited; allows editing non-active phases while timer runs. */}
+          {presetsPhase !== null && <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+            {PRESETS[presetsPhase].map(mins => {
+              const isActiveRunning = running && presetsPhase === phase;
+              return (
+                <button
+                  key={mins}
+                  onClick={() => applyDuration(presetsPhase, mins)}
+                  disabled={isActiveRunning}
+                  style={{
+                    flex: 1, padding: "3px 0", borderRadius: radius.chip,
+                    background: durations[presetsPhase] === mins && customMode === null ? `${presetsColor}22` : "transparent",
+                    border: `1px solid ${durations[presetsPhase] === mins && customMode === null ? presetsColor + "55" : colors.borderFaint}`,
+                    color: durations[presetsPhase] === mins && customMode === null ? presetsColor : colors.textPhantom,
+                    fontSize: fontSizes.mini, cursor: isActiveRunning ? "default" : "pointer",
+                    opacity: isActiveRunning ? 0.5 : 1,
+                  }}
+                >
+                  {mins}분
+                </button>
+              );
+            })}
+            {customMode === presetsPhase ? (
               <input
                 type="number"
                 value={customValue}
@@ -471,23 +493,28 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
                 style={{
                   flex: 1, padding: "3px 4px", borderRadius: radius.chip,
                   background: "transparent",
-                  border: `1px solid ${phaseColor}55`,
-                  color: phaseColor, fontSize: fontSizes.mini,
+                  border: `1px solid ${presetsColor}55`,
+                  color: presetsColor, fontSize: fontSizes.mini,
                   fontFamily: fonts.mono, textAlign: "center",
                   outline: "none", minWidth: 0,
                 }}
               />
             ) : (
               <button
-                onClick={() => { if (running) return; setCustomMode(phase); setCustomValue(String(durations[phase])); }}
-                disabled={running}
+                onClick={() => {
+                  if (running && presetsPhase === phase) return;
+                  setCustomMode(presetsPhase);
+                  setCustomValue(String(durations[presetsPhase]));
+                }}
+                disabled={running && presetsPhase === phase}
                 style={{
                   flex: 1, padding: "3px 0", borderRadius: radius.chip,
                   background: "transparent",
                   border: `1px solid ${colors.borderFaint}`,
                   color: colors.textPhantom,
-                  fontSize: fontSizes.mini, cursor: running ? "default" : "pointer",
-                  opacity: running ? 0.5 : 1,
+                  fontSize: fontSizes.mini,
+                  cursor: (running && presetsPhase === phase) ? "default" : "pointer",
+                  opacity: (running && presetsPhase === phase) ? 0.5 : 1,
                 }}
               >
                 직접
@@ -593,10 +620,20 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
           <div style={{ display: "flex", gap: 8 }}>
             <button
               onClick={async () => {
-                if (!running && !isPaused && phase === "focus" && notifyRef.current) {
-                  await notify("Vision Widget", "🎯 집중 시작!");
+                if (!running && !isPaused) {
+                  // At rest: always start from focus phase regardless of which tab is shown.
+                  if (phase !== "focus") {
+                    setPhase("focus");
+                    setRemaining(durations.focus * 60);
+                    setPresetsPhase(null);
+                    cycleCountRef.current = 0;
+                  }
+                  if (notifyRef.current) await notify("Vision Widget", "🎯 집중 시작!");
+                  setRunning(true);
+                } else {
+                  // Paused or running: toggle pause/resume for the current phase.
+                  setRunning(r => !r);
                 }
-                setRunning(r => !r);
               }}
               style={{
                 flex: 1, padding: "6px 0", borderRadius: radius.chip,

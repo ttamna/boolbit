@@ -1,5 +1,5 @@
-// ABOUTME: Tests for PomodoroTimer autoStart phase-transition behavior
-// ABOUTME: focus→break→focus cycle must continue without stopping when autoStart=true
+// ABOUTME: Tests for PomodoroTimer behavior — autoStart phase-transition, start-button-always-focus, and
+// ABOUTME: non-active-phase duration editing while timer is running
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
@@ -69,6 +69,82 @@ describe("PomodoroTimer weekly trend display", () => {
   });
 });
 
+describe("PomodoroTimer start button always starts focus session", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should start focus session when start is clicked from break phase at rest", async () => {
+    renderTimer();
+    // Manually switch to break phase (not running)
+    const breakTab = screen.getByText(/^휴식 \d+분$/);
+    await act(async () => { breakTab.click(); });
+    // Click Start — should start focus, not break
+    const startBtn = screen.getByText("▶ 시작");
+    await act(async () => { startBtn.click(); });
+    // Timer is running in focus phase
+    expect(screen.queryByText("⏸ 일시정지")).not.toBeNull();
+    expect(screen.queryAllByText(/집중 \d{2}:\d{2}/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/휴식 \d{2}:\d{2}/)).toBeNull();
+  });
+
+  it("should start focus session when start is clicked from longBreak phase at rest", async () => {
+    renderTimer();
+    const longBreakTab = screen.getByText(/^긴 휴식 \d+분$/);
+    await act(async () => { longBreakTab.click(); });
+    const startBtn = screen.getByText("▶ 시작");
+    await act(async () => { startBtn.click(); });
+    expect(screen.queryByText("⏸ 일시정지")).not.toBeNull();
+    expect(screen.queryAllByText(/집중 \d{2}:\d{2}/).length).toBeGreaterThan(0);
+  });
+});
+
+describe("PomodoroTimer duration change while timer is running", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should keep timer running when break tab is clicked during focus session", async () => {
+    renderTimer();
+    const startBtn = screen.getByText("▶ 시작");
+    await act(async () => { startBtn.click(); });
+    expect(screen.queryByText("⏸ 일시정지")).not.toBeNull();
+    // Click break tab while focus is running
+    const breakTab = screen.getByText(/^휴식 \d+분$/);
+    await act(async () => { breakTab.click(); });
+    // Timer must still be running in focus phase
+    expect(screen.queryByText("⏸ 일시정지")).not.toBeNull();
+    expect(screen.queryAllByText(/집중 \d{2}:\d{2}/).length).toBeGreaterThan(0);
+  });
+
+  it("should allow changing break duration while focus timer is running", async () => {
+    const onDurationsChange = vi.fn();
+    renderTimer({ onDurationsChange });
+    const startBtn = screen.getByText("▶ 시작");
+    await act(async () => { startBtn.click(); });
+    // Click break tab to open break presets without stopping timer
+    const breakTab = screen.getByText(/^휴식 \d+분$/);
+    await act(async () => { breakTab.click(); });
+    // Select 10-minute break preset
+    const preset10 = screen.getByText("10분");
+    await act(async () => { preset10.click(); });
+    // Timer still running after duration change
+    expect(screen.queryByText("⏸ 일시정지")).not.toBeNull();
+    // Duration callback fired with new break duration
+    expect(onDurationsChange).toHaveBeenCalledWith(expect.objectContaining({ break: 10 }));
+  });
+});
+
 describe("PomodoroTimer autoStart phase transitions", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -117,7 +193,8 @@ describe("PomodoroTimer autoStart phase transitions", () => {
   it("should complete 3 consecutive cycles without stopping when autoStart=true", async () => {
     const onSessionComplete = vi.fn();
 
-    renderTimer({ onSessionComplete });
+    // longBreakInterval=4 ensures 3 focus sessions cycle through regular breaks (not long break)
+    renderTimer({ onSessionComplete, longBreakInterval: 4 });
 
     const startBtn = screen.getByText("▶ 시작");
     await act(async () => { startBtn.click(); });
