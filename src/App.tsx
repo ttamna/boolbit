@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport, calcDayOfWeekMomentumAvg, calcWeakMomentumDay, calcBestMomentumDay } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -1843,6 +1843,10 @@ export default function App() {
   const pomodoroPrevWeekSessions = (data.pomodoroHistory ?? [])
     .filter(e => last14Days.slice(0, 7).includes(e.date))
     .reduce((sum, e) => sum + e.count, 0);
+  // pomodoroWeekGoalDays: days in last7Days where session count >= sessionGoal; undefined when no goal set.
+  const pomodoroWeekGoalDays = (data.pomodoroSessionGoal && data.pomodoroSessionGoal > 0)
+    ? calcPomodoroWeekGoalDays(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, last7Days, pomodoroSessionsToday, todayStr)
+    : undefined;
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1981,6 +1985,8 @@ export default function App() {
     // pomodoroWeekSessions / pomodoroPrevWeekSessions: rolling 7-day session totals for week-comparison badges.
     pomodoroWeekSessions,
     pomodoroPrevWeekSessions,
+    // pomodoroWeekGoalDays: days in last7Days goal was met; undefined when sessionGoal not set.
+    pomodoroWeekGoalDays,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 31-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes

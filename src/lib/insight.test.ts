@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_improved, pomodoro_week_declined)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_improved, pomodoro_week_declined)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -11258,6 +11258,73 @@ describe("calcTodayInsight — intention_week_declined (priority 10.374, between
     expect(result).not.toBeNull();
     expect(result!.text).not.toContain("낮아요"); // declined text suppressed
     expect(result!.level).toBe("success"); // excellent fires instead
+  });
+});
+
+// ── pomodoro_week_goal_perfect (priority 10.3821, after momentum_week_declined, before pomodoro_week_improved) ──
+describe("calcTodayInsight — pomodoro_week_goal_perfect (priority 10.3821, after momentum_week_declined, before pomodoro_week_improved)", () => {
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWhenAll7DaysMeetGoal", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldInclude7Of7InBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7/7");
+  });
+
+  it("shouldNotFireWhenOnly6DaysMeetGoal", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 6 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroWeekGoalDaysIsUndefined", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroWeekGoalDaysIsZero", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 0 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireBeforePomodoroWeekImproved", () => {
+    // pomodoro_week_goal_perfect (10.3821) fires before pomodoro_week_improved (10.383)
+    // Provide both conditions: 7/7 goal days AND week improved by 5 sessions
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroWeekGoalDays: 7,
+      pomodoroWeekSessions: 10,
+      pomodoroPrevWeekSessions: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7/7"); // goal_perfect fires, not improved
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldBePreemptedByMomentumWeekDeclined", () => {
+    // momentum_week_declined (10.382) fires before pomodoro_week_goal_perfect (10.3821)
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroWeekGoalDays: 7,
+      momentumWeekAvg7d: 30,
+      momentumPrevWeekAvg7d: 50,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("7/7"); // goal_perfect suppressed
+    expect(result!.level).toBe("warning"); // momentum_week_declined fires
   });
 });
 

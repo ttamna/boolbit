@@ -1,5 +1,5 @@
-// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, lifetime milestone notifications, weekly/monthly/quarterly/yearly session reports, and per-weekday session average for weak/best day detection
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, quarterly session report, yearly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), and calcDayOfWeekPomodoroAvg/calcWeakPomodoroDay/calcBestPomodoroDay for todayIsWeakPomodoroDay/todayIsBestPomodoroDay insight params
+// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, lifetime milestone notifications, weekly/monthly/quarterly/yearly session reports, per-weekday session average for weak/best day detection, and weekly goal-hit day count
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, quarterly session report, yearly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), calcDayOfWeekPomodoroAvg/calcWeakPomodoroDay/calcBestPomodoroDay for todayIsWeakPomodoroDay/todayIsBestPomodoroDay insight params, and calcPomodoroWeekGoalDays for pomodoro_week_goal_perfect badge
 
 import type { PomodoroDay } from "../types";
 import { colors } from "../theme";
@@ -533,4 +533,27 @@ export function calcBestPomodoroDay(avgMap: Record<number, number | null>): numb
     if (bestAvg === null || avg > bestAvg) { bestAvg = avg; bestDow = dow; }
   }
   return bestDow;
+}
+
+// Counts how many days in last7Days had session count >= sessionGoal.
+// For today (todayStr), uses the live sessionsToday value rather than the persisted history entry
+// so the badge responds to the current session even before the history is flushed.
+// sessionGoal <= 0 always returns 0 (no meaningful goal to track).
+// Days missing from history are treated as 0 sessions (not counted as goal-met).
+// Exported for unit testing; pure function with no side effects.
+export function calcPomodoroWeekGoalDays(
+  history: PomodoroDay[],
+  sessionGoal: number,
+  last7Days: string[],
+  sessionsToday: number,
+  todayStr: string,
+): number {
+  if (sessionGoal <= 0) return 0;
+  const dateMap = new Map<string, number>(history.map(e => [e.date, e.count]));
+  let count = 0;
+  for (const day of last7Days) {
+    const sessions = day === todayStr ? sessionsToday : (dateMap.get(day) ?? 0);
+    if (sessions >= sessionGoal) count++;
+  }
+  return count;
 }
