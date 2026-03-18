@@ -1,9 +1,9 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcYearlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, and calcHabitMorningReminder pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, yearly habit completion rate report, per-weekday habit completion rate analysis, and morning habit activation nudge
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcYearlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, and calcHabitMomentumCorrelation pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, yearly habit completion rate report, per-weekday habit completion rate analysis, morning habit activation nudge, and habit-momentum correlation gap (all-done days vs not-all-done days avg momentum delta)
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcYearlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder } from "./habits";
-import type { Habit } from "../types";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcYearlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, calcHabitMomentumCorrelation } from "./habits";
+import type { Habit, MomentumEntry } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
 const WINDOW = [
@@ -1792,5 +1792,112 @@ describe("calcYearlyHabitReport", () => {
     expect(msg).toContain("다시 도전해봐요"); // low tier at ~4%
     expect(msg).not.toContain("훌륭해요");
     expect(msg).not.toContain("올해엔 더 해봐요");
+  });
+});
+
+describe("calcHabitMomentumCorrelation — habit completion vs. momentum gap (≥5 samples each bucket, ≥15 pt gap)", () => {
+  const TODAY = "2026-03-19";
+  const habit: Habit = { name: "exercise", streak: 0, icon: "🏃" };
+  // Build a MomentumEntry array: allDoneDates have high score, notDoneDates have low score
+  function makeHistory(allDoneDates: string[], scores: { date: string; score: number }[]): MomentumEntry[] {
+    return scores.map(({ date, score }) => ({ date, score, tier: score >= 75 ? "high" : score >= 40 ? "mid" : "low" }));
+  }
+
+  it("shouldReturnGapWhenAllDoneAverageIsHigherByAtLeast15", () => {
+    // allDone: 5 days with score 80; notDone: 5 days with score 60; gap = 20
+    const allDoneDates = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"];
+    const notDoneDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"];
+    const history = makeHistory(allDoneDates, [
+      ...allDoneDates.map(date => ({ date, score: 80 })),
+      ...notDoneDates.map(date => ({ date, score: 60 })),
+    ]);
+    const habits: Habit[] = [{ ...habit, checkHistory: allDoneDates }];
+    const result = calcHabitMomentumCorrelation(habits, history, TODAY);
+    expect(result).toBe(20);
+  });
+
+  it("shouldReturnNullWhenGapBelow15", () => {
+    // allDone: score 74; notDone: score 61; gap = 13
+    const allDoneDates = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"];
+    const notDoneDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"];
+    const history = makeHistory(allDoneDates, [
+      ...allDoneDates.map(date => ({ date, score: 74 })),
+      ...notDoneDates.map(date => ({ date, score: 61 })),
+    ]);
+    const habits: Habit[] = [{ ...habit, checkHistory: allDoneDates }];
+    const result = calcHabitMomentumCorrelation(habits, history, TODAY);
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenFewerThan5SamplesInAllDoneBucket", () => {
+    // Only 4 allDone days
+    const allDoneDates = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04"];
+    const notDoneDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"];
+    const history = makeHistory(allDoneDates, [
+      ...allDoneDates.map(date => ({ date, score: 90 })),
+      ...notDoneDates.map(date => ({ date, score: 50 })),
+    ]);
+    const habits: Habit[] = [{ ...habit, checkHistory: allDoneDates }];
+    const result = calcHabitMomentumCorrelation(habits, history, TODAY);
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenFewerThan5SamplesInNotAllDoneBucket", () => {
+    // 5 allDone days but only 4 notDone days
+    const allDoneDates = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"];
+    const notDoneDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09"];
+    const history = makeHistory(allDoneDates, [
+      ...allDoneDates.map(date => ({ date, score: 90 })),
+      ...notDoneDates.map(date => ({ date, score: 50 })),
+    ]);
+    const habits: Habit[] = [{ ...habit, checkHistory: allDoneDates }];
+    const result = calcHabitMomentumCorrelation(habits, history, TODAY);
+    expect(result).toBeNull();
+  });
+
+  it("shouldReturnNullWhenHabitsArrayIsEmpty", () => {
+    const history: MomentumEntry[] = [{ date: "2026-03-01", score: 80, tier: "high" }];
+    expect(calcHabitMomentumCorrelation([], history, TODAY)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenMomentumHistoryIsEmpty", () => {
+    const habits: Habit[] = [{ ...habit, checkHistory: ["2026-03-01"] }];
+    expect(calcHabitMomentumCorrelation(habits, [], TODAY)).toBeNull();
+  });
+
+  it("shouldExcludeTodayFromCorrelationCalculation", () => {
+    // allDone: 5 past days score 80; TODAY entry score 0 — today must be excluded
+    const allDoneDates = ["2026-03-13", "2026-03-14", "2026-03-15", "2026-03-16", "2026-03-17", TODAY];
+    const notDoneDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"];
+    const history: MomentumEntry[] = [
+      ...["2026-03-13", "2026-03-14", "2026-03-15", "2026-03-16", "2026-03-17"].map(date => ({ date, score: 80, tier: "high" as const })),
+      { date: TODAY, score: 0, tier: "low" as const }, // today's in-progress — must be excluded
+      ...notDoneDates.map(date => ({ date, score: 60, tier: "mid" as const })),
+    ];
+    const habits: Habit[] = [{ ...habit, checkHistory: allDoneDates }];
+    const result = calcHabitMomentumCorrelation(habits, history, TODAY);
+    // Without today excluded: allDoneAvg = (80*5+0)/6 ≈ 66.7, gap vs 60 = 6.7 → null
+    // With today excluded: allDoneAvg = 80, gap vs 60 = 20 → 20
+    expect(result).toBe(20);
+  });
+
+  it("shouldRoundGapFromContinuousAveragesCorrectly", () => {
+    // allDone: 5 scores summing to 377 → avg = 75.4; notDone: 5 scores summing to 305 → avg = 61.0; gap = 14.4 → null
+    // Validates single-rounding vs double-rounding: Math.round(75.4) - Math.round(61.0) = 75-61 = 14 → null either way
+    // Actual edge: allDone avg = 75.5, notDone avg = 60.0 → gap = 15.5 → rounds to 16
+    const allDoneDates = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"];
+    const notDoneDates = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"];
+    // allDone total = 75+76+76+75+76 = 378, avg = 75.6; notDone total = 60*5=300, avg = 60; gap = 15.6 → rounds to 16
+    const history: MomentumEntry[] = [
+      { date: "2026-03-01", score: 75, tier: "high" },
+      { date: "2026-03-02", score: 76, tier: "high" },
+      { date: "2026-03-03", score: 76, tier: "high" },
+      { date: "2026-03-04", score: 75, tier: "high" },
+      { date: "2026-03-05", score: 76, tier: "high" },
+      ...notDoneDates.map(date => ({ date, score: 60, tier: "mid" as const })),
+    ];
+    const habits: Habit[] = [{ ...habit, checkHistory: allDoneDates }];
+    const result = calcHabitMomentumCorrelation(habits, history, TODAY);
+    expect(result).toBe(16);
   });
 });

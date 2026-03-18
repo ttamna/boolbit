@@ -1,7 +1,7 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
 // ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, yearly habit completion rate report, and per-weekday best/weak day detection
 
-import type { Habit } from "../types";
+import type { Habit, MomentumEntry } from "../types";
 
 // Returns milestone badge emoji for notable streak lengths; null otherwise.
 // Thresholds: 7🔥 / 30⭐ / 100💎.
@@ -499,4 +499,39 @@ export function calcYearlyHabitReport(habits: Habit[], prevYearDays: string[]): 
   if (rate >= 80) return `✅ 지난 해 습관 완료율 ${rate}% — 훌륭해요!`;
   if (rate >= 60) return `📊 지난 해 습관 완료율 ${rate}% — 올해엔 더 해봐요!`;
   return `⚠️ 지난 해 습관 완료율 ${rate}% — 다시 도전해봐요!`;
+}
+
+// Compares average momentum score on days ALL habits were done vs. days they were NOT all done.
+// Uses momentumHistory (up to 31 past entries) as the analysis window; today is excluded so
+// the live in-progress score does not skew the correlation.
+// Returns the point gap (allDoneAvg - notAllDoneAvg), rounded to the nearest integer,
+// when both buckets contain ≥ MIN_CORRELATION_SAMPLES entries and the gap is ≥ 15 points.
+// Returns null when habits array is empty, history is empty, or the gap is below the threshold.
+// Exported for unit testing; pure function with no side effects.
+const MIN_CORRELATION_SAMPLES = 5;
+export function calcHabitMomentumCorrelation(
+  habits: Habit[],
+  momentumHistory: MomentumEntry[],
+  todayStr: string,
+): number | null {
+  if (habits.length === 0 || momentumHistory.length === 0) return null;
+
+  let allDoneTotal = 0, allDoneCount = 0;
+  let notAllDoneTotal = 0, notAllDoneCount = 0;
+
+  for (const entry of momentumHistory) {
+    if (entry.date >= todayStr) continue; // exclude today's in-progress score
+    const allDone = habits.every(h => h.checkHistory?.includes(entry.date));
+    if (allDone) {
+      allDoneTotal += entry.score;
+      allDoneCount++;
+    } else {
+      notAllDoneTotal += entry.score;
+      notAllDoneCount++;
+    }
+  }
+
+  if (allDoneCount < MIN_CORRELATION_SAMPLES || notAllDoneCount < MIN_CORRELATION_SAMPLES) return null;
+  const gap = Math.round(allDoneTotal / allDoneCount - notAllDoneTotal / notAllDoneCount);
+  return gap >= 15 ? gap : null;
 }
