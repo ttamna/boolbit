@@ -13789,6 +13789,161 @@ describe("calcTodayInsight — pomodoro_month_flawless (priority 11.08, after ha
   });
 });
 
+// ── momentum_month_flawless ───────────────────────────────────────────────────
+describe("calcTodayInsight — momentum_month_flawless (priority 11.09, after pomodoro_month_flawless)", () => {
+  // TODAY = "2024-01-15" → day 15 of January, currentMonthDay = 15 ≥ MIN_MONTH_DAYS (10)
+  // Two conditions: momentumStreak ≥ currentMonthDay AND todayMomentumQualifies (today's score ≥ 40)
+  // todayMomentumQualifies = true (via momentumHistory) → confirms today is included in the streak.
+  // momentumStreak=15 (not a MOMENTUM_STREAK_MILESTONES value [7,14,30]) → milestone suppressed.
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      momentumStreak: 15, // equals currentMonthDay (15) → every January day qualifies
+      momentumHistory: [{ date: TODAY, score: 50, tier: "mid" as const }], // todayMomentumQualifies = true
+    };
+  }
+
+  it("shouldFireWhenMomentumStreakEqualsCurrentMonthDay", () => {
+    // momentumStreak=15 on day 15 with today qualifying → every day of January had score ≥ 40
+    const result = calcTodayInsight(base());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 달 매일 모멘텀");
+    expect(result!.text).toContain("15일");
+  });
+
+  it("shouldFireWhenMomentumStreakExceedsCurrentMonthDay", () => {
+    // momentumStreak=20 on day 15 → 20-day consecutive run that includes today covers all 15 January days
+    const result = calcTodayInsight({ ...base(), momentumStreak: 20 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이번 달 매일 모멘텀");
+    expect(result!.text).toContain("15일");
+  });
+
+  it("shouldNotFireWhenMomentumStreakBelowCurrentMonthDay", () => {
+    // momentumStreak=13 < currentMonthDay(15) → at least one day this month did not qualify.
+    // 13 is not a MOMENTUM_STREAK_MILESTONES value (7/14/30), so milestone doesn't preempt.
+    // todayMomentumQualifies=true (from base history), so only the streak length fails the check.
+    const result = calcTodayInsight({ ...base(), momentumStreak: 13 });
+    expect(result?.text ?? "").not.toContain("이번 달 매일 모멘텀");
+  });
+
+  it("shouldNotFireWhenTodayScoreNotRecorded", () => {
+    // momentumStreak=15 but today's score is absent (no history entry) → todayMomentumQualifies=false.
+    // Prevents false positives: streak could extend from previous month covering Dec 31–Jan 13 (14 days)
+    // while Jan 14 (today) is not yet qualifying — same guard role as sessionsToday>0 for pomodoro.
+    const result = calcTodayInsight({
+      ...base(),
+      momentumHistory: [], // no today entry → todayMomentumQualifies = false
+    });
+    expect(result?.text ?? "").not.toContain("이번 달 매일 모멘텀");
+  });
+
+  it("shouldNotFireBeforeDay10", () => {
+    // day 9 < MIN_MONTH_DAYS(10) → too early in the month to celebrate
+    const day9 = "2024-01-09";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day9,
+      todayIntentionDate: day9,
+      momentumStreak: 9,
+      momentumHistory: [{ date: day9, score: 50, tier: "mid" as const }],
+    });
+    expect(result?.text ?? "").not.toContain("이번 달 매일 모멘텀");
+  });
+
+  it("shouldFireExactlyOnDay10", () => {
+    // day 10 === MIN_MONTH_DAYS(10) → boundary fires
+    const day10 = "2024-01-10";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day10,
+      todayIntentionDate: day10,
+      momentumStreak: 10,
+      momentumHistory: [{ date: day10, score: 50, tier: "mid" as const }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 달 매일 모멘텀");
+    expect(result!.text).toContain("10일");
+  });
+
+  it("shouldNotFireWhenMomentumStreakIsAbsent", () => {
+    // momentumStreak absent → skipped silently (no streak data; feature not wired by caller)
+    const params = { ...base() };
+    delete (params as Record<string, unknown>)["momentumStreak"];
+    const result = calcTodayInsight(params);
+    expect(result?.text ?? "").not.toContain("이번 달 매일 모멘텀");
+  });
+
+  it("shouldBePreemptedByPomodoroMonthFlawless", () => {
+    // pomodoro_month_flawless (11.08) fires before momentum_month_flawless (11.09)
+    // when BOTH badges qualify simultaneously.
+    // focusStreak=15 AND sessionsToday=1 → pomodoro_month_flawless fires.
+    // momentumStreak=15, todayMomentumQualifies=true → momentum_month_flawless would fire, but preempted.
+    const result = calcTodayInsight({
+      ...base(),
+      focusStreak: 15,
+      sessionsToday: 1,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("집중"); // pomodoro_month_flawless fires first
+    expect(result!.text).not.toContain("이번 달 매일 모멘텀"); // momentum_month_flawless preempted
+  });
+
+  it("shouldPreemptIntentionStreak", () => {
+    // momentum_month_flawless (11.09) fires before intention_streak (11.1).
+    // intentionConsecutiveDays=7 + todayIntentionDate=TODAY → intention_streak would fire,
+    // but momentum_month_flawless fires at priority 11.09 first.
+    const result = calcTodayInsight({ ...base(), intentionConsecutiveDays: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이번 달 매일 모멘텀"); // momentum_month_flawless fires
+    expect(result!.text).not.toContain("의도"); // intention_streak suppressed
+  });
+
+  it("shouldBePreemptedByMomentumStreakMilestoneOnSameDay", () => {
+    // On day 14 with momentumStreak=14: BOTH momentum_streak_milestone (10.45) AND
+    // momentum_month_flawless (11.09) qualify (streak≥currentMonthDay AND todayQualifies).
+    // momentum_streak_milestone fires first because 14 ∈ [7,14,30] AND todayMomentumQualifies=true.
+    const day14 = "2024-01-14";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day14,
+      todayIntentionDate: day14,
+      momentumStreak: 14,
+      momentumHistory: [{ date: day14, score: 50, tier: "mid" as const }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연속 모멘텀 달성"); // momentum_streak_milestone fires
+    expect(result!.text).not.toContain("이번 달 매일 모멘텀"); // month_flawless not reached
+  });
+
+  it("shouldBePreemptedByMomentumStreakMilestoneOn30DayMonthEnd", () => {
+    // On day 30 of April (30-day month): momentumStreak=30 hits a milestone AND currentMonthDay=30.
+    // Both badges qualify, but momentum_streak_milestone (10.45) fires first (30 ∈ milestones).
+    // For 30-day months, momentum_month_flawless is permanently suppressed on the last day when
+    // the full streak qualifies — the milestone is considered more prestigious.
+    // For 31-day months (e.g. January) day 31 is not a milestone, so flawless fires there.
+    const day30April = "2024-04-30";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day30April,
+      todayIntentionDate: day30April,
+      momentumStreak: 30,
+      momentumHistory: [{ date: day30April, score: 50, tier: "mid" as const }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연속 모멘텀 달성"); // milestone fires
+    expect(result!.text).not.toContain("이번 달 매일 모멘텀"); // flawless permanently suppressed
+  });
+});
+
 // ── intention_month_flawless ─────────────────────────────────────────────────
 // Implemented as a tier within intention_done (priority 4.5): fires when intentionDoneStreak ≥
 // currentMonthDay AND currentMonthDay ≥ MIN_MONTH_DAYS (10), between the milestone and streak tiers.
