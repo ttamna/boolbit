@@ -7523,6 +7523,111 @@ describe("calcTodayInsight — intention_done milestone tier (priority 4.5, with
   });
 });
 
+// ── focus_streak_milestone_approach ─────────────────────────────────────
+describe("calcTodayInsight — focus_streak_milestone_approach (priority 7.421, between focus_streak_milestone and pomodoro_lifetime_milestone)", () => {
+  // Base: afternoon, intention set, no habits, no sessions — no competing insights at this priority band.
+  // No sessionsToday > 0 guard: badge fires as a morning nudge regardless of today's activity.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWith2DaysToMilestone7WhenStreak5", () => {
+    const result = calcTodayInsight({ ...base(), focusStreak: 5 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("5일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone7WhenStreak6", () => {
+    const result = calcTodayInsight({ ...base(), focusStreak: 6 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("6일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith2DaysToMilestone14WhenStreak12", () => {
+    const result = calcTodayInsight({ ...base(), focusStreak: 12 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("12일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("14일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone14WhenStreak13", () => {
+    const result = calcTodayInsight({ ...base(), focusStreak: 13 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("13일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("14일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith2DaysToMilestone30WhenStreak28", () => {
+    const result = calcTodayInsight({ ...base(), focusStreak: 28 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("28일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("30일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone30WhenStreak29", () => {
+    const result = calcTodayInsight({ ...base(), focusStreak: 29 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("29일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("30일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireEvenWhenSessionsTodayIsPositive", () => {
+    // No sessionsToday > 0 guard: approach fires regardless of today's focus activity
+    const result = calcTodayInsight({ ...base(), focusStreak: 6, sessionsToday: 2 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("6일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("7일 마일스톤");
+  });
+
+  it("shouldNotFireWhenStreak4TooFarFromMilestone7", () => {
+    // 7 - 4 = 3 > 2 — not within approach window
+    const result = calcTodayInsight({ ...base(), focusStreak: 4 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenStreak8PastMilestone7TooFarFromMilestone14", () => {
+    // 14 - 8 = 6 > 2 — past 7, not yet close to 14
+    const result = calcTodayInsight({ ...base(), focusStreak: 8 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenFocusStreakAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireMilestoneBadgeAtExactMilestoneStreak7NotApproach", () => {
+    // Structural mutual exclusion: approach condition is `m > focusStreak && m - focusStreak <= 2`.
+    // At streak=7, no milestone m satisfies m > 7 AND m - 7 <= 2 (next is 14, gap=7), so approach cannot fire.
+    // The milestone badge (7.42) fires instead when sessionsToday > 0.
+    const result = calcTodayInsight({ ...base(), focusStreak: 7, sessionsToday: 1 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7일 연속 집중"); // milestone celebration text
+    expect(result!.text).not.toContain("더 유지하면"); // approach badge text absent
+  });
+});
+
 describe("calcTodayInsight — pomodoro_lifetime_milestone (priority 7.43, between focus_streak_milestone and pomodoro_goal_streak)", () => {
   // Base: Monday afternoon, intention set, no habits, no pomodoro goal, no competing insights.
   // TODAY = "2024-01-15" is a Monday — afternoon avoids morning-only gates.
@@ -10609,8 +10714,8 @@ describe("calcTodayInsight — month_quadrafecta_flawless (priority 11.064, befo
   });
 
   it("shouldNotFireWhenFocusStreakBelowCurrentMonthDay", () => {
-    // focusStreak=13 < currentMonthDay(15) → pomodoro domain fails; 13 ∉ [7,14,30] → no milestone
-    const result = calcTodayInsight({ ...base(), focusStreak: 13 });
+    // focusStreak=11 < currentMonthDay(15) → pomodoro domain fails; 11 ∉ [7,14,30] AND not in approach window → both milestone and approach suppressed.
+    const result = calcTodayInsight({ ...base(), focusStreak: 11 });
     expect(result?.text ?? "").not.toContain("습관·의도·집중·모멘텀");
   });
 
@@ -10771,13 +10876,13 @@ describe("calcTodayInsight — month_trifecta_flawless (priority 11.065, after h
   });
 
   it("shouldPreemptHabitMonthFlawlessWhenAllThreeDomainsFlawless", () => {
-    // When pomodoro is NOT flawless (focusStreak=13 < currentMonthDay=15), trifecta cannot fire.
+    // When pomodoro is NOT flawless (focusStreak=11 < currentMonthDay=15), trifecta cannot fire.
     // base() spreads: habit streak=15 (flawless), momentumStreak=15 (flawless), todayMomentumQualifies=true.
     // So only pomodoro is missing → habit_month_flawless (11.07) fires for the habit domain.
-    // focusStreak=13 ∉ FOCUS_STREAK_MILESTONES [7,14,30] → focus_streak_milestone suppressed.
+    // focusStreak=11 ∉ FOCUS_STREAK_MILESTONES [7,14,30] AND not in approach window ([5,6,12,13,28,29]) → both suppressed.
     const pomoNotFlawless = calcTodayInsight({
       ...base(),
-      focusStreak: 13, // pomodoro NOT flawless (focusStreak=13 < currentMonthDay=15); 13 ∉ [7,14,30] → no milestone
+      focusStreak: 11, // pomodoro NOT flawless (11 < currentMonthDay=15); 11 ∉ [7,14,30] AND not in approach window
     });
     const allThreeFlawless = calcTodayInsight(base()); // focusStreak=15 ∉ [7,14,30], all trifecta conditions met
     // With only pomodoro not flawless: trifecta blocked, habit_month_flawless fires
@@ -12795,14 +12900,14 @@ describe("calcTodayInsight — week_quadrafecta_flawless (priority 10.3289, befo
   // FRIDAY = "2024-01-19" → ISO week Friday, daysLeftWeek=3, daysElapsedInWeek=5 ≥ MIN_WEEK_TRIFECTA_DAYS(5).
   // All four domains flawless:
   //   1. Habit: streak=5 ≥ 5, lastChecked=FRIDAY.
-  //   2. Pomodoro: focusStreak=5 ≥ 5, sessionsToday=3 > 0.
+  //   2. Pomodoro: focusStreak=8 ≥ 5, sessionsToday=3 > 0.
   //   3. Momentum: momentumStreak=5 ≥ 5, today score=50 ≥ 40.
   //   4. Intention: todayIntentionDone=true, intentionDoneStreak=5 ≥ 5.
   // todayIntentionDate=undefined suppresses intention_done (needs todayIntentionDate===todayStr).
   // todayIntentionDone=true still enables the quadrafecta guard while keeping intention_done suppressed.
   // momentum_near_tier: score=(1/1)*50+(3/5)*30+20[intentionDone=true]=88 → 88 > nearHigh upper(75) → suppressed.
-  // focusStreak=5: NOT in FOCUS_STREAK_MILESTONES([7,14,30]) → focus_streak_milestone suppressed.
-  // momentumStreak=5: NOT in MOMENTUM_STREAK_MILESTONES([7,14,30]) → momentum_streak_milestone suppressed.
+  // focusStreak=8: NOT in FOCUS_STREAK_MILESTONES([7,14,30]) AND NOT in approach window([5,6,12,13,28,29]) → focus_streak_milestone and focus_streak_milestone_approach suppressed.
+  // momentumStreak=5: ≥ 5 required; momentum_streak_milestone_approach(10.461) fires after quadrafecta(10.3289) → suppressed.
   const FRIDAY = "2024-01-19";
   const THURSDAY = "2024-01-18";
   const SATURDAY = "2024-01-20";
@@ -12819,7 +12924,7 @@ describe("calcTodayInsight — week_quadrafecta_flawless (priority 10.3289, befo
       sessionGoal: 5 as number | undefined,
       habitsAllDoneDate: undefined as string | undefined,
       daysLeftWeek: 3, // Friday → 5 days elapsed in ISO week
-      focusStreak: 5 as number | undefined,
+      focusStreak: 8 as number | undefined,
       momentumStreak: 5 as number | undefined,
       momentumHistory: [{ date: FRIDAY, score: 50, tier: "mid" as const }],
       intentionDoneStreak: 5 as number | undefined,
@@ -12842,7 +12947,7 @@ describe("calcTodayInsight — week_quadrafecta_flawless (priority 10.3289, befo
       todayStr: SATURDAY,
       habits: [{ name: "운동", streak: 6, lastChecked: SATURDAY }],
       daysLeftWeek: 2,
-      focusStreak: 6,
+      focusStreak: 8,
       momentumStreak: 6,
       momentumHistory: [{ date: SATURDAY, score: 50, tier: "mid" as const }],
       intentionDoneStreak: 6,
@@ -12966,7 +13071,7 @@ describe("calcTodayInsight — week_trifecta_flawless (priority 10.329, before w
       sessionGoal: 5 as number | undefined,
       habitsAllDoneDate: undefined as string | undefined,
       daysLeftWeek: 3, // Friday → 5 days elapsed in ISO week
-      focusStreak: 5,
+      focusStreak: 8,
       momentumStreak: 5,
       momentumHistory: [{ date: FRIDAY, score: 50, tier: "mid" as const }],
     };
@@ -13009,7 +13114,7 @@ describe("calcTodayInsight — week_trifecta_flawless (priority 10.329, before w
       todayIntentionDate: SATURDAY,
       daysLeftWeek: 2,
       habits: [{ name: "운동", streak: 6, lastChecked: SATURDAY }],
-      focusStreak: 6,
+      focusStreak: 8,
       momentumStreak: 6,
       momentumHistory: [{ date: SATURDAY, score: 50, tier: "mid" as const }],
     });
@@ -13163,7 +13268,7 @@ describe("calcTodayInsight — habit_week_flawless (priority 10.3291, after week
       ...base(),
       sessionsToday: 3,
       sessionGoal: 5 as number | undefined,
-      focusStreak: 5,    // pomodoro also flawless
+      focusStreak: 8,    // pomodoro also flawless (8 not in approach window [5,6,12,13,28,29])
       momentumStreak: 5, // momentum also flawless
       momentumHistory: [{ date: FRIDAY, score: 50, tier: "mid" as const }],
     });
@@ -13225,7 +13330,7 @@ describe("calcTodayInsight — pomodoro_week_flawless (priority 10.3292, after h
   // habits: streak=3 < 5 → habit NOT flawless → habit_week_flawless suppressed.
   // momentumStreak=3 < 5 → momentum NOT flawless → week_trifecta_flawless suppressed.
   // sessionsToday=3, sessionGoal=5: score=(1/1)*50+(3/5)*30+8=76 ≥ 75 → NOT in nearHigh [63,75) →
-  //   momentum_near_tier suppressed. focusStreak=5 ≥ 5 → pomodoro IS flawless.
+  //   momentum_near_tier suppressed. focusStreak=8 ≥ 5 AND not in approach window → pomodoro IS flawless, approach suppressed.
   const FRIDAY = "2024-01-19";
   const THURSDAY = "2024-01-18";
 
@@ -13239,14 +13344,14 @@ describe("calcTodayInsight — pomodoro_week_flawless (priority 10.3292, after h
       sessionGoal: 5 as number | undefined,
       habitsAllDoneDate: undefined as string | undefined,
       daysLeftWeek: 3,
-      focusStreak: 5 as number | undefined,    // ≥ 5 → pomodoro IS flawless
+      focusStreak: 8 as number | undefined,    // ≥ 5 → pomodoro IS flawless; 8 not in approach window
       momentumStreak: 3 as number | undefined, // < 5 → momentum NOT flawless
       momentumHistory: [] as Array<{ date: string; score: number; tier: "high" | "mid" | "low" }>,
     };
   }
 
   it("shouldFireWhenOnlyPomodoroIsFlawless", () => {
-    // focusStreak=5 ≥ 5, sessionsToday=3 > 0, habit streak=3 < 5 → fires
+    // focusStreak=8 ≥ 5, sessionsToday=3 > 0, habit streak=3 < 5 → fires
     const result = calcTodayInsight(base());
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
@@ -13324,11 +13429,12 @@ describe("calcTodayInsight — momentum_week_flawless (priority 10.3293, after p
   });
 
   it("shouldBePreemptedByPomodoroWeekFlawless", () => {
-    // focusStreak bumped to 5 and sessionsToday=3/sessionGoal=5 → pomodoro_week_flawless (10.3292) fires first.
+    // focusStreak bumped to 8 and sessionsToday=3/sessionGoal=5 → pomodoro_week_flawless (10.3292) fires first.
     // score=(1/1)*50+(3/5)*30+8=76 ≥ 75 → NOT in nearHigh [63,75) → momentum_near_tier suppressed.
+    // focusStreak=8: not in approach window → focus_streak_milestone_approach suppressed.
     const result = calcTodayInsight({
       ...base(),
-      focusStreak: 5,
+      focusStreak: 8,
       sessionsToday: 3,
       sessionGoal: 5 as number | undefined,
     });
@@ -15938,9 +16044,9 @@ describe("calcTodayInsight — pomodoro_month_flawless (priority 11.08, after ha
   });
 
   it("shouldNotFireWhenFocusStreakBelowCurrentMonthDay", () => {
-    // focusStreak=13 < currentMonthDay(15) → at least one day this month had no session.
-    // Using 13 (not a FOCUS_STREAK_MILESTONE) so focus_streak_milestone doesn't preempt.
-    const result = calcTodayInsight({ ...base(), focusStreak: 13 });
+    // focusStreak=11 < currentMonthDay(15) → at least one day this month had no session.
+    // Using 11 (not a FOCUS_STREAK_MILESTONE and not in approach window) so neither milestone nor approach badge preempts.
+    const result = calcTodayInsight({ ...base(), focusStreak: 11 });
     expect(result).toBeNull();
   });
 
