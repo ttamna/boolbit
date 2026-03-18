@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -13043,7 +13043,11 @@ describe("calcTodayInsight — month_balanced (priority 10.395, between momentum
     }));
 
   // Base: afternoon, no habits, no weekly rates (suppresses week_balanced).
-  // habitMonthRate=80 ∈ [70,90), intentionMonthDoneRate=75 ∈ [70,100), momentum avg=50 ∈ [40,65).
+  // habitMonthRate=80 ∈ [70,90), intentionMonthDoneRate=75 ∈ [70,100), momentum avg=45 ∈ [40,65).
+  // avg=45 < 50: when a month_balanced condition is broken and the badge doesn't fire, the code falls
+  //   through to momentum_month_excellent (10.4400, which fires later in the chain than month_balanced
+  //   at 10.395 — no preemption). avg=45 < 50 ensures momentum_month_excellent also doesn't fire,
+  //   so the shouldNotFire* tests correctly return null instead of a non-null excellent badge.
   // Suppresses momentum_recovery (all scores identical — no 2-day dip + recovery pattern).
   function base() {
     return {
@@ -13056,12 +13060,12 @@ describe("calcTodayInsight — month_balanced (priority 10.395, between momentum
       habitsAllDoneDate: undefined as string | undefined,
       habitMonthRate: 80 as number | undefined,
       intentionMonthDoneRate: 75 as number | undefined,
-      momentumHistory: makeMonthHistory(50),
+      momentumHistory: makeMonthHistory(45),
     };
   }
 
   it("shouldFireWhenAllThreeDomainsBalanced", () => {
-    // habitMonthRate=80∈[70,90), intentionMonthDoneRate=75∈[70,100), monthAvg=50∈[40,65) → fires
+    // habitMonthRate=80∈[70,90), intentionMonthDoneRate=75∈[70,100), monthAvg=45∈[40,65) → fires
     const result = calcTodayInsight({ ...base() });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("균형 잡힌 한 달");
@@ -13073,7 +13077,7 @@ describe("calcTodayInsight — month_balanced (priority 10.395, between momentum
     expect(result).not.toBeNull();
     expect(result!.text).toContain("80%");  // habitMonthRate
     expect(result!.text).toContain("75%");  // intentionMonthDoneRate
-    expect(result!.text).toContain("50점"); // momentum avg
+    expect(result!.text).toContain("45점"); // momentum avg
   });
 
   it("shouldNotFireWhenHabitBelowLowerBound_69", () => {
@@ -14124,8 +14128,9 @@ describe("calcTodayInsight — momentum_month_strong (priority 10.44, after inte
   });
 
   it("shouldNotFireWhenMonthAvgBelowThreshold", () => {
-    // avg = 64 (one below threshold) → no badge
-    const result = calcTodayInsight({ ...base(), momentumHistory: makeMonthHistory(64) });
+    // avg = 49: below momentum_month_strong threshold (65) AND below momentum_month_excellent threshold (50)
+    // → no momentum badge fires in this base fixture (no habits, goals, or intentions configured)
+    const result = calcTodayInsight({ ...base(), momentumHistory: makeMonthHistory(49) });
     expect(result).toBeNull();
   });
 
@@ -14206,7 +14211,121 @@ describe("calcTodayInsight — momentum_month_strong (priority 10.44, after inte
   });
 });
 
-// ── pomodoro_month_goal_perfect (priority 10.441, after momentum_month_strong, before pomodoro_month_goal_excellent) ──
+// ── momentum_month_excellent (priority 10.4400, after momentum_month_strong, before momentum_month_improved) ──
+describe("calcTodayInsight — momentum_month_excellent (priority 10.4400, after momentum_month_strong and before momentum_month_improved)", () => {
+  // TODAY = "2024-01-15" → currentMonthDay = 15, monthPrefix = "2024-01".
+  // 14 momentum history entries all in "2024-01" give a deterministic monthly avg.
+  const makeMonthHistory = (score: number) =>
+    Array.from({ length: 14 }, (_, i) => ({
+      date: `2024-01-${String(i + 1).padStart(2, "0")}`,
+      score,
+      tier: (score >= 65 ? "high" : score >= 40 ? "mid" : "low") as "high" | "mid" | "low",
+    }));
+
+  // Base: afternoon, no habits, no sessions, no goals, no intention month rate.
+  // Suppresses: habit_month_* (no habits), intention_month_* (intentionMonthDoneRate absent),
+  // and all higher-priority badges (no projects, no goals, nowHour=15).
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: undefined as string | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+    };
+  }
+
+  it("shouldFireWhenMonthAvgAtLowerBound", () => {
+    // avg === 50 exactly (lower boundary of the excellent range) → fires
+    const result = calcTodayInsight({ ...base(), momentumHistory: makeMonthHistory(50) });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 달");
+    expect(result!.text).toContain("모멘텀");
+    expect(result!.text).toContain("꾸준한 한 달");
+  });
+
+  it("shouldFireWhenMonthAvgAtUpperBound", () => {
+    // avg === 64 (upper boundary; 65 would fire momentum_month_strong instead) → fires
+    const result = calcTodayInsight({ ...base(), momentumHistory: makeMonthHistory(64) });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("꾸준한 한 달");
+  });
+
+  it("shouldNotFireWhenMonthAvgBelowLowerBound", () => {
+    // avg = 49 (one below lower bound 50) → no badge
+    const result = calcTodayInsight({ ...base(), momentumHistory: makeMonthHistory(49) });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByMomentumMonthStrong", () => {
+    // avg = 65 ≥ 65 → momentum_month_strong (10.44) fires first, excellent (10.4400) not reached
+    const result = calcTodayInsight({ ...base(), momentumHistory: makeMonthHistory(65) });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("최고의 한 달이에요"); // momentum_month_strong text
+    expect(result!.text).not.toContain("꾸준한 한 달"); // momentum_month_excellent suppressed
+  });
+
+  it("shouldNotFireWhenMomentumHistoryAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenInsufficientMonthEntries", () => {
+    // 13 entries in current month < 14 minimum → skipped silently
+    const history = Array.from({ length: 13 }, (_, i) => ({
+      date: `2024-01-${String(i + 1).padStart(2, "0")}`,
+      score: 60,
+      tier: "mid" as const,
+    }));
+    const result = calcTodayInsight({ ...base(), momentumHistory: history });
+    expect(result).toBeNull();
+  });
+
+  it("shouldIncludeRoundedScoreInBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), momentumHistory: makeMonthHistory(57) });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("57");
+  });
+
+  it("shouldPreemptMomentumMonthImprovedWhenBothConditionsMet", () => {
+    // curr avg = 60 ∈ [50, 65): momentum_month_excellent (10.4400) fires before improved (10.4401)
+    // Set up prev month entries that would trigger improved (currAvg - prevAvg ≥ 10 → 60 - 45 = 15)
+    const currMonthHistory = Array.from({ length: 14 }, (_, i) => ({
+      date: `2024-01-${String(i + 1).padStart(2, "0")}`,
+      score: 60,
+      tier: "mid" as const,
+    }));
+    const prevMonthHistory = Array.from({ length: 10 }, (_, i) => ({
+      date: `2023-12-${String(i + 15).padStart(2, "0")}`,
+      score: 45,
+      tier: "mid" as const,
+    }));
+    const result = calcTodayInsight({ ...base(), momentumHistory: [...prevMonthHistory, ...currMonthHistory] });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("꾸준한 한 달이에요"); // momentum_month_excellent fires
+    expect(result!.text).not.toContain("올랐어요"); // momentum_month_improved suppressed
+  });
+
+  it("shouldNotFireWhenMonthBalancedFiresFirst", () => {
+    // month_balanced (10.395) fires before momentum_month_excellent (10.4400) when all balance conditions are met.
+    // avg=60 ∈ [50, 65) satisfies momentum_month_excellent, but month_balanced fires first at the lower priority.
+    const result = calcTodayInsight({
+      ...base(),
+      momentumHistory: makeMonthHistory(60),
+      habitMonthRate: 80,
+      intentionMonthDoneRate: 75,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("균형 잡힌 한 달"); // month_balanced fires
+    expect(result!.text).not.toContain("꾸준한 한 달이에요"); // momentum_month_excellent suppressed
+  });
+});
+
+// ── pomodoro_month_goal_perfect (priority 10.441, after momentum_month_excellent, before pomodoro_month_goal_excellent) ──
 describe("calcTodayInsight — pomodoro_month_goal_perfect (priority 10.441, after momentum_month_strong and before pomodoro_today_above_avg)", () => {
   // TODAY = "2024-01-15" → currentMonthDay = 15, which is ≥ 14 (guard passes).
   // pomodoroMonthGoalDays = 14 means all 14 rolling days met the daily session goal.
@@ -14363,8 +14482,8 @@ describe("calcTodayInsight — pomodoro_month_goal_excellent (priority 10.442, a
   });
 });
 
-// ── momentum_month_improved (priority 10.4401, after momentum_month_strong, before pomodoro_month_goal_perfect) ──
-describe("calcTodayInsight — momentum_month_improved (priority 10.4401, after momentum_month_strong and before pomodoro_month_goal_perfect)", () => {
+// ── momentum_month_improved (priority 10.4401, after momentum_month_excellent, before pomodoro_month_goal_perfect) ──
+describe("calcTodayInsight — momentum_month_improved (priority 10.4401, after momentum_month_excellent and before pomodoro_month_goal_perfect)", () => {
   // TODAY = "2024-02-15" → currentMonthDay = 15, monthPrefix = "2024-02", prevMonthPrefix = "2024-01".
   // curr entries in Feb 2024, prev entries in Jan 2024 (end of January within rolling 31-day window).
   const TODAY = "2024-02-15";
@@ -14397,8 +14516,8 @@ describe("calcTodayInsight — momentum_month_improved (priority 10.4401, after 
   }
 
   it("shouldFireWhenCurrentMonthAvgExceedsPrevByThreshold", () => {
-    // curr=55, prev=42 → diff=13 ≥ 10 → fires
-    const result = calcTodayInsight({ ...base(), momentumHistory: makeHistory(55, 14, 42, 10) });
+    // curr=47, prev=35 → diff=12 ≥ 10 → fires; curr < 50 avoids momentum_month_excellent (10.4400)
+    const result = calcTodayInsight({ ...base(), momentumHistory: makeHistory(47, 14, 35, 10) });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
     expect(result!.text).toContain("이번 달");
@@ -14407,39 +14526,39 @@ describe("calcTodayInsight — momentum_month_improved (priority 10.4401, after 
   });
 
   it("shouldIncludeRiseDeltaAndCurrentAvgInText", () => {
-    // curr=55, prev=42 → diff=13
-    const result = calcTodayInsight({ ...base(), momentumHistory: makeHistory(55, 14, 42, 10) });
+    // curr=47, prev=35 → diff=12
+    const result = calcTodayInsight({ ...base(), momentumHistory: makeHistory(47, 14, 35, 10) });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("55"); // current avg
-    expect(result!.text).toContain("13"); // rise delta
+    expect(result!.text).toContain("47"); // current avg
+    expect(result!.text).toContain("12"); // rise delta
   });
 
   it("shouldFireAtExactDiffThreshold", () => {
-    // curr=52, prev=42 → diff=10 exactly → fires
-    const result = calcTodayInsight({ ...base(), momentumHistory: makeHistory(52, 14, 42, 10) });
+    // curr=49, prev=39 → diff=10 exactly → fires; curr=49 < 50 avoids momentum_month_excellent
+    const result = calcTodayInsight({ ...base(), momentumHistory: makeHistory(49, 14, 39, 10) });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
   });
 
   it("shouldNotFireWhenDiffBelowThreshold", () => {
-    // curr=51, prev=42 → diff=9 < 10 → no badge
-    const result = calcTodayInsight({ ...base(), momentumHistory: makeHistory(51, 14, 42, 10) });
+    // curr=48, prev=40 → diff=8 < 10 → no badge; curr=48 < 50 avoids momentum_month_excellent
+    const result = calcTodayInsight({ ...base(), momentumHistory: makeHistory(48, 14, 40, 10) });
     expect(result).toBeNull();
   });
 
   it("shouldNotFireWhenCurrentMonthDayBelow14", () => {
-    // currentMonthDay = 13 → guard fails
+    // currentMonthDay = 13 → guard fails; curr=47 < 50 avoids momentum_month_excellent
     const result = calcTodayInsight({
       ...base(),
       todayStr: "2024-02-13",
-      momentumHistory: makeHistory(55, 13, 42, 10),
+      momentumHistory: makeHistory(47, 13, 35, 10),
     });
     expect(result).toBeNull();
   });
 
   it("shouldNotFireWhenPrevMonthEntriesInsufficient", () => {
-    // prev month has only 9 entries < 10 minimum → no badge
-    const result = calcTodayInsight({ ...base(), momentumHistory: makeHistory(55, 14, 42, 9) });
+    // prev month has only 9 entries < 10 minimum → no badge; curr=47 < 50 avoids momentum_month_excellent
+    const result = calcTodayInsight({ ...base(), momentumHistory: makeHistory(47, 14, 35, 9) });
     expect(result).toBeNull();
   });
 
@@ -14453,9 +14572,10 @@ describe("calcTodayInsight — momentum_month_improved (priority 10.4401, after 
 
   it("shouldFireBeforePomodoroMonthGoalPerfect", () => {
     // momentum_month_improved (10.4401) fires before pomodoro_month_goal_perfect (10.441)
+    // curr=47 < 50 avoids momentum_month_excellent (10.4400); diff=12 ≥ 10 triggers improved
     const result = calcTodayInsight({
       ...base(),
-      momentumHistory: makeHistory(55, 14, 42, 10),
+      momentumHistory: makeHistory(47, 14, 35, 10),
       pomodoroMonthGoalDays: 14, // would trigger pomodoro_month_goal_perfect
     });
     expect(result).not.toBeNull();
@@ -14527,8 +14647,9 @@ describe("calcTodayInsight — momentum_month_declined (priority 10.4402, after 
   });
 
   it("shouldBePreemptedByMomentumMonthImproved", () => {
-    // improved and declined are mutually exclusive — curr=55, prev=42 → only improved fires
-    const result = calcTodayInsight({ ...base(), momentumHistory: makeHistory(55, 14, 42, 10) });
+    // improved and declined are mutually exclusive — curr=47, prev=35, diff=12 → only improved fires
+    // curr=47 < 50 avoids momentum_month_excellent (10.4400) preempting improved (10.4401)
+    const result = calcTodayInsight({ ...base(), momentumHistory: makeHistory(47, 14, 35, 10) });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("올랐어요"); // improved fires, not declined
     expect(result!.text).not.toContain("낮아요");
