@@ -2338,7 +2338,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   //   1. Habit: any habit with lastChecked === todayStr AND streak ≥ currentMonthDay (covers all days 1–today).
   //   2. Pomodoro: focusStreak ≥ currentMonthDay AND sessionsToday > 0 (mirrors pomodoro_month_flawless 11.08).
   //   3. Momentum: momentumStreak ≥ currentMonthDay AND todayMomentumQualifies (mirrors momentum_month_flawless 11.09).
-  // todayMomentumQualifies reuses the const declared at line ~2039 (momentum_streak_milestone block).
+  // todayMomentumQualifies reuses the const declared in the momentum_streak_milestone block.
   // currentMonthDay already computed above (habit_month_perfect, priority 10.40).
   // Requires ≥ MIN_MONTH_DAYS (10) into the month — same gate as individual flawless badges.
   // Absent focusStreak or momentumStreak → silently skipped (feature not wired by caller).
@@ -2401,7 +2401,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   //      a streak of 15 that started yesterday (covering Dec 30–Jan 13 on day 14) would falsely pass the
   //      ≥ currentMonthDay check even though today is not yet qualifying — same role as sessionsToday > 0
   //      in pomodoro_month_flawless and lastChecked === todayStr in habit_month_flawless.
-  //   todayMomentumQualifies reuses the const declared at line ~2039 (momentum_streak_milestone block).
+  //   todayMomentumQualifies reuses the const declared in the momentum_streak_milestone block.
   // Requires ≥ MIN_MONTH_DAYS (10) days into the month to avoid premature celebration.
   // momentumStreak absent → skipped silently (feature not wired by caller).
   // Fires AFTER pomodoro_month_flawless (11.08): daily focus sessions outweigh the derived momentum score.

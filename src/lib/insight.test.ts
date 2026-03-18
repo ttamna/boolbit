@@ -10250,18 +10250,19 @@ describe("calcTodayInsight — month_trifecta_flawless (priority 11.065, after h
   });
 
   it("shouldPreemptHabitMonthFlawlessWhenAllThreeDomainsFlawless", () => {
-    // Only habit domain is flawless → habit_month_flawless (11.07) would fire.
-    // When all three domains (habit + pomodoro + momentum) are flawless, trifecta (11.065) fires instead.
-    // focusStreak=13 (not in FOCUS_STREAK_MILESTONES [7,14,30] → focus_streak_milestone suppressed).
-    const onlyHabitFlawless = calcTodayInsight({
+    // When pomodoro is NOT flawless (focusStreak=13 < currentMonthDay=15), trifecta cannot fire.
+    // base() spreads: habit streak=15 (flawless), momentumStreak=15 (flawless), todayMomentumQualifies=true.
+    // So only pomodoro is missing → habit_month_flawless (11.07) fires for the habit domain.
+    // focusStreak=13 ∉ FOCUS_STREAK_MILESTONES [7,14,30] → focus_streak_milestone suppressed.
+    const pomoNotFlawless = calcTodayInsight({
       ...base(),
-      focusStreak: 13, // pomodoro NOT flawless (streak < currentMonthDay=15); 13 ∉ [7,14,30] → no milestone
+      focusStreak: 13, // pomodoro NOT flawless (focusStreak=13 < currentMonthDay=15); 13 ∉ [7,14,30] → no milestone
     });
     const allThreeFlawless = calcTodayInsight(base()); // focusStreak=15 ∉ [7,14,30], all trifecta conditions met
-    // With only habit flawless: habit_month_flawless fires (streak 15 = currentMonthDay)
-    expect(onlyHabitFlawless).not.toBeNull();
-    expect(onlyHabitFlawless!.text).toContain("이번 달 개근");
-    // With all three flawless: trifecta fires instead
+    // With only pomodoro not flawless: trifecta blocked, habit_month_flawless fires
+    expect(pomoNotFlawless).not.toBeNull();
+    expect(pomoNotFlawless!.text).toContain("이번 달 개근");
+    // With all three flawless: trifecta fires instead, preempting habit_month_flawless
     expect(allThreeFlawless).not.toBeNull();
     expect(allThreeFlawless!.text).toContain("습관·집중·모멘텀");
     expect(allThreeFlawless!.text).not.toContain("이번 달 개근");
@@ -10269,23 +10270,27 @@ describe("calcTodayInsight — month_trifecta_flawless (priority 11.065, after h
 
   it("shouldBePreemptedByMomentumStreakMilestone", () => {
     // momentum_streak_milestone (10.46) fires when momentumStreak hits 7, 14, or 30 and todayQualifies.
-    // Priority 10.46 is well above 11.065, so it preempts month_trifecta_flawless even when all trifecta
-    // conditions are met.
-    // day11 = "2024-01-11": currentMonthDay=11 ≥ MIN_MONTH_DAYS(10); momentumStreak=7 ∈ [7,14,30].
-    // focusStreak=11 ∉ [7,14,30] → focus_streak_milestone (7.42) suppressed; doesn't preempt first.
-    const day11 = "2024-01-11";
+    // Priority 10.46 is higher (lower number = higher priority) than 11.065, so it preempts trifecta.
+    // All trifecta conditions must be met to confirm true preemption (not just a missing condition):
+    //   day14 = "2024-01-14": currentMonthDay=14 ≥ MIN_MONTH_DAYS(10) ✓
+    //   habit streak=14 ≥ currentMonthDay=14, lastChecked=day14 ✓
+    //   focusStreak=15 ≥ 14, sessionsToday=3 > 0 ✓; 15 ∉ [7,14,30] → focus_streak_milestone suppressed
+    //   momentumStreak=14 ≥ 14 ✓; 14 ∈ [7,14,30] → milestone fires AND trifecta condition met
+    //   todayMomentumQualifies: history entry for day14 with score=50 ✓
+    // milestone (10.46) fires first, preempting trifecta (11.065) even though all trifecta conditions hold.
+    const day14 = "2024-01-14";
     const result = calcTodayInsight({
       ...base(),
-      todayStr: day11,
-      todayIntentionDate: day11,
-      habits: [{ name: "운동", streak: 11, lastChecked: day11 }],
-      focusStreak: 11,
-      momentumStreak: 7, // 7 ∈ MOMENTUM_STREAK_MILESTONES [7,14,30] → milestone fires
-      momentumHistory: [{ date: day11, score: 50, tier: "mid" as const }],
+      todayStr: day14,
+      todayIntentionDate: day14,
+      habits: [{ name: "운동", streak: 14, lastChecked: day14 }],
+      focusStreak: 15, // 15 ≥ currentMonthDay=14 ✓; 15 ∉ [7,14,30] → focus_streak_milestone suppressed
+      momentumStreak: 14, // 14 ∈ MOMENTUM_STREAK_MILESTONES [7,14,30] → milestone fires; 14 ≥ 14 → trifecta also met
+      momentumHistory: [{ date: day14, score: 50, tier: "mid" as const }],
     });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("연속 모멘텀 달성"); // momentum_streak_milestone fires
-    expect(result!.text).not.toContain("습관·집중·모멘텀"); // trifecta preempted
+    expect(result!.text).toContain("연속 모멘텀 달성"); // momentum_streak_milestone fires (preempts trifecta)
+    expect(result!.text).not.toContain("습관·집중·모멘텀"); // trifecta preempted despite all conditions met
   });
 
   it("shouldBePreemptedByHabitTargetHalfway", () => {
