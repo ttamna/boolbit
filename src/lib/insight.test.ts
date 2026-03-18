@@ -12025,6 +12025,26 @@ describe("calcTodayInsight — habit_month_excellent (priority 10.41, ≥ 2 habi
     expect(result!.text).not.toMatch(/\d+\/\d+개 습관 개근/); // not habit_month_excellent
   });
 
+  it("shouldFireOnExactDay14Boundary", () => {
+    // currentMonthDay = 14 — exactly at the >= 14 threshold; 2/3 flawless → badge MUST fire
+    // 명상 streak=5: not flawless (5 < 14) and >= 30% of avg(14,14)=4.2 → no diversity_warning
+    const result = calcTodayInsight({
+      habits: [
+        { name: "운동", streak: 14, lastChecked: "2024-01-14" },
+        { name: "독서", streak: 14, lastChecked: "2024-01-14" },
+        { name: "명상", streak: 5, lastChecked: "2024-01-14" }, // not flawless (streak < 14)
+      ],
+      todayStr: "2024-01-14",
+      nowHour: 12,
+      todayIntentionDate: "2024-01-14",
+      sessionsToday: 0,
+      habitsAllDoneDate: "2024-01-13",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toMatch(/2\/3개 습관 개근/);
+    expect(result!.text).toContain("(14일)");
+  });
+
   it("shouldBePreemptedByHabitWeekExcellent", () => {
     // habit_week_excellent (10.35) fires before habit_month_excellent (10.41)
     const result = calcTodayInsight({
