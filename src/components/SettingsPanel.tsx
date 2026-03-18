@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, CSSProperties } from "react";
 import { fontSizes, colors, THEMES, ThemeKey } from "../theme";
-import type { WidgetSettings, WidgetData } from "../types";
+import type { WidgetSettings, WidgetData, SectionKey } from "../types";
 import { buildExportBlob, triggerDownload, parseImportedData } from "../lib/dataIO";
 
 type PatStatus = 'idle' | 'testing' | 'ok' | 'error';
@@ -24,11 +24,15 @@ async function testPat(pat: string): Promise<{ status: PatStatus; msg: string }>
   }
 }
 
+const ALL_SECTIONS: SectionKey[] = ["projects", "streaks", "direction", "pomodoro"];
+
 interface SettingsPanelProps {
   settings: WidgetSettings;
   onUpdate: (patch: Partial<WidgetSettings>) => void;
   widgetData?: WidgetData;
   onImport?: (data: WidgetData) => void;
+  hiddenSections?: SectionKey[];
+  onHiddenSectionsChange?: (sections: SectionKey[]) => void;
 }
 
 const row: CSSProperties = {
@@ -45,7 +49,7 @@ const label: CSSProperties = {
   flexShrink: 0,
 };
 
-export function SettingsPanel({ settings, onUpdate, widgetData, onImport }: SettingsPanelProps) {
+export function SettingsPanel({ settings, onUpdate, widgetData, onImport, hiddenSections = [], onHiddenSectionsChange }: SettingsPanelProps) {
   const currentTheme = settings.theme;
   const themeAccent = THEMES[currentTheme].accent;
 
@@ -247,6 +251,40 @@ export function SettingsPanel({ settings, onUpdate, widgetData, onImport }: Sett
                 }}
               >
                 {fmt}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ ...row, alignItems: "flex-start", flexDirection: "column", gap: 6, paddingTop: 10, borderTop: `1px solid ${colors.borderFaint}` }}>
+        <span style={label}>섹션</span>
+        <div style={{ display: "flex", gap: 4 }}>
+          {ALL_SECTIONS.map(section => {
+            const hidden = hiddenSections.includes(section);
+            return (
+              <button
+                key={section}
+                title={`${section} 섹션 표시/숨기기`}
+                onClick={() => {
+                  if (!onHiddenSectionsChange) return;
+                  if (hidden) {
+                    onHiddenSectionsChange(hiddenSections.filter(s => s !== section));
+                  } else {
+                    onHiddenSectionsChange([...hiddenSections, section]);
+                  }
+                }}
+                style={{
+                  fontSize: fontSizes.xs,
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  background: "transparent",
+                  color: hidden ? colors.textPhantom : themeAccent,
+                  border: `1px solid ${hidden ? colors.borderFaint : themeAccent}`,
+                  cursor: "pointer",
+                }}
+              >
+                {section}
               </button>
             );
           })}
