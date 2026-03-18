@@ -1835,6 +1835,14 @@ export default function App() {
     intentionPrevSetCount7 >= 2
       ? Math.round((intentionPrevDoneCount7 / intentionPrevSetCount7) * 100)
       : undefined;
+  // pomodoroWeekSessions / pomodoroPrevWeekSessions for pomodoro_week_improved/declined badges.
+  // Uses the same last7Days / last14Days windows as habit week comparisons — single source of truth.
+  const pomodoroWeekSessions = (data.pomodoroHistory ?? [])
+    .filter(e => last7Days.includes(e.date))
+    .reduce((sum, e) => sum + e.count, 0);
+  const pomodoroPrevWeekSessions = (data.pomodoroHistory ?? [])
+    .filter(e => last14Days.slice(0, 7).includes(e.date))
+    .reduce((sum, e) => sum + e.count, 0);
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1970,6 +1978,9 @@ export default function App() {
     // Both computed before this call (above) — undefined when insufficient sample (setCount < threshold).
     intentionWeekDoneRate,
     intentionPrevWeekDoneRate,
+    // pomodoroWeekSessions / pomodoroPrevWeekSessions: rolling 7-day session totals for week-comparison badges.
+    pomodoroWeekSessions,
+    pomodoroPrevWeekSessions,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 31-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
