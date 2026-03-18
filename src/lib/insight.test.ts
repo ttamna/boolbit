@@ -14454,7 +14454,7 @@ describe("calcTodayInsight — intention_month_maintained (priority 10.43005, af
   });
 
   it("shouldNotFireWhenRateBelow50", () => {
-    // 49% < 50 → maintained upper-bound guard fails; no other badge fires with empty habits → null
+    // 49% < 50 → maintained lower-bound guard fails; no other badge fires with empty habits → null
     const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: 49 });
     expect(result).toBeNull();
   });

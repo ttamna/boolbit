@@ -2086,7 +2086,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   }
 
   // 10.43005. Intention month maintained: this calendar month's intention done rate is 50–79%.
-  // Range [50, 80): above 50 signals consistent practice even without excellence; rate ≥ 80 means
+  // Range [50, 80): 50 or above signals consistent practice even without excellence; rate ≥ 80 means
   //   excellent (10.43) already fired — so this block only fires when 50 ≤ rate < 80.
   // Fires AFTER intention_month_excellent (10.43): excellent preempts maintained for rate ≥ 80.
   // Fires BEFORE intention_month_improved (10.4301): absolute mid-tier level preempts relative delta.
