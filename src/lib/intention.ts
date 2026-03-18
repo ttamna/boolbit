@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, evening reminder, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, and per-weekday intention done-rate analysis logic
+// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, evening reminder, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, per-weekday intention done-rate analysis, and current calendar month done rate logic
 // ABOUTME: todayStr anchors all date arithmetic for DST safety; notification helpers guard duplicate sends via caller-managed date fields
 
 import type { IntentionEntry } from "../types";
@@ -368,4 +368,35 @@ export function calcBestIntentionDay(rates: Record<number, number | null>): numb
     if (bestRate === null || rate > bestRate) { bestRate = rate; bestDow = dow; }
   }
   return bestDow;
+}
+
+/**
+ * Computes the current calendar month's intention done rate (0–100 rounded integer).
+ * Returns undefined when fewer than 14 intentions were set this month (insufficient sample).
+ *
+ * Counts entries in intentionHistory whose date matches the current YYYY-MM month prefix,
+ * excluding todayStr (today's live state is provided separately via todayIntention/todayIntentionDone
+ * to avoid double-counting — intentionHistory may include today's entry when it was persisted).
+ * Adds today's live data when todayStr is within the current month and todayIntention is non-empty.
+ *
+ * MIN_MONTH_INTENTION_SETCOUNT = 14: same guard as habit_month_perfect; avoids early-month noise.
+ * Exported for unit testing; pure function with no side effects.
+ */
+const MIN_MONTH_INTENTION_SETCOUNT = 14;
+export function calcIntentionMonthDoneRate(
+  history: IntentionEntry[],
+  todayStr: string,
+  todayIntention: string | undefined,
+  todayIntentionDone: boolean | undefined,
+): number | undefined {
+  const monthPrefix = todayStr.slice(0, 7);
+  // Exclude today: intentionHistory may already contain today's persisted entry.
+  // Live state (todayIntention/todayIntentionDone) is the authoritative source for today.
+  const monthHistory = history.filter(e => e.date.startsWith(monthPrefix) && e.date !== todayStr);
+  const todaySet = !!(todayIntention?.trim());
+  const todayDone = todaySet && todayIntentionDone === true;
+  const setCount = monthHistory.length + (todaySet ? 1 : 0);
+  const doneCount = monthHistory.filter(e => e.done === true).length + (todayDone ? 1 : 0);
+  if (setCount < MIN_MONTH_INTENTION_SETCOUNT) return undefined;
+  return Math.round((doneCount / setCount) * 100);
 }

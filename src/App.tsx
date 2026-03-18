@@ -13,7 +13,7 @@ import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay } from "./lib/intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcYearlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcYearlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
@@ -1847,6 +1847,16 @@ export default function App() {
   const pomodoroWeekGoalDays = (data.pomodoroSessionGoal && data.pomodoroSessionGoal > 0)
     ? calcPomodoroWeekGoalDays(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, last7Days, pomodoroSessionsToday, todayStr)
     : undefined;
+  // intentionMonthDoneRate: current calendar month's intention done rate (0–100), or undefined when
+  // fewer than 14 intentions were set this month (insufficient data for a meaningful signal).
+  // Delegates to calcIntentionMonthDoneRate which excludes today from intentionHistory to avoid
+  // double-counting (intentionHistory may already contain today's persisted entry).
+  const intentionMonthDoneRate = calcIntentionMonthDoneRate(
+    data.intentionHistory ?? [],
+    todayStr,
+    data.todayIntention,
+    data.todayIntentionDone,
+  );
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -1982,6 +1992,8 @@ export default function App() {
     // Both computed before this call (above) — undefined when insufficient sample (setCount < threshold).
     intentionWeekDoneRate,
     intentionPrevWeekDoneRate,
+    // intentionMonthDoneRate: current calendar month done rate — undefined when setCount < 14.
+    intentionMonthDoneRate,
     // pomodoroWeekSessions / pomodoroPrevWeekSessions: rolling 7-day session totals for week-comparison badges.
     pomodoroWeekSessions,
     pomodoroPrevWeekSessions,

@@ -11870,6 +11870,7 @@ describe("calcTodayInsight — habit_month_perfect (priority 10.40, after moment
       nowHour: 12,
       todayIntentionDate: "2024-01-14",
       sessionsToday: 0,
+      sessionGoal: undefined,
       habitsAllDoneDate: "2024-01-13",
     });
     expect(result).not.toBeNull();
@@ -12038,6 +12039,7 @@ describe("calcTodayInsight — habit_month_excellent (priority 10.41, ≥ 2 habi
       nowHour: 12,
       todayIntentionDate: "2024-01-14",
       sessionsToday: 0,
+      sessionGoal: undefined,
       habitsAllDoneDate: "2024-01-13",
     });
     expect(result).not.toBeNull();
@@ -12059,6 +12061,166 @@ describe("calcTodayInsight — habit_month_excellent (priority 10.41, ≥ 2 habi
     expect(result).not.toBeNull();
     expect(result!.text).toContain("이번 주 습관 완료율 92%"); // habit_week_excellent fires first (unique text)
     expect(result!.text).not.toContain("이번 달"); // habit_month_excellent suppressed
+  });
+});
+
+// ── intention_month_perfect ────────────────────────────────────────
+describe("calcTodayInsight — intention_month_perfect (priority 10.42, after habit_month_excellent)", () => {
+  // TODAY = "2024-01-15" → currentMonthDay = 15 ≥ 14 threshold.
+  // intentionMonthDoneRate = 100 triggers the badge (setCount ≥ 14 guard applied in App.tsx before passing).
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+      // habitWeekRate absent — prevents habit_week_* from firing
+      // intentionWeekDoneRate absent — prevents intention_week_* from firing
+    };
+  }
+
+  it("shouldFireWhenMonthlyDoneRateIs100", () => {
+    // intentionMonthDoneRate = 100 → intention_month_perfect fires
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 달");
+    expect(result!.text).toContain("100%");
+    expect(result!.text).toContain("의도");
+  });
+
+  it("shouldNotFireWhenIntentionMonthDoneRateIsUndefined", () => {
+    // Absent = insufficient data (setCount < 14 in calcIntentionMonthDoneRate) → badge skipped silently.
+    // base() has no habits, no goals, no week rates, nowHour=12 — no other badge fires → result is null.
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireExcellentNotPerfectWhenRateIs99", () => {
+    // 99% → intention_month_excellent (10.43) fires instead of perfect (10.42)
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 99,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("99%");
+    expect(result!.text).not.toContain("100%"); // perfect text absent
+  });
+
+  it("shouldBePreemptedByHabitMonthPerfect", () => {
+    // habit_month_perfect (10.40) fires before intention_month_perfect (10.42)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 15, lastChecked: TODAY },
+      ],
+      intentionMonthDoneRate: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("전 습관 개근"); // habit_month_perfect fires first
+    expect(result!.text).not.toContain("의도 달성률"); // intention_month_perfect suppressed
+  });
+
+  it("shouldBePreemptedByHabitMonthExcellent", () => {
+    // habit_month_excellent (10.41) fires before intention_month_perfect (10.42)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 15, lastChecked: TODAY },
+        { name: "명상", streak: 5, lastChecked: TODAY },
+      ],
+      intentionMonthDoneRate: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toMatch(/2\/3개 습관 개근/); // habit_month_excellent fires first
+    expect(result!.text).not.toContain("의도 달성률"); // intention_month_perfect suppressed
+  });
+});
+
+// ── intention_month_excellent ──────────────────────────────────────
+describe("calcTodayInsight — intention_month_excellent (priority 10.43, after intention_month_perfect)", () => {
+  // TODAY = "2024-01-15" → currentMonthDay = 15 ≥ 14 threshold.
+  // intentionMonthDoneRate in [80, 99] triggers the badge.
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+  it("shouldFireWhenMonthlyRateIs80", () => {
+    // 80% — lower boundary of "excellent" range
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 80,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 달");
+    expect(result!.text).toContain("80%");
+  });
+
+  it("shouldFireWhenMonthlyRateIs99", () => {
+    // 99% — upper boundary of "excellent" range (100% deferred to perfect)
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 99,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("99%");
+  });
+
+  it("shouldNotFireWhenRateBelow80", () => {
+    // 79% → below excellent threshold; no month badge fires.
+    // base() has no habits, no goals, nowHour=12 — no other badge fires → result is null.
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 79,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenRateIs100", () => {
+    // 100% → preempted by intention_month_perfect (10.42); excellent text must not appear
+    const result = calcTodayInsight({
+      ...base(),
+      intentionMonthDoneRate: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("100%");
+    expect(result!.text).not.toContain("훌륭한 실천"); // excellent suffix absent (perfect fires instead)
+  });
+
+  it("shouldBePreemptedByHabitMonthPerfect", () => {
+    // habit_month_perfect (10.40) fires before intention_month_excellent (10.43)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [
+        { name: "운동", streak: 15, lastChecked: TODAY },
+        { name: "독서", streak: 15, lastChecked: TODAY },
+      ],
+      intentionMonthDoneRate: 85,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("전 습관 개근"); // habit_month_perfect fires first
+    expect(result!.text).not.toContain("의도 달성률");
   });
 });
 

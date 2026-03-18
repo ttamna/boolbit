@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, and calcBestIntentionDay helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, per-weekday intention done rate, weak/best intention day detection, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, and calcIntentionMonthDoneRate helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, per-weekday intention done rate, weak/best intention day detection, current calendar month done rate, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay } from "./intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate } from "./intention";
 import type { IntentionEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
@@ -1156,5 +1156,74 @@ describe("calcBestIntentionDay", () => {
   it("should return lowest weekday number when multiple weekdays tie at the best rate", () => {
     // dow=1 and dow=4 both at 90% → lowest dow wins (1)
     expect(calcBestIntentionDay({ 0: null, 1: 90, 2: null, 3: null, 4: 90, 5: null, 6: null })).toBe(1);
+  });
+});
+
+// ── calcIntentionMonthDoneRate ────────────────────────────────────────────────
+describe("calcIntentionMonthDoneRate", () => {
+  // todayStr = "2024-01-15" → monthPrefix = "2024-01"
+
+  it("should return undefined when setCount < 14 (insufficient data)", () => {
+    // 13 past entries + today not set → setCount=13 < 14
+    const history: IntentionEntry[] = Array.from({ length: 13 }, (_, i) => ({
+      date: `2024-01-${String(i + 1).padStart(2, "0")}`,
+      text: "test",
+      done: true,
+    }));
+    expect(calcIntentionMonthDoneRate(history, "2024-01-15", undefined, undefined)).toBeUndefined();
+  });
+
+  it("should return 100 when all 14 entries are done (exact boundary)", () => {
+    // 13 past entries (all done) + today set and done → setCount=14, doneCount=14
+    const history: IntentionEntry[] = Array.from({ length: 13 }, (_, i) => ({
+      date: `2024-01-${String(i + 1).padStart(2, "0")}`,
+      text: "test",
+      done: true,
+    }));
+    expect(calcIntentionMonthDoneRate(history, "2024-01-14", "오늘 의도", true)).toBe(100);
+  });
+
+  it("should exclude today from history to avoid double-counting", () => {
+    // intentionHistory includes today's entry (persisted), plus todayIntention is set done.
+    // Without exclusion: setCount=15, doneCount=14 → 93%. With exclusion: setCount=14, doneCount=14 → 100%.
+    const history: IntentionEntry[] = Array.from({ length: 13 }, (_, i) => ({
+      date: `2024-01-${String(i + 1).padStart(2, "0")}`,
+      text: "test",
+      done: true,
+    }));
+    // Add today's entry to history as if it were persisted (done=false, but live state says done=true)
+    history.push({ date: "2024-01-14", text: "old entry", done: false });
+    // todayStr = "2024-01-14"; live state: todayIntentionDone=true
+    // Without today-exclusion: history has 14 entries (13 done=true + today done=false), plus today set done → 15 set, 14 done → 93%
+    // With today-exclusion: history has 13 entries (all done=true), today set done → 14 set, 14 done → 100%
+    expect(calcIntentionMonthDoneRate(history, "2024-01-14", "오늘 의도", true)).toBe(100);
+  });
+
+  it("should compute rate correctly when some entries are not done", () => {
+    // 13 past entries (10 done, 3 not done) + today set and done → setCount=14, doneCount=11 → 79%
+    const history: IntentionEntry[] = [
+      ...Array.from({ length: 10 }, (_, i) => ({ date: `2024-01-${String(i + 1).padStart(2, "0")}`, text: "t", done: true })),
+      ...Array.from({ length: 3 }, (_, i) => ({ date: `2024-01-${String(i + 11).padStart(2, "0")}`, text: "t", done: false })),
+    ];
+    expect(calcIntentionMonthDoneRate(history, "2024-01-14", "오늘 의도", true)).toBe(Math.round(11 / 14 * 100));
+  });
+
+  it("should not count today when todayIntention is absent", () => {
+    // 14 past entries (all done), today not set → setCount=14, doneCount=14 → 100%
+    const history: IntentionEntry[] = Array.from({ length: 14 }, (_, i) => ({
+      date: `2024-01-${String(i + 1).padStart(2, "0")}`,
+      text: "test",
+      done: true,
+    }));
+    expect(calcIntentionMonthDoneRate(history, "2024-01-15", undefined, undefined)).toBe(100);
+  });
+
+  it("should not include entries from a different month", () => {
+    // 13 December entries + 1 January entry (all done) → January setCount=1 < 14 → undefined
+    const history: IntentionEntry[] = [
+      ...Array.from({ length: 13 }, (_, i) => ({ date: `2023-12-${String(i + 1).padStart(2, "0")}`, text: "t", done: true })),
+      { date: "2024-01-01", text: "jan", done: true },
+    ];
+    expect(calcIntentionMonthDoneRate(history, "2024-01-15", undefined, undefined)).toBeUndefined();
   });
 });
