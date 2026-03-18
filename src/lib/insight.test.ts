@@ -12035,7 +12035,7 @@ describe("calcTodayInsight — month_balanced (priority 10.395, between momentum
     expect(result!.text).toContain("균형 잡힌 한 달");
   });
 
-  it("shouldFireAtMomentumUpperBoundary_64", () => {
+  it("shouldFireAtMomentumJustBelowUpperBound_64", () => {
     const result = calcTodayInsight({ ...base(), momentumHistory: makeMonthHistory(64) });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("균형 잡힌 한 달");
