@@ -13537,8 +13537,10 @@ describe("calcTodayInsight — month_balanced (priority 10.395, between momentum
   });
 
   it("shouldNotFireWhenHabitBelowLowerBound_69", () => {
-    // habitMonthRate=69 < 70 → lower-bound guard fails; no monthly badge fires (no prev rates, no streaks) → null
-    const result = calcTodayInsight({ ...base(), habitMonthRate: 69, momentumHistory: makeMonthHistory(35) });
+    // habitMonthRate=69 < 70 → lower-bound guard fails; month_balanced doesn't fire.
+    // intentionMonthDoneRate=undefined: base()=75 would trigger intention_month_maintained (10.43005)
+    //   when execution falls through past the failed month_balanced block — setting undefined prevents that.
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 69, intentionMonthDoneRate: undefined, momentumHistory: makeMonthHistory(35) });
     expect(result).toBeNull();
   });
 
@@ -13555,15 +13557,20 @@ describe("calcTodayInsight — month_balanced (priority 10.395, between momentum
   });
 
   it("shouldNotFireWhenHabitAtUpperBound_90", () => {
-    // habitMonthRate=90 ≥ 90 → upper-bound guard fails; no other monthly badge fires (habits=[], no prev rates) → null
-    const result = calcTodayInsight({ ...base(), habitMonthRate: 90, momentumHistory: makeMonthHistory(35) });
+    // habitMonthRate=90 ≥ 90 → upper-bound guard fails; month_balanced doesn't fire.
+    // intentionMonthDoneRate=undefined: base()=75 would trigger intention_month_maintained (10.43005)
+    //   when execution falls through past the failed month_balanced block — setting undefined prevents that.
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 90, intentionMonthDoneRate: undefined, momentumHistory: makeMonthHistory(35) });
     expect(result).toBeNull();
   });
 
   it("shouldNotFireWhenIntentionBelowThreshold_69", () => {
-    // intentionMonthDoneRate=69 < 70 → lower-bound guard fails; no intention monthly badge fires → null
+    // intentionMonthDoneRate=69 < 70 → month_balanced lower-bound guard fails; "균형 잡힌 한 달" absent.
+    // 69 ∈ [50, 80) → intention_month_maintained fires instead (execution falls through to 10.43005).
     const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: 69, momentumHistory: makeMonthHistory(35) });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("균형 잡힌 한 달"); // month_balanced suppressed
+    expect(result!.text).toContain("꾸준한 실천이에요"); // intention_month_maintained fires instead
   });
 
   it("shouldFireAtExactIntentionThreshold_70", () => {
@@ -13581,8 +13588,10 @@ describe("calcTodayInsight — month_balanced (priority 10.395, between momentum
   });
 
   it("shouldNotFireWhenMomentumAvgBelowLowerBound_39", () => {
-    // avg=39 < 40 → lower-bound guard fails; no momentum monthly badge fires → null
-    const result = calcTodayInsight({ ...base(), momentumHistory: makeMonthHistory(39) });
+    // avg=39 < 40 → lower-bound guard fails; month_balanced doesn't fire.
+    // intentionMonthDoneRate=undefined: base()=75 would trigger intention_month_maintained (10.43005)
+    //   when execution falls through past the failed month_balanced block — setting undefined prevents that.
+    const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: undefined, momentumHistory: makeMonthHistory(39) });
     expect(result).toBeNull();
   });
 
@@ -13599,33 +13608,41 @@ describe("calcTodayInsight — month_balanced (priority 10.395, between momentum
   });
 
   it("shouldNotFireWhenMomentumAvgAtUpperBound_65", () => {
-    // avg=65 ≥ 65 → upper-bound guard fails; momentum_month_strong (10.44) fires instead
-    const result = calcTodayInsight({ ...base(), momentumHistory: makeMonthHistory(65) });
+    // avg=65 ≥ 65 → upper-bound guard fails; momentum_month_strong (10.44) fires instead.
+    // intentionMonthDoneRate=undefined: base()=75 would trigger intention_month_maintained (10.43005)
+    //   before momentum_month_strong (10.44) when execution falls through — setting undefined allows 10.44 to fire.
+    const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: undefined, momentumHistory: makeMonthHistory(65) });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("최고의 한 달"); // momentum_month_strong fires
     expect(result!.text).not.toContain("균형 잡힌 한 달");
   });
 
   it("shouldNotFireWhenCurrentMonthDayLt14", () => {
-    // currentMonthDay=13 < 14 → calendar-day guard fails; no monthly badge fires → null
-    const result = calcTodayInsight({ ...base(), todayStr: "2024-01-13", momentumHistory: makeMonthHistory(35) });
+    // currentMonthDay=13 < 14 → calendar-day guard fails; month_balanced doesn't fire.
+    // intentionMonthDoneRate=undefined: base()=75 would trigger intention_month_maintained (10.43005)
+    //   when execution falls through — maintained has no currentMonthDay guard, so setting undefined prevents that.
+    const result = calcTodayInsight({ ...base(), todayStr: "2024-01-13", intentionMonthDoneRate: undefined, momentumHistory: makeMonthHistory(35) });
     expect(result).toBeNull();
   });
 
   it("shouldNotFireWhenInsufficientMomentumEntries_13", () => {
     // 13 momentum entries < MIN_MONTH_MOMENTUM_ENTRIES (14) → data-count guard fails → null
+    // intentionMonthDoneRate=undefined: base()=75 would trigger intention_month_maintained (10.43005)
+    //   when execution falls through past the failed month_balanced block — setting undefined prevents that.
     const sparse = Array.from({ length: 13 }, (_, i) => ({
       date: `2024-01-${String(i + 1).padStart(2, "0")}`,
       score: 50,
       tier: "mid" as const,
     }));
-    const result = calcTodayInsight({ ...base(), momentumHistory: sparse });
+    const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: undefined, momentumHistory: sparse });
     expect(result).toBeNull();
   });
 
   it("shouldNotFireWhenHabitMonthRateUndefined", () => {
-    // habitMonthRate=undefined → defined guard fails; no monthly badge fires → null
-    const result = calcTodayInsight({ ...base(), habitMonthRate: undefined, momentumHistory: makeMonthHistory(35) });
+    // habitMonthRate=undefined → defined guard fails; month_balanced doesn't fire.
+    // intentionMonthDoneRate=undefined: base()=75 would trigger intention_month_maintained (10.43005)
+    //   when execution falls through past the failed month_balanced block — setting undefined prevents that.
+    const result = calcTodayInsight({ ...base(), habitMonthRate: undefined, intentionMonthDoneRate: undefined, momentumHistory: makeMonthHistory(35) });
     expect(result).toBeNull();
   });
 
@@ -13636,8 +13653,10 @@ describe("calcTodayInsight — month_balanced (priority 10.395, between momentum
   });
 
   it("shouldNotFireWhenMomentumHistoryAbsent", () => {
-    // momentumHistory=undefined → absent guard fails; no momentum monthly badge fires → null
-    const result = calcTodayInsight({ ...base(), momentumHistory: undefined });
+    // momentumHistory=undefined → absent guard fails; month_balanced doesn't fire.
+    // intentionMonthDoneRate=undefined: base()=75 would trigger intention_month_maintained (10.43005)
+    //   when execution falls through past the failed month_balanced block — setting undefined prevents that.
+    const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: undefined, momentumHistory: undefined });
     expect(result).toBeNull();
   });
 
@@ -14360,13 +14379,15 @@ describe("calcTodayInsight — intention_month_excellent (priority 10.43, after 
   });
 
   it("shouldNotFireWhenRateBelow80", () => {
-    // 79% → below excellent threshold; no month badge fires.
-    // base() has no habits, no goals, nowHour=12 — no other badge fires → result is null.
+    // 79% → below excellent threshold; intention_month_maintained (10.43005) fires instead.
+    // 79 ∈ [50, 80) → maintained fires; excellent text must not appear.
     const result = calcTodayInsight({
       ...base(),
       intentionMonthDoneRate: 79,
     });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("꾸준한 실천이에요"); // intention_month_maintained fires
+    expect(result!.text).not.toContain("훌륭한 실천이에요"); // excellent text absent
   });
 
   it("shouldNotFireWhenRateIs100", () => {
@@ -14396,6 +14417,81 @@ describe("calcTodayInsight — intention_month_excellent (priority 10.43, after 
   });
 });
 
+// ── intention_month_maintained (priority 10.43005, after intention_month_excellent, before intention_month_improved) ──
+describe("calcTodayInsight — intention_month_maintained (priority 10.43005, after intention_month_excellent, before intention_month_improved and intention_month_declined)", () => {
+  // Range: intentionMonthDoneRate ∈ [50, 80) — absolute mid-tier preempts relative improved/declined.
+  // setCount ≥ 14 guard applied in calcIntentionMonthDoneRate (same as excellent/perfect).
+  const TODAY = "2024-02-15";
+  const YESTERDAY = "2024-02-14";
+
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: undefined as string | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+    };
+  }
+
+  it("shouldFireWhenMonthlyDoneRateIs50", () => {
+    // Lower boundary: 50% ∈ [50, 80) → maintained fires
+    const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: 50 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 달");
+    expect(result!.text).toContain("50%");
+  });
+
+  it("shouldFireWhenMonthlyDoneRateIs79", () => {
+    // Upper boundary: 79% ∈ [50, 80) → maintained fires (80 would fire excellent)
+    const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: 79 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("79%");
+  });
+
+  it("shouldNotFireWhenRateBelow50", () => {
+    // 49% < 50 → maintained upper-bound guard fails; no other badge fires with empty habits → null
+    const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: 49 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenDoneRateUndefined", () => {
+    // Absent intentionMonthDoneRate → skipped silently
+    const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: undefined });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByIntentionMonthExcellentAt80", () => {
+    // 80% → excellent (10.43) fires before maintained (10.43005)
+    const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: 80 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("훌륭한 실천이에요"); // excellent fires
+    expect(result!.text).not.toContain("꾸준한 실천이에요"); // maintained suppressed
+  });
+
+  it("shouldPreemptIntentionMonthImprovedWhenRateIn50to79", () => {
+    // rate=65 ∈ [50,80), delta=15pp ≥ 10 → improved would fire, BUT maintained (10.43005) fires first
+    const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: 65, intentionPrevMonthDoneRate: 50 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // maintained fires (same level as improved, but different text)
+    expect(result!.text).toContain("꾸준한 실천이에요"); // maintained fires
+    expect(result!.text).not.toContain("올랐어요"); // improved suppressed
+  });
+
+  it("shouldPreemptIntentionMonthDeclinedWhenRateIn50to79", () => {
+    // rate=60 ∈ [50,80), drop=20pp → declined would fire, BUT maintained (10.43005) fires first
+    const result = calcTodayInsight({ ...base(), intentionMonthDoneRate: 60, intentionPrevMonthDoneRate: 80 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // maintained is "success", not "warning"
+    expect(result!.text).toContain("꾸준한 실천이에요"); // maintained fires
+    expect(result!.text).not.toContain("낮아요"); // declined suppressed
+  });
+});
+
 // ── intention_month_improved (priority 10.4301, after intention_month_excellent, before momentum_month_strong) ──
 describe("calcTodayInsight — intention_month_improved (priority 10.4301, after intention_month_excellent and before momentum_month_strong)", () => {
   // TODAY = "2024-02-15" → currentMonthDay = 15.
@@ -14415,11 +14511,11 @@ describe("calcTodayInsight — intention_month_improved (priority 10.4301, after
   }
 
   it("shouldFireWhenCurrentMonthRateExceedsPrevByThreshold", () => {
-    // curr=70, prev=55 → diff=15 ≥ 10 → fires
+    // curr=45 < 50 (below maintained range), prev=30 → diff=15 ≥ 10 → improved fires
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 70,
-      intentionPrevMonthDoneRate: 55,
+      intentionMonthDoneRate: 45,
+      intentionPrevMonthDoneRate: 30,
     });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
@@ -14429,43 +14525,43 @@ describe("calcTodayInsight — intention_month_improved (priority 10.4301, after
   });
 
   it("shouldIncludeRiseDeltaAndCurrentRateInText", () => {
-    // curr=70, prev=55 → diff=15; text shows "70%" and "15"
+    // curr=45, prev=30 → diff=15; text shows "45%" and "15"
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 70,
-      intentionPrevMonthDoneRate: 55,
+      intentionMonthDoneRate: 45,
+      intentionPrevMonthDoneRate: 30,
     });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("70%");
+    expect(result!.text).toContain("45%");
     expect(result!.text).toContain("15");
   });
 
   it("shouldFireAtExactDiffThreshold", () => {
-    // curr=65, prev=55 → diff=10 exactly → fires
+    // curr=45, prev=35 → diff=10 exactly → fires (curr < 50 is below maintained range)
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 65,
-      intentionPrevMonthDoneRate: 55,
+      intentionMonthDoneRate: 45,
+      intentionPrevMonthDoneRate: 35,
     });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
   });
 
   it("shouldNotFireWhenDiffBelowThreshold", () => {
-    // curr=64, prev=55 → diff=9 < 10 → no badge; base has no other badge sources → null
+    // curr=44, prev=35 → diff=9 < 10 → no badge; curr < 50 so maintained also doesn't fire → null
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 64,
-      intentionPrevMonthDoneRate: 55,
+      intentionMonthDoneRate: 44,
+      intentionPrevMonthDoneRate: 35,
     });
     expect(result).toBeNull();
   });
 
   it("shouldNotFireWhenPrevRateAbsent", () => {
-    // intentionPrevMonthDoneRate missing → guard fails silently
+    // intentionPrevMonthDoneRate missing → guard fails silently; curr=45 < 50 so maintained also doesn't fire → null
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 70,
+      intentionMonthDoneRate: 45,
       intentionPrevMonthDoneRate: undefined,
     });
     expect(result).toBeNull();
@@ -14495,6 +14591,7 @@ describe("calcTodayInsight — intention_month_improved (priority 10.4301, after
 
   it("shouldFireBeforeMomentumMonthStrong", () => {
     // intention_month_improved (10.4301) fires before momentum_month_strong (10.44)
+    // curr=45 < 50 (below maintained range) → improved fires, not maintained
     const monthHistory = Array.from({ length: 14 }, (_, i) => ({
       date: `2024-02-${String(i + 1).padStart(2, "0")}`,
       score: 70,
@@ -14502,8 +14599,8 @@ describe("calcTodayInsight — intention_month_improved (priority 10.4301, after
     }));
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 70,
-      intentionPrevMonthDoneRate: 55,
+      intentionMonthDoneRate: 45,
+      intentionPrevMonthDoneRate: 30,
       momentumHistory: monthHistory, // would trigger momentum_month_strong
     });
     expect(result).not.toBeNull();
@@ -14530,11 +14627,11 @@ describe("calcTodayInsight — intention_month_declined (priority 10.4302, after
   }
 
   it("shouldFireWhenCurrentMonthRateDropsBelowPrevByThreshold", () => {
-    // curr=55, prev=70 → drop=15 ≥ 10 → fires
+    // curr=40 < 50 (below maintained range), prev=55 → drop=15 ≥ 10 → declined fires
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 55,
-      intentionPrevMonthDoneRate: 70,
+      intentionMonthDoneRate: 40,
+      intentionPrevMonthDoneRate: 55,
     });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("warning");
@@ -14544,42 +14641,43 @@ describe("calcTodayInsight — intention_month_declined (priority 10.4302, after
   });
 
   it("shouldIncludeDropDeltaAndCurrentRateInText", () => {
-    // curr=55, prev=70 → drop=15; text shows "55%" and "15"
+    // curr=40, prev=55 → drop=15; text shows "40%" and "15"
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 55,
-      intentionPrevMonthDoneRate: 70,
+      intentionMonthDoneRate: 40,
+      intentionPrevMonthDoneRate: 55,
     });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("55%");
+    expect(result!.text).toContain("40%");
     expect(result!.text).toContain("15");
   });
 
   it("shouldFireAtExactDropThreshold", () => {
-    // curr=55, prev=65 → drop=10 exactly → fires
+    // curr=40, prev=50 → drop=10 exactly → fires (curr < 50 is below maintained range)
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 55,
-      intentionPrevMonthDoneRate: 65,
+      intentionMonthDoneRate: 40,
+      intentionPrevMonthDoneRate: 50,
     });
     expect(result).not.toBeNull();
     expect(result!.level).toBe("warning");
   });
 
   it("shouldNotFireWhenDropBelowThreshold", () => {
-    // curr=56, prev=65 → drop=9 < 10 → no badge
+    // curr=41, prev=50 → drop=9 < 10 → no badge; curr < 50 so maintained also doesn't fire → null
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 56,
-      intentionPrevMonthDoneRate: 65,
+      intentionMonthDoneRate: 41,
+      intentionPrevMonthDoneRate: 50,
     });
     expect(result).toBeNull();
   });
 
   it("shouldNotFireWhenPrevRateAbsent", () => {
+    // intentionPrevMonthDoneRate missing → guard fails silently; curr=40 < 50 so maintained also doesn't fire → null
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 55,
+      intentionMonthDoneRate: 40,
       intentionPrevMonthDoneRate: undefined,
     });
     expect(result).toBeNull();
@@ -14608,11 +14706,11 @@ describe("calcTodayInsight — intention_month_declined (priority 10.4302, after
   });
 
   it("shouldBePreemptedByIntentionMonthImproved", () => {
-    // curr=70, prev=55 → improved fires (not declined) — mutually exclusive
+    // curr=45 < 50 (below maintained range), prev=30 → improved fires (not declined) — mutually exclusive
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 70,
-      intentionPrevMonthDoneRate: 55,
+      intentionMonthDoneRate: 45,
+      intentionPrevMonthDoneRate: 30,
     });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("올랐어요"); // improved fires
@@ -14621,6 +14719,7 @@ describe("calcTodayInsight — intention_month_declined (priority 10.4302, after
 
   it("shouldFireBeforeMomentumMonthStrong", () => {
     // intention_month_declined (10.4302) fires before momentum_month_strong (10.44)
+    // curr=40 < 50 (below maintained range) → declined fires, not maintained
     const monthHistory = Array.from({ length: 14 }, (_, i) => ({
       date: `2024-02-${String(i + 1).padStart(2, "0")}`,
       score: 70,
@@ -14628,8 +14727,8 @@ describe("calcTodayInsight — intention_month_declined (priority 10.4302, after
     }));
     const result = calcTodayInsight({
       ...base(),
-      intentionMonthDoneRate: 55,
-      intentionPrevMonthDoneRate: 70,
+      intentionMonthDoneRate: 40,
+      intentionPrevMonthDoneRate: 55,
       momentumHistory: monthHistory, // would trigger momentum_month_strong
     });
     expect(result).not.toBeNull();
