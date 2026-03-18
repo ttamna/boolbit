@@ -10138,6 +10138,171 @@ describe("calcTodayInsight — habit_target_hit (priority 11.04, between habit_b
   });
 });
 
+// ── month_trifecta_flawless ───────────────────────────────────────────────────
+describe("calcTodayInsight — month_trifecta_flawless (priority 11.065, after habit_target_halfway, before habit_month_flawless)", () => {
+  // TODAY = "2024-01-15" → day 15 of January, currentMonthDay = 15 ≥ MIN_MONTH_DAYS (10)
+  // Requires: habit flawless (streak ≥ 15, lastChecked=today) + focusStreak ≥ 15 + sessionsToday > 0
+  //   + momentumStreak ≥ 15 + todayMomentumQualifies (momentumHistory entry today with score ≥ 40)
+  // momentumStreak=15 is not a MOMENTUM_STREAK_MILESTONES value [7,14,30] → milestone suppressed.
+  // sessionsToday=3, sessionGoal=5: pomodoroScoreRaw=(3/5)*30=18; computed score=50+18+8=76 →
+  //   outside nearHigh [63,75) AND pomodoro_goal_reached (sessionsToday<sessionGoal=5) does not fire.
+  //   This avoids momentum_near_tier preemption that would otherwise suppress the trifecta badge.
+  function base() {
+    return {
+      habits: [{ name: "운동", streak: 15, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 3,
+      sessionGoal: 5 as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      focusStreak: 15,
+      momentumStreak: 15,
+      momentumHistory: [{ date: TODAY, score: 50, tier: "mid" as const }],
+    };
+  }
+
+  it("shouldFireWhenAllThreeDomainsFlawless", () => {
+    // All conditions met: habit checked every day this month, daily focus every day, daily momentum every day
+    const result = calcTodayInsight(base());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("습관·집중·모멘텀");
+    expect(result!.text).toContain("15일");
+  });
+
+  it("shouldNotFireBeforeDay10", () => {
+    // currentMonthDay=9 < MIN_MONTH_DAYS(10) → too early
+    const day9 = "2024-01-09";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day9,
+      todayIntentionDate: day9,
+      habits: [{ name: "운동", streak: 9, lastChecked: day9 }],
+      focusStreak: 9,
+      momentumStreak: 9,
+      momentumHistory: [{ date: day9, score: 50, tier: "mid" as const }],
+    });
+    expect(result?.text ?? "").not.toContain("습관·집중·모멘텀");
+  });
+
+  it("shouldFireExactlyOnDay10", () => {
+    // currentMonthDay=10 === MIN_MONTH_DAYS(10) → boundary fires
+    const day10 = "2024-01-10";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day10,
+      todayIntentionDate: day10,
+      habits: [{ name: "운동", streak: 10, lastChecked: day10 }],
+      focusStreak: 10,
+      momentumStreak: 10,
+      momentumHistory: [{ date: day10, score: 50, tier: "mid" as const }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·집중·모멘텀");
+    expect(result!.text).toContain("10일");
+  });
+
+  it("shouldNotFireWhenHabitStreakBelowCurrentMonthDay", () => {
+    // habit streak=14 < currentMonthDay(15) → habit missed at least one day this month
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 14, lastChecked: TODAY }],
+    });
+    expect(result?.text ?? "").not.toContain("습관·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenHabitNotCheckedToday", () => {
+    // lastChecked=YESTERDAY → today not yet checked, month not fully covered
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 15, lastChecked: YESTERDAY }],
+    });
+    expect(result?.text ?? "").not.toContain("습관·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenFocusStreakBelowCurrentMonthDay", () => {
+    // focusStreak=14 < currentMonthDay(15) → at least one day this month had no focus session
+    const result = calcTodayInsight({ ...base(), focusStreak: 14 });
+    expect(result?.text ?? "").not.toContain("습관·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenNoSessionsToday", () => {
+    // sessionsToday=0 → today's focus not yet recorded; focusStreak may lag
+    const result = calcTodayInsight({ ...base(), sessionsToday: 0 });
+    expect(result?.text ?? "").not.toContain("습관·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenMomentumStreakBelowCurrentMonthDay", () => {
+    // momentumStreak=13 < currentMonthDay(15) → at least one day this month below threshold
+    // 13 is not a milestone value, so momentum_streak_milestone is also suppressed
+    const result = calcTodayInsight({ ...base(), momentumStreak: 13 });
+    expect(result?.text ?? "").not.toContain("습관·집중·모멘텀");
+  });
+
+  it("shouldNotFireWhenTodayMomentumNotRecorded", () => {
+    // momentumStreak=15 but today's history absent → todayMomentumQualifies=false
+    const result = calcTodayInsight({
+      ...base(),
+      momentumHistory: [], // no today entry → todayMomentumQualifies=false
+    });
+    expect(result?.text ?? "").not.toContain("습관·집중·모멘텀");
+  });
+
+  it("shouldPreemptHabitMonthFlawlessWhenAllThreeDomainsFlawless", () => {
+    // Only habit domain is flawless → habit_month_flawless (11.07) would fire.
+    // When all three domains (habit + pomodoro + momentum) are flawless, trifecta (11.065) fires instead.
+    // focusStreak=13 (not in FOCUS_STREAK_MILESTONES [7,14,30] → focus_streak_milestone suppressed).
+    const onlyHabitFlawless = calcTodayInsight({
+      ...base(),
+      focusStreak: 13, // pomodoro NOT flawless (streak < currentMonthDay=15); 13 ∉ [7,14,30] → no milestone
+    });
+    const allThreeFlawless = calcTodayInsight(base()); // focusStreak=15 ∉ [7,14,30], all trifecta conditions met
+    // With only habit flawless: habit_month_flawless fires (streak 15 = currentMonthDay)
+    expect(onlyHabitFlawless).not.toBeNull();
+    expect(onlyHabitFlawless!.text).toContain("이번 달 개근");
+    // With all three flawless: trifecta fires instead
+    expect(allThreeFlawless).not.toBeNull();
+    expect(allThreeFlawless!.text).toContain("습관·집중·모멘텀");
+    expect(allThreeFlawless!.text).not.toContain("이번 달 개근");
+  });
+
+  it("shouldBePreemptedByMomentumStreakMilestone", () => {
+    // momentum_streak_milestone (10.46) fires when momentumStreak hits 7, 14, or 30 and todayQualifies.
+    // Priority 10.46 is well above 11.065, so it preempts month_trifecta_flawless even when all trifecta
+    // conditions are met.
+    // day11 = "2024-01-11": currentMonthDay=11 ≥ MIN_MONTH_DAYS(10); momentumStreak=7 ∈ [7,14,30].
+    // focusStreak=11 ∉ [7,14,30] → focus_streak_milestone (7.42) suppressed; doesn't preempt first.
+    const day11 = "2024-01-11";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day11,
+      todayIntentionDate: day11,
+      habits: [{ name: "운동", streak: 11, lastChecked: day11 }],
+      focusStreak: 11,
+      momentumStreak: 7, // 7 ∈ MOMENTUM_STREAK_MILESTONES [7,14,30] → milestone fires
+      momentumHistory: [{ date: day11, score: 50, tier: "mid" as const }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연속 모멘텀 달성"); // momentum_streak_milestone fires
+    expect(result!.text).not.toContain("습관·집중·모멘텀"); // trifecta preempted
+  });
+
+  it("shouldBePreemptedByHabitTargetHalfway", () => {
+    // habit_target_halfway (11.06) fires first when targetStreak midpoint reached today.
+    // All trifecta conditions are met (streak≥15, focusStreak≥15, sessionsToday>0, momentum≥15)
+    // but habit_target_halfway (11.06) preempts trifecta (11.065) in the priority chain.
+    // targetStreak=30, streak=15 → Math.floor(30/2)=15 → midpoint exactly hit.
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 15, lastChecked: TODAY, targetStreak: 30 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("목표 절반"); // habit_target_halfway fires
+    expect(result!.text).not.toContain("습관·집중·모멘텀"); // trifecta preempted
+  });
+});
+
 // ── habit_month_flawless ─────────────────────────────────────────────────────
 describe("calcTodayInsight — habit_month_flawless (priority 11.07, after habit_target_halfway)", () => {
   // TODAY = "2024-01-15" → day 15 of January, ≥ MIN_MONTH_DAYS (10)
