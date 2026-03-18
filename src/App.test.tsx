@@ -36,6 +36,20 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 
 import App from "./App";
 
+// ── Test helpers ──────────────────────────────────────────
+function getSaveCalls() {
+  return vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
+}
+
+async function waitForSave() {
+  await waitFor(() => { expect(getSaveCalls().length).toBeGreaterThan(0); });
+}
+
+function getLastSaveData() {
+  const saves = getSaveCalls();
+  return (saves[saves.length - 1][1] as { data: Record<string, unknown> }).data;
+}
+
 describe("App section visibility via hiddenSections", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -283,8 +297,7 @@ describe("momentum effect — does not overwrite file before load_data completes
     });
 
     // ALL save_data calls (including any from the momentum effect) must preserve url
-    const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
-    for (const save of saves) {
+    for (const save of getSaveCalls()) {
       const savedProjects = (save[1] as { data: { projects: Array<{ url?: string; name?: string }> } }).data.projects;
       const testProj = savedProjects.find(p => p.name === "TestProj");
       if (testProj !== undefined) {
@@ -325,15 +338,8 @@ describe("project field persistence — githubRepo and url survive save round-tr
     render(<App />);
 
     // Wait for the auto-save triggered by ID migration
-    await waitFor(() => {
-      const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
-      expect(saves.length).toBeGreaterThan(0);
-    });
-
-    // The save_data call must include githubRepo in the project
-    const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
-    const lastSave = saves[saves.length - 1];
-    const savedProjects = (lastSave[1] as { data: { projects: Array<{ githubRepo?: string }> } }).data.projects;
+    await waitForSave();
+    const savedProjects = (getLastSaveData().projects as Array<{ githubRepo?: string }>);
     expect(savedProjects[0].githubRepo).toBe("owner/repo");
   });
 
@@ -355,14 +361,8 @@ describe("project field persistence — githubRepo and url survive save round-tr
 
     render(<App />);
 
-    await waitFor(() => {
-      const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
-      expect(saves.length).toBeGreaterThan(0);
-    });
-
-    const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
-    const lastSave = saves[saves.length - 1];
-    const savedProjects = (lastSave[1] as { data: { projects: Array<{ url?: string }> } }).data.projects;
+    await waitForSave();
+    const savedProjects = (getLastSaveData().projects as Array<{ url?: string }>);
     expect(savedProjects[0].url).toBe("https://example.com");
   });
 
@@ -381,15 +381,8 @@ describe("project field persistence — githubRepo and url survive save round-tr
 
     render(<App />);
 
-    await waitFor(() => {
-      const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
-      expect(saves.length).toBeGreaterThan(0);
-    });
-
-    const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
-    const lastSave = saves[saves.length - 1];
-    const savedData = (lastSave[1] as { data: { habitLifetimeTotalCheckins?: number } }).data;
-    expect(savedData.habitLifetimeTotalCheckins).toBe(42);
+    await waitForSave();
+    expect(getLastSaveData().habitLifetimeTotalCheckins).toBe(42);
   });
 });
 

@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMonthGoalDays } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport, calcDayOfWeekMomentumAvg, calcWeakMomentumDay, calcBestMomentumDay } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -1816,8 +1816,9 @@ export default function App() {
   const habitsWeekRate = calcHabitsWeekRate(habitsArr, last7Days);
   // habitsPrevWeekRate: declared before calcTodayInsight so habitPrevWeekRate feeds the
   // habit_week_declined insight (priority 10.37). Reused below for habitsWeekTrend.
-  // Uses last14Days (already declared above) — slice(0,7) = days 7–13 ago (previous 7-day window).
-  const habitsPrevWeekRate = calcHabitsWeekRate(habitsArr, last14Days.slice(0, 7));
+  // Uses last14Days (already declared above) — prevWeek7Days = days 7–13 ago (previous 7-day window).
+  const prevWeek7Days = last14Days.slice(0, 7);
+  const habitsPrevWeekRate = calcHabitsWeekRate(habitsArr, prevWeek7Days);
   // momentumWeekAvg7d: 7-day momentum average for momentum_week_strong/improved/declined badges.
   // Filters momentumHistory to last7Days entries then averages — null when < 2 entries in window.
   const momentumWeekAvg7d = calcMomentumWeekAvg(
@@ -1826,7 +1827,7 @@ export default function App() {
   // momentumPrevWeekAvg7d: previous 7-day window (days 7–13 ago) for week-over-week comparison.
   // Uses the first 7 entries of last14Days which are the oldest 7 days in that window.
   const momentumPrevWeekAvg7d = calcMomentumWeekAvg(
-    (data.momentumHistory ?? []).filter(e => last14Days.slice(0, 7).includes(e.date))
+    (data.momentumHistory ?? []).filter(e => prevWeek7Days.includes(e.date))
   );
   // intentionWeek7: per-day set/done status for the last 7 days.
   // Computed before calcTodayInsight so intentionWeekDoneRate feeds the intention_week_* badges.
@@ -1840,10 +1841,10 @@ export default function App() {
       ? Math.round((intentionDoneCount7 / intentionSetCount7) * 100)
       : undefined;
   // intentionPrevWeekDoneRate: done rate for the previous 7-day window (days 7-13 ago).
-  // Uses calcIntentionWeek with last14Days.slice(0, 7); todayStr won't match that range so today's live
+  // Uses calcIntentionWeek with prevWeek7Days; todayStr won't match that range so today's live
   // state is effectively ignored. Requires setCount ≥ 2 for a meaningful comparison baseline.
   const { setCount: intentionPrevSetCount7, doneCount: intentionPrevDoneCount7 } =
-    calcIntentionWeek(last14Days.slice(0, 7), todayStr, data.todayIntention, data.todayIntentionDone, data.intentionHistory ?? []);
+    calcIntentionWeek(prevWeek7Days, todayStr, data.todayIntention, data.todayIntentionDone, data.intentionHistory ?? []);
   const intentionPrevWeekDoneRate =
     intentionPrevSetCount7 >= 2
       ? Math.round((intentionPrevDoneCount7 / intentionPrevSetCount7) * 100)
@@ -1854,7 +1855,7 @@ export default function App() {
     .filter(e => last7Days.includes(e.date))
     .reduce((sum, e) => sum + e.count, 0);
   const pomodoroPrevWeekSessions = (data.pomodoroHistory ?? [])
-    .filter(e => last14Days.slice(0, 7).includes(e.date))
+    .filter(e => prevWeek7Days.includes(e.date))
     .reduce((sum, e) => sum + e.count, 0);
   // pomodoroWeekGoalDays: days in last7Days where session count >= sessionGoal; undefined when no goal set.
   const pomodoroWeekGoalDays = (data.pomodoroSessionGoal && data.pomodoroSessionGoal > 0)
@@ -1864,15 +1865,15 @@ export default function App() {
   // When currentMonthDay ≥ 14 (the badge guard in insight.ts), last14Days lies entirely within the
   // current calendar month, giving a meaningful "this month" goal-hit count for the monthly badge.
   const pomodoroMonthGoalDays = (data.pomodoroSessionGoal && data.pomodoroSessionGoal > 0)
-    ? calcPomodoroMonthGoalDays(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, last14Days, pomodoroSessionsToday, todayStr)
+    ? calcPomodoroWeekGoalDays(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, last14Days, pomodoroSessionsToday, todayStr)
     : undefined;
-  // pomodoroWeekPrevGoalDays: days in the PREVIOUS 7-day window (last14Days.slice(0, 7), i.e. days 7–13 ago)
-  // where session count >= sessionGoal. last14Days.slice(0, 7) never contains todayStr (it ends 7 days ago),
+  // pomodoroWeekPrevGoalDays: days in the PREVIOUS 7-day window (prevWeek7Days, i.e. days 7–13 ago)
+  // where session count >= sessionGoal. prevWeek7Days never contains todayStr (it ends 7 days ago),
   // so sessionsToday=0 and the todayStr branch inside calcPomodoroWeekGoalDays are both inert — all counts
   // come from pomodoroHistory. Used alongside pomodoroWeekGoalDays to detect week-over-week goal-day delta ≥ 2
   // in insight.ts (10.3823/10.3824).
   const pomodoroWeekPrevGoalDays = (data.pomodoroSessionGoal && data.pomodoroSessionGoal > 0)
-    ? calcPomodoroWeekGoalDays(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, last14Days.slice(0, 7), 0, todayStr)
+    ? calcPomodoroWeekGoalDays(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, prevWeek7Days, 0, todayStr)
     : undefined;
   // intentionMonthDoneRate: current calendar month's intention done rate (0–100), or undefined when
   // fewer than 14 intentions were set this month (insufficient data for a meaningful signal).
@@ -2066,7 +2067,7 @@ export default function App() {
     pomodoroPrevWeekSessions,
     // pomodoroWeekGoalDays: days in last7Days goal was met; undefined when sessionGoal not set.
     pomodoroWeekGoalDays,
-    // pomodoroWeekPrevGoalDays: days in last14Days.slice(0, 7) goal was met; undefined when sessionGoal not set.
+    // pomodoroWeekPrevGoalDays: days in prevWeek7Days goal was met; undefined when sessionGoal not set.
     pomodoroWeekPrevGoalDays,
     // pomodoroMonthGoalDays: days in last14Days goal was met; undefined when sessionGoal not set.
     pomodoroMonthGoalDays,
