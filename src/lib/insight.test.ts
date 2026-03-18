@@ -7739,6 +7739,130 @@ describe("calcTodayInsight — intention_done_streak_milestone_approach (priorit
   });
 });
 
+// ── pomodoro_goal_streak_milestone_approach ──────────────────────────────
+describe("calcTodayInsight — pomodoro_goal_streak_milestone_approach (priority 7.423, between intention_done_streak_milestone_approach and pomodoro_lifetime_milestone)", () => {
+  // ABOUTME: Tests for pomodoro_goal_streak_milestone_approach badge — fires 1-2 days before
+  // ABOUTME: the next pomodoro goal streak milestone (7/14/30). effectiveStreak = pomodoroGoalStreak + 1
+  // ABOUTME: when today's goal is already met; pomodoroGoalStreak alone otherwise.
+  // Base: afternoon, intention set, no habits, sessionGoal=3 set, sessionsToday=0 —
+  //   all competing badges suppressed.
+  // focusStreak=8: past milestone 7, far from 14 (14-8=6>2) — suppresses focus_streak_milestone_approach.
+  // intentionDoneStreak=8: same — suppresses intention_done_streak_milestone_approach.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: 3 as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    focusStreak: 8,          // suppresses focus_streak_milestone_approach (14-8=6>2)
+    intentionDoneStreak: 8,  // suppresses intention_done_streak_milestone_approach (14-8=6>2)
+  });
+
+  it("shouldFireWith2DaysToMilestone7WhenGoalStreak5", () => {
+    // effectiveStreak = 5 (sessionsToday=0 < sessionGoal=3, no today bonus)
+    const result = calcTodayInsight({ ...base(), pomodoroGoalStreak: 5 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("5일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone7WhenGoalStreak6", () => {
+    // effectiveStreak = 6 (sessionsToday=0 < sessionGoal=3)
+    const result = calcTodayInsight({ ...base(), pomodoroGoalStreak: 6 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("6일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith2DaysToMilestone14WhenGoalStreak12", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroGoalStreak: 12 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("12일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("14일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone14WhenGoalStreak13", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroGoalStreak: 13 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("13일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("14일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith2DaysToMilestone30WhenGoalStreak28", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroGoalStreak: 28 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("28일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("30일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone30WhenGoalStreak29", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroGoalStreak: 29 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("29일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("30일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWithEffectiveStreak6WhenGoalStreak5AndTodaysGoalAlreadyMet", () => {
+    // effectiveStreak = 5 + 1 = 6 (sessionsToday=3 >= sessionGoal=3, today's goal already met)
+    // Milestone doesn't fire: pomodoroGoalStreak+1 = 6, not in [7,14,30]
+    const result = calcTodayInsight({ ...base(), pomodoroGoalStreak: 5, sessionsToday: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("6일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWhenGoalStreak4TooFarFromMilestone7", () => {
+    // effectiveStreak=4, 7-4=3>2 — not within approach window
+    // pomodoro_goal_streak (7.45) fires instead; defining approach text absent
+    const result = calcTodayInsight({ ...base(), pomodoroGoalStreak: 4 });
+    expect(result?.text).not.toContain("더 달성하면");
+  });
+
+  it("shouldNotFireWhenGoalStreak8TooFarFromMilestone14", () => {
+    // effectiveStreak=8, 14-8=6>2 — past 7, not yet close to 14
+    // pomodoro_goal_streak (7.45) fires instead; defining approach text absent
+    const result = calcTodayInsight({ ...base(), pomodoroGoalStreak: 8 });
+    expect(result?.text).not.toContain("더 달성하면");
+  });
+
+  it("shouldNotFireWhenPomodoroGoalStreakAbsent", () => {
+    // pomodoroGoalStreak absent → approach skipped; defining approach text absent
+    const result = calcTodayInsight({ ...base() });
+    expect(result?.text ?? "").not.toContain("더 달성하면");
+  });
+
+  it("shouldNotFireWhenSessionGoalAbsent", () => {
+    // sessionGoal absent → approach skipped (no configured goal → goal streak is meaningless)
+    const result = calcTodayInsight({ ...base(), pomodoroGoalStreak: 5, sessionGoal: undefined });
+    expect(result?.text ?? "").not.toContain("더 달성하면");
+  });
+
+  it("shouldFireMilestoneBadgeNotApproachWhenGoalStreak6AndTodaysGoalMet", () => {
+    // pomodoroGoalStreak=6, sessionsToday=3 >= sessionGoal=3 → pomodoroGoalStreak+1=7 → milestone fires at 7.41
+    // effectiveStreak=7 → approach: find(m>7 && m-7<=2) → none (14-7=7>2) → structurally excluded
+    const result = calcTodayInsight({ ...base(), pomodoroGoalStreak: 6, sessionsToday: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7일 연속 달성"); // milestone celebration text
+    expect(result!.text).not.toContain("더 달성하면"); // approach badge text absent
+  });
+});
+
 describe("calcTodayInsight — pomodoro_lifetime_milestone (priority 7.43, between focus_streak_milestone and pomodoro_goal_streak)", () => {
   // Base: Monday afternoon, intention set, no habits, no pomodoro goal, no competing insights.
   // TODAY = "2024-01-15" is a Monday — afternoon avoids morning-only gates.
@@ -8153,11 +8277,13 @@ describe("calcTodayInsight — project_focus_milestone (priority 7.441, between 
 
   it("project_focus_milestone (7.441) fires before pomodoro_goal_streak (7.45)", () => {
     // milestone crossing + active goal streak — milestone wins
+    // pomodoroGoalStreak=3: effectiveStreak=3 (sessionsToday=2 < sessionGoal=4),
+    //   7-3=4>2 → outside approach window → pomodoro_goal_streak_milestone_approach (7.423) suppressed
     const result = calcTodayInsight({
       ...base(),
       sessionsToday: 2,
       sessionGoal: 4,
-      pomodoroGoalStreak: 5,
+      pomodoroGoalStreak: 3,
       projectFocusSessions: 25,
       projectFocusPrevSessions: 23,
       projectFocusName: "FocusApp",
