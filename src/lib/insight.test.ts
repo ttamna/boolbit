@@ -5778,7 +5778,7 @@ describe("calcTodayInsight — almost_perfect_day (priority 10.3)", () => {
       nowHour: 14,
       todayIntentionDate: TODAY,
       sessionsToday: 1,
-      sessionGoal: 3, // pomodoroScore=10 → total=43, outside nearMid [25,40)
+      sessionGoal: 3, // pomodoroScore=10 → total=43, outside nearMid [37,40)
       habitsAllDoneDate: undefined,
     });
     expect(result).not.toBeNull();
@@ -8921,7 +8921,8 @@ describe("calcTodayInsight — pomodoro_week_record (priority 7.495, between pom
   });
 
   it("shouldNotFireWhenPomodoroWeekRecordAbsent", () => {
-    const result = calcTodayInsight({ ...base(), sessionsToday: 5 });
+    // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
+    const result = calcTodayInsight({ ...base(), sessionsToday: 2 });
     expect(result).toBeNull();
   });
 
@@ -9023,11 +9024,14 @@ describe("calcTodayInsight — momentum_streak_milestone (priority 10.46, betwee
 
   it("shouldBePreemptedByPomodoroAboveAvgWhenBothConditionsMet", () => {
     // pomodoro_today_above_avg (10.45) fires BEFORE momentum_streak_milestone (10.46) in the priority chain
+    // sessionGoal=8: 5≠7 (not pomodoro_last_one), 5<8 (not goal_reached); pomodoroScoreRaw=(5/8)*30=18.75,
+    // total=27, outside nearMid [37,40) so momentum_near_tier doesn't fire first.
     const result = calcTodayInsight({
       ...base(),
       momentumStreak: 7,
       momentumHistory: todayQualifying, // today qualifies so milestone guard passes
       sessionsToday: 5,
+      sessionGoal: 8,
       pomodoroRecentAvg: 3, // 5 - 3 = 2 ≥ 2 → above_avg fires first
     });
     expect(result).not.toBeNull();
@@ -9264,7 +9268,7 @@ describe("calcTodayInsight — habit_week_perfect (priority 10.34, between almos
 
   it("shouldBePreemptedByAlmostPerfectDay", () => {
     // nowHour=14, 1 habit unchecked today → almost_perfect_day (10.3) fires before habit_week_perfect (10.34)
-    // sessionsToday=1 + sessionGoal=3 → score=43, outside nearMid [25,40) — prevents momentum_near_tier
+    // sessionsToday=1 + sessionGoal=3 → score=43, outside nearMid [37,40) — prevents momentum_near_tier
     const result = calcTodayInsight({
       ...base(),
       nowHour: 14,
@@ -9344,7 +9348,7 @@ describe("calcTodayInsight — habit_week_excellent (priority 10.35, between alm
 
   it("shouldBePreemptedByAlmostPerfectDay", () => {
     // nowHour=14, 1 habit unchecked today → almost_perfect_day (10.3) fires before habit_week_excellent (10.35)
-    // sessionsToday=1 + sessionGoal=3 → score=43, outside nearMid [25,40) — prevents momentum_near_tier
+    // sessionsToday=1 + sessionGoal=3 → score=43, outside nearMid [37,40) — prevents momentum_near_tier
     const result = calcTodayInsight({
       ...base(),
       nowHour: 14,
@@ -9364,7 +9368,7 @@ describe("calcTodayInsight — habit_week_excellent (priority 10.35, between alm
 
   it("shouldFireWhenAlmostPerfectDayConditionsNotMet", () => {
     // nowHour=12 (below 14) → almost_perfect_day cannot fire; habit_week_excellent fires
-    // sessionsToday=1 + sessionGoal=3 → score=43, outside nearMid [25,40) — prevents momentum_near_tier
+    // sessionsToday=1 + sessionGoal=3 → score=43, outside nearMid [37,40) — prevents momentum_near_tier
     const result = calcTodayInsight({
       ...base(),
       nowHour: 12,
@@ -10230,7 +10234,7 @@ describe("calcTodayInsight — habit_month_flawless (priority 11.07, after habit
 
   it("shouldBePreemptedByAlmostPerfectDay", () => {
     // almost_perfect_day (10.3): hour≥14 + 1 habit unchecked → fires before habit_month_flawless (11.07)
-    // sessionsToday=1 + sessionGoal=3 → score=43, outside nearMid [25,40) — prevents momentum_near_tier
+    // sessionsToday=1 + sessionGoal=3 → score=43, outside nearMid [37,40) — prevents momentum_near_tier
     const result = calcTodayInsight({
       ...base(),
       nowHour: 15,
@@ -10744,10 +10748,36 @@ describe("calcTodayInsight — momentum_near_tier (priority 7.6, after pomodoro_
   });
 
   it("shouldSuggestHabitNotPomodoroWhenGoalUndefinedAndScoreNearMid", () => {
-    // sessionGoal=undefined → no pomodoro contribution (goalN=null); pomodoro action not suggested
-    // 4 habits (3 checked, 1 unchecked), many sessions but no goal, no intention
-    // habitsScoreRaw=37.5, pomodoroScoreRaw=0, intentionScoreRaw=0 → currentScore=38
-    // gapToMid=2, pomodoroGain=0 (no explicit goal), habitGain=12.5 >= 2 → habit nudge (not pomodoro)
+    // sessionGoal=undefined, sessionsToday=0 → pomodoroScoreRaw=0 (no sessions, goalN=3 baseline)
+    // 4 habits (3 checked, 1 unchecked), no intention
+    // habitsScoreRaw=37.5, pomodoroScoreRaw=0, intentionScoreRaw=0 → currentScore=38, nearMid
+    // gapToMid=2.5, pomodoroGain=0 (hasExplicitGoal=false), habitGain=12.5 >= 2.5 → habit nudge, "좋은 하루"
+    const result = calcTodayInsight({
+      habits: [
+        { name: "운동", streak: 3, lastChecked: TODAY },
+        { name: "독서", streak: 3, lastChecked: TODAY },
+        { name: "명상", streak: 3, lastChecked: TODAY },
+        { name: "글쓰기", streak: 1, lastChecked: YESTERDAY },
+      ],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("습관 하나만");
+    expect(result!.text).toContain("좋은 하루");
+    expect(result!.text).not.toContain("집중 1세션");
+  });
+
+  it("shouldSuggestHabitNotPomodoroWhenGoalUndefinedAndScoreNearHigh", () => {
+    // sessionGoal=undefined → goalN=3 baseline; sessionsToday=5 → pomodoroScoreRaw=min(5,3)/3*30=30
+    // 4 habits (3 checked, 1 unchecked), no intention
+    // habitsScoreRaw=37.5, pomodoroScoreRaw=30, intentionScoreRaw=0 → currentScoreRaw=67.5, currentScore=68, nearHigh
+    // gapToHigh=7.5, pomodoroGain=0 (hasExplicitGoal=false), habitGain=12.5 >= 7.5 → habit nudge, "최고의 하루"
     const result = calcTodayInsight({
       habits: [
         { name: "운동", streak: 3, lastChecked: TODAY },
@@ -10765,6 +10795,7 @@ describe("calcTodayInsight — momentum_near_tier (priority 7.6, after pomodoro_
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
     expect(result!.text).toContain("습관 하나만");
+    expect(result!.text).toContain("최고의 하루");
     expect(result!.text).not.toContain("집중 1세션");
   });
 });

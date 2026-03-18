@@ -1060,14 +1060,13 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     const habitsTotal = habits.length;
     const intentionSet = todayIntentionDate === todayStr;
     const intentionDone = todayIntentionDone === true;
-    // goalN is null when sessionGoal is unset or 0: keeps score formula independent of the
-    // 3-session baseline in calcDailyScore so no spurious nudges fire for tests with no explicit goal.
-    // Nudge text intentionally omits the numeric score to avoid mismatch with the Clock badge.
+    // goalN mirrors calcDailyScore (momentum.ts:63): 3-session baseline when no explicit goal is set,
+    // so this block evaluates the same score the Clock badge displays.
     const hasExplicitGoal = sessionGoal != null && sessionGoal > 0;
-    const goalN = hasExplicitGoal ? sessionGoal! : null;
+    const goalN = hasExplicitGoal ? sessionGoal! : 3;
 
     const habitsScoreRaw = habitsTotal > 0 ? (Math.min(habitsTodayCount, habitsTotal) / habitsTotal) * 50 : 0;
-    const pomodoroScoreRaw = goalN != null ? (Math.min(sessionsToday, goalN) / goalN) * 30 : 0;
+    const pomodoroScoreRaw = (Math.min(sessionsToday, goalN) / goalN) * 30;
     const intentionScoreRaw = intentionDone ? 20 : intentionSet ? 8 : 0;
     const currentScoreRaw = habitsScoreRaw + pomodoroScoreRaw + intentionScoreRaw;
     const currentScore = Math.round(currentScoreRaw);
@@ -1078,10 +1077,11 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     if (nearMid || nearHigh) {
       const gap = nearMid ? 40 - currentScoreRaw : 75 - currentScoreRaw;
       const tierLabel = nearMid ? "좋은 하루" : "최고의 하루";
-      const target = nearMid ? 40 : 75;
 
       const intentionDoneGain = intentionSet && !intentionDone ? 12 : 0;
-      const pomodoroGain = hasExplicitGoal && goalN != null && sessionsToday < goalN ? (1 / goalN) * 30 : 0;
+      // Intentional asymmetry: pomodoroScoreRaw uses the goalN=3 baseline (matches Clock badge score),
+      // but pomodoroGain requires an explicit goal — "집중 1세션" is ambiguous without a target to reference.
+      const pomodoroGain = hasExplicitGoal && sessionsToday < goalN ? (1 / goalN) * 30 : 0;
       const habitGain = habitsTotal > 0 && habitsTodayCount < habitsTotal ? (1 / habitsTotal) * 50 : 0;
 
       if (intentionDoneGain >= gap) {
