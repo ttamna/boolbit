@@ -13669,3 +13669,123 @@ describe("calcTodayInsight — pomodoro_month_goal_declined (priority 10.444, af
   });
 });
 
+// ── pomodoro_month_flawless ──────────────────────────────────────────────────
+describe("calcTodayInsight — pomodoro_month_flawless (priority 11.08, after habit_month_flawless)", () => {
+  // TODAY = "2024-01-15" → day 15 of January, currentMonthDay = 15 ≥ MIN_MONTH_DAYS (10)
+  // focusStreak ≥ currentMonthDay AND sessionsToday > 0 → at least one session every day this month
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 1,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      focusStreak: 15, // equals currentMonthDay (15) → every January day has ≥1 session
+    };
+  }
+
+  it("shouldFireWhenFocusStreakEqualsCurrentMonthDay", () => {
+    // focusStreak=15 on day 15 → every day of January covered
+    const result = calcTodayInsight(base());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("집중");
+    expect(result!.text).toContain("15일");
+  });
+
+  it("shouldFireWhenFocusStreakExceedsCurrentMonthDay", () => {
+    // focusStreak=20 on day 15 → 20-day consecutive run covers all 15 January days
+    const result = calcTodayInsight({ ...base(), focusStreak: 20 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("집중");
+    expect(result!.text).toContain("15일");
+  });
+
+  it("shouldNotFireWhenFocusStreakBelowCurrentMonthDay", () => {
+    // focusStreak=13 < currentMonthDay(15) → at least one day this month had no session.
+    // Using 13 (not a FOCUS_STREAK_MILESTONE) so focus_streak_milestone doesn't preempt.
+    const result = calcTodayInsight({ ...base(), focusStreak: 13 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenNoSessionsToday", () => {
+    // sessionsToday=0 → today not yet covered, month not fully flawless through today
+    const result = calcTodayInsight({ ...base(), sessionsToday: 0 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireBeforeDay10", () => {
+    // day 9 < MIN_MONTH_DAYS(10) → too early in the month to celebrate
+    const day9 = "2024-01-09";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day9,
+      todayIntentionDate: day9,
+      focusStreak: 9,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireExactlyOnDay10", () => {
+    // day 10 === MIN_MONTH_DAYS(10) → boundary fires
+    const day10 = "2024-01-10";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day10,
+      todayIntentionDate: day10,
+      focusStreak: 10,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("집중");
+    expect(result!.text).toContain("10일");
+  });
+
+  it("shouldNotFireWhenFocusStreakIsAbsent", () => {
+    // focusStreak absent → skipped silently (feature not wired by caller)
+    const params = { ...base() };
+    delete (params as Record<string, unknown>)["focusStreak"];
+    const result = calcTodayInsight(params);
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByHabitMonthFlawless", () => {
+    // habit_month_flawless (11.07) fires before pomodoro_month_flawless (11.08)
+    // when BOTH badges qualify simultaneously.
+    // Both 11.07 and 11.08 qualify: 운동 streak=15 (habit flawless) AND focusStreak=15 AND sessionsToday=1.
+    // todayIntentionDate=YESTERDAY (not set today) keeps momentum score = 50+10+0 = 60,
+    // outside near_tier ranges [37,40) and [63,75), so momentum_near_tier doesn't preempt.
+    const result = calcTodayInsight({
+      ...base(),
+      todayIntentionDate: YESTERDAY, // not set today → score=60, no near_tier
+      habits: [{ name: "운동", streak: 15, lastChecked: TODAY }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동"); // habit_month_flawless fires first
+    expect(result!.text).toContain("개근");
+    expect(result!.text).not.toContain("이번 달 매일 집중"); // pomodoro_month_flawless preempted
+  });
+
+  it("shouldPreemptIntentionStreak", () => {
+    // pomodoro_month_flawless (11.08) fires before intention_streak (11.1).
+    // intentionConsecutiveDays=7 + todayIntentionDate=TODAY (from base) → intention_streak would fire,
+    // but pomodoro_month_flawless fires at priority 11.08 first.
+    const result = calcTodayInsight({ ...base(), intentionConsecutiveDays: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("집중"); // pomodoro_month_flawless fires
+    expect(result!.text).not.toContain("의도"); // intention_streak suppressed
+  });
+
+  it("shouldNotFireWhenFocusStreakIsOneDayShortAndIsMilestone", () => {
+    // focusStreak=14 is one short of currentMonthDay=15, AND 14 is a FOCUS_STREAK_MILESTONE.
+    // focus_streak_milestone (7.42) fires instead (sessionsToday=1 > 0, 14 ∈ [7,14,30]).
+    // This documents the interaction: pomodoro_month_flawless is not reached.
+    const result = calcTodayInsight({ ...base(), focusStreak: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14일"); // focus_streak_milestone fires with streak count
+    expect(result!.text).not.toContain("이번 달 매일 집중"); // pomodoro_month_flawless not reached
+  });
+});
+
