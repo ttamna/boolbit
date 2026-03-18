@@ -1,23 +1,27 @@
 // ABOUTME: Tauri backend for Vision Widget — data/settings persistence via JSON files
 // ABOUTME: Exposes load_data, save_data, load_settings, save_settings commands and tray icon setup
 use serde::{Deserialize, Serialize};
+use typeshare::typeshare;
 use std::fs;
 use std::path::PathBuf;
 
 // ─── Settings types ──────────────────────────────────────
 
+#[typeshare]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WindowPosition {
     pub x: i32,
     pub y: i32,
 }
 
+#[typeshare]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WindowSize {
     pub width: u32,
     pub height: u32,
 }
 
+#[typeshare]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WidgetSettings {
     pub position: WindowPosition,
@@ -25,7 +29,7 @@ pub struct WidgetSettings {
     pub opacity: f64,
     #[serde(default = "default_theme")]
     pub theme: String,
-    #[serde(default = "default_clock_format")]
+    #[serde(rename = "clockFormat", default = "default_clock_format")]
     pub clock_format: String, // "24h" or "12h"
     #[serde(rename = "githubPat", default, skip_serializing_if = "Option::is_none")]
     pub github_pat: Option<String>,
@@ -41,6 +45,24 @@ const VALID_MOMENTUM_TIERS: &[&str] = &["high", "mid", "low"];
 fn default_theme() -> String { "void".to_string() }
 fn default_clock_format() -> String { "24h".to_string() }
 
+#[typeshare]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GitHubData {
+    #[serde(rename = "lastCommitAt", default)]
+    pub last_commit_at: String,
+    #[serde(rename = "lastCommitMsg", default)]
+    pub last_commit_msg: String,
+    #[serde(rename = "openIssues", default)]
+    pub open_issues: u32,
+    #[serde(rename = "openPrs", default)]
+    pub open_prs: u32,
+    #[serde(rename = "ciStatus", default, skip_serializing_if = "Option::is_none")]
+    pub ci_status: Option<String>,
+    #[serde(rename = "fetchedAt", default)]
+    pub fetched_at: String,
+}
+
+#[typeshare]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Project {
     pub id: u32,
@@ -54,7 +76,7 @@ pub struct Project {
     #[serde(rename = "githubRepo", default, skip_serializing_if = "Option::is_none")]
     pub github_repo: Option<String>,
     #[serde(rename = "githubData", default, skip_serializing_if = "Option::is_none")]
-    pub github_data: Option<serde_json::Value>,
+    pub github_data: Option<GitHubData>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deadline: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -73,6 +95,7 @@ pub struct Project {
     pub created_date: Option<String>,
 }
 
+#[typeshare]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Habit {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -92,12 +115,14 @@ pub struct Habit {
     pub notes: Option<String>,
 }
 
+#[typeshare]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PomodoroDay {
     pub date: String,
     pub count: u32,
 }
 
+#[typeshare]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IntentionEntry {
     pub date: String,
@@ -106,6 +131,7 @@ pub struct IntentionEntry {
     pub done: Option<bool>,
 }
 
+#[typeshare]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GoalEntry {
     pub date: String,  // period key: "YYYY-Www" (weekly), "YYYY-MM" (monthly), "YYYY-Q1"…"YYYY-Q4" (quarterly), "YYYY" (yearly)
@@ -114,6 +140,7 @@ pub struct GoalEntry {
     pub done: Option<bool>,
 }
 
+#[typeshare]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MomentumEntry {
     pub date: String,   // YYYY-MM-DD
@@ -121,6 +148,7 @@ pub struct MomentumEntry {
     pub tier: String,   // "high", "mid", "low"
 }
 
+#[typeshare]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PomodoroDurations {
     pub focus: u32,
@@ -130,6 +158,7 @@ pub struct PomodoroDurations {
     pub long_break: Option<u32>,
 }
 
+#[typeshare]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WidgetData {
     pub projects: Vec<Project>,
@@ -282,6 +311,42 @@ pub struct WidgetData {
     pub habits_sound: Option<bool>,
     #[serde(rename = "pomodoroSound", default, skip_serializing_if = "Option::is_none")]
     pub pomodoro_sound: Option<bool>,
+    #[serde(rename = "hiddenSections", default, skip_serializing_if = "Option::is_none")]
+    pub hidden_sections: Option<Vec<String>>,
+    #[serde(rename = "habitLifetimeTotalCheckins", default, skip_serializing_if = "Option::is_none")]
+    pub habit_lifetime_total_checkins: Option<u32>,
+    #[serde(rename = "habitMorningRemindDate", default, skip_serializing_if = "Option::is_none")]
+    pub habit_morning_remind_date: Option<String>,
+    #[serde(rename = "momentumMorningRemindDate", default, skip_serializing_if = "Option::is_none")]
+    pub momentum_morning_remind_date: Option<String>,
+    #[serde(rename = "yearlyGoalMorningRemindDate", default, skip_serializing_if = "Option::is_none")]
+    pub yearly_goal_morning_remind_date: Option<String>,
+    #[serde(rename = "weeklyIntentionReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub weekly_intention_report_date: Option<String>,
+    #[serde(rename = "monthlyIntentionReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub monthly_intention_report_date: Option<String>,
+    #[serde(rename = "quarterlyIntentionReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub quarterly_intention_report_date: Option<String>,
+    #[serde(rename = "yearlyIntentionReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub yearly_intention_report_date: Option<String>,
+    #[serde(rename = "monthlyHabitReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub monthly_habit_report_date: Option<String>,
+    #[serde(rename = "quarterlyHabitReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub quarterly_habit_report_date: Option<String>,
+    #[serde(rename = "yearlyHabitReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub yearly_habit_report_date: Option<String>,
+    #[serde(rename = "monthlyMomentumReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub monthly_momentum_report_date: Option<String>,
+    #[serde(rename = "quarterlyMomentumReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub quarterly_momentum_report_date: Option<String>,
+    #[serde(rename = "yearlyMomentumReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub yearly_momentum_report_date: Option<String>,
+    #[serde(rename = "monthlyPomodoroReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub monthly_pomodoro_report_date: Option<String>,
+    #[serde(rename = "quarterlyPomodoroReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub quarterly_pomodoro_report_date: Option<String>,
+    #[serde(rename = "yearlyPomodoroReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub yearly_pomodoro_report_date: Option<String>,
 }
 
 fn get_data_path() -> PathBuf {
@@ -440,6 +505,8 @@ fn default_data() -> WidgetData {
         habit_milestone_approach_date: None,
         weekly_review_remind_date: None,
         weekly_goal_morning_remind_date: None,
+        monthly_goal_morning_remind_date: None,
+        quarterly_goal_morning_remind_date: None,
         weekly_habit_report_date: None,
         month_goal_remind_date: None,
         quarter_goal_remind_date: None,
@@ -453,6 +520,24 @@ fn default_data() -> WidgetData {
         yearly_goal_report_date: None,
         habits_sound: None,
         pomodoro_sound: None,
+        hidden_sections: None,
+        habit_lifetime_total_checkins: None,
+        habit_morning_remind_date: None,
+        momentum_morning_remind_date: None,
+        yearly_goal_morning_remind_date: None,
+        weekly_intention_report_date: None,
+        monthly_intention_report_date: None,
+        quarterly_intention_report_date: None,
+        yearly_intention_report_date: None,
+        monthly_habit_report_date: None,
+        quarterly_habit_report_date: None,
+        yearly_habit_report_date: None,
+        monthly_momentum_report_date: None,
+        quarterly_momentum_report_date: None,
+        yearly_momentum_report_date: None,
+        monthly_pomodoro_report_date: None,
+        quarterly_pomodoro_report_date: None,
+        yearly_pomodoro_report_date: None,
     }
 }
 
@@ -827,49 +912,52 @@ fn load_data() -> WidgetData {
         project.created_date = project.created_date.as_deref()
             .filter(|s| is_valid_ymd(s)).map(String::from);
     }
-    // Sanitize habits_all_done_date: must be strict YYYY-MM-DD format; any other value → None
-    data.habits_all_done_date = data.habits_all_done_date.as_deref()
-        .filter(|s| is_valid_ymd(s))
-        .map(String::from);
-    // Sanitize reminder guard dates: all must be YYYY-MM-DD format
-    data.habit_evening_remind_date = data.habit_evening_remind_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.intention_morning_remind_date = data.intention_morning_remind_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.intention_evening_remind_date = data.intention_evening_remind_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.pomodoro_morning_remind_date = data.pomodoro_morning_remind_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.pomodoro_evening_remind_date = data.pomodoro_evening_remind_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.habit_milestone_approach_date = data.habit_milestone_approach_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.weekly_review_remind_date = data.weekly_review_remind_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.weekly_goal_morning_remind_date = data.weekly_goal_morning_remind_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.weekly_habit_report_date = data.weekly_habit_report_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.month_goal_remind_date = data.month_goal_remind_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.quarter_goal_remind_date = data.quarter_goal_remind_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.year_goal_remind_date = data.year_goal_remind_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.momentum_evening_digest_date = data.momentum_evening_digest_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.weekly_momentum_report_date = data.weekly_momentum_report_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.weekly_pomodoro_report_date = data.weekly_pomodoro_report_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.weekly_goal_report_date = data.weekly_goal_report_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.monthly_goal_report_date = data.monthly_goal_report_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.quarterly_goal_report_date = data.quarterly_goal_report_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
-    data.yearly_goal_report_date = data.yearly_goal_report_date.as_deref()
-        .filter(|s| is_valid_ymd(s)).map(String::from);
+    // Sanitize all date guard fields: clear any value that doesn't match YYYY-MM-DD
+    sanitize_date(&mut data.habits_all_done_date);
+    sanitize_date(&mut data.habit_morning_remind_date);
+    sanitize_date(&mut data.habit_evening_remind_date);
+    sanitize_date(&mut data.habit_milestone_approach_date);
+    sanitize_date(&mut data.intention_morning_remind_date);
+    sanitize_date(&mut data.intention_evening_remind_date);
+    sanitize_date(&mut data.pomodoro_morning_remind_date);
+    sanitize_date(&mut data.pomodoro_evening_remind_date);
+    sanitize_date(&mut data.momentum_morning_remind_date);
+    sanitize_date(&mut data.momentum_evening_digest_date);
+    sanitize_date(&mut data.weekly_review_remind_date);
+    sanitize_date(&mut data.weekly_goal_morning_remind_date);
+    sanitize_date(&mut data.monthly_goal_morning_remind_date);
+    sanitize_date(&mut data.quarterly_goal_morning_remind_date);
+    sanitize_date(&mut data.yearly_goal_morning_remind_date);
+    sanitize_date(&mut data.month_goal_remind_date);
+    sanitize_date(&mut data.quarter_goal_remind_date);
+    sanitize_date(&mut data.year_goal_remind_date);
+    sanitize_date(&mut data.weekly_habit_report_date);
+    sanitize_date(&mut data.monthly_habit_report_date);
+    sanitize_date(&mut data.quarterly_habit_report_date);
+    sanitize_date(&mut data.yearly_habit_report_date);
+    sanitize_date(&mut data.weekly_intention_report_date);
+    sanitize_date(&mut data.monthly_intention_report_date);
+    sanitize_date(&mut data.quarterly_intention_report_date);
+    sanitize_date(&mut data.yearly_intention_report_date);
+    sanitize_date(&mut data.weekly_momentum_report_date);
+    sanitize_date(&mut data.monthly_momentum_report_date);
+    sanitize_date(&mut data.quarterly_momentum_report_date);
+    sanitize_date(&mut data.yearly_momentum_report_date);
+    sanitize_date(&mut data.weekly_pomodoro_report_date);
+    sanitize_date(&mut data.monthly_pomodoro_report_date);
+    sanitize_date(&mut data.quarterly_pomodoro_report_date);
+    sanitize_date(&mut data.yearly_pomodoro_report_date);
+    sanitize_date(&mut data.weekly_goal_report_date);
+    sanitize_date(&mut data.monthly_goal_report_date);
+    sanitize_date(&mut data.quarterly_goal_report_date);
+    sanitize_date(&mut data.yearly_goal_report_date);
+    // Sanitize hidden_sections: reject unknown section keys (same as collapsed_sections)
+    if let Some(ref mut sections) = data.hidden_sections {
+        sections.retain(|s| VALID_SECTIONS.contains(&s.as_str()));
+        if sections.is_empty() {
+            data.hidden_sections = None;
+        }
+    }
     // Sanitize momentum_history: validate dates, guard NaN, clamp score 0–100, validate tier,
     // sort desc → dedup by date (keeps newest per date) → truncate to 7 → sort asc.
     if let Some(ref mut history) = data.momentum_history {
@@ -891,6 +979,11 @@ fn load_data() -> WidgetData {
         }
     }
     data
+}
+
+/// Sanitizes an optional date field in place: clears it if it doesn't match YYYY-MM-DD format.
+fn sanitize_date(field: &mut Option<String>) {
+    *field = field.as_deref().filter(|s| is_valid_ymd(s)).map(String::from);
 }
 
 /// Returns true for strings strictly matching YYYY-MM-DD format with valid month (01–12) and day (01–31) ranges.

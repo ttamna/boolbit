@@ -1,173 +1,62 @@
-// ABOUTME: TypeScript type definitions for widget data, settings, and domain models
-// ABOUTME: Shared across components and hooks; mirrors the Rust WidgetData struct in lib.rs
+// ABOUTME: TypeScript type surface — thin wrapper over types.generated.ts (auto-generated from Rust structs)
+// ABOUTME: Adds TS-only types (GitHubData, SectionKey), narrows overly-broad string types from generated output
 
 import type { ThemeKey } from "./theme";
+import type {
+  GitHubData as _GitHubData,
+  WidgetSettings as _WidgetSettings,
+  Project as _Project,
+  WidgetData as _WidgetData,
+  MomentumEntry as _MomentumEntry,
+} from "./types.generated";
 
-export interface GitHubData {
-  lastCommitAt: string;   // ISO date
-  lastCommitMsg: string;
-  openIssues: number;
-  openPrs: number;
-  ciStatus: 'success' | 'failure' | 'pending' | null;
-  fetchedAt: string;      // ISO date
-}
+// ── Re-exports: unchanged from generated ─────────────────────────────────────
+export type {
+  WindowPosition,
+  WindowSize,
+  Habit,
+  PomodoroDay,
+  IntentionEntry,
+  GoalEntry,
+  PomodoroDurations,
+} from "./types.generated";
 
-export interface Project {
-  id: number;
-  name: string;
-  status: "active" | "in-progress" | "paused" | "done";
-  goal: string;
-  progress: number;
-  metric: string;
-  metric_value: string;
-  metric_target: string;
-  githubRepo?: string;    // "owner/repo"
-  githubData?: GitHubData;
-  deadline?: string;      // YYYY-MM-DD, project target completion date
-  notes?: string;         // freeform project notes: context, blockers, next steps
-  isFocus?: boolean;      // marks project as today's focus/priority; absent = not focused
-  pomodoroSessions?: number; // lifetime focus sessions completed while this project was ★; absent = 0
-  url?: string;             // external project link (prod URL, docs, etc.); absent = not set
-  lastFocusDate?: string;   // YYYY-MM-DD date of last completed pomodoro focus session; absent = never focused
-  completedDate?: string;   // YYYY-MM-DD date when project status was last set to "done"; absent = not completed via cycle
-  createdDate?: string;     // YYYY-MM-DD date when the project was first added to the widget; absent = pre-feature
-}
-
-export interface Habit {
-  id?: string;          // stable identity for React keys
-  name: string;
-  streak: number;
-  icon: string;
-  lastChecked?: string;    // ISO date string (YYYY-MM-DD), set when habit is checked today
-  targetStreak?: number;   // personal goal in days; absent/0 = no target set
-  bestStreak?: number;     // highest streak ever achieved; auto-updated on check-in; absent = no record
-  checkHistory?: string[]; // sorted YYYY-MM-DD check-in dates (today included), capped at 14 entries
-  notes?: string;          // motivational context or reason for maintaining this habit
-}
+// ── TS-only types (no Rust counterpart) ──────────────────────────────────────
 
 export type SectionKey = "projects" | "streaks" | "direction" | "pomodoro";
 
-export interface PomodoroDay {
-  date: string;  // YYYY-MM-DD
-  count: number; // focus sessions completed on this day
-}
+// ── Narrowed types ────────────────────────────────────────────────────────────
 
-export interface IntentionEntry {
-  date: string;  // YYYY-MM-DD
-  text: string;  // the intention text for that day
-  done?: boolean; // true when the user marked the intention as accomplished; absent = not done
-}
+// ciStatus is Option<String> in Rust — narrow to the exact union used at runtime
+export type GitHubData = Omit<_GitHubData, "ciStatus"> & {
+  ciStatus: 'success' | 'failure' | 'pending' | null;
+};
 
-export interface GoalEntry {
-  date: string;  // period key: "YYYY-Www" (weekly), "YYYY-MM" (monthly), "YYYY-Q1"…"YYYY-Q4" (quarterly), "YYYY" (yearly)
-  text: string;  // the goal text for that period
-  done?: boolean; // true when the user marked the goal as accomplished; absent = not done
-}
-
-export interface MomentumEntry {
-  date: string;  // YYYY-MM-DD
-  score: number; // 0-100 daily momentum score
+export type MomentumEntry = Omit<_MomentumEntry, "tier"> & {
   tier: "high" | "mid" | "low";
-}
+};
 
-export interface WidgetData {
-  projects: Project[];
-  habits: Habit[];
-  quotes: string[];
-  pomodoroDurations?: { focus: number; break: number; longBreak?: number };
-  pomodoroSessionsDate?: string; // YYYY-MM-DD, date of the last counted session
-  pomodoroSessions?: number;     // focus sessions completed on pomodoroSessionsDate
-  pomodoroAutoStart?: boolean;   // auto-start next phase when current phase ends
-  pomodoroSessionGoal?: number;  // optional daily focus session target
-  pomodoroLongBreakInterval?: number; // focus sessions per long-break cycle, default 4
-  pomodoroNotify?: boolean;           // desktop notification on phase end; absent/true = enabled
-  pomodoroSound?: boolean;            // audio cue on phase end via Web Audio API; absent/false = disabled
-  habitsSound?: boolean;              // audio cue on habit check-in via Web Audio API; absent/false = disabled
-  pomodoroHistory?: PomodoroDay[];    // rolling 14-day daily session counts for the 7-day heatmap
-  collapsedSections?: SectionKey[];  // section names currently collapsed
-  sectionOrder?: SectionKey[];       // display order of sections; absent = default order
-  hiddenSections?: SectionKey[];     // section names currently hidden from view; absent = all visible
-  quoteInterval?: number;            // auto-rotation interval in seconds (default 8)
-  todayIntention?: string;           // one-line daily intention set by user; absent = not set
-  todayIntentionDate?: string;       // YYYY-MM-DD when todayIntention was last set; absent = not tracked
-  todayIntentionDone?: boolean;      // true when user marks today's intention as accomplished; absent/false = not done
-  intentionHistory?: IntentionEntry[]; // rolling 35-day log of daily intentions; newest last; absent = no history. 35 days covers the full previous calendar month for calcMonthlyIntentionReport.
-  weekGoal?: string;      // one-line weekly goal; absent = not set
-  weekGoalDate?: string;  // ISO week "YYYY-Www" when weekGoal was last set; absent = not tracked
-  weekGoalDone?: boolean; // true when user marks weekly goal as accomplished; absent/false = not done
-  monthGoal?: string;     // one-line monthly goal; absent = not set
-  monthGoalDate?: string; // "YYYY-MM" when monthGoal was last set; absent = not tracked
-  monthGoalDone?: boolean; // true when user marks monthly goal as accomplished; absent/false = not done
-  quarterGoal?: string;   // one-line quarterly goal; absent = not set
-  quarterGoalDate?: string; // "YYYY-Q1"…"YYYY-Q4" when quarterGoal was last set; absent = not tracked
-  quarterGoalDone?: boolean; // true when user marks quarterly goal as accomplished; absent/false = not done
-  yearGoal?: string;      // one-line yearly goal; absent = not set
-  yearGoalDate?: string;  // "YYYY" when yearGoal was last set; absent = not tracked
-  yearGoalDone?: boolean; // true when user marks yearly goal as accomplished; absent/false = not done
-  pomodoroLifetimeMins?: number; // cumulative focus minutes across all sessions; absent = 0 (pre-feature)
-  habitLifetimeTotalCheckins?: number; // cumulative check-ins across all habits; absent = 0 (pre-feature)
-  momentumHistory?: MomentumEntry[]; // rolling 31-day daily momentum scores; newest last; absent = no history
-  habitsAllDoneDate?: string;   // YYYY-MM-DD date when the "all habits done today" notification was sent; absent = not sent
-  habitMorningRemindDate?: string;  // YYYY-MM-DD date when the morning habit activation nudge was sent; absent = not sent
-  habitEveningRemindDate?: string; // YYYY-MM-DD date when the evening unchecked-habits reminder was sent; absent = not sent
-  intentionMorningRemindDate?: string; // YYYY-MM-DD date when the morning intention-setter reminder was sent; absent = not sent
-  intentionEveningRemindDate?: string; // YYYY-MM-DD date when the evening intention done-check reminder was sent; absent = not sent
-  pomodoroMorningRemindDate?: string;  // YYYY-MM-DD date when the morning pomodoro start nudge was sent; absent = not sent
-  pomodoroEveningRemindDate?: string;  // YYYY-MM-DD date when the evening pomodoro goal-gap nudge was sent; absent = not sent
-  habitMilestoneApproachDate?: string; // YYYY-MM-DD date when the habit milestone approach nudge was sent; absent = not sent
-  weeklyReviewRemindDate?: string;     // YYYY-MM-DD (Sunday) when the weekly review nudge was last sent; absent = not sent
-  weeklyGoalMorningRemindDate?: string; // YYYY-MM-DD (Monday) when the weekly goal-setting morning nudge was last sent; absent = not sent
-  monthlyGoalMorningRemindDate?: string; // YYYY-MM-DD (1st of month) when the monthly goal-setting morning nudge was last sent; absent = not sent
-  quarterlyGoalMorningRemindDate?: string; // YYYY-MM-DD (quarter-start) when the quarterly goal-setting morning nudge was last sent; absent = not sent
-  yearlyGoalMorningRemindDate?: string;    // YYYY-MM-DD (Jan 1) when the yearly goal-setting morning nudge was last sent; absent = not sent
-  weeklyGoalReportDate?: string;         // YYYY-MM-DD (Monday) when the weekly goal achievement report was last sent; absent = not sent
-  monthlyGoalReportDate?: string;        // YYYY-MM-DD (1st of month) when the monthly goal achievement report was last sent; absent = not sent
-  quarterlyGoalReportDate?: string;      // YYYY-MM-DD (quarter-start) when the quarterly goal achievement report was last sent; absent = not sent
-  yearlyGoalReportDate?: string;         // YYYY-MM-DD (Jan 1) when the yearly goal achievement report was last sent; absent = not sent
-  weeklyHabitReportDate?: string;      // YYYY-MM-DD (Monday) when the weekly habit completion rate report was last sent; absent = not sent
-  monthlyHabitReportDate?: string;     // YYYY-MM-DD (1st of month) when the monthly habit completion rate report was last sent; absent = not sent
-  quarterlyHabitReportDate?: string;   // YYYY-MM-DD (quarter-start) when the quarterly habit completion rate report was last sent; absent = not sent
-  yearlyHabitReportDate?: string;      // YYYY-MM-DD (Jan 1) when the yearly habit completion rate report was last sent; absent = not sent
-  momentumMorningRemindDate?: string;  // YYYY-MM-DD when the morning momentum score reminder notification was last sent; absent = not sent
-  momentumEveningDigestDate?: string;  // YYYY-MM-DD when the evening momentum score digest notification was last sent; absent = not sent
-  weeklyMomentumReportDate?: string;   // YYYY-MM-DD (Monday) when the weekly momentum avg+tier report was last sent; absent = not sent
-  monthlyMomentumReportDate?: string;  // YYYY-MM-DD (1st of month) when the monthly momentum avg+tier report was last sent; absent = not sent
-  quarterlyMomentumReportDate?: string; // YYYY-MM-DD (quarter-start) when the quarterly momentum avg+tier report was last sent; absent = not sent
-  yearlyMomentumReportDate?: string;    // YYYY-MM-DD (Jan 1) when the yearly momentum avg+tier report was last sent; absent = not sent
-  weeklyPomodoroReportDate?: string;   // YYYY-MM-DD (Monday) when the weekly pomodoro session count report was last sent; absent = not sent
-  monthlyPomodoroReportDate?: string;  // YYYY-MM-DD (1st of month) when the monthly pomodoro session count report was last sent; absent = not sent
-  quarterlyPomodoroReportDate?: string; // YYYY-MM-DD (quarter-start) when the quarterly pomodoro session count report was last sent; absent = not sent
-  yearlyPomodoroReportDate?: string;    // YYYY-MM-DD (Jan 1) when the yearly pomodoro session count report was last sent; absent = not sent
-  weeklyIntentionReportDate?: string;      // YYYY-MM-DD (Monday) when the weekly intention done-rate report was last sent; absent = not sent
-  monthlyIntentionReportDate?: string;     // YYYY-MM-DD (1st of month) when the monthly intention done-rate report was last sent; absent = not sent
-  quarterlyIntentionReportDate?: string;   // YYYY-MM-DD (quarter-start) when the quarterly intention done-rate report was last sent; absent = not sent
-  yearlyIntentionReportDate?: string;      // YYYY-MM-DD (Jan 1) when the yearly intention done-rate report was last sent; absent = not sent
-  monthGoalRemindDate?: string;        // YYYY-MM-DD when the end-of-month goal review nudge was last sent; absent = not sent
-  quarterGoalRemindDate?: string;      // YYYY-MM-DD when the end-of-quarter goal review nudge was last sent; absent = not sent
-  yearGoalRemindDate?: string;         // YYYY-MM-DD when the end-of-year goal review nudge was last sent; absent = not sent
-  weekGoalHistory?: GoalEntry[];   // rolling log of past weekly goals; newest last; capped at 8 entries; absent = no history
-  monthGoalHistory?: GoalEntry[];  // rolling log of past monthly goals; newest last; capped at 12 entries; absent = no history
-  quarterGoalHistory?: GoalEntry[]; // rolling log of past quarterly goals; newest last; capped at 8 entries; absent = no history
-  yearGoalHistory?: GoalEntry[];   // rolling log of past yearly goals; newest last; capped at 5 entries; absent = no history
-}
+export type Project = Omit<_Project, "status" | "githubData"> & {
+  status: "active" | "in-progress" | "paused" | "done";
+  githubData?: GitHubData;
+};
 
-export interface WindowPosition {
-  x: number;
-  y: number;
-}
-
-export interface WindowSize {
-  width: number;
-  height: number;
-}
-
-export interface WidgetSettings {
-  position: WindowPosition;
-  size: WindowSize;
-  opacity: number; // 0.0 ~ 1.0
+export type WidgetSettings = Omit<_WidgetSettings, "theme" | "clockFormat"> & {
   theme: ThemeKey;
-  clockFormat?: '12h' | '24h';         // defaults to '24h' when absent
-  githubPat?: string;                   // Personal Access Token, stored locally
-  githubRefreshInterval?: number;       // minutes, defaults to 10
-  pinned?: boolean;                     // window always-on-top; absent/false = not pinned
-}
+  clockFormat: "12h" | "24h";
+};
+
+export type WidgetData = Omit<
+  _WidgetData,
+  | "projects"
+  | "collapsedSections"
+  | "sectionOrder"
+  | "hiddenSections"
+  | "momentumHistory"
+> & {
+  projects: Project[];
+  collapsedSections?: SectionKey[];
+  sectionOrder?: SectionKey[];
+  hiddenSections?: SectionKey[];
+  momentumHistory?: MomentumEntry[];
+};

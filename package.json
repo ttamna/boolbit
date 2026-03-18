@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "typeshare": "cd src-tauri && typeshare . --lang=typescript --output-file=../src/types.generated.ts"
   },
   "dependencies": {
     "@tauri-apps/plugin-notification": "^2.3.3",

@@ -2042,13 +2042,14 @@ export default function App() {
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
   // (e.g. pomodoro session or habit check-in that updates data between renders).
   useEffect(() => {
+    if (!loaded) return;
     const current = dataRef.current;
     const stored = (current.momentumHistory ?? []).find(e => e.date === todayStr);
     if (stored && stored.score === dailyScore.score && stored.tier === dailyScore.tier) return;
     const updated = updateMomentumHistory(current.momentumHistory ?? [], todayStr, dailyScore.score, dailyScore.tier);
     persist({ ...current, momentumHistory: updated });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dailyScore.score, dailyScore.tier, todayStr]);
+  }, [dailyScore.score, dailyScore.tier, todayStr, loaded]);
 
   // Morning momentum reminder — fires once per calendar day at 09:00+ showing yesterday's momentum score.
   // Gives the user daily context to carry momentum forward or start fresh with awareness.

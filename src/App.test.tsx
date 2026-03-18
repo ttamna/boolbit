@@ -251,6 +251,148 @@ describe("hiddenSections — import syncs UI state", () => {
   });
 });
 
+describe("momentum effect — does not overwrite file before load_data completes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should not call save_data with DEFAULT_DATA projects before load_data resolves", async () => {
+    // Arrange: load_data returns a project with url set.
+    // Bug: momentum useEffect fires on mount (before load_data resolves) with DEFAULT_DATA
+    // in dataRef.current, which overwrites the file — losing url, direction fields, etc.
+    vi.mocked(mockInvoke).mockImplementation((cmd: string) => {
+      if (cmd === "load_data") {
+        return Promise.resolve({
+          projects: [
+            { id: 1, name: "TestProj", status: "active", goal: "g", progress: 0,
+              metric: "m", metric_value: "0", metric_target: "100",
+              url: "https://example.com" },
+          ],
+          habits: [{ id: "h1", name: "Habit1", streak: 0, icon: "✅" }],
+          quotes: [],
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    render(<App />);
+
+    // Wait for load_data to complete and any initial saves (including momentum effect) to fire
+    await waitFor(() => {
+      expect(screen.getByText("Projects")).toBeTruthy();
+    });
+
+    // ALL save_data calls (including any from the momentum effect) must preserve url
+    const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
+    for (const save of saves) {
+      const savedProjects = (save[1] as { data: { projects: Array<{ url?: string; name?: string }> } }).data.projects;
+      const testProj = savedProjects.find(p => p.name === "TestProj");
+      if (testProj !== undefined) {
+        // If TestProj appears in the save, url must be preserved
+        expect(testProj.url).toBe("https://example.com");
+      }
+    }
+  });
+});
+
+describe("project field persistence — githubRepo and url survive save round-trip", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should preserve githubRepo in save_data when another save is triggered (e.g. habit ID migration)", async () => {
+    // Arrange: load_data returns a project with githubRepo set.
+    // Habits have no id → needsIdMigration = true → App auto-saves on load.
+    // That auto-save must not strip githubRepo from the project.
+    vi.mocked(mockInvoke).mockImplementation((cmd: string) => {
+      if (cmd === "load_data") {
+        return Promise.resolve({
+          projects: [
+            { id: 1, name: "TestProj", status: "active", goal: "g", progress: 0,
+              metric: "m", metric_value: "0", metric_target: "100",
+              githubRepo: "owner/repo" },
+          ],
+          habits: [
+            // No id field → needsIdMigration = true → automatic save triggered
+            { name: "Habit1", streak: 3, icon: "✅" },
+          ],
+          quotes: [],
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    render(<App />);
+
+    // Wait for the auto-save triggered by ID migration
+    await waitFor(() => {
+      const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
+      expect(saves.length).toBeGreaterThan(0);
+    });
+
+    // The save_data call must include githubRepo in the project
+    const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
+    const lastSave = saves[saves.length - 1];
+    const savedProjects = (lastSave[1] as { data: { projects: Array<{ githubRepo?: string }> } }).data.projects;
+    expect(savedProjects[0].githubRepo).toBe("owner/repo");
+  });
+
+  it("should preserve url in save_data when another save is triggered", async () => {
+    vi.mocked(mockInvoke).mockImplementation((cmd: string) => {
+      if (cmd === "load_data") {
+        return Promise.resolve({
+          projects: [
+            { id: 1, name: "TestProj", status: "active", goal: "g", progress: 0,
+              metric: "m", metric_value: "0", metric_target: "100",
+              url: "https://example.com" },
+          ],
+          habits: [{ name: "Habit1", streak: 1, icon: "✅" }],
+          quotes: [],
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
+      expect(saves.length).toBeGreaterThan(0);
+    });
+
+    const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
+    const lastSave = saves[saves.length - 1];
+    const savedProjects = (lastSave[1] as { data: { projects: Array<{ url?: string }> } }).data.projects;
+    expect(savedProjects[0].url).toBe("https://example.com");
+  });
+
+  it("should preserve habitLifetimeTotalCheckins in save_data when another save is triggered", async () => {
+    vi.mocked(mockInvoke).mockImplementation((cmd: string) => {
+      if (cmd === "load_data") {
+        return Promise.resolve({
+          projects: [],
+          habits: [{ name: "Habit1", streak: 1, icon: "✅" }],
+          quotes: [],
+          habitLifetimeTotalCheckins: 42,
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
+      expect(saves.length).toBeGreaterThan(0);
+    });
+
+    const saves = vi.mocked(mockInvoke).mock.calls.filter(([cmd]) => cmd === "save_data");
+    const lastSave = saves[saves.length - 1];
+    const savedData = (lastSave[1] as { data: { habitLifetimeTotalCheckins?: number } }).data;
+    expect(savedData.habitLifetimeTotalCheckins).toBe(42);
+  });
+});
+
 describe("hiddenSections — persistence across app restart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
