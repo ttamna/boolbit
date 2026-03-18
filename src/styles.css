@@ -18,10 +18,10 @@
   --color-text-muted: rgba(255, 255, 255, 0.50);
   --color-text-faint: rgba(255, 255, 255, 0.46);
   --color-text-dim: rgba(255, 255, 255, 0.42);
-  --color-text-subtle: rgba(255, 255, 255, 0.38);
-  --color-text-ghost: rgba(255, 255, 255, 0.34);
-  --color-text-phantom: rgba(255, 255, 255, 0.30);
-  --color-text-label: rgba(255, 255, 255, 0.26);
+  --color-text-subtle: rgba(255, 255, 255, 0.52);
+  --color-text-ghost: rgba(255, 255, 255, 0.42);
+  --color-text-phantom: rgba(255, 255, 255, 0.38);
+  --color-text-label: rgba(255, 255, 255, 0.34);
 
   /* Colors - surfaces */
   --color-surface-faint: rgba(255, 255, 255, 0.04);

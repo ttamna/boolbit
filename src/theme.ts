@@ -19,10 +19,10 @@ export const colors = {
   textMuted: "rgba(255,255,255,0.50)",
   textFaint: "rgba(255,255,255,0.46)",
   textDim: "rgba(255,255,255,0.42)",
-  textSubtle: "rgba(255,255,255,0.38)",
-  textGhost: "rgba(255,255,255,0.34)",
-  textPhantom: "rgba(255,255,255,0.30)",
-  textLabel: "rgba(255,255,255,0.26)",
+  textSubtle: "rgba(255,255,255,0.52)",
+  textGhost: "rgba(255,255,255,0.42)",
+  textPhantom: "rgba(255,255,255,0.38)",
+  textLabel: "rgba(255,255,255,0.34)",
 
   // Surfaces
   surfaceFaint: "rgba(255,255,255,0.04)",

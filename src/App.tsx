@@ -2364,7 +2364,7 @@ export default function App() {
                     {/* Year goal — auto-expires when calendar year advances; ✓ marks done; ✕ clears when set; ▾ shows past year history */}
                     <div style={{ padding: "0 14px 8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
-                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.yearGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`${daysLeftYear}일 남음`}>Y<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftYear}d</span></span>
+                        <span style={{ ...s.mono, fontSize: fontSizes.label, color: data.yearGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`${daysLeftYear}일 남음`}>Y<span style={{ color: colors.textPhantom }}>·{daysLeftYear}d</span></span>
                         <InlineEdit
                           value={data.yearGoal ?? ""}
                           onSave={updateYearGoal}
@@ -2440,7 +2440,7 @@ export default function App() {
                     {/* Quarter goal — auto-expires when calendar quarter advances; ✓ marks done; ✕ clears when set; ▾ shows past quarter history */}
                     <div style={{ padding: "0 14px 8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
-                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.quarterGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`Q${currentQtr} · ${daysLeftQuarter}일 남음`}>Q{currentQtr}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftQuarter}d</span></span>
+                        <span style={{ ...s.mono, fontSize: fontSizes.label, color: data.quarterGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`Q${currentQtr} · ${daysLeftQuarter}일 남음`}>Q{currentQtr}<span style={{ color: colors.textPhantom }}>·{daysLeftQuarter}d</span></span>
                         <InlineEdit
                           value={data.quarterGoal ?? ""}
                           onSave={updateQuarterGoal}
@@ -2516,7 +2516,7 @@ export default function App() {
                     {/* Month goal — auto-expires when calendar month advances; ✓ marks done; ✕ clears when set; ▾ shows past month history */}
                     <div style={{ padding: "0 14px 8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
-                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.monthGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`M${currentMonth} · ${daysLeftMonth}일 남음`}>M{currentMonth}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftMonth}d</span></span>
+                        <span style={{ ...s.mono, fontSize: fontSizes.label, color: data.monthGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`M${currentMonth} · ${daysLeftMonth}일 남음`}>M{currentMonth}<span style={{ color: colors.textPhantom }}>·{daysLeftMonth}d</span></span>
                         <InlineEdit
                           value={data.monthGoal ?? ""}
                           onSave={updateMonthGoal}
@@ -2592,7 +2592,7 @@ export default function App() {
                     {/* Week goal — auto-expires when ISO week advances; ✓ marks done; ✕ clears when set; ▾ shows past week history */}
                     <div style={{ padding: "0 14px 8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
-                        <span style={{ ...s.mono, fontSize: fontSizes.mini, color: data.weekGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`W${currentWeek} · ${daysLeftWeek}일 남음`}>W{currentWeek}<span style={{ color: colors.textPhantom, opacity: 0.5 }}>·{daysLeftWeek}d</span></span>
+                        <span style={{ ...s.mono, fontSize: fontSizes.label, color: data.weekGoal ? colors.textSubtle : colors.textPhantom, flexShrink: 0 }} title={`W${currentWeek} · ${daysLeftWeek}일 남음`}>W{currentWeek}<span style={{ color: colors.textPhantom }}>·{daysLeftWeek}d</span></span>
                         <InlineEdit
                           value={data.weekGoal ?? ""}
                           onSave={updateWeekGoal}
