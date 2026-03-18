@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_improved, pomodoro_week_declined)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_improved, pomodoro_week_declined, week_balanced)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -11599,6 +11599,182 @@ describe("calcTodayInsight — pomodoro_week_declined (priority 10.384, after po
     expect(result).not.toBeNull();
     expect(result!.text).not.toContain("줄었어요"); // declined suppressed
     expect(result!.level).toBe("success"); // improved fires instead
+  });
+});
+
+// ── week_balanced ──────────────────────────────────────────
+describe("calcTodayInsight — week_balanced (priority 10.33, between almost_perfect_day and habit_week_perfect)", () => {
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: YESTERDAY,
+      habitWeekRate: 80,
+      intentionWeekDoneRate: 75,
+      momentumWeekAvg7d: 50,
+    };
+  }
+
+  it("shouldFireWhenAllThreeDomainsAboveThreshold", () => {
+    // habitWeekRate=80≥70, intentionWeekDoneRate=75≥70, momentumWeekAvg7d=50≥40 → all three cross minimum bar
+    const result = calcTodayInsight({ ...base() });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("균형");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldContainAllThreeDomainNames", () => {
+    const result = calcTodayInsight({ ...base() });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관");
+    expect(result!.text).toContain("의도");
+    expect(result!.text).toContain("모멘텀");
+  });
+
+  it("shouldNotFireWhenHabitBelowThreshold", () => {
+    // habitWeekRate=65 < 70 → week_balanced suppressed; intention_week_excellent fires instead (base has 75 ≥ 70)
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 65 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("균형"); // week_balanced suppressed
+  });
+
+  it("shouldNotFireWhenIntentionBelowThreshold", () => {
+    // intentionWeekDoneRate=65 < 70 → week_balanced suppressed; intention_week_excellent also suppressed (needs ≥70) → null
+    // Why null: habitWeekRate=80 (no excellent/perfect/improved/declined without prev); momentumWeekAvg7d=50
+    //   (not ≥65 strong, no prev for comparison); intentionWeekDoneRate=65 below both 70 bars → no badge fires.
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 65 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenMomentumBelowThreshold", () => {
+    // momentumWeekAvg7d=35 < 40 → week_balanced suppressed; intention_week_excellent fires instead (base has 75 ≥ 70)
+    const result = calcTodayInsight({ ...base(), momentumWeekAvg7d: 35 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("균형"); // week_balanced suppressed
+  });
+
+  it("shouldNotFireWhenHabitAbsent", () => {
+    // habitWeekRate undefined → all-three-defined guard fails; intention_week_excellent fires (base has 75 ≥ 70)
+    const result = calcTodayInsight({ ...base(), habitWeekRate: undefined });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("균형"); // week_balanced suppressed
+  });
+
+  it("shouldNotFireWhenIntentionAbsent", () => {
+    // intentionWeekDoneRate undefined → all-three-defined guard fails AND no other badge fires → null
+    // Why null: habitWeekRate=80 (not excellent/perfect/improved/declined without prev); intention absent;
+    // momentumWeekAvg7d=50 (not ≥65 strong, no prev for comparison). All fallback weekly badges skip too.
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: undefined });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenMomentumAbsent", () => {
+    // momentumWeekAvg7d undefined → all-three-defined guard fails; intention_week_excellent fires (base has 75 ≥ 70)
+    const result = calcTodayInsight({ ...base(), momentumWeekAvg7d: undefined });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("균형"); // week_balanced suppressed
+  });
+
+  it("shouldFireAtExactHabitThreshold", () => {
+    // habitWeekRate=70 (boundary) → still fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 70 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("균형");
+  });
+
+  it("shouldFireAtExactIntentionThreshold", () => {
+    // intentionWeekDoneRate=70 (boundary) → still fires
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 70 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("균형");
+  });
+
+  it("shouldFireAtExactMomentumThreshold", () => {
+    // momentumWeekAvg7d=40 (boundary) → still fires
+    const result = calcTodayInsight({ ...base(), momentumWeekAvg7d: 40 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("균형");
+  });
+
+  it("shouldNotFireWhenHabitExcellent_90percent", () => {
+    // habitWeekRate=90 ≥ 90 → upper-bound guard fails; habit_week_excellent fires instead
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 90 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("균형"); // week_balanced suppressed
+    expect(result!.text).toContain("이번 주 습관 완료율"); // habit_week_excellent fires instead
+  });
+
+  it("shouldNotFireWhenHabitPerfect_100percent", () => {
+    // habitWeekRate=100 ≥ 90 → upper-bound guard fails; habit_week_perfect fires instead
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 100 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("균형"); // week_balanced suppressed
+    expect(result!.text).toContain("완벽한 한 주"); // habit_week_perfect fires instead
+  });
+
+  it("shouldNotFireWhenIntentionPerfect_100percent", () => {
+    // intentionWeekDoneRate=100 ≥ 100 → upper-bound guard fails; nothing else fires → null
+    // (habit_week_* don't fire because habitWeekRate=80; intention_week_perfect=10.371 fires if we got there,
+    //  but with habitWeekRate=80 and no prevWeekRate, nothing fires between 10.34–10.37, then
+    //  intention_week_perfect fires at 10.371 — but we must first check there's no earlier badge)
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 100 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("균형"); // week_balanced suppressed
+    expect(result!.text).toContain("의도"); // intention_week_perfect fires instead
+  });
+
+  it("shouldNotFireWhenMomentumStrong_65points", () => {
+    // momentumWeekAvg7d=65 ≥ 65 → upper-bound guard fails; week_balanced suppressed
+    // intention_week_excellent (10.372) fires first because intentionWeekDoneRate=75 ≥ 70 (fires before momentum_week_strong at 10.38)
+    const result = calcTodayInsight({ ...base(), momentumWeekAvg7d: 65 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("균형"); // week_balanced suppressed
+  });
+
+  it("shouldFireAtHabitUpperBoundary_89percent", () => {
+    // habitWeekRate=89 (one below the 90 upper bound) → still fires
+    const result = calcTodayInsight({ ...base(), habitWeekRate: 89 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("균형");
+  });
+
+  it("shouldFireAtMomentumUpperBoundary_64points", () => {
+    // momentumWeekAvg7d=64 (one below the 65 upper bound) → still fires
+    const result = calcTodayInsight({ ...base(), momentumWeekAvg7d: 64 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("균형");
+  });
+
+  it("shouldBePreemptedByAlmostPerfectDay", () => {
+    // nowHour=14, 1 habit unchecked today → almost_perfect_day (10.3) fires before week_balanced (10.33)
+    const result = calcTodayInsight({
+      ...base(),
+      nowHour: 14,
+      habits: [
+        { name: "운동", streak: 5, lastChecked: TODAY },
+        { name: "독서", streak: 5, lastChecked: YESTERDAY }, // not yet checked today
+      ],
+      habitsAllDoneDate: YESTERDAY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("균형"); // week_balanced suppressed
+    expect(result!.text).toContain("완벽한 하루까지"); // almost_perfect_day fires instead
+  });
+
+  it("shouldBePreemptedByHigherPriorityBadge", () => {
+    // streak_at_risk: evening + habit with streak ≥ 7 not checked today
+    // preempts week_balanced (all domain badges yield to urgent risk)
+    const result = calcTodayInsight({
+      ...base(),
+      nowHour: 21,
+      habits: [{ name: "운동", streak: 10, lastChecked: YESTERDAY }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("균형"); // week_balanced suppressed by streak_at_risk
   });
 });
 
