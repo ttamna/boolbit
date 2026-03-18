@@ -1866,6 +1866,14 @@ export default function App() {
   const pomodoroMonthGoalDays = (data.pomodoroSessionGoal && data.pomodoroSessionGoal > 0)
     ? calcPomodoroMonthGoalDays(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, last14Days, pomodoroSessionsToday, todayStr)
     : undefined;
+  // pomodoroWeekPrevGoalDays: days in the PREVIOUS 7-day window (last14Days.slice(0, 7), i.e. days 7–13 ago)
+  // where session count >= sessionGoal. last14Days.slice(0, 7) never contains todayStr (it ends 7 days ago),
+  // so sessionsToday=0 and the todayStr branch inside calcPomodoroWeekGoalDays are both inert — all counts
+  // come from pomodoroHistory. Used alongside pomodoroWeekGoalDays to detect week-over-week goal-day delta ≥ 2
+  // in insight.ts (10.3823/10.3824).
+  const pomodoroWeekPrevGoalDays = (data.pomodoroSessionGoal && data.pomodoroSessionGoal > 0)
+    ? calcPomodoroWeekGoalDays(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, last14Days.slice(0, 7), 0, todayStr)
+    : undefined;
   // intentionMonthDoneRate: current calendar month's intention done rate (0–100), or undefined when
   // fewer than 14 intentions were set this month (insufficient data for a meaningful signal).
   // Delegates to calcIntentionMonthDoneRate which excludes today from intentionHistory to avoid
@@ -2035,6 +2043,8 @@ export default function App() {
     pomodoroPrevWeekSessions,
     // pomodoroWeekGoalDays: days in last7Days goal was met; undefined when sessionGoal not set.
     pomodoroWeekGoalDays,
+    // pomodoroWeekPrevGoalDays: days in last14Days.slice(0, 7) goal was met; undefined when sessionGoal not set.
+    pomodoroWeekPrevGoalDays,
     // pomodoroMonthGoalDays: days in last14Days goal was met; undefined when sessionGoal not set.
     pomodoroMonthGoalDays,
   });

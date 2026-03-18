@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_improved, pomodoro_week_declined, week_balanced, habit_month_perfect, habit_month_excellent, intention_month_perfect, intention_month_excellent, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_improved, intention_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_balanced, habit_month_perfect, habit_month_excellent, intention_month_perfect, intention_month_excellent, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -11419,8 +11419,161 @@ describe("calcTodayInsight — pomodoro_week_goal_excellent (priority 10.3822, a
   });
 });
 
-// ── pomodoro_week_improved (priority 10.383, after momentum_week_declined, before pomodoro_week_declined) ──
-describe("calcTodayInsight — pomodoro_week_improved (priority 10.383, after momentum_week_declined, before pomodoro_week_declined)", () => {
+// ── pomodoro_week_goal_improved (priority 10.3823, after pomodoro_week_goal_excellent, before pomodoro_week_goal_declined) ──
+describe("calcTodayInsight — pomodoro_week_goal_improved (priority 10.3823, after pomodoro_week_goal_excellent, before pomodoro_week_goal_declined)", () => {
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWhenGoalDaysRoseByExactly2", () => {
+    // current=3, prev=1 → delta=2 (at threshold) → fires
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 3, pomodoroWeekPrevGoalDays: 1 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldIncludeCurrentGoalDayCountInText", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 3, pomodoroWeekPrevGoalDays: 1 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("3/7");
+  });
+
+  it("shouldIncludeDeltaInText", () => {
+    // delta = 3 - 1 = 2
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 3, pomodoroWeekPrevGoalDays: 1 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("2일");
+  });
+
+  it("shouldNotFireWhenDeltaIsOnly1", () => {
+    // current=3, prev=2 → delta=1 < 2 threshold → no badge
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 3, pomodoroWeekPrevGoalDays: 2 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroWeekGoalDaysIsUndefined", () => {
+    // pomodoroWeekGoalDays absent → skipped silently
+    const result = calcTodayInsight({ ...base(), pomodoroWeekPrevGoalDays: 1 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroWeekPrevGoalDaysIsUndefined", () => {
+    // no comparison baseline → skipped silently
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 3 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByPomodoroWeekGoalExcellent", () => {
+    // current=5 → excellent (10.3822) fires before improved (10.3823)
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 5, pomodoroWeekPrevGoalDays: 2 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("5/7"); // excellent fires
+    expect(result!.text).not.toContain("일 더"); // improved suppressed
+  });
+
+  it("shouldBePreemptedByPomodoroWeekGoalPerfect", () => {
+    // current=7 → perfect (10.3821) fires before improved (10.3823)
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 7, pomodoroWeekPrevGoalDays: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7/7"); // perfect fires
+    expect(result!.text).not.toContain("일 더"); // improved suppressed
+  });
+
+  it("shouldFireBeforePomodoroWeekImproved", () => {
+    // Both conditions: goal days rose ≥2 AND weekly sessions rose ≥3
+    // goal_improved (10.3823) fires before week_improved (10.383)
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroWeekGoalDays: 3,
+      pomodoroWeekPrevGoalDays: 1,
+      pomodoroWeekSessions: 8,
+      pomodoroPrevWeekSessions: 4,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("3/7"); // goal_improved fires
+    expect(result!.text).not.toContain("세션 더 집중"); // week_improved suppressed
+  });
+});
+
+// ── pomodoro_week_goal_declined (priority 10.3824, after pomodoro_week_goal_improved, before pomodoro_week_improved) ──
+describe("calcTodayInsight — pomodoro_week_goal_declined (priority 10.3824, after pomodoro_week_goal_improved, before pomodoro_week_improved)", () => {
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWhenGoalDaysDroppedByExactly2", () => {
+    // current=1, prev=3 → drop=2 (at threshold) → fires
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 1, pomodoroWeekPrevGoalDays: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+  });
+
+  it("shouldIncludeCurrentGoalDayCountInText", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 1, pomodoroWeekPrevGoalDays: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("1/7");
+  });
+
+  it("shouldIncludeDeltaInText", () => {
+    // drop = 3 - 1 = 2
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 1, pomodoroWeekPrevGoalDays: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("2일");
+  });
+
+  it("shouldNotFireWhenDeltaIsOnly1", () => {
+    // current=2, prev=3 → drop=1 < 2 threshold → no badge
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 2, pomodoroWeekPrevGoalDays: 3 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenImprovedInstead", () => {
+    // current=3, prev=1 → improved (10.3823) fires, not declined (10.3824) — mutually exclusive
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 3, pomodoroWeekPrevGoalDays: 1 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // improved fires (success), not declined (warning)
+  });
+
+  it("shouldNotFireWhenPomodoroWeekGoalDaysIsUndefined", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroWeekPrevGoalDays: 3 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroWeekPrevGoalDaysIsUndefined", () => {
+    // No comparison baseline → skipped silently; mirrors shouldNotFireWhenPomodoroWeekPrevGoalDaysIsUndefined in improved
+    const result = calcTodayInsight({ ...base(), pomodoroWeekGoalDays: 1 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireBeforePomodoroWeekImproved", () => {
+    // Goal days declined ≥2 AND session count rose ≥3 — goal_declined (10.3824) fires before week_improved (10.383)
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroWeekGoalDays: 1,
+      pomodoroWeekPrevGoalDays: 4,
+      pomodoroWeekSessions: 7,
+      pomodoroPrevWeekSessions: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("1/7"); // goal_declined fires
+    expect(result!.level).toBe("warning"); // declined = warning level
+  });
+});
+
+// ── pomodoro_week_improved (priority 10.383, after pomodoro_week_goal_declined, before pomodoro_week_declined) ──
+describe("calcTodayInsight — pomodoro_week_improved (priority 10.383, after pomodoro_week_goal_declined, before pomodoro_week_declined)", () => {
   const base = () => ({
     habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
     todayStr: TODAY,
