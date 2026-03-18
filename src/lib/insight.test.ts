@@ -12030,6 +12030,15 @@ describe("calcTodayInsight — intention_week_declined (priority 10.374, between
     expect(result!.text).not.toContain("낮아요"); // declined text suppressed
     expect(result!.level).toBe("success"); // excellent fires instead
   });
+
+  it("shouldBePreemptedByIntentionWeekMaintainedWhenCurrentRateIn50to69", () => {
+    // doneRate=60 ∈ [50,70), prevRate=80 → decline=20pp AND maintained fires at 10.3725 before declined (10.374)
+    const result = calcTodayInsight({ ...base(), intentionWeekDoneRate: 60, intentionPrevWeekDoneRate: 80 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // maintained is "success", not "warning"
+    expect(result!.text).toContain("꾸준한 실천이에요"); // intention_week_maintained text
+    expect(result!.text).not.toContain("낮아요"); // declined suppressed
+  });
 });
 
 // ── momentum_week_maintained (priority 10.3802, after momentum_week_excellent (10.3801), before momentum_week_improved (10.381)) ──
@@ -14132,6 +14141,15 @@ describe("calcTodayInsight — habit_month_improved (priority 10.413, after habi
     const result = calcTodayInsight({ ...base(), habitMonthRate: 80, habitPrevMonthRate: 71 });
     expect(result).toBeNull();
   });
+
+  it("shouldBePreemptedByHabitMonthMaintainedWhenRateIn70to79", () => {
+    // rate=75 ∈ [70,80), prevRate=60 → improvement=15pp AND maintained fires at 10.411 before improved (10.413)
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 75, habitPrevMonthRate: 60 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("유지"); // maintained fires
+    expect(result!.text).not.toContain("올랐어요"); // improved suppressed
+  });
 });
 
 // ── habit_month_declined ──────────────────────────────────────────
@@ -14206,6 +14224,15 @@ describe("calcTodayInsight — habit_month_declined (priority 10.414, after habi
     expect(result).not.toBeNull();
     expect(result!.text).toContain("낮아요"); // habit_month_declined wins
     expect(result!.level).toBe("warning");
+  });
+
+  it("shouldBePreemptedByHabitMonthMaintainedWhenRateIn70to79", () => {
+    // rate=75 ∈ [70,80), prevRate=90 → decline=15pp AND maintained fires at 10.411 before declined (10.414)
+    const result = calcTodayInsight({ ...base(), habitMonthRate: 75, habitPrevMonthRate: 90 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // maintained is "success", not "warning"
+    expect(result!.text).toContain("유지"); // maintained fires
+    expect(result!.text).not.toContain("낮아요"); // declined suppressed
   });
 });
 
