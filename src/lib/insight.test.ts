@@ -10778,6 +10778,9 @@ describe("calcTodayInsight — momentum_near_tier (priority 7.6, after pomodoro_
     // 4 habits (3 checked, 1 unchecked), no intention
     // habitsScoreRaw=37.5, pomodoroScoreRaw=30, intentionScoreRaw=0 → currentScoreRaw=67.5, currentScore=68, nearHigh
     // gapToHigh=7.5, pomodoroGain=0 (hasExplicitGoal=false), habitGain=12.5 >= 7.5 → habit nudge, "최고의 하루"
+    // Higher-priority guards: pomodoro_goal_reached(7.5) guarded by sessionGoal=undefined;
+    //   pomodoro_day_record(7.49) / pomodoro_session_best_tie(7.491) guarded by absent pomodoroSessionBest;
+    //   pomodoro_week_record(7.495) guarded by absent pomodoroWeekRecord
     const result = calcTodayInsight({
       habits: [
         { name: "운동", streak: 3, lastChecked: TODAY },
