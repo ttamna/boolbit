@@ -13789,3 +13789,132 @@ describe("calcTodayInsight — pomodoro_month_flawless (priority 11.08, after ha
   });
 });
 
+// ── intention_month_flawless ─────────────────────────────────────────────────
+// Implemented as a tier within intention_done (priority 4.5): fires when intentionDoneStreak ≥
+// currentMonthDay AND currentMonthDay ≥ MIN_MONTH_DAYS (10), between the milestone and streak tiers.
+describe("calcTodayInsight — intention_month_flawless (tier within intention_done, priority 4.5)", () => {
+  // TODAY = "2024-01-15" → day 15 of January, currentMonthDay = 15 ≥ MIN_MONTH_DAYS (10)
+  // intentionDoneStreak ≥ currentMonthDay AND todayIntentionDone===true AND todayIntentionDate===todayStr
+  //   → every calendar day 1–today the user completed their daily intention
+  function base() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string }>,
+      todayStr: TODAY,
+      nowHour: 12,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true as boolean | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      intentionDoneStreak: 15, // equals currentMonthDay (15) → every January day intention was done
+    };
+  }
+
+  it("shouldFireWhenIntentionDoneStreakEqualsCurrentMonthDay", () => {
+    // intentionDoneStreak=15 on day 15 → every day of January intention was completed
+    const result = calcTodayInsight(base());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 달 매일 의도");
+    expect(result!.text).toContain("15일");
+  });
+
+  it("shouldFireWhenIntentionDoneStreakExceedsCurrentMonthDay", () => {
+    // intentionDoneStreak=20 on day 15 → 20-day consecutive run covers all 15 January days
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 20 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이번 달 매일 의도");
+    expect(result!.text).toContain("15일");
+  });
+
+  it("shouldNotFireWhenIntentionDoneStreakBelowCurrentMonthDay", () => {
+    // streak=13 < currentMonthDay(15): flawless condition not met; regular streak tier fires instead
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 13 });
+    expect(result).not.toBeNull(); // intention_done streak tier fires (13 >= 3)
+    expect(result!.text).not.toContain("이번 달 매일 의도"); // flawless text absent
+    expect(result!.text).toContain("연속 의도 달성"); // regular streak text
+  });
+
+  it("shouldNotFireWhenTodayIntentionNotDone", () => {
+    // todayIntentionDone=false → intention_done guard (line: todayIntentionDone && todayIntentionDate === todayStr)
+    // fails, so the entire intention_done block (including the flawless tier) is bypassed.
+    // nowHour=12: intention_missing requires < 12 (not fires), period_start also requires < 12 (not fires).
+    // No other badge fires with empty habits/sessions/projects → result is null.
+    const result = calcTodayInsight({ ...base(), todayIntentionDone: false });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenTodayIntentionDateIsYesterday", () => {
+    // todayIntentionDate=YESTERDAY → intention_done guard fails (stale); result is null
+    const result = calcTodayInsight({ ...base(), todayIntentionDate: YESTERDAY });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireBeforeDay10", () => {
+    // day 9 < MIN_MONTH_DAYS(10): streak=9 (not a milestone, streak>=3) → regular streak tier fires
+    const day9 = "2024-01-09";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day9,
+      todayIntentionDate: day9,
+      intentionDoneStreak: 9,
+    });
+    expect(result).not.toBeNull(); // intention_done streak tier fires (9 >= 3)
+    expect(result!.text).not.toContain("이번 달 매일 의도"); // flawless text absent
+    expect(result!.text).toContain("연속 의도 달성"); // regular streak text
+  });
+
+  it("shouldFireExactlyOnDay10", () => {
+    // day 10 === MIN_MONTH_DAYS(10) → boundary: flawless fires
+    const day10 = "2024-01-10";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day10,
+      todayIntentionDate: day10,
+      intentionDoneStreak: 10,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 달 매일 의도");
+    expect(result!.text).toContain("10일");
+  });
+
+  it("shouldNotFireWhenIntentionDoneStreakIsAbsent", () => {
+    // intentionDoneStreak=undefined → all null checks (streak != null) fail; generic "오늘의 의도 달성!" fires
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: undefined });
+    expect(result).not.toBeNull(); // intention_done generic fires
+    expect(result!.text).not.toContain("이번 달 매일 의도"); // flawless absent
+    expect(result!.text).toContain("오늘의 의도 달성"); // generic text
+  });
+
+  it("shouldBePreemptedByMilestoneOnDay14", () => {
+    // intentionDoneStreak=14 on day 14: 14 ∈ INTENTION_DONE_STREAK_MILESTONES [7,14,30]
+    //   → milestone tier fires BEFORE flawless tier (milestone check precedes flawless check)
+    const day14 = "2024-01-14";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day14,
+      todayIntentionDate: day14,
+      intentionDoneStreak: 14,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("마일스톤"); // milestone fires
+    expect(result!.text).not.toContain("이번 달 매일 의도"); // flawless preempted
+  });
+
+  it("shouldBePreemptedByMilestoneOnDay30", () => {
+    // intentionDoneStreak=30 on day 30: 30 ∈ INTENTION_DONE_STREAK_MILESTONES
+    //   → milestone fires even though the month is flawless; milestone tier takes precedence
+    const day30 = "2024-01-30";
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: day30,
+      todayIntentionDate: day30,
+      intentionDoneStreak: 30,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("마일스톤"); // milestone fires
+    expect(result!.text).not.toContain("이번 달 매일 의도"); // flawless preempted
+  });
+});
+
