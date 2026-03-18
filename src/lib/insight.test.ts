@@ -7933,12 +7933,13 @@ describe("calcTodayInsight — pomodoro_goal_streak_milestone_approach (priority
 describe("calcTodayInsight — habit_streak_milestone_approach (priority 7.424, between pomodoro_goal_streak_milestone_approach and pomodoro_lifetime_milestone)", () => {
   // ABOUTME: Tests for habit_streak_milestone_approach badge — fires 1-2 days before
   // ABOUTME: the next habit streak milestone (7/14/30) for any qualifying habit.
-  // Base: afternoon, intention set, single habit far from any milestone, no sessions, no goal —
+  // Base: afternoon (nowHour=14), intention set, single habit with lastChecked=TODAY (remaining=0,
+  //   suppresses almost_perfect_day ≥14h), no sessions, no goal —
   //   all approach badges at 7.421–7.423 suppressed (focusStreak=8, intentionDoneStreak=8,
   //   sessionGoal=undefined), no pomodoro_lifetime_milestone (sessionsToday=0).
-  // Habits with streak outside approach window [5,6,12,13,28,29] suppress this badge.
+  // Base habit streak=3 is outside approach window; [5,6,12,13,28,29] are the triggering values.
   const base = () => ({
-    habits: [{ name: "독서", streak: 3 }] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    habits: [{ name: "독서", streak: 3, lastChecked: TODAY }] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
     todayStr: TODAY,
     nowHour: 14,
     todayIntentionDate: TODAY,
@@ -8006,39 +8007,49 @@ describe("calcTodayInsight — habit_streak_milestone_approach (priority 7.424, 
   });
 
   it("shouldNotFireWhenStreak4TooFarFromMilestone7", () => {
-    // 7-4=3>2 — not within approach window; falls through to lower-priority badges
-    const result = calcTodayInsight({ ...base(), habits: [{ name: "운동", streak: 4 }] });
-    expect(result?.text ?? "").not.toContain("마일스톤");
+    // 7-4=3>2 — not within approach window; lastChecked=TODAY (remaining=0, no almost_perfect_day fallthrough)
+    // verifies the streak-distance guard directly: approach badge absent even after deep traversal
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "운동", streak: 4, lastChecked: TODAY }] });
+    expect(result?.text ?? "").not.toContain("더 유지하면");
   });
 
   it("shouldNotFireWhenStreak8TooFarFromMilestone14", () => {
-    // 14-8=6>2 — past milestone 7, not yet close to 14
-    const result = calcTodayInsight({ ...base(), habits: [{ name: "운동", streak: 8 }] });
-    expect(result?.text ?? "").not.toContain("마일스톤");
+    // 14-8=6>2 — past milestone 7, not yet close to 14; lastChecked=TODAY verifies guard directly
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "운동", streak: 8, lastChecked: TODAY }] });
+    expect(result?.text ?? "").not.toContain("더 유지하면");
   });
 
   it("shouldNotFireWhenStreakExactlyAtMilestone7", () => {
-    // streak=7 is exactly at milestone 7: find(m > 7) → next milestone is 14, 14-7=7>2 → approach suppressed.
-    // personal_best (11) would fire only if bestStreak===streak — not in this fixture (no lastChecked).
-    const result = calcTodayInsight({ ...base(), habits: [{ name: "운동", streak: 7 }] });
+    // streak=7 is AT milestone 7: find(m > 7) → next is 14, 14-7=7>2 → approach absent; lastChecked=TODAY
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "운동", streak: 7, lastChecked: TODAY }] });
     expect(result?.text ?? "").not.toContain("더 유지하면");
   });
 
   it("shouldNotFireWhenStreakExactlyAtMilestone14", () => {
-    // streak=14: find(m > 14) → next is 30, 30-14=16>2 → approach suppressed.
-    const result = calcTodayInsight({ ...base(), habits: [{ name: "명상", streak: 14 }] });
+    // streak=14: find(m > 14) → next is 30, 30-14=16>2 → approach absent; lastChecked=TODAY
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "명상", streak: 14, lastChecked: TODAY }] });
     expect(result?.text ?? "").not.toContain("더 유지하면");
   });
 
   it("shouldNotFireWhenStreakExactlyAtMilestone30", () => {
-    // streak=30: find(m > 30) → none in [7,14,30] → approach suppressed.
-    const result = calcTodayInsight({ ...base(), habits: [{ name: "독서", streak: 30 }] });
+    // streak=30: find(m > 30) → none in [7,14,30] → approach absent; lastChecked=TODAY
+    const result = calcTodayInsight({ ...base(), habits: [{ name: "독서", streak: 30, lastChecked: TODAY }] });
     expect(result?.text ?? "").not.toContain("더 유지하면");
   });
 
   it("shouldNotFireWhenHabitsEmpty", () => {
+    // habits=[] → reduce returns null immediately; habits.length=0 suppresses all habit-based badges → null
     const result = calcTodayInsight({ ...base(), habits: [] });
-    expect(result?.text ?? "").not.toContain("마일스톤");
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireEvenWhenHabitLastCheckedNotToday", () => {
+    // No lastChecked guard: fires as a motivational nudge even before today's check-in.
+    // nowHour=12 chosen to suppress both period_start (requires <12 on Mon) and almost_perfect_day (requires ≥14).
+    const result = calcTodayInsight({ ...base(), nowHour: 12, habits: [{ name: "운동", streak: 5, lastChecked: YESTERDAY }] });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("7일 마일스톤");
   });
 
   it("shouldPickHabitWithSmallestDaysLeft", () => {
