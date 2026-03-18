@@ -145,6 +145,49 @@ describe("PomodoroTimer duration change while timer is running", () => {
   });
 });
 
+describe("PomodoroTimer tab click while paused", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should NOT reset paused focus timer when break tab is clicked", async () => {
+    renderTimer({ initialAutoStart: false });
+    // Start focus timer
+    const startBtn = screen.getByText("▶ 시작");
+    await act(async () => { startBtn.click(); });
+    // Advance 30 seconds — remaining = 30s
+    await advanceSecs(30);
+    // Pause
+    const pauseBtn = screen.getByText("⏸ 일시정지");
+    await act(async () => { pauseBtn.click(); });
+    // Header shows ⏸ 00:30 (paused mid-countdown)
+    expect(screen.queryByText("⏸ 00:30")).not.toBeNull();
+    // Click break tab while paused — must NOT reset the timer
+    const breakTab = screen.getByText(/^휴식 \d+분$/);
+    await act(async () => { breakTab.click(); });
+    // Remaining must still be 30s — not reset to full break duration
+    expect(screen.queryByText("⏸ 00:30")).not.toBeNull();
+  });
+
+  it("should NOT reset paused focus timer when longBreak tab is clicked", async () => {
+    renderTimer({ initialAutoStart: false });
+    const startBtn = screen.getByText("▶ 시작");
+    await act(async () => { startBtn.click(); });
+    await advanceSecs(30);
+    const pauseBtn = screen.getByText("⏸ 일시정지");
+    await act(async () => { pauseBtn.click(); });
+    expect(screen.queryByText("⏸ 00:30")).not.toBeNull();
+    const longBreakTab = screen.getByText(/^긴 휴식 \d+분$/);
+    await act(async () => { longBreakTab.click(); });
+    expect(screen.queryByText("⏸ 00:30")).not.toBeNull();
+  });
+});
+
 describe("PomodoroTimer autoStart phase transitions", () => {
   beforeEach(() => {
     vi.useFakeTimers();

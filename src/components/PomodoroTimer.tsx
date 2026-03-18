@@ -429,14 +429,11 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
                 <button
                   key={p}
                   onClick={() => {
-                    if (p !== phase && !running) {
-                      // Not running + non-active tab: switch to that phase (standard tab behavior).
+                    if (p !== phase && !running && !isPaused) {
+                      // At rest (not running, not mid-countdown): switch to that phase.
                       switchPhase(p);
-                    } else if (running && p !== phase) {
-                      // Running + non-active tab: open presets for that phase without stopping the timer.
-                      setPresetsPhase(v => v === p ? null : p);
                     } else {
-                      // Active tab (running or not): toggle presets for the current phase.
+                      // Running or paused: open/toggle presets without disrupting the timer.
                       setPresetsPhase(v => v === p ? null : p);
                     }
                   }}
