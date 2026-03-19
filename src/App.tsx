@@ -13,7 +13,7 @@ import { useWindowResize } from "./hooks/useWindowResize";
 import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate, calcIntentionMomentumCorrelation } from "./lib/intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate, calcIntentionMomentumCorrelation, calcIntentionConsecutiveMiss } from "./lib/intention";
 import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcQuarterlyPerfectDayReport, calcYearlyHabitReport, calcYearlyPerfectDayReport, calcWeeklyPerfectDayReport, calcMonthlyPerfectDayReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, calcHabitMomentumCorrelation } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcYearlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
@@ -2062,6 +2062,8 @@ export default function App() {
   // Derived from 14-day pomodoroHistory × 31-day momentumHistory; requires ≥5 samples in each bucket.
   // Returns null when sessionGoal not set, data is insufficient, or gap < 15 pt; undefined coercion skips the badge silently.
   const pomodoroMomentumGap = calcPomodoroMomentumCorrelation(data.pomodoroHistory ?? [], data.momentumHistory ?? [], data.pomodoroSessionGoal, todayStr) ?? undefined;
+  // intentionConsecutiveMissDays: consecutive past days without an intention entry; null = brand-new user or < 3 days missed.
+  const intentionConsecutiveMissDays = calcIntentionConsecutiveMiss(data.intentionHistory ?? [], todayStr) ?? undefined;
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2222,6 +2224,8 @@ export default function App() {
     intentionMomentumGap,
     // pomodoroMomentumGap: avg momentum gap (goal-met days minus not-goal-met days); undefined = no sessionGoal, insufficient data, or gap < 15.
     pomodoroMomentumGap,
+    // intentionConsecutiveMissDays: consecutive past days without intention; undefined = brand-new user, < 3 days missed, or null from calc.
+    intentionConsecutiveMissDays,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 31-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes

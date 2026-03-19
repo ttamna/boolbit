@@ -17760,3 +17760,61 @@ describe("calcTodayInsight — intention_month_flawless (tier within intention_d
   });
 });
 
+describe("calcTodayInsight — intention_gap_warning (priority 10.21, after habit_consecutive_miss, before habit_diversity_warning)", () => {
+  // Base: empty habits (prevents streak_recession/habit_consecutive_miss from interfering),
+  // nowHour 14 (suppresses streak_at_risk ≥18 and morning-only badges < 12),
+  // todayIntentionDate YESTERDAY (today's intention not set → gap warning can fire),
+  // intentionConsecutiveMissDays 3 (minimum threshold).
+  const base = {
+    habits: [] as Array<{ name: string; streak: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: YESTERDAY, // today's intention not set
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    intentionConsecutiveMissDays: 3,
+  };
+
+  it("shouldFireIntentionGapWarningWhen3DaysMissedAndTodayNotSet", () => {
+    const result = calcTodayInsight({ ...base });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("3");
+    expect(result!.text).toContain("의도");
+  });
+
+  it("shouldShowMissDaysCountInBadgeText", () => {
+    const result = calcTodayInsight({ ...base, intentionConsecutiveMissDays: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7");
+  });
+
+  it("shouldNotFireWhenTodayIntentionIsSet", () => {
+    // todayIntentionDate === todayStr → user already set intention today → no gap warning
+    const result = calcTodayInsight({ ...base, todayIntentionDate: TODAY });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenIntentionConsecutiveMissDaysIsUndefined", () => {
+    // intentionConsecutiveMissDays not provided → badge silently skipped
+    const { intentionConsecutiveMissDays: _skip, ...withoutMiss } = base;
+    const result = calcTodayInsight(withoutMiss);
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByHabitConsecutiveMiss", () => {
+    // habit_consecutive_miss (10.2) fires before intention_gap_warning (10.21)
+    // habit: last check 4d ago → 3 consecutive misses
+    const result = calcTodayInsight({
+      ...base,
+      habits: [{ name: "운동", streak: 0, checkHistory: [DAYS_4_AGO] }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("운동"); // habit_consecutive_miss preempts
+    expect(result!.text).toContain("연속 미완료"); // exact habit_consecutive_miss badge text
+    expect(result!.text).not.toContain("의도"); // intention_gap_warning suppressed
+  });
+});
+

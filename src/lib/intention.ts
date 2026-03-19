@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, evening reminder, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, per-weekday intention done-rate analysis, current calendar month done rate, and intention-completion vs momentum-score correlation logic
+// ABOUTME: Pure helpers for intention streak, consecutive-done streak, 7-day heatmap, week-over-week trend, done-notification, morning reminder, evening reminder, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, per-weekday intention done-rate analysis, current calendar month done rate, intention-completion vs momentum-score correlation logic, and consecutive-miss detection
 // ABOUTME: todayStr anchors all date arithmetic for DST safety; notification helpers guard duplicate sends via caller-managed date fields
 
 import type { IntentionEntry, MomentumEntry } from "../types";
@@ -412,6 +412,36 @@ const MIN_CORRELATION_SAMPLES = 5;
  * Requires ≥5 samples in each bucket to avoid spurious correlations on sparse data.
  * Pure function with no side effects.
  */
+// Maximum calendar days to scan backward when counting consecutive missed intention days.
+const INTENTION_MISS_LOOKBACK = 14;
+
+// Minimum consecutive missed days required to return a non-null result.
+const MIN_INTENTION_MISS_DAYS = 3;
+
+// Counts consecutive past days (backward from yesterday) on which no intention entry exists.
+// Returns null when history has no entries before todayStr — prevents spurious warnings for
+// users who have never set a past intention (truly new users or today-only data).
+// When the most recent past entry is outside the INTENTION_MISS_LOOKBACK window (e.g. 73 days ago),
+// count reaches the cap (14) and 14 is returned — correctly signalling a long absence.
+// Returns null when count < MIN_INTENTION_MISS_DAYS (3).
+// todayStr: YYYY-MM-DD local date string used to anchor past-day calculations.
+export function calcIntentionConsecutiveMiss(
+  history: IntentionEntry[],
+  todayStr: string,
+): number | null {
+  const pastDates = new Set(history.filter(e => e.date < todayStr).map(e => e.date));
+  if (pastDates.size === 0) return null;
+  const base = new Date(todayStr + "T00:00:00");
+  let count = 0;
+  for (let i = 1; i <= INTENTION_MISS_LOOKBACK; i++) {
+    const d = new Date(base);
+    d.setDate(d.getDate() - i);
+    if (pastDates.has(d.toLocaleDateString("sv"))) break;
+    count++;
+  }
+  return count >= MIN_INTENTION_MISS_DAYS ? count : null;
+}
+
 export function calcIntentionMomentumCorrelation(
   history: IntentionEntry[],
   momentumHistory: MomentumEntry[],

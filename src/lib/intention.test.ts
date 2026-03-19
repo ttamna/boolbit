@@ -1,8 +1,8 @@
-// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate, and calcIntentionMomentumCorrelation helpers
-// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, per-weekday intention done rate, weak/best intention day detection, current calendar month done rate, intention-completion vs momentum-score correlation, and edge cases
+// ABOUTME: Tests for calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate, calcIntentionMomentumCorrelation, and calcIntentionConsecutiveMiss helpers
+// ABOUTME: Covers streak gap-detection, 7-day heatmap data, set/done state, week-over-week trend, done-notification transition, morning reminder, evening reminder, consecutive-done streak, weekly done-rate report, monthly done-rate report, quarterly done-rate report, yearly done-rate report, per-weekday intention done rate, weak/best intention day detection, current calendar month done rate, intention-completion vs momentum-score correlation, consecutive miss detection, and edge cases
 
 import { describe, it, expect } from "vitest";
-import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate, calcIntentionMomentumCorrelation } from "./intention";
+import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate, calcIntentionMomentumCorrelation, calcIntentionConsecutiveMiss } from "./intention";
 import type { IntentionEntry, MomentumEntry } from "../types";
 
 function makeHistory(dates: string[], done = false): IntentionEntry[] {
@@ -1361,5 +1361,57 @@ describe("calcIntentionMomentumCorrelation — intention done vs. momentum gap (
     ]);
     const result = calcIntentionMomentumCorrelation(history, momentum, TODAY);
     expect(result).toBe(16);
+  });
+});
+
+// ─── calcIntentionConsecutiveMiss ──────────────────────────────────────────
+// TODAY = 2026-03-15; YESTERDAY = 2026-03-14; DAYS_N_AGO relative to TODAY.
+// miss count counts from yesterday backward, stopping at the first history entry.
+const YESTERDAY_M = "2026-03-14";
+const DAYS_2_AGO_M = "2026-03-13";
+const DAYS_3_AGO_M = "2026-03-12";
+const DAYS_4_AGO_M = "2026-03-11";
+
+describe("calcIntentionConsecutiveMiss", () => {
+  it("shouldReturnNullWhenHistoryHasYesterdayEntry", () => {
+    // yesterday in history → count = 0, below MIN_INTENTION_MISS_DAYS (3)
+    const history = makeHistory([YESTERDAY_M]);
+    expect(calcIntentionConsecutiveMiss(history, TODAY)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenMissedOnlyTwoDays", () => {
+    // last entry DAYS_3_AGO → yesterday + DAYS_2_AGO missed = 2, below threshold
+    const history = makeHistory([DAYS_3_AGO_M]);
+    expect(calcIntentionConsecutiveMiss(history, TODAY)).toBeNull();
+  });
+
+  it("shouldReturn3WhenMissed3ConsecutiveDays", () => {
+    // last entry DAYS_4_AGO → yesterday, DAYS_2_AGO, DAYS_3_AGO missed = 3 consecutive
+    const history = makeHistory([DAYS_4_AGO_M]);
+    expect(calcIntentionConsecutiveMiss(history, TODAY)).toBe(3);
+  });
+
+  it("shouldReturnNullWhenHistoryIsEmpty", () => {
+    // empty history → user may be brand new; no established pattern to measure miss against
+    expect(calcIntentionConsecutiveMiss([], TODAY)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenOnlyTodayInHistory", () => {
+    // only today's entry exists; no past entries to anchor the scan against
+    const history = makeHistory([TODAY]);
+    expect(calcIntentionConsecutiveMiss(history, TODAY)).toBeNull();
+  });
+
+  it("shouldStopCountingAtFirstHistoryGap", () => {
+    // DAYS_2_AGO in history → yesterday missed (count=1), DAYS_2_AGO exists → stop; count < 3 → null
+    const history = makeHistory([DAYS_2_AGO_M]);
+    expect(calcIntentionConsecutiveMiss(history, TODAY)).toBeNull();
+  });
+
+  it("shouldCapAtLookback14WhenAllRecentDaysMissed", () => {
+    // entry exists 15 days ago (outside 14-day window); all 14 scan days are missed → returns 14 (cap)
+    const days15Ago = "2026-02-28"; // TODAY = 2026-03-15, 15 days before = 2026-02-28
+    const history = makeHistory([days15Ago]);
+    expect(calcIntentionConsecutiveMiss(history, TODAY)).toBe(14);
   });
 });
