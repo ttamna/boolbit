@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, yearly habit completion rate report, and per-weekday best/weak day detection
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, quarterly perfect-day count report, yearly habit completion rate report, yearly perfect-day count report, and per-weekday best/weak day detection
 
 import type { Habit, MomentumEntry } from "../types";
 
@@ -500,6 +500,56 @@ export function calcYearlyHabitReport(habits: Habit[], prevYearDays: string[]): 
   if (rate >= 80) return `✅ 지난 해 습관 완료율 ${rate}% — 훌륭해요!`;
   if (rate >= 60) return `📊 지난 해 습관 완료율 ${rate}% — 올해엔 더 해봐요!`;
   return `⚠️ 지난 해 습관 완료율 ${rate}% — 다시 도전해봐요!`;
+}
+
+// Returns a desktop-notification body summarising last quarter's count of "perfect days" —
+// days on which ALL habits were checked. Complements calcQuarterlyHabitReport (average rate per habit)
+// by surfacing how often the user achieved full-portfolio completion on a single day.
+// Fires on the first day of each quarter (Jan 1, Apr 1, Jul 1, Oct 1) at 09:00+ via the
+//   quarterlyPerfectDayReportDate guard in App.tsx.
+// prevQtrDays: all calendar days of the previous quarter — caller uses
+//   calcLastNDays(yesterday, totalDaysInQuarter(yesterday)) so the window covers exactly Q1–Q4.
+// Returns null when habits is empty, prevQtrDays is empty, or no perfect day occurred (avoids
+//   discouraging zero-count notifications; lower-bound noise is suppressed deliberately).
+// Exported for unit testing; pure function with no side effects.
+export function calcQuarterlyPerfectDayReport(habits: Habit[], prevQtrDays: string[]): string | null {
+  if (habits.length === 0 || prevQtrDays.length === 0) return null;
+  const total = prevQtrDays.length;
+  const perfectCount = prevQtrDays.filter(day =>
+    habits.every(h => !!(h.checkHistory?.includes(day)))
+  ).length;
+  if (perfectCount === 0) return null;
+  if (perfectCount === total) return `🌟 지난 분기 ${perfectCount}/${total}일 모든 습관 달성 — 완벽한 분기!`;
+  const rate = Math.round((perfectCount / total) * 100);
+  if (rate >= 70) return `✅ 지난 분기 ${perfectCount}/${total}일 모든 습관 달성 — 훌륭해요!`;
+  if (rate >= 40) return `📊 지난 분기 ${perfectCount}/${total}일 모든 습관 달성 — 이번 분기엔 더 해봐요!`;
+  return `💪 지난 분기 ${perfectCount}/${total}일 모든 습관 달성 — 꾸준히 도전해봐요!`;
+}
+
+// Returns a desktop-notification body summarising last year's count of "perfect days" —
+// days on which ALL habits were checked. Complements calcYearlyHabitReport (average rate per habit)
+// by surfacing how often the user achieved full-portfolio completion on a single day.
+// Fires on Jan 1 at 09:00+ via the yearlyPerfectDayReportDate guard in App.tsx.
+// prevYearDays: all calendar days of the previous year — caller uses
+//   calcLastNDays(yesterday, totalDaysInYear(yesterday)) so the window covers exactly Jan 1 – Dec 31.
+// Note: checkHistory is capped at 366 entries (calcCheckInPatch), covering one full leap year.
+//   For non-leap years (365 days) the oldest retained entry may fall one day outside the
+//   prevYearDays window, but the filter simply skips it, so the count is still exact.
+// Returns null when habits is empty, prevYearDays is empty, or no perfect day occurred (avoids
+//   discouraging zero-count notifications; lower-bound noise is suppressed deliberately).
+// Exported for unit testing; pure function with no side effects.
+export function calcYearlyPerfectDayReport(habits: Habit[], prevYearDays: string[]): string | null {
+  if (habits.length === 0 || prevYearDays.length === 0) return null;
+  const total = prevYearDays.length;
+  const perfectCount = prevYearDays.filter(day =>
+    habits.every(h => !!(h.checkHistory?.includes(day)))
+  ).length;
+  if (perfectCount === 0) return null;
+  if (perfectCount === total) return `🌟 지난 해 ${perfectCount}/${total}일 모든 습관 달성 — 완벽한 한 해!`;
+  const rate = Math.round((perfectCount / total) * 100);
+  if (rate >= 70) return `✅ 지난 해 ${perfectCount}/${total}일 모든 습관 달성 — 훌륭해요!`;
+  if (rate >= 40) return `📊 지난 해 ${perfectCount}/${total}일 모든 습관 달성 — 올해엔 더 해봐요!`;
+  return `💪 지난 해 ${perfectCount}/${total}일 모든 습관 달성 — 꾸준히 도전해봐요!`;
 }
 
 // Compares average momentum score on days ALL habits were done vs. days they were NOT all done.
