@@ -1875,6 +1875,9 @@ export default function App() {
   });
   // momentumStreak: consecutive days with momentum score ≥ 40; shown as 🔥Nd badge when ≥ 2
   const momentumStreak = calcMomentumStreak(data.momentumHistory ?? [], todayStr);
+  // prevMomentumStreak: streak as of yesterday's start — used to detect a momentum streak that broke yesterday.
+  // Reuses yesterdayHabitsStr (same local-midnight basis) to avoid duplicate date computation.
+  const prevMomentumStreak = calcMomentumStreak(data.momentumHistory ?? [], yesterdayHabitsStr);
   // momentumWeekAvg: rounded average of the rolling momentum history (up to 31 days); null when < 2 entries
   const momentumWeekAvg = calcMomentumWeekAvg(data.momentumHistory ?? []);
   // pomodoroGoalStreak: consecutive PAST days (not today) where sessionGoal was met or exceeded.
@@ -1934,6 +1937,9 @@ export default function App() {
   // focusStreak: consecutive days (including today when sessions > 0) with ≥1 pomodoro session.
   // Passed to calcTodayInsight for focus_streak_milestone badge (7/14/30-day milestones).
   const focusStreak = calcFocusStreak(data.pomodoroHistory ?? [], todayStr);
+  // prevFocusStreak: streak as of yesterday's start — used to detect a focus streak that broke yesterday.
+  // Reuses yesterdayHabitsStr (same local-midnight basis) to avoid duplicate date computation.
+  const prevFocusStreak = calcFocusStreak(data.pomodoroHistory ?? [], yesterdayHabitsStr);
   // pomodoroLifetimePrevMins: cumulative focus minutes BEFORE today's sessions were added.
   // Subtracts sessionsToday × current focus-phase duration so the insight can detect
   // when today's sessions crossed a lifetime milestone (10h/50h/100h/200h).
@@ -2166,6 +2172,8 @@ export default function App() {
     pomodoroGoalStreak,
     prevPomodoroGoalStreak,
     prevIntentionDoneStreak,
+    prevFocusStreak,
+    prevMomentumStreak,
     pomodoroGoalBestStreak: data.pomodoroGoalBestStreak,
     pomodoroSessionBest,
     pomodoroWeekRecord,

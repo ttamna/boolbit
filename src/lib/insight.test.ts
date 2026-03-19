@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_multi_streak, focus_recovery, habit_streak_record, momentum_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_multi_streak, focus_recovery, habit_streak_record, momentum_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach, focus_streak_broken, momentum_streak_broken)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -18770,5 +18770,193 @@ describe("calcTodayInsight — intention_done_streak_broken (priority 10.12, aft
     expect(result!.text).toContain("운동");
     // intention broken must NOT fire (it would say "의도 달성")
     expect(result!.text).not.toContain("의도 달성");
+  });
+});
+
+describe("calcTodayInsight — focus_streak_broken (priority 10.13, after intention_done_streak_broken and before habit_consecutive_miss)", () => {
+  // ABOUTME: Tests for focus_streak_broken badge: fires on the first day after a ≥3d focus
+  // ABOUTME: streak breaks (yesterday had 0 pomodoro sessions). Mirrors intention_done_streak_broken (10.12).
+  //
+  // Base params: no habits (prevents streak_recession interference),
+  // afternoon hour 14, focusStreak=0 (no sessions today or yesterday), sessionsToday=0.
+  const base = {
+    habits: [] as ReturnType<typeof habit>[],
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined,
+    habitsAllDoneDate: undefined,
+    focusStreak: 0,
+    intentionDoneStreak: 0,
+  } as const;
+
+  it("shouldFireWhenFocusStreakBrokenAfter3Days", () => {
+    const result = calcTodayInsight({
+      ...base,
+      prevFocusStreak: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("💔");
+    expect(result!.text).toContain("3");
+    expect(result!.text).toContain("집중");
+  });
+
+  it("shouldShowPrevStreakCountInMessage", () => {
+    const result = calcTodayInsight({
+      ...base,
+      prevFocusStreak: 14,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14");
+  });
+
+  it("shouldNotFireWhenFocusStreakPositive", () => {
+    // focusStreak=1 means streak alive (yesterday had sessions) → condition focusStreak===0 fails
+    // sessionsToday=0 is kept to show the guard is focusStreak, not sessionsToday
+    const result = calcTodayInsight({
+      ...base,
+      sessionsToday: 0,
+      focusStreak: 1,
+      prevFocusStreak: 5,
+    });
+    // result may be null if no other badge fires; just verify broken badge absent
+    expect(result?.text ?? "").not.toContain("집중");
+    expect(result?.text ?? "").not.toContain("끊어짐");
+  });
+
+  it("shouldNotFireWhenPrevStreakTooShort", () => {
+    // prevFocusStreak=2 — below the 3-day significance threshold
+    const result = calcTodayInsight({
+      ...base,
+      prevFocusStreak: 2,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPrevStreakAbsent", () => {
+    // prevFocusStreak absent — insufficient history; skipped silently
+    const result = calcTodayInsight({
+      ...base,
+      prevFocusStreak: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireOnSecondDayOfMissWhenPrevIsZero", () => {
+    // On day 2 of drought: prevFocusStreak=0 (day before yesterday was also a miss)
+    const result = calcTodayInsight({
+      ...base,
+      prevFocusStreak: 0,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByIntentionDoneStreakBrokenAtPriority10point12", () => {
+    // intention_done_streak_broken (10.12) fires before focus_streak_broken (10.13)
+    const result = calcTodayInsight({
+      ...base,
+      todayIntentionDone: false, // explicitly not done — intention_done_streak_broken can fire
+      prevIntentionDoneStreak: 5,
+      prevFocusStreak: 4,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도 달성");
+    expect(result!.text).toContain("💔");
+    // focus broken must not fire (it would say "집중")
+    // Note: intention_done_streak_broken message contains "의도 달성", focus_streak_broken would contain "집중"
+    expect(result!.text).not.toMatch(/집중.*끊어짐/);
+  });
+});
+
+describe("calcTodayInsight — momentum_streak_broken (priority 10.14, after focus_streak_broken and before habit_consecutive_miss)", () => {
+  // ABOUTME: Tests for momentum_streak_broken badge: fires on the first morning after a ≥3d
+  // ABOUTME: momentum streak breaks (yesterday's score < 40). Mirrors focus_streak_broken (10.13).
+  //
+  // Base params: no habits, afternoon hour 14, momentumStreak=0 (yesterday score < 40).
+  const base = {
+    habits: [] as ReturnType<typeof habit>[],
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined,
+    habitsAllDoneDate: undefined,
+    momentumStreak: 0,
+    focusStreak: 0,
+    intentionDoneStreak: 0,
+  } as const;
+
+  it("shouldFireWhenMomentumStreakBrokenAfter3Days", () => {
+    const result = calcTodayInsight({
+      ...base,
+      prevMomentumStreak: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("💔");
+    expect(result!.text).toContain("3");
+    expect(result!.text).toContain("모멘텀");
+    expect(result!.text).toContain("오늘 다시");
+  });
+
+  it("shouldShowPrevStreakCountInMessage", () => {
+    const result = calcTodayInsight({
+      ...base,
+      prevMomentumStreak: 21,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("21");
+  });
+
+  it("shouldNotFireWhenMomentumStreakStillAlive", () => {
+    // momentumStreak=3 means today's score qualifies — condition momentumStreak===0 fails
+    const result = calcTodayInsight({
+      ...base,
+      momentumStreak: 3,
+      prevMomentumStreak: 4,
+    });
+    // momentum_streak_broken must not fire; result may be null if no other badge fires
+    expect(result?.text ?? "").not.toContain("모멘텀");
+    expect(result?.text ?? "").not.toContain("끊어짐");
+  });
+
+  it("shouldNotFireWhenPrevStreakTooShort", () => {
+    const result = calcTodayInsight({
+      ...base,
+      prevMomentumStreak: 2,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPrevStreakAbsent", () => {
+    const result = calcTodayInsight({
+      ...base,
+      prevMomentumStreak: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireOnSecondDayOfMissWhenPrevIsZero", () => {
+    const result = calcTodayInsight({
+      ...base,
+      prevMomentumStreak: 0,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByFocusStreakBrokenAtPriority10point13", () => {
+    // focus_streak_broken (10.13) fires before momentum_streak_broken (10.14)
+    const result = calcTodayInsight({
+      ...base,
+      prevFocusStreak: 5,
+      prevMomentumStreak: 4,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("집중");
+    expect(result!.text).toContain("💔");
+    // momentum broken must not fire as preempted
+    expect(result!.text).not.toMatch(/모멘텀.*끊어짐/);
   });
 });
