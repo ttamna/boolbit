@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -1067,7 +1067,11 @@ describe("calcTodayInsight", () => {
       sessionGoal: undefined,
       // habitsAllDoneDate is yesterday — outer guard fails, streak count must NOT appear
       habitsAllDoneDate: YESTERDAY,
-      perfectDayStreak: 5,
+      // perfectDayStreak=10: outside approach window (14-10=4>2), so approach badge also stays silent.
+      // This verifies the perfect_day streak-count tier is gated by habitsAllDoneDate === todayStr.
+      // (Was perfectDayStreak: 5 before perfect_day_streak_milestone_approach was added; 5 is inside
+      //   the approach window [7-5=2 ≤ 2], so it would now fire '⭐ 완벽한 하루 5일 연속!' containing "연속".)
+      perfectDayStreak: 10,
     });
     expect(result?.text ?? "").not.toContain("연속");
   });
@@ -8511,6 +8515,124 @@ describe("calcTodayInsight — habit_streak_milestone_approach (priority 7.424, 
     // pomodoro approach wins: text contains pomodoro keyword, not habit name
     expect(result!.text).toContain("포모도로");
     expect(result!.text).not.toContain("운동");
+  });
+});
+
+// ── perfect_day_streak_milestone_approach ──────────────────────────────────
+describe("calcTodayInsight — perfect_day_streak_milestone_approach (priority 7.425, after habit_streak_milestone_approach and before pomodoro_lifetime_milestone)", () => {
+  // ABOUTME: Tests for perfect_day_streak_milestone_approach badge — fires 1-2 days before
+  // ABOUTME: the next perfectDayStreak milestone (7/14/30/50/100) as a morning nudge.
+  // Base: afternoon (nowHour=14), intention set, habit streak=4 (outside [5,6,12,13,28,29] approach
+  //   window for habit_streak_milestone_approach), no sessions, no goal, habitsAllDoneDate absent —
+  //   so perfect_day block (priority 4) does NOT fire. All approach badges 7.421-7.424 suppressed.
+  const base = () => ({
+    habits: [{ name: "운동", streak: 4, lastChecked: YESTERDAY }] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    focusStreak: 8,                             // suppresses focus_streak_milestone_approach (14-8=6>2)
+    intentionDoneStreak: 8,                     // suppresses intention_done_streak_milestone_approach (14-8=6>2)
+    pomodoroGoalStreak: undefined as number | undefined, // absent — suppresses pomodoro_goal_streak_milestone_approach
+    perfectDayStreak: 6,                        // 1 day from milestone 7 → approach fires
+  });
+
+  it("shouldFireWith1DayToMilestone7WhenPerfectDayStreak6", () => {
+    const result = calcTodayInsight({ ...base(), perfectDayStreak: 6 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("6일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith2DaysToMilestone7WhenPerfectDayStreak5", () => {
+    const result = calcTodayInsight({ ...base(), perfectDayStreak: 5 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("5일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("7일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone14WhenPerfectDayStreak13", () => {
+    const result = calcTodayInsight({ ...base(), perfectDayStreak: 13 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("13일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("14일 마일스톤");
+  });
+
+  it("shouldFireWith2DaysToMilestone30WhenPerfectDayStreak28", () => {
+    const result = calcTodayInsight({ ...base(), perfectDayStreak: 28 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("28일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("30일 마일스톤");
+  });
+
+  it("shouldNotFireWhenPerfectDayStreakFarFromMilestone", () => {
+    // perfectDayStreak=10: next milestone=14, 14-10=4>2 → approach does not fire
+    const result = calcTodayInsight({ ...base(), perfectDayStreak: 10 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("마일스톤");
+  });
+
+  it("shouldNotFireWhenPerfectDayStreakAbsent", () => {
+    // perfectDayStreak=undefined: badge skipped silently
+    const result = calcTodayInsight({ ...base(), perfectDayStreak: undefined });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("마일스톤");
+  });
+
+  it("shouldBePreemptedByPerfectDayBlockWhenTodayIsPerfect", () => {
+    // habitsAllDoneDate===TODAY: perfect_day block fires at priority 4 — approach never reached
+    const result = calcTodayInsight({
+      ...base(),
+      perfectDayStreak: 6,
+      habitsAllDoneDate: TODAY,
+    });
+    expect(result).not.toBeNull();
+    // perfect_day streak-count tier fires (6일 연속, ✨) not the approach message
+    expect(result!.text).toContain("완벽한 하루");
+    expect(result!.text).not.toContain("마일스톤");
+  });
+
+  it("shouldBePreemptedByHabitStreakMilestoneApproach7424WhenHabitInApproachWindow", () => {
+    // habit streak=6 → 1 day from habit milestone 7 → habit_streak_milestone_approach (7.424) fires first.
+    // perfectDayStreak=6 → approach would also qualify, but is preempted.
+    // lastChecked: TODAY (not YESTERDAY) is required here: milestone_near (priority 3) fires when
+    //   h.lastChecked !== todayStr AND streak is 1 day from a PERSONAL_BEST_MILESTONES value. With
+    //   lastChecked=YESTERDAY, milestone_near would fire at priority 3 before habit_streak_milestone_approach
+    //   (7.424), and this test would be testing milestone_near preemption, not 7.424 preemption.
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "독서", streak: 6, lastChecked: TODAY }],
+      perfectDayStreak: 6,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("독서");
+    expect(result!.text).not.toContain("완벽한 하루");
+  });
+
+  it("shouldFireWith1DayToMilestone50WhenPerfectDayStreak49", () => {
+    const result = calcTodayInsight({ ...base(), perfectDayStreak: 49 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("49일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("50일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith2DaysToMilestone100WhenPerfectDayStreak98", () => {
+    const result = calcTodayInsight({ ...base(), perfectDayStreak: 98 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("98일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("100일 마일스톤");
+    expect(result!.level).toBe("success");
   });
 });
 
