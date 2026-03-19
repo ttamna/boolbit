@@ -246,7 +246,8 @@ interface InsightParams {
   todayIsBestHabitDay?: boolean;
   /**
    * Number of consecutive calendar days (including today) on which ALL habits were completed.
-   * Derived from calcPerfectDayStreak(habits, last14Days) in App.tsx.
+   * Derived from calcPerfectDayStreak(habits, perfectDayWindow) in App.tsx, where perfectDayWindow
+   * is a 101-day window — large enough to detect 30/50/100-day milestones in PERFECT_DAY_MILESTONES.
    * When habitsAllDoneDate === todayStr AND this value is ≥ 3, a streak-count badge fires
    * instead of the generic "오늘 완벽한 습관 달성!" message.
    * Absent/undefined or < 3 = generic message; no streak count shown.

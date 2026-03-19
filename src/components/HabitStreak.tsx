@@ -46,6 +46,9 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
   // Last 14 days as YYYY-MM-DD strings (oldest → newest), derived from todayStr to stay consistent.
   // todayStr base prevents 1-min mismatch right after midnight when todayStr is still yesterday but new Date() has already advanced.
   const last14Days = calcLastNDays(todayStr, 14);
+  // 101-day window for perfectStreak: needed so that 30/50/100-day milestones in PERFECT_DAY_MILESTONES
+  // are reachable. The 14-day heatmap window is kept separate for the UI dots.
+  const perfectDayWindow = calcLastNDays(todayStr, 101);
 
   // Tracks milestone badges already notified today per habit — prevents re-fires on undo+redo.
   // Key: habitId (stable) or index string; value: Set of badge strings fired today.
@@ -376,8 +379,8 @@ export function HabitStreak({ habits, onUpdate, onHabitsChange, accent, onMilest
   const todayDoneCount = habits.filter(h => h.lastChecked === todayStr).length;
   const todayBarPct = habitsTodayPct(habits, todayStr); // null when habits is empty
   // perfectStreak: consecutive days (ending today or yesterday) where ALL habits were done.
-  // Uses last14Days so the window is consistent with the habit heatmap dots.
-  const perfectStreak = calcPerfectDayStreak(habits, last14Days);
+  // Uses perfectDayWindow (101 days) so 30/50/100-day milestones can surface in the UI streak badge.
+  const perfectStreak = calcPerfectDayStreak(habits, perfectDayWindow);
 
   return (
     <div>

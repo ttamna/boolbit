@@ -653,6 +653,42 @@ describe("calcPerfectDayStreak", () => {
     const h = makeHabit({ checkHistory: [] });
     expect(calcPerfectDayStreak([h], [TODAY])).toBe(0);
   });
+
+  // 30-day window: verifies that calcPerfectDayStreak supports windows > 14 days,
+  // enabling the 30/50/100-day milestones in PERFECT_DAY_MILESTONES.
+  // App.tsx must pass a ≥101-day window for these milestones to be detectable.
+  const W30 = [
+    "2026-02-14","2026-02-15","2026-02-16","2026-02-17","2026-02-18","2026-02-19","2026-02-20",
+    "2026-02-21","2026-02-22","2026-02-23","2026-02-24","2026-02-25","2026-02-26","2026-02-27",
+    "2026-02-28","2026-03-01","2026-03-02","2026-03-03","2026-03-04","2026-03-05","2026-03-06",
+    "2026-03-07","2026-03-08","2026-03-09","2026-03-10","2026-03-11","2026-03-12","2026-03-13",
+    "2026-03-14","2026-03-15",
+  ];
+
+  it("should return 30 with a 30-day window when all 30 days are perfect", () => {
+    const h = makeHabit({ checkHistory: [...W30] });
+    expect(calcPerfectDayStreak([h], W30)).toBe(30);
+  });
+
+  it("should return 30 (not 50) when 50 consecutive days exist in history but window is only 30 days", () => {
+    // Habit has check history covering 50+ days, but we pass only a 30-day window.
+    // The returned streak is bounded by the window length — the extra history outside the window is ignored.
+    const W50_EXTRA = [
+      "2026-01-25","2026-01-26","2026-01-27","2026-01-28","2026-01-29","2026-01-30","2026-01-31",
+      "2026-02-01","2026-02-02","2026-02-03","2026-02-04","2026-02-05","2026-02-06","2026-02-07",
+      "2026-02-08","2026-02-09","2026-02-10","2026-02-11","2026-02-12","2026-02-13",
+    ]; // 20 additional days before W30 (total 50 days when combined with W30)
+    const h = makeHabit({ checkHistory: [...W50_EXTRA, ...W30] });
+    expect(calcPerfectDayStreak([h], W30)).toBe(30); // window caps the streak at 30
+  });
+
+  it("should return 14 with a 14-day window even when 30 days of perfect history exist", () => {
+    // Documents the constraint: a 14-day window caps the streak at 14.
+    // This is why App.tsx must use a ≥101-day window for 30/50/100 milestones to fire.
+    const h = makeHabit({ checkHistory: [...W30] });
+    const W14 = W30.slice(-14);
+    expect(calcPerfectDayStreak([h], W14)).toBe(14);
+  });
 });
 
 describe("getMilestone", () => {

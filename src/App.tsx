@@ -385,8 +385,9 @@ export default function App() {
     // Recompute perfect-day streak from data.habits (same source as render-scope habitsPerfectStreak).
     // calcCheckInPatch always updates checkHistory alongside lastChecked, so the allDone guard above
     // implies today is present in every habit's checkHistory — perfectStreak reflects the full streak.
-    const last14 = calcLastNDays(today, 14);
-    const perfectStreak = calcPerfectDayStreak(habits, last14);
+    // Uses 101-day window (same as render-scope habitsPerfectStreak) so that 30/50/100-day milestones fire.
+    const last101 = calcLastNDays(today, 101);
+    const perfectStreak = calcPerfectDayStreak(habits, last101);
     const milestoneMsg = calcPerfectDayMilestoneNotify(perfectStreak);
     (async () => {
       try {
@@ -1807,8 +1808,11 @@ export default function App() {
   const pomodoroWeekRecord = calcPomodoroWeekRecord(data.pomodoroHistory ?? [], pomodoroSessionsToday, todayStr);
   // last14Days/habitsPerfectStreak: declared here (before calcTodayInsight) so perfectDayStreak
   // can be passed as a param. Also reused by HabitStreak + habitsWeekTrend below.
+  // perfectDayWindow uses 101 days so that the 30/50/100-day milestones in PERFECT_DAY_MILESTONES
+  // are reachable (a 14-day cap would permanently prevent those milestones from firing).
   const last14Days = calcLastNDays(todayStr, 14);
-  const habitsPerfectStreak = calcPerfectDayStreak(habitsArr, last14Days);
+  const perfectDayWindow = calcLastNDays(todayStr, 101);
+  const habitsPerfectStreak = calcPerfectDayStreak(habitsArr, perfectDayWindow);
   // last7Days + habitsWeekRate: declared before calcTodayInsight so habitWeekRate feeds the
   // habit_week_excellent insight (priority 10.35). Reused below for intentionWeek, habitsWeekTrend,
   // habitsBadge, and projectsBadge — single source of truth for the current 7-day window.
