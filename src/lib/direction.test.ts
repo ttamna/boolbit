@@ -220,4 +220,102 @@ describe("calcDirectionBadge", () => {
       })
     ).toBe("✓·3/5");
   });
+
+  // Goal done states: quarter, month, week (done without urgency)
+  it("should return 'Q✓✓' when quarterGoalDone and daysLeftQuarter > 14", () => {
+    expect(calcDirectionBadge({ ...base, quarterGoal: "Q2 goal", quarterGoalDone: true, daysLeftQuarter: 15 })).toBe("Q✓✓");
+  });
+
+  it("should return 'M✓✓' when monthGoalDone and daysLeftMonth > 7", () => {
+    expect(calcDirectionBadge({ ...base, monthGoal: "Launch", monthGoalDone: true, daysLeftMonth: 8 })).toBe("M✓✓");
+  });
+
+  it("should return 'W✓✓' when weekGoalDone and daysLeftWeek > 3", () => {
+    expect(calcDirectionBadge({ ...base, weekGoal: "Write post", weekGoalDone: true, daysLeftWeek: 4 })).toBe("W✓✓");
+  });
+
+  // Goal done states combined with urgency
+  it("should return 'Q✓✓·10d' when quarterGoalDone and daysLeftQuarter in urgency range (interior value, threshold is 14)", () => {
+    expect(calcDirectionBadge({ ...base, quarterGoal: "Q2 goal", quarterGoalDone: true, daysLeftQuarter: 10 })).toBe("Q✓✓·10d");
+  });
+
+  it("should return 'M✓✓·3d' when monthGoalDone and daysLeftMonth within urgency (3 ≤ 7)", () => {
+    expect(calcDirectionBadge({ ...base, monthGoal: "Launch", monthGoalDone: true, daysLeftMonth: 3 })).toBe("M✓✓·3d");
+  });
+
+  it("should return 'W✓✓·2d' when weekGoalDone and daysLeftWeek within urgency (2 ≤ 3)", () => {
+    expect(calcDirectionBadge({ ...base, weekGoal: "Write post", weekGoalDone: true, daysLeftWeek: 2 })).toBe("W✓✓·2d");
+  });
+
+  // Intention: exact consecutiveDays boundary
+  it("should show streak suffix when consecutiveDays is exactly 2 (minimum trigger)", () => {
+    expect(calcDirectionBadge({ ...base, todayIntention: "Focus", intentionConsecutiveDays: 2 })).toBe("✓·2🔥");
+  });
+
+  it("should show streak suffix at consecutiveDays=2 combined with weekSuffix (streak+week ordering)", () => {
+    expect(
+      calcDirectionBadge({
+        ...base,
+        todayIntention: "Focus",
+        intentionConsecutiveDays: 2,
+        intentionSetCount7: 6,
+        intentionDoneCount7: 5,
+      })
+    ).toBe("✓·2🔥·5/6");
+  });
+
+  // Intention: stable trend arrow →
+  it("should append → trend after week suffix when intentionWeekTrend is →", () => {
+    expect(
+      calcDirectionBadge({
+        ...base,
+        todayIntention: "Focus",
+        intentionConsecutiveDays: 1,
+        intentionSetCount7: 5,
+        intentionDoneCount7: 4,
+        intentionWeekTrend: "→",
+      })
+    ).toBe("✓·4/5→");
+  });
+
+  // Intention: intentionDoneCount7 undefined falls back to 0
+  it("should treat intentionDoneCount7=undefined as 0 when intentionSetCount7 > 0", () => {
+    expect(
+      calcDirectionBadge({
+        ...base,
+        todayIntention: "Focus",
+        intentionConsecutiveDays: 1,
+        intentionSetCount7: 5,
+        intentionDoneCount7: undefined,
+      })
+    ).toBe("✓·0/5");
+  });
+
+  // Intention: empty string treated as falsy (no badge emitted); base has no other goals/quotes set
+  it("should treat empty string todayIntention as falsy (no intention badge emitted)", () => {
+    expect(calcDirectionBadge({ ...base, todayIntention: "" })).toBeUndefined();
+  });
+
+  // Composite: all 4 goals set simultaneously
+  it("should include all four goal parts when all goals are set (undone, no urgency)", () => {
+    const result = calcDirectionBadge({
+      ...base,
+      yearGoal: "Y",
+      quarterGoal: "Q",
+      monthGoal: "M",
+      weekGoal: "W",
+    });
+    expect(result).toBe("Y✓ · Q✓ · M✓ · W✓");
+  });
+
+  it("should include all four goal parts when all goals done and all within urgency", () => {
+    const result = calcDirectionBadge({
+      ...base,
+      yearGoal: "Y", yearGoalDone: true, daysLeftYear: 10,
+      quarterGoal: "Q", quarterGoalDone: true, daysLeftQuarter: 7,
+      monthGoal: "M", monthGoalDone: true, daysLeftMonth: 5,
+      weekGoal: "W", weekGoalDone: true, daysLeftWeek: 1,
+    });
+    expect(result).toBe("Y✓✓·10d · Q✓✓·7d · M✓✓·5d · W✓✓·1d");
+  });
 });
