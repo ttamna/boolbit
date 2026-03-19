@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, monthly pomodoro session report, quarterly pomodoro session report, yearly pomodoro session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), per-weekday pomodoro session average with weak/best day detection, weekly goal-hit day count and 14-day rolling goal-hit day count for monthly badge (both via calcPomodoroWeekGoalDays), pomodoro goal-met vs not-met momentum gap (calcPomodoroMomentumCorrelation)
+// ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation, calcFocusDroughtDays
+// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, monthly pomodoro session report, quarterly pomodoro session report, yearly pomodoro session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), per-weekday pomodoro session average with weak/best day detection, weekly goal-hit day count and 14-day rolling goal-hit day count for monthly badge (both via calcPomodoroWeekGoalDays), pomodoro goal-met vs not-met momentum gap (calcPomodoroMomentumCorrelation), consecutive past days without any session for focus drought warning (calcFocusDroughtDays)
 
 import { describe, it, expect } from "vitest";
-import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation } from "./pomodoro";
+import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation, calcFocusDroughtDays } from "./pomodoro";
 import { colors } from "../theme";
 import type { PomodoroDay, MomentumEntry } from "../types";
 
@@ -1976,6 +1976,77 @@ describe("calcPomodoroMomentumCorrelation — pomodoro goal-met vs not-met momen
     ];
     const result = calcPomodoroMomentumCorrelation(history, momentum, sessionGoal, TODAY);
     expect(result).toBe(30);
+  });
+});
+
+describe("calcFocusDroughtDays", () => {
+  // Fixed reference date; all test dates are relative to this anchor.
+  const TODAY = "2026-03-15";
+  const pomo = (date: string, count: number): PomodoroDay => ({ date, count });
+
+  it("shouldReturnNullWhenHistoryIsEmpty", () => {
+    // No history at all → can't detect a drought (user may have never started)
+    expect(calcFocusDroughtDays([], TODAY)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenOnlyTodayEntryExistsWithSessions", () => {
+    // Only today's entry → no past active dates → null (no drought baseline)
+    const history = [pomo(TODAY, 3)];
+    expect(calcFocusDroughtDays(history, TODAY)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenYesterdayHadSessions", () => {
+    // Session yesterday → drought = 0 past days → below threshold → null
+    const history = [pomo("2026-03-14", 2)];
+    expect(calcFocusDroughtDays(history, TODAY)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenDroughtIsOnly2PastDays", () => {
+    // Session 3 days ago, none for 2 past days → below MIN_FOCUS_DROUGHT_DAYS (3) → null
+    const history = [pomo("2026-03-12", 1)]; // 3 days ago
+    expect(calcFocusDroughtDays(history, TODAY)).toBeNull();
+  });
+
+  it("shouldReturn3WhenExactly3PastDaysHaveNoSessions", () => {
+    // Session 4 days ago, past 3 days empty → drought = 3 (meets threshold)
+    const history = [pomo("2026-03-11", 4)]; // 4 days ago
+    expect(calcFocusDroughtDays(history, TODAY)).toBe(3);
+  });
+
+  it("shouldReturn5WhenFivePastDaysHaveNoSessions", () => {
+    // Session 6 days ago, past 5 days empty → drought = 5
+    const history = [pomo("2026-03-09", 2)]; // 6 days ago
+    expect(calcFocusDroughtDays(history, TODAY)).toBe(5);
+  });
+
+  it("shouldIgnoreTodaySessionsInDroughtCount", () => {
+    // Session 4 days ago + today session: past days 1-3 are empty → drought=3 regardless of today
+    const history = [pomo("2026-03-11", 1), pomo(TODAY, 5)];
+    expect(calcFocusDroughtDays(history, TODAY)).toBe(3);
+  });
+
+  it("shouldReturnDroughtWhenOnlyZeroCountEntriesBeforeToday", () => {
+    // Zero-count entries mean the user opened the timer but completed no sessions.
+    // They HAVE engaged with the feature, so the guard passes (pastDates is non-empty).
+    // No activeDates → loop runs the full FOCUS_DROUGHT_LOOKBACK window → returns 14 (≥ 3 threshold).
+    // 14 == FOCUS_DROUGHT_LOOKBACK (the private constant that caps the lookback window).
+    const history = [pomo("2026-03-10", 0), pomo("2026-03-11", 0)];
+    expect(calcFocusDroughtDays(history, TODAY)).toBe(14);
+  });
+
+  it("shouldCountDroughtIgnoringZeroCountPastDays", () => {
+    // Zero-count entry (2026-03-10) triggers the guard but does NOT break the drought chain.
+    // Active session (2026-03-11, 4 days ago) breaks the chain at i=4.
+    // Drought = days 1-3 (yesterday through 3 days ago: 2026-03-14, -13, -12) → drought = 3.
+    const history = [pomo("2026-03-10", 0), pomo("2026-03-11", 2)];
+    expect(calcFocusDroughtDays(history, TODAY)).toBe(3);
+  });
+
+  it("shouldBreakDroughtAtFirstPastDayWithSessions", () => {
+    // Session 2 days ago breaks the drought chain even if older sessions existed
+    // 1 past day empty → below threshold → null
+    const history = [pomo("2026-03-10", 2), pomo("2026-03-13", 3)]; // 5 ago and 2 ago
+    expect(calcFocusDroughtDays(history, TODAY)).toBeNull();
   });
 });
 

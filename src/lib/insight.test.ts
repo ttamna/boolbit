@@ -18197,3 +18197,71 @@ describe("calcTodayInsight — intention_gap_warning (priority 10.21, after habi
   });
 });
 
+describe("calcTodayInsight — focus_drought_warning (priority 10.215, after intention_gap_warning, before habit_diversity_warning)", () => {
+  // Base: empty habits (prevents streak_recession/habit_consecutive_miss from interfering),
+  // nowHour 14 (suppresses morning-only badges and streak_at_risk ≥18),
+  // todayIntentionDate TODAY (today's intention is set → intention_gap_warning suppressed),
+  // sessionsToday 0 (no session today → drought warning can fire),
+  // focusDroughtDays 3 (minimum threshold).
+  const base = {
+    habits: [] as Array<{ name: string; streak: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,        // intention set today → no intention_gap_warning
+    sessionsToday: 0,                 // no session today → drought guard passes
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    focusDroughtDays: 3,
+  };
+
+  it("shouldFireFocusDroughtWarningWhen3PastDaysNoSessionsAndNoneToday", () => {
+    const result = calcTodayInsight({ ...base });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("3");
+    expect(result!.text).toContain("포모도로");
+  });
+
+  it("shouldShowDroughtDaysCountInBadgeText", () => {
+    const result = calcTodayInsight({ ...base, focusDroughtDays: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7");
+  });
+
+  it("shouldNotFireWhenSessionsTodayIsPositive", () => {
+    // sessionsToday > 0 → user already started a session today → no drought warning
+    const result = calcTodayInsight({ ...base, sessionsToday: 1 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenFocusDroughtDaysIsUndefined", () => {
+    // focusDroughtDays not provided → badge silently skipped
+    const { focusDroughtDays: _skip, ...withoutDrought } = base;
+    const result = calcTodayInsight(withoutDrought);
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByIntentionGapWarning", () => {
+    // intention_gap_warning (10.21) fires before focus_drought_warning (10.215)
+    const result = calcTodayInsight({
+      ...base,
+      todayIntentionDate: YESTERDAY,     // today's intention NOT set → gap warning fires
+      intentionConsecutiveMissDays: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도"); // intention_gap_warning preempts
+    expect(result!.text).not.toContain("포모도로"); // focus_drought_warning suppressed
+  });
+
+  it("shouldBePreemptedByHabitConsecutiveMiss", () => {
+    // habit_consecutive_miss (10.2) fires before focus_drought_warning (10.215)
+    const result = calcTodayInsight({
+      ...base,
+      habits: [{ name: "운동", streak: 0, checkHistory: [DAYS_4_AGO] }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("연속 미완료"); // habit_consecutive_miss preempts
+    expect(result!.text).not.toContain("포모도로"); // focus_drought_warning suppressed
+  });
+});
+

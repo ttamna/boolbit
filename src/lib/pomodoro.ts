@@ -1,5 +1,5 @@
-// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, lifetime milestone notifications, weekly/monthly/quarterly/yearly session reports, per-weekday session average for weak/best day detection, weekly goal-hit day count, and goal-met vs not-met momentum correlation
-// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, quarterly session report, yearly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), calcDayOfWeekPomodoroAvg/calcWeakPomodoroDay/calcBestPomodoroDay for todayIsWeakPomodoroDay/todayIsBestPomodoroDay insight params, calcPomodoroWeekGoalDays for goal-hit day count (any window: 7-day week or 14-day month), calcPomodoroMomentumCorrelation for goal-met vs not-met momentum gap
+// ABOUTME: Helpers for pomodoro session statistics, phase UI mapping, audio feedback, morning start nudge, evening goal-gap nudge, lifetime milestone notifications, weekly/monthly/quarterly/yearly session reports, per-weekday session average for weak/best day detection, weekly goal-hit day count, goal-met vs not-met momentum correlation, and focus drought detection
+// ABOUTME: Covers phase color/label, today-count derivation, 14-day history upsert, date range, week trend, header badge string, focus streak, lifetime format, goal-progress percentage, session-end audio cue, morning reminder, evening reminder, cumulative focus milestone crossing, weekly session report, monthly session report, quarterly session report, yearly session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), calcDayOfWeekPomodoroAvg/calcWeakPomodoroDay/calcBestPomodoroDay for todayIsWeakPomodoroDay/todayIsBestPomodoroDay insight params, calcPomodoroWeekGoalDays for goal-hit day count (any window: 7-day week or 14-day month), calcPomodoroMomentumCorrelation for goal-met vs not-met momentum gap, calcFocusDroughtDays for consecutive past days without any session
 
 import type { PomodoroDay, MomentumEntry } from "../types";
 import { colors } from "../theme";
@@ -600,5 +600,35 @@ export function calcPomodoroMomentumCorrelation(
   if (goalMetCount < MIN_CORRELATION_SAMPLES || notGoalMetCount < MIN_CORRELATION_SAMPLES) return null;
   const gap = Math.round(goalMetTotal / goalMetCount - notGoalMetTotal / notGoalMetCount);
   return gap >= 15 ? gap : null;
+}
+
+// Minimum consecutive past days without any pomodoro session before a focus drought warning fires.
+// Mirrors MIN_INTENTION_MISS_DAYS in intention.ts for threshold symmetry with intention_gap_warning.
+const MIN_FOCUS_DROUGHT_DAYS = 3;
+// Maximum days to look back; matches the 14-day rolling history cap so the lookback is bounded.
+const FOCUS_DROUGHT_LOOKBACK = 14;
+
+// Returns the number of consecutive past days (ending yesterday) with no pomodoro sessions.
+// Guard: returns null when there are no past entries at any count level (user has never opened the panel).
+// Drought chain: a past day breaks the drought only when count > 0; absent days and count=0 days extend it.
+// Returns null when the consecutive drought span is shorter than MIN_FOCUS_DROUGHT_DAYS (3).
+// Does not consider today — the caller guards with sessionsToday === 0 before surfacing a badge.
+// Mirrors calcIntentionConsecutiveMiss guard semantics: any past entry (not just count>0) satisfies the guard.
+// Pure function with no side effects.
+export function calcFocusDroughtDays(history: PomodoroDay[], todayStr: string): number | null {
+  // Guard: any past entry means the user has engaged with the feature (mirrors calcIntentionConsecutiveMiss).
+  const pastDates = new Set(history.filter(e => e.date < todayStr).map(e => e.date));
+  if (pastDates.size === 0) return null;
+  // activeDates: past days with actual completed sessions — used only to break the drought chain.
+  const activeDates = new Set(history.filter(e => e.date < todayStr && e.count > 0).map(e => e.date));
+  const base = new Date(todayStr + "T00:00:00");
+  let count = 0;
+  for (let i = 1; i <= FOCUS_DROUGHT_LOOKBACK; i++) {
+    const d = new Date(base);
+    d.setDate(d.getDate() - i);
+    if (activeDates.has(d.toLocaleDateString("sv"))) break;
+    count++;
+  }
+  return count >= MIN_FOCUS_DROUGHT_DAYS ? count : null;
 }
 

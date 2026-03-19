@@ -19,7 +19,7 @@ import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQu
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
-import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation } from "./lib/pomodoro";
+import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation, calcFocusDroughtDays } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport, calcDayOfWeekMomentumAvg, calcWeakMomentumDay, calcBestMomentumDay } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
@@ -2083,6 +2083,8 @@ export default function App() {
   const pomodoroMomentumGap = calcPomodoroMomentumCorrelation(data.pomodoroHistory ?? [], data.momentumHistory ?? [], data.pomodoroSessionGoal, todayStr) ?? undefined;
   // intentionConsecutiveMissDays: consecutive past days without an intention entry; null = brand-new user or < 3 days missed.
   const intentionConsecutiveMissDays = calcIntentionConsecutiveMiss(data.intentionHistory ?? [], todayStr) ?? undefined;
+  // focusDroughtDays: consecutive past days without any pomodoro sessions; null = never started or drought < 3 days.
+  const focusDroughtDays = calcFocusDroughtDays(data.pomodoroHistory ?? [], todayStr) ?? undefined;
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2247,6 +2249,8 @@ export default function App() {
     pomodoroMomentumGap,
     // intentionConsecutiveMissDays: consecutive past days without intention; undefined = brand-new user, < 3 days missed, or null from calc.
     intentionConsecutiveMissDays,
+    // focusDroughtDays: consecutive past days without any pomodoro sessions; undefined = never started or drought < 3 days.
+    focusDroughtDays,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 31-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
