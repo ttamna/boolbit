@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -8353,6 +8353,105 @@ describe("calcTodayInsight — intention_done_streak_record (within intention_do
     expect(result).not.toBeNull();
     expect(result!.text).toContain("15");
     expect(result!.text).toContain("신기록");
+  });
+});
+
+// ── intention_recovery ───────────────────────────────────────────────────
+describe("calcTodayInsight — intention_recovery (within intention_done block, priority 4.5)", () => {
+  // Recovery tier inside intention_done: fires when user resumes after a ≥3-day intention gap.
+  // Guard: todayIntentionDone=true, todayIntentionDate===todayStr, intentionConsecutiveMissDays≥3,
+  //        intentionDoneStreak < 3 (gap resets streak to 1, so milestone/flawless/streak≥3 don't fire).
+  // Base: January 15 (currentMonthDay=15 ≥ 10, but intentionDoneStreak=1 < 15 → no month_flawless).
+  const TODAY_IR = "2024-01-15";
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY_IR,
+    nowHour: 14,
+    todayIntentionDate: TODAY_IR,
+    todayIntentionDone: true as boolean | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    intentionDoneStreak: 1,
+    intentionConsecutiveMissDays: 5,
+  });
+
+  it("shouldShowRecoveryMessageAfterThreeDayGap", () => {
+    // intentionConsecutiveMissDays=3 (minimum ≥ MIN_INTENTION_MISS_DAYS) → recovery fires
+    const result = calcTodayInsight({ ...base(), intentionConsecutiveMissDays: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("3일 만에");
+    expect(result!.text).toContain("재개");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldIncludeGapCountInRecoveryText", () => {
+    // intentionConsecutiveMissDays=7 → gap count appears in text
+    const result = calcTodayInsight({ ...base(), intentionConsecutiveMissDays: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7일 만에");
+    expect(result!.text).toContain("재개");
+  });
+
+  it("shouldNotFireRecoveryWhenNoGap", () => {
+    // intentionConsecutiveMissDays=undefined (no gap or gap < 3) → generic fires instead
+    const result = calcTodayInsight({ ...base(), intentionConsecutiveMissDays: undefined });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("오늘의 의도 달성");
+    expect(result!.text).not.toContain("재개");
+  });
+
+  it("shouldNotFireRecoveryForTrivialGapOfTwo", () => {
+    // intentionConsecutiveMissDays=2 (below the ≥3 guard) → generic fires; recovery suppressed
+    const result = calcTodayInsight({ ...base(), intentionConsecutiveMissDays: 2 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("오늘의 의도 달성");
+    expect(result!.text).not.toContain("재개");
+  });
+
+  it("shouldBePreemptedByStreakCountBadgeWhenStreak3", () => {
+    // intentionDoneStreak=3 → streak ≥ 3 branch fires before recovery check
+    const result = calcTodayInsight({
+      ...base(),
+      intentionDoneStreak: 3,
+      intentionConsecutiveMissDays: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("재개");
+    expect(result!.text).toContain("연속 의도 달성");
+  });
+
+  it("shouldNotFireWhenTodayIntentionNotDone", () => {
+    // todayIntentionDone=false → intention_done block not entered; no badge fires in this minimal fixture
+    const result = calcTodayInsight({ ...base(), todayIntentionDone: false });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenTodayIntentionNotYetSet", () => {
+    // todayIntentionDate differs from todayStr → intention_done block not entered
+    const result = calcTodayInsight({ ...base(), todayIntentionDate: "2024-01-14", intentionConsecutiveMissDays: 5 });
+    expect(result?.text).not.toContain("재개");
+  });
+
+  it("shouldBePreemptedByDualWinWhenHabitsAlsoDone", () => {
+    // habit+intention both done → intention_habit_dual_win fires first (priority ~3.92)
+    const result = calcTodayInsight({
+      ...base(),
+      habits: [{ name: "운동", streak: 1, lastChecked: TODAY_IR }],
+      habitsAllDoneDate: TODAY_IR,
+      intentionConsecutiveMissDays: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("재개");
+  });
+
+  it("shouldFireWithLargeGapCount14", () => {
+    // intentionConsecutiveMissDays=14 (maximum capped value from calcIntentionConsecutiveMiss) → recovery fires
+    const result = calcTodayInsight({ ...base(), intentionConsecutiveMissDays: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14");
+    expect(result!.text).toContain("재개");
+    expect(result!.level).toBe("success");
   });
 });
 
