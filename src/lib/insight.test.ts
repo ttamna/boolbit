@@ -7840,8 +7840,24 @@ describe("calcTodayInsight — focus_streak_milestone (priority 7.42, between po
     expect(result!.text).toContain("연속 집중");
   });
 
+  it("shouldReturnFocusStreakMilestoneOn50DayStreak", () => {
+    const result = calcTodayInsight({ ...base(), sessionsToday: 1, focusStreak: 50 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("50");
+    expect(result!.text).toContain("연속 집중");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldReturnFocusStreakMilestoneOn100DayStreak", () => {
+    const result = calcTodayInsight({ ...base(), sessionsToday: 1, focusStreak: 100 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("100");
+    expect(result!.text).toContain("연속 집중");
+    expect(result!.level).toBe("success");
+  });
+
   it("shouldNotReturnFocusStreakMilestoneOnNonMilestoneStreak", () => {
-    // streak=8 is not a milestone (7, 14, 30 only); sessionGoal=undefined so no pomodoro_goal_reached
+    // streak=8 is not a milestone (7, 14, 30, 50, 100); sessionGoal=undefined so no pomodoro_goal_reached
     // or pomodoro_day_record fires either → overall result is null
     // sessionsToday=2 → pomodoroScoreRaw=20 + intentionScoreRaw=8 = 28, outside nearMid [37,40)
     const result = calcTodayInsight({ ...base(), sessionsToday: 2, focusStreak: 8 });
@@ -8072,6 +8088,54 @@ describe("calcTodayInsight — focus_streak_milestone_approach (priority 7.421, 
     expect(result!.text).toContain("29일");
     expect(result!.text).toContain("1일");
     expect(result!.text).toContain("30일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWhenStreak31PastMilestone30TooFarFromMilestone50", () => {
+    // 50 - 31 = 19 > 2 — past 30, not yet close to 50
+    const result = calcTodayInsight({ ...base(), focusStreak: 31 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireWith2DaysToMilestone50WhenStreak48", () => {
+    const result = calcTodayInsight({ ...base(), focusStreak: 48 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("48일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("50일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone50WhenStreak49", () => {
+    const result = calcTodayInsight({ ...base(), focusStreak: 49 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("49일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("50일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWhenStreak51PastMilestone50TooFarFromMilestone100", () => {
+    // 100 - 51 = 49 > 2 — past 50, not yet close to 100
+    const result = calcTodayInsight({ ...base(), focusStreak: 51 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireWith2DaysToMilestone100WhenStreak98", () => {
+    const result = calcTodayInsight({ ...base(), focusStreak: 98 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("98일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("100일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone100WhenStreak99", () => {
+    const result = calcTodayInsight({ ...base(), focusStreak: 99 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("99일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("100일 마일스톤");
     expect(result!.level).toBe("success");
   });
 
@@ -10263,6 +10327,22 @@ describe("calcTodayInsight — momentum_streak_milestone (priority 10.46, betwee
     expect(result!.level).toBe("success");
   });
 
+  it("shouldReturnMilestoneAt50Days", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 50, momentumHistory: todayQualifying });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("50");
+    expect(result!.text).toContain("모멘텀");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldReturnMilestoneAt100Days", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 100, momentumHistory: todayQualifying });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("100");
+    expect(result!.text).toContain("모멘텀");
+    expect(result!.level).toBe("success");
+  });
+
   it("shouldNotFireForNonMilestoneStreak8", () => {
     const result = calcTodayInsight({ ...base(), momentumStreak: 8, momentumHistory: todayQualifying });
     expect(result).toBeNull();
@@ -10416,6 +10496,54 @@ describe("calcTodayInsight — momentum_streak_milestone_approach (priority 10.4
     expect(result!.text).toContain("29일");
     expect(result!.text).toContain("1일");
     expect(result!.text).toContain("30일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWhenStreak31PastMilestone30TooFarFromMilestone50", () => {
+    // 50 - 31 = 19 > 2 — past 30, not yet close to 50
+    const result = calcTodayInsight({ ...base(), momentumStreak: 31 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireWith2DaysToMilestone50WhenStreak48", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 48 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("48일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("50일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone50WhenStreak49", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 49 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("49일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("50일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWhenStreak51PastMilestone50TooFarFromMilestone100", () => {
+    // 100 - 51 = 49 > 2 — past 50, not yet close to 100
+    const result = calcTodayInsight({ ...base(), momentumStreak: 51 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireWith2DaysToMilestone100WhenStreak98", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 98 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("98일");
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("100일 마일스톤");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWith1DayToMilestone100WhenStreak99", () => {
+    const result = calcTodayInsight({ ...base(), momentumStreak: 99 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("99일");
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("100일 마일스톤");
     expect(result!.level).toBe("success");
   });
 
