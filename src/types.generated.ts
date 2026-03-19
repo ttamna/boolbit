@@ -109,6 +109,7 @@ export interface WidgetData {
 	perfectDayBestStreak?: number;
 	intentionDoneBestStreak?: number;
 	focusBestStreak?: number;
+	momentumBestStreak?: number;
 	weekGoalHistory?: GoalEntry[];
 	monthGoalHistory?: GoalEntry[];
 	quarterGoalHistory?: GoalEntry[];

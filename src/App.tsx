@@ -2172,6 +2172,7 @@ export default function App() {
     perfectDayBestStreak: data.perfectDayBestStreak,
     intentionDoneBestStreak: data.intentionDoneBestStreak,
     focusBestStreak: data.focusBestStreak,
+    momentumBestStreak: data.momentumBestStreak,
     habitWeekRate: habitsWeekRate ?? undefined,
     // habitPrevWeekRate: same 14-day window's first half (days 7–13 ago) — already computed for habitsWeekTrend.
     habitPrevWeekRate: habitsPrevWeekRate ?? undefined,
@@ -2265,7 +2266,10 @@ export default function App() {
     const stored = (current.momentumHistory ?? []).find(e => e.date === todayStr);
     if (stored && stored.score === dailyScore.score && stored.tier === dailyScore.tier) return;
     const updated = updateMomentumHistory(current.momentumHistory ?? [], todayStr, dailyScore.score, dailyScore.tier);
-    persist({ ...current, momentumHistory: updated });
+    // Update momentumBestStreak: max(new streak including today, stored best).
+    const newMomentumStreak = calcMomentumStreak(updated, todayStr);
+    const newMomentumBestStreak = Math.max(newMomentumStreak, current.momentumBestStreak ?? 0);
+    persist({ ...current, momentumHistory: updated, momentumBestStreak: newMomentumBestStreak });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dailyScore.score, dailyScore.tier, todayStr, loaded]);
 
