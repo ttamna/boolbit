@@ -4052,6 +4052,162 @@ describe("calcTodayInsight", () => {
     expect(result).toBeNull();
   });
 
+  // ── perfect_day_streak_record ────────────────────────────────────────────────
+  // Enhanced tier within perfect_day_streak (priority 3.3): when perfectDayStreak === perfectDayBestStreak
+  // AND perfectDayBestStreak > 3 AND NOT a PERFECT_DAY_MILESTONE AND habitsAllDoneDate === todayStr,
+  // the badge text shows a "신기록" variant instead of the generic streak-count message.
+  // When conditions are not met, the regular "X일 연속 완벽한 하루!" text fires instead.
+
+  it("shouldShowRecordMessageAtNonMilestonePersonalBest", () => {
+    // perfectDayStreak=10 (not in [7,14,30,50,100]), perfectDayBestStreak=10, today perfect → "신기록" fires
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 10, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 10,
+      perfectDayBestStreak: 10,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("10");
+    expect(result!.text).toContain("완벽한 날");
+    expect(result!.text).toContain("신기록");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldShowRecordMessageOneDayPastMilestone", () => {
+    // perfectDayStreak=8 (one past milestone 7), perfectDayBestStreak=8 → "신기록" fires (7 not equaled)
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 8, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 8,
+      perfectDayBestStreak: 8,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("8");
+    expect(result!.text).toContain("완벽한 날");
+    expect(result!.text).toContain("신기록");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotShowRecordMessageWhenBestStreakIsTrivial", () => {
+    // perfectDayBestStreak=3 (≤ 3 guard excluded): regular badge fires without "신기록" text.
+    // weekGoal suppresses period_start (TODAY is Monday).
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 3, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 3,
+      perfectDayBestStreak: 3,
+      weekGoal: "weekly",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("3"); // generic streak-count badge fires
+    expect(result!.text).not.toContain("신기록");
+  });
+
+  it("shouldShowRecordMessageWhenBestStreakIsExactlyFour", () => {
+    // perfectDayBestStreak=4 (> 3 boundary, included side) → "신기록" fires
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 4, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 4,
+      perfectDayBestStreak: 4,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("4");
+    expect(result!.text).toContain("완벽한 날");
+    expect(result!.text).toContain("신기록");
+  });
+
+  it("shouldNotShowRecordMessageWhenNotAtAllTimeHigh", () => {
+    // perfectDayStreak=8 < perfectDayBestStreak=10: not at all-time high → regular badge text, no "신기록".
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 8, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 8,
+      perfectDayBestStreak: 10,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("신기록");
+  });
+
+  it("shouldNotShowRecordMessageWhenNoBestStreakTracked", () => {
+    // perfectDayBestStreak=undefined (feature not wired by caller) → regular badge text, no "신기록".
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 10, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 10,
+      perfectDayBestStreak: undefined,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("신기록");
+  });
+
+  it("shouldNotShowRecordMessageWhenTodayIsNotPerfect", () => {
+    // habitsAllDoneDate !== TODAY: today not a perfect day → entire perfect_day section
+    // does not fire, so result is null (no badge at all — neither record nor generic streak).
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 10, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: YESTERDAY,
+      perfectDayStreak: 10,
+      perfectDayBestStreak: 10,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFirePerfectDayStreakRecordWhenStreakIsAMilestoneValue", () => {
+    // perfectDayStreak=14 (milestone): perfect_day_streak_milestone (3.x) fires first → record does not fire.
+    const result = calcTodayInsight({
+      habits: [{ name: "운동", streak: 14, lastChecked: TODAY }],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 14,
+      perfectDayBestStreak: 14,
+    });
+    expect(result).not.toBeNull();
+    // milestone badge fires, not record badge
+    expect(result!.text).not.toContain("신기록");
+    expect(result!.text).toContain("마일스톤");
+  });
+
+
   // ── habit_streak_record ──────────────────────────────────────────────────────
   // Non-milestone personal best: streak === bestStreak, NOT in PERSONAL_BEST_MILESTONES (7/30/100),
   // bestStreak > 3, lastChecked === todayStr. Complements personal_best (11) for off-milestone bests.

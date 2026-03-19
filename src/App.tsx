@@ -380,14 +380,15 @@ export default function App() {
     if (data.habitsAllDoneDate === today) return; // already notified today
     const allDone = habits.every(h => h.lastChecked === today);
     if (!allDone) return;
-    // Mark today as notified and send the celebration notification.
-    persist({ ...dataRef.current, habitsAllDoneDate: today });
     // Recompute perfect-day streak from data.habits (same source as render-scope habitsPerfectStreak).
     // calcCheckInPatch always updates checkHistory alongside lastChecked, so the allDone guard above
     // implies today is present in every habit's checkHistory — perfectStreak reflects the full streak.
     // Uses 101-day window (same as render-scope habitsPerfectStreak) so that 30/50/100-day milestones fire.
     const last101 = calcLastNDays(today, 101);
     const perfectStreak = calcPerfectDayStreak(habits, last101);
+    // Update all-time best alongside habitsAllDoneDate in one persist call to avoid a second write.
+    const bestStreak = Math.max(perfectStreak, dataRef.current.perfectDayBestStreak ?? 0);
+    persist({ ...dataRef.current, habitsAllDoneDate: today, perfectDayBestStreak: bestStreak });
     const milestoneMsg = calcPerfectDayMilestoneNotify(perfectStreak);
     (async () => {
       try {
@@ -2145,6 +2146,7 @@ export default function App() {
     // perfectDayStreak: consecutive days all habits completed including today — same 14-day window used by HabitStreak.
     // When ≥ 3, the perfect_day badge shows the streak count instead of a generic celebration.
     perfectDayStreak: habitsPerfectStreak,
+    perfectDayBestStreak: data.perfectDayBestStreak,
     habitWeekRate: habitsWeekRate ?? undefined,
     // habitPrevWeekRate: same 14-day window's first half (days 7–13 ago) — already computed for habitsWeekTrend.
     habitPrevWeekRate: habitsPrevWeekRate ?? undefined,
