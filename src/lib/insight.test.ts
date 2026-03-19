@@ -18641,3 +18641,134 @@ describe("calcTodayInsight — momentum_streak_record (priority 10.4601, after m
     expect(result!.text).not.toContain("마일스톤");
   });
 });
+
+describe("calcTodayInsight — intention_done_streak_broken (priority 10.12, after pomodoro_goal_streak_broken and before habit_consecutive_miss)", () => {
+  // ABOUTME: Tests for intention_done_streak_broken badge: fires on the first day after a ≥3d intention-done
+  // ABOUTME: streak breaks. prevIntentionDoneStreak captures the streak length before the break.
+  //
+  // Base params: no habits (prevents streak_recession/habit_consecutive_miss interference),
+  // afternoon hour 14 (bypasses period_start morning blocks),
+  // todayIntentionDone absent/false (today's intention not yet done — streak broken).
+  const base = {
+    habits: [] as ReturnType<typeof habit>[],
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined,
+    habitsAllDoneDate: undefined,
+    intentionDoneStreak: 0,
+  } as const;
+
+  it("shouldFireWhenIntentionDoneStreakBrokenAfter3Days", () => {
+    // prevIntentionDoneStreak=3 (3 consecutive done days before yesterday's miss)
+    const result = calcTodayInsight({
+      ...base,
+      prevIntentionDoneStreak: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("💔");
+    expect(result!.text).toContain("3");
+    expect(result!.text).toContain("의도");
+  });
+
+  it("shouldShowPrevStreakCountInMessage", () => {
+    // prevIntentionDoneStreak=7 — message must reflect the 7-day streak that broke
+    const result = calcTodayInsight({
+      ...base,
+      prevIntentionDoneStreak: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7");
+  });
+
+  it("shouldNotFireWhenStreakStillAlive", () => {
+    // intentionDoneStreak=3 (today is done → streak alive) — badge must not fire
+    const result = calcTodayInsight({
+      ...base,
+      todayIntentionDone: true,
+      intentionDoneStreak: 3,
+      prevIntentionDoneStreak: 3,
+    });
+    // intention_done block fires instead (todayIntentionDone === true)
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("💔");
+    expect(result!.text).not.toContain("끊어짐");
+  });
+
+  it("shouldNotFireWhenPrevStreakTooShort", () => {
+    // prevIntentionDoneStreak=2 — below the 3-day significance threshold
+    const result = calcTodayInsight({
+      ...base,
+      prevIntentionDoneStreak: 2,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPrevStreakAbsent", () => {
+    // prevIntentionDoneStreak absent — insufficient history; skipped silently
+    const result = calcTodayInsight({
+      ...base,
+      prevIntentionDoneStreak: undefined,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireOnSecondDayOfMissWhenPrevIsZero", () => {
+    // On day 2 of miss: prevIntentionDoneStreak=0 (yesterday was also a miss)
+    const result = calcTodayInsight({
+      ...base,
+      prevIntentionDoneStreak: 0,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenIntentionDoneStreakUndefined", () => {
+    // intentionDoneStreak absent (not computed by caller) — badge must not fire
+    // even when prevIntentionDoneStreak is ≥3, to match pomodoro_goal_streak_broken guard semantics
+    const result = calcTodayInsight({
+      habits: [] as ReturnType<typeof habit>[],
+      todayStr: TODAY,
+      nowHour: 14,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      // intentionDoneStreak intentionally absent
+      prevIntentionDoneStreak: 5,
+    });
+    // intentionDoneStreak is undefined → 0 check fails → badge does not fire
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByPomodoroGoalStreakBrokenAtPriority10point11", () => {
+    // pomodoro_goal_streak_broken (10.11) fires before intention_done_streak_broken (10.12)
+    const result = calcTodayInsight({
+      ...base,
+      sessionGoal: 4,
+      pomodoroGoalStreak: 0,
+      prevPomodoroGoalStreak: 5,
+      prevIntentionDoneStreak: 4,
+    });
+    expect(result).not.toBeNull();
+    // pomodoro broken fires
+    expect(result!.text).toContain("포모도로");
+    // intention broken must NOT fire (it would say "의도 달성")
+    expect(result!.text).not.toContain("의도 달성");
+    expect(result!.text).toContain("💔");
+  });
+
+  it("shouldBePreemptedByStreakRecessionAtPriority10point1", () => {
+    // streak_recession (10.1) fires before intention_done_streak_broken (10.12)
+    const result = calcTodayInsight({
+      ...base,
+      habits: [habit("운동", 7, DAYS_2_AGO)],
+      prevIntentionDoneStreak: 4,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("운동");
+    // intention broken must NOT fire (it would say "의도 달성")
+    expect(result!.text).not.toContain("의도 달성");
+  });
+});

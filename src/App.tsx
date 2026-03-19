@@ -1887,6 +1887,23 @@ export default function App() {
   const prevPomodoroGoalStreak = data.pomodoroSessionGoal != null && data.pomodoroSessionGoal > 0
     ? calcPomodoroGoalStreak(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, yesterdayHabitsStr)
     : undefined;
+  // prevIntentionDoneStreak: consecutive done days ending at the day before yesterdayHabitsStr.
+  // Computed inline (not via calcIntentionDoneStreak) to avoid the 7-day display cap —
+  // we need the actual streak length so the badge message "N일 스트릭 끊어짐" is accurate.
+  const prevIntentionDoneStreak = (() => {
+    const doneSet = new Set(
+      (data.intentionHistory ?? []).filter(e => e.done === true).map(e => e.date),
+    );
+    const base = new Date(yesterdayHabitsStr + "T00:00:00");
+    let count = 0;
+    for (let back = 1; back <= 101; back++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() - back);
+      if (!doneSet.has(d.toLocaleDateString("sv"))) break;
+      count++;
+    }
+    return count;
+  })();
   // pomodoroSessionBest: max session count on any PAST calendar day in the 14-day rolling history.
   // Today's entry is excluded — compare against past days only to detect a genuine new daily record.
   // undefined when no past-day history exists (first use or all entries are today's date).
@@ -2161,6 +2178,7 @@ export default function App() {
     ) - 1),
     pomodoroGoalStreak,
     prevPomodoroGoalStreak,
+    prevIntentionDoneStreak,
     pomodoroGoalBestStreak: data.pomodoroGoalBestStreak,
     pomodoroSessionBest,
     pomodoroWeekRecord,
