@@ -4319,6 +4319,8 @@ describe("calcTodayInsight", () => {
   it("shouldPreferHighestBestStreakWhenMultipleStreakRecordQualify", () => {
     // Both at non-milestone personal bests; highest bestStreak wins.
     // 더미 streak=3 < 7: prevents habit_all_streak from preempting.
+    //   habit_diversity_warning: avgOthers=(8+12)/2=10, threshold=10*0.3=3.0.
+    //   더미=3 < 3.0 → false (strict less-than; 3===3.0 fails) → no diversity_warning.
     const result = calcTodayInsight({
       habits: [
         { name: "독서", streak: 8, lastChecked: TODAY, bestStreak: 8 },
@@ -5517,12 +5519,46 @@ describe("calcTodayInsight — momentum_sustained_peak (priority 10.505, all 3 d
   });
 
   it("shouldNotFireWithFewerThanThreeDaysOfHistory", () => {
-    // Only 2 entries — sustained_peak requires ≥3 consecutive days.
+    // length < 3 gate: only 2 entries → length check fails before date lookup.
     const result = calcTodayInsight({
       ...sustainedPeakBase(),
       momentumHistory: [
         { date: YESTERDAY, score: 70, tier: "high" as const },
         { date: TODAY, score: 72, tier: "high" as const },
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenYesterdayEntryMissing", () => {
+    // 3 entries (length gate passes) but YESTERDAY (back=1 key) is absent.
+    // back loop queries: back=2→DAYS_2_AGO(70), back=1→YESTERDAY(absent→0), back=0→TODAY(72).
+    // DAYS_3_AGO is in peakMap but not queried by any back key → doesn't affect result.
+    // peakScores=[70, 0, 72]: 0 < 65 → badge stays silent.
+    const result = calcTodayInsight({
+      ...sustainedPeakBase(),
+      momentumHistory: [
+        { date: DAYS_3_AGO, score: 70, tier: "high" as const },  // in peakMap but not queried
+        { date: DAYS_2_AGO, score: 70, tier: "high" as const },  // back=2
+        // YESTERDAY (back=1) missing → score defaults to 0
+        { date: TODAY, score: 72, tier: "high" as const },        // back=0
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenTodayEntryMissing", () => {
+    // 3 entries (length gate passes) but TODAY (back=0 key) is absent.
+    // back loop queries: back=2→DAYS_2_AGO(70), back=1→YESTERDAY(72), back=0→TODAY(absent→0).
+    // DAYS_3_AGO is in peakMap but not queried by any back key → doesn't affect result.
+    // peakScores=[70, 72, 0]: 0 < 65 → badge stays silent.
+    const result = calcTodayInsight({
+      ...sustainedPeakBase(),
+      momentumHistory: [
+        { date: DAYS_3_AGO, score: 68, tier: "high" as const },  // in peakMap but not queried
+        { date: DAYS_2_AGO, score: 70, tier: "high" as const },  // back=2
+        { date: YESTERDAY, score: 72, tier: "high" as const },   // back=1
+        // TODAY (back=0) missing → score defaults to 0
       ],
     });
     expect(result).toBeNull();
