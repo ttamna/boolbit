@@ -144,6 +144,7 @@ export interface WidgetData {
 	quarterlyIntentionReportDate?: string;
 	yearlyIntentionReportDate?: string;
 	monthlyHabitReportDate?: string;
+	monthlyPerfectDayReportDate?: string;
 	quarterlyHabitReportDate?: string;
 	yearlyHabitReportDate?: string;
 	monthlyMomentumReportDate?: string;

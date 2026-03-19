@@ -331,6 +331,8 @@ pub struct WidgetData {
     pub yearly_intention_report_date: Option<String>,
     #[serde(rename = "monthlyHabitReportDate", default, skip_serializing_if = "Option::is_none")]
     pub monthly_habit_report_date: Option<String>,
+    #[serde(rename = "monthlyPerfectDayReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub monthly_perfect_day_report_date: Option<String>,
     #[serde(rename = "quarterlyHabitReportDate", default, skip_serializing_if = "Option::is_none")]
     pub quarterly_habit_report_date: Option<String>,
     #[serde(rename = "yearlyHabitReportDate", default, skip_serializing_if = "Option::is_none")]

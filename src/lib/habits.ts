@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, yearly habit completion rate report, and per-weekday best/weak day detection
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, monthly perfect-day count report, quarterly habit completion rate report, yearly habit completion rate report, and per-weekday best/weak day detection
 
 import type { Habit, MomentumEntry } from "../types";
 
@@ -465,6 +465,29 @@ export function calcMonthlyHabitReport(habits: Habit[], prevMonthDays: string[])
   if (rate >= 80) return `✅ 지난달 습관 완료율 ${rate}% — 훌륭해요!`;
   if (rate >= 60) return `📊 지난달 습관 완료율 ${rate}% — 이번 달엔 더 해봐요!`;
   return `⚠️ 지난달 습관 완료율 ${rate}% — 다시 도전해봐요!`;
+}
+
+// Returns a desktop-notification body summarising last month's count of "perfect days" —
+// days on which ALL habits were checked. Complements calcMonthlyHabitReport (average rate per habit)
+// by surfacing how often the user achieved full-portfolio completion in a single day.
+// Fires on the 1st of each month at 09:00+ via the monthlyPerfectDayReportDate guard in App.tsx.
+// prevMonthDays: all calendar days of the previous month — caller uses
+//   calcLastNDays(yesterday, yesterday.getDate()) so the window covers exactly the previous month.
+// Returns null when habits is empty, prevMonthDays is empty, or no perfect day occurred (avoids
+//   discouraging zero-count notifications; lower-bound noise is suppressed deliberately).
+// Exported for unit testing; pure function with no side effects.
+export function calcMonthlyPerfectDayReport(habits: Habit[], prevMonthDays: string[]): string | null {
+  if (habits.length === 0 || prevMonthDays.length === 0) return null;
+  const total = prevMonthDays.length;
+  const perfectCount = prevMonthDays.filter(day =>
+    habits.every(h => !!(h.checkHistory?.includes(day)))
+  ).length;
+  if (perfectCount === 0) return null;
+  if (perfectCount === total) return `🌟 지난달 ${perfectCount}/${total}일 모든 습관 달성 — 완벽한 한 달!`;
+  const rate = Math.round((perfectCount / total) * 100);
+  if (rate >= 70) return `✅ 지난달 ${perfectCount}/${total}일 모든 습관 달성 — 훌륭해요!`;
+  if (rate >= 40) return `📊 지난달 ${perfectCount}/${total}일 모든 습관 달성 — 이번 달엔 더 해봐요!`;
+  return `💪 지난달 ${perfectCount}/${total}일 모든 습관 달성 — 꾸준히 도전해봐요!`;
 }
 
 // Returns a desktop-notification body summarising last quarter's average daily habit completion rate.

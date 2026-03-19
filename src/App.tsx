@@ -14,7 +14,7 @@ import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate, calcIntentionMomentumCorrelation } from "./lib/intention";
-import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcYearlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, calcHabitMomentumCorrelation } from "./lib/habits";
+import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcMonthlyPerfectDayReport, calcQuarterlyHabitReport, calcYearlyHabitReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, calcHabitMomentumCorrelation } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcYearlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
@@ -749,6 +749,35 @@ export default function App() {
       } catch { /* not available in browser dev mode */ }
     })();
   }, [data.habits, data.monthlyHabitReportDate, loaded, persist]);
+
+  // Month-start morning perfect-day count retrospective — fires once per month at 9:00+.
+  // Reports the previous month's count of "perfect days" (all habits checked on that day),
+  // complementing the average-rate report (monthlyHabitReport) with a full-portfolio signal.
+  // monthlyPerfectDayReportDate persists the guard so it fires only once per month-1st even after restart.
+  // Design: yesterday.getDate() window mirrors monthlyHabitReport — covers exactly the previous month.
+  // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
+  useEffect(() => {
+    if (!loaded) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("sv");
+    if (data.monthlyPerfectDayReportDate === today) return;
+    if (now.getDate() !== 1) return;  // only 1st of month
+    if (now.getHours() < 9) return;   // after 09:00
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const prevMonthDays = calcLastNDays(yesterday.toLocaleDateString("sv"), yesterday.getDate());
+    const msg = calcMonthlyPerfectDayReport(data.habits ?? [], prevMonthDays);
+    if (!msg) return;
+    persist({ ...dataRef.current, monthlyPerfectDayReportDate: today });
+    (async () => {
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) { const perm = await requestPermission(); ok = perm === "granted"; }
+        if (!ok) return;
+        sendNotification({ title: "Vision Widget", body: msg });
+      } catch { /* not available in browser dev mode */ }
+    })();
+  }, [data.habits, data.monthlyPerfectDayReportDate, loaded, persist]);
 
   // Quarter-start morning quarterly habit completion rate retrospective — fires once per quarter at 9:00+.
   // Reports the previous calendar quarter's average daily habit completion rate.
