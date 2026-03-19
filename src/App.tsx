@@ -2115,6 +2115,26 @@ export default function App() {
   const intentionConsecutiveMissDays = calcIntentionConsecutiveMiss(data.intentionHistory ?? [], todayStr) ?? undefined;
   // focusDroughtDays: consecutive past days without any pomodoro sessions; null = never started or drought < 3 days.
   const focusDroughtDays = calcFocusDroughtDays(data.pomodoroHistory ?? [], todayStr) ?? undefined;
+  // Past consecutive done streaks for each goal period — shared by todayInsight and directionBadge.
+  // Excludes the current (in-progress) period; ≥ 2 triggers streak suffix in both contexts.
+  // Math.max(0, ...) clamps the result to ≥ 0: when no goal is set for the current period,
+  // calcXxxGoalStreak returns 0, so 0 - 1 = -1 without the clamp — which would violate the ≥ 0 contract.
+  const weekGoalPastDoneStreak = Math.max(0, calcWeekGoalStreak(
+    data.weekGoal, data.weekGoalDate,
+    (data.weekGoalHistory ?? []).filter(e => e.done === true), renderDate,
+  ) - 1);
+  const monthGoalPastDoneStreak = Math.max(0, calcMonthGoalStreak(
+    data.monthGoal, data.monthGoalDate,
+    (data.monthGoalHistory ?? []).filter(e => e.done === true), renderDate,
+  ) - 1);
+  const quarterGoalPastDoneStreak = Math.max(0, calcQuarterGoalStreak(
+    data.quarterGoal, data.quarterGoalDate,
+    (data.quarterGoalHistory ?? []).filter(e => e.done === true), renderDate,
+  ) - 1);
+  const yearGoalPastDoneStreak = Math.max(0, calcYearGoalStreak(
+    data.yearGoal, data.yearGoalDate,
+    (data.yearGoalHistory ?? []).filter(e => e.done === true), renderDate,
+  ) - 1);
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2139,43 +2159,10 @@ export default function App() {
     yearGoalDone: data.yearGoalDone,
     daysLeftYear,
     momentumHistory: data.momentumHistory,
-    // Past consecutive done weeks (excludes current week): calcWeekGoalStreak counts current week as 1,
-    // so subtracting 1 gives the number of completed past weeks; filter to done===true entries only.
-    // Math.max(0, ...) clamps to ≥ 0 — calcWeekGoalStreak returns 0 when no current-week goal is set,
-    // which would produce -1 without clamping and violate the ≥ 0 contract in InsightParams.
-    weekGoalPastDoneStreak: Math.max(0, calcWeekGoalStreak(
-      data.weekGoal,
-      data.weekGoalDate,
-      (data.weekGoalHistory ?? []).filter(e => e.done === true),
-      renderDate,
-    ) - 1),
-    // Past consecutive done months (excludes current month): mirrors weekGoalPastDoneStreak pattern.
-    // calcMonthGoalStreak counts months a goal was SET; filtering history to done===true repurposes
-    // it to count months a goal was ACHIEVED. Subtract 1 to exclude the current (not-yet-done) month.
-    monthGoalPastDoneStreak: Math.max(0, calcMonthGoalStreak(
-      data.monthGoal,
-      data.monthGoalDate,
-      (data.monthGoalHistory ?? []).filter(e => e.done === true),
-      renderDate,
-    ) - 1),
-    // Past consecutive done quarters (excludes current quarter): mirrors monthGoalPastDoneStreak pattern.
-    // calcQuarterGoalStreak counts quarters a goal was SET; filtering history to done===true repurposes
-    // it to count quarters a goal was ACHIEVED. Subtract 1 to exclude the current (not-yet-done) quarter.
-    quarterGoalPastDoneStreak: Math.max(0, calcQuarterGoalStreak(
-      data.quarterGoal,
-      data.quarterGoalDate,
-      (data.quarterGoalHistory ?? []).filter(e => e.done === true),
-      renderDate,
-    ) - 1),
-    // Past consecutive done years (excludes current year): mirrors quarterGoalPastDoneStreak pattern.
-    // calcYearGoalStreak counts years a goal was SET; filtering history to done===true repurposes
-    // it to count years a goal was ACHIEVED. Subtract 1 to exclude the current (not-yet-done) year.
-    yearGoalPastDoneStreak: Math.max(0, calcYearGoalStreak(
-      data.yearGoal,
-      data.yearGoalDate,
-      (data.yearGoalHistory ?? []).filter(e => e.done === true),
-      renderDate,
-    ) - 1),
+    weekGoalPastDoneStreak,
+    monthGoalPastDoneStreak,
+    quarterGoalPastDoneStreak,
+    yearGoalPastDoneStreak,
     pomodoroGoalStreak,
     prevPomodoroGoalStreak,
     prevIntentionDoneStreak,
@@ -2457,6 +2444,8 @@ export default function App() {
     intentionWeekTrend,
     quotesCount: (data.quotes ?? []).length,
     daysLeftYear, daysLeftQuarter, daysLeftMonth, daysLeftWeek,
+    weekGoalPastDoneStreak, monthGoalPastDoneStreak,
+    quarterGoalPastDoneStreak, yearGoalPastDoneStreak,
   });
 
   return (

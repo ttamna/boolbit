@@ -318,4 +318,98 @@ describe("calcDirectionBadge", () => {
     });
     expect(result).toBe("Y✓✓·10d · Q✓✓·7d · M✓✓·5d · W✓✓·1d");
   });
+
+  // Past-done streak suffix: ·Nw / ·Nm / ·Nq / ·Ny
+  it("should show '·3w' week streak suffix when weekGoalPastDoneStreak=3 and no urgency", () => {
+    expect(calcDirectionBadge({ ...base, weekGoal: "Write post", weekGoalPastDoneStreak: 3 })).toBe("W✓·3w");
+  });
+
+  it("should show '·3w' suffix even when weekGoalDone (done + streak)", () => {
+    expect(calcDirectionBadge({ ...base, weekGoal: "Write post", weekGoalDone: true, weekGoalPastDoneStreak: 3 })).toBe("W✓✓·3w");
+  });
+
+  it("should NOT show week streak suffix when weekGoalPastDoneStreak is 1 (minimum trigger is 2)", () => {
+    expect(calcDirectionBadge({ ...base, weekGoal: "Write post", weekGoalPastDoneStreak: 1 })).toBe("W✓");
+  });
+
+  it("should NOT show week streak suffix when weekGoalPastDoneStreak is 0", () => {
+    expect(calcDirectionBadge({ ...base, weekGoal: "Write post", weekGoalPastDoneStreak: 0 })).toBe("W✓");
+  });
+
+  it("should NOT show week streak suffix when weekGoalPastDoneStreak is undefined", () => {
+    expect(calcDirectionBadge({ ...base, weekGoal: "Write post" })).toBe("W✓");
+  });
+
+  it("urgency takes precedence over week streak suffix (daysLeftWeek=2, streak=3 → ·2d)", () => {
+    expect(calcDirectionBadge({ ...base, weekGoal: "Write post", daysLeftWeek: 2, weekGoalPastDoneStreak: 3 })).toBe("W✓·2d");
+  });
+
+  it("should show '·2m' month streak suffix when monthGoalPastDoneStreak=2 and no urgency", () => {
+    expect(calcDirectionBadge({ ...base, monthGoal: "Launch", monthGoalPastDoneStreak: 2 })).toBe("M✓·2m");
+  });
+
+  it("should NOT show month streak suffix when monthGoalPastDoneStreak is 1 (minimum trigger is 2)", () => {
+    expect(calcDirectionBadge({ ...base, monthGoal: "Launch", monthGoalPastDoneStreak: 1 })).toBe("M✓");
+  });
+
+  it("should NOT show month streak suffix when monthGoalPastDoneStreak is 0", () => {
+    expect(calcDirectionBadge({ ...base, monthGoal: "Launch", monthGoalPastDoneStreak: 0 })).toBe("M✓");
+  });
+
+  it("should NOT show month streak suffix when monthGoalPastDoneStreak is undefined", () => {
+    expect(calcDirectionBadge({ ...base, monthGoal: "Launch" })).toBe("M✓");
+  });
+
+  it("urgency takes precedence over month streak suffix (daysLeftMonth=5, streak=4 → ·5d)", () => {
+    expect(calcDirectionBadge({ ...base, monthGoal: "Launch", daysLeftMonth: 5, monthGoalPastDoneStreak: 4 })).toBe("M✓·5d");
+  });
+
+  it("should show '·2q' quarter streak suffix when quarterGoalPastDoneStreak=2 and no urgency", () => {
+    expect(calcDirectionBadge({ ...base, quarterGoal: "Q2 goal", quarterGoalPastDoneStreak: 2 })).toBe("Q✓·2q");
+  });
+
+  it("should NOT show quarter streak suffix when quarterGoalPastDoneStreak is 1", () => {
+    expect(calcDirectionBadge({ ...base, quarterGoal: "Q2 goal", quarterGoalPastDoneStreak: 1 })).toBe("Q✓");
+  });
+
+  it("should NOT show quarter streak suffix when quarterGoalPastDoneStreak is 0", () => {
+    expect(calcDirectionBadge({ ...base, quarterGoal: "Q2 goal", quarterGoalPastDoneStreak: 0 })).toBe("Q✓");
+  });
+
+  it("should NOT show quarter streak suffix when quarterGoalPastDoneStreak is undefined", () => {
+    expect(calcDirectionBadge({ ...base, quarterGoal: "Q2 goal" })).toBe("Q✓");
+  });
+
+  it("urgency takes precedence over quarter streak suffix (daysLeftQuarter=10, streak=2 → ·10d)", () => {
+    expect(calcDirectionBadge({ ...base, quarterGoal: "Q2 goal", daysLeftQuarter: 10, quarterGoalPastDoneStreak: 2 })).toBe("Q✓·10d");
+  });
+
+  it("should show '·2y' year streak suffix when yearGoalPastDoneStreak=2 and no urgency", () => {
+    expect(calcDirectionBadge({ ...base, yearGoal: "Ship v2", yearGoalPastDoneStreak: 2 })).toBe("Y✓·2y");
+  });
+
+  it("should NOT show year streak suffix when yearGoalPastDoneStreak is 1", () => {
+    expect(calcDirectionBadge({ ...base, yearGoal: "Ship v2", yearGoalPastDoneStreak: 1 })).toBe("Y✓");
+  });
+
+  it("should NOT show year streak suffix when yearGoalPastDoneStreak is 0", () => {
+    expect(calcDirectionBadge({ ...base, yearGoal: "Ship v2", yearGoalPastDoneStreak: 0 })).toBe("Y✓");
+  });
+
+  it("should NOT show year streak suffix when yearGoalPastDoneStreak is undefined", () => {
+    expect(calcDirectionBadge({ ...base, yearGoal: "Ship v2" })).toBe("Y✓");
+  });
+
+  it("urgency takes precedence over year streak suffix (daysLeftYear=20, streak=2 → ·20d)", () => {
+    expect(calcDirectionBadge({ ...base, yearGoal: "Ship v2", daysLeftYear: 20, yearGoalPastDoneStreak: 2 })).toBe("Y✓·20d");
+  });
+
+  it("should show streak suffix for each goal part independently in a composite badge", () => {
+    const result = calcDirectionBadge({
+      ...base,
+      yearGoal: "Y", yearGoalPastDoneStreak: 2,
+      monthGoal: "M", monthGoalDone: true, monthGoalPastDoneStreak: 3,
+    });
+    expect(result).toBe("Y✓·2y · M✓✓·3m");
+  });
 });

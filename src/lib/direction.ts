@@ -30,6 +30,14 @@ export interface DirectionBadgeParams {
   daysLeftMonth: number;
   /** Days remaining in the current ISO week (including today); urgency suffix when ≤ 3. */
   daysLeftWeek: number;
+  /** Past consecutive ISO weeks where a weekly goal was set AND marked done; ≥ 2 triggers streak suffix. */
+  weekGoalPastDoneStreak?: number;
+  /** Past consecutive calendar months where a monthly goal was set AND marked done; ≥ 2 triggers streak suffix. */
+  monthGoalPastDoneStreak?: number;
+  /** Past consecutive calendar quarters where a quarterly goal was set AND marked done; ≥ 2 triggers streak suffix. */
+  quarterGoalPastDoneStreak?: number;
+  /** Past consecutive calendar years where a yearly goal was set AND marked done; ≥ 2 triggers streak suffix. */
+  yearGoalPastDoneStreak?: number;
 }
 
 /**
@@ -56,25 +64,35 @@ export function calcDirectionBadge(params: DirectionBadgeParams): string | undef
     intentionSetCount7, intentionDoneCount7, intentionWeekTrend,
     quotesCount,
     daysLeftYear, daysLeftQuarter, daysLeftMonth, daysLeftWeek,
+    yearGoalPastDoneStreak, quarterGoalPastDoneStreak,
+    monthGoalPastDoneStreak, weekGoalPastDoneStreak,
   } = params;
 
   const parts: string[] = [];
 
   if (yearGoal) {
     const base = yearGoalDone ? "Y✓✓" : "Y✓";
-    parts.push(daysLeftYear <= 30 ? `${base}·${daysLeftYear}d` : base);
+    if (daysLeftYear <= 30) parts.push(`${base}·${daysLeftYear}d`);
+    else if ((yearGoalPastDoneStreak ?? 0) >= 2) parts.push(`${base}·${yearGoalPastDoneStreak!}y`);
+    else parts.push(base);
   }
   if (quarterGoal) {
     const base = quarterGoalDone ? "Q✓✓" : "Q✓";
-    parts.push(daysLeftQuarter <= 14 ? `${base}·${daysLeftQuarter}d` : base);
+    if (daysLeftQuarter <= 14) parts.push(`${base}·${daysLeftQuarter}d`);
+    else if ((quarterGoalPastDoneStreak ?? 0) >= 2) parts.push(`${base}·${quarterGoalPastDoneStreak!}q`);
+    else parts.push(base);
   }
   if (monthGoal) {
     const base = monthGoalDone ? "M✓✓" : "M✓";
-    parts.push(daysLeftMonth <= 7 ? `${base}·${daysLeftMonth}d` : base);
+    if (daysLeftMonth <= 7) parts.push(`${base}·${daysLeftMonth}d`);
+    else if ((monthGoalPastDoneStreak ?? 0) >= 2) parts.push(`${base}·${monthGoalPastDoneStreak!}m`);
+    else parts.push(base);
   }
   if (weekGoal) {
     const base = weekGoalDone ? "W✓✓" : "W✓";
-    parts.push(daysLeftWeek <= 3 ? `${base}·${daysLeftWeek}d` : base);
+    if (daysLeftWeek <= 3) parts.push(`${base}·${daysLeftWeek}d`);
+    else if ((weekGoalPastDoneStreak ?? 0) >= 2) parts.push(`${base}·${weekGoalPastDoneStreak!}w`);
+    else parts.push(base);
   }
   if (todayIntention) {
     const base = todayIntentionDone ? "✓✓" : "✓";
