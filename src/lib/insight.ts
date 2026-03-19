@@ -207,7 +207,7 @@ interface InsightParams {
    * intention as accomplished (done === true in intentionHistory).
    * Computed by calcIntentionDoneStreak(intentionHistory, todayIntentionDone, todayStr) in App.tsx.
    * Three tiers when todayIntentionDone AND todayIntentionDate === todayStr:
-   *   When hits milestone (7, 14, or 30): a distinct "의도 달성 N일 연속 마일스톤! 실행 의지가 빛나요"
+   *   When hits milestone (7, 14, 30, 50, or 100): a distinct "의도 달성 N일 연속 마일스톤! 실행 의지가 빛나요"
    *   celebration badge fires, preempting the regular streak tier.
    *   When ≥ 3 (non-milestone): streak count badge "N일 연속 의도 달성! 실행력이 빛나요".
    *   Otherwise: generic "오늘의 의도 달성!" single-day message.
@@ -550,9 +550,9 @@ const PERSONAL_BEST_MILESTONES = [7, 30, 100];
 const FOCUS_STREAK_MILESTONES = [7, 14, 30, 50, 100];
 
 // Consecutive habit-check-day milestones for the habit_streak_milestone_approach badge.
-// Mirrors FOCUS_STREAK_MILESTONES thresholds (7=one week, 14=two weeks, 30=one month) —
-// symmetric with focus/intention/pomodoro/momentum milestone approach series.
-const HABIT_STREAK_MILESTONES = [7, 14, 30];
+// Mirrors FOCUS_STREAK_MILESTONES thresholds: 7=one week, 14=two weeks, 30=one month, 50=50 days, 100=100 days.
+// Symmetric with focus/momentum milestone approach series (both use [7,14,30,50,100]).
+const HABIT_STREAK_MILESTONES = [7, 14, 30, 50, 100];
 
 // Consecutive qualifying-momentum-day milestones (score ≥ 40) that trigger a momentum_streak_milestone badge.
 // Mirrors FOCUS_STREAK_MILESTONES thresholds: 7=one week, 14=two weeks, 30=one month, 50=50 days, 100=100 days.
@@ -560,12 +560,12 @@ const MOMENTUM_STREAK_MILESTONES = [7, 14, 30, 50, 100];
 
 // Consecutive goal-met-day milestones for the pomodoro_goal_streak_milestone badge.
 // pomodoroGoalStreak (past days) + 1 (today) must hit one of these values.
-// Mirrors FOCUS_STREAK_MILESTONES (weekly/biweekly/monthly) — consistent with system-wide milestone philosophy.
-const POMODORO_GOAL_STREAK_MILESTONES = [7, 14, 30];
+// Mirrors FOCUS_STREAK_MILESTONES thresholds: 7=one week, 14=two weeks, 30=one month, 50=50 days, 100=100 days.
+const POMODORO_GOAL_STREAK_MILESTONES = [7, 14, 30, 50, 100];
 
 // Consecutive intention-done-day milestones for the intention_done_streak_milestone badge.
-// Mirrors FOCUS_STREAK_MILESTONES thresholds: 7=one week, 14=two weeks, 30=one month of daily execution.
-const INTENTION_DONE_STREAK_MILESTONES = [7, 14, 30];
+// Mirrors FOCUS_STREAK_MILESTONES thresholds: 7=one week, 14=two weeks, 30=one month, 50=50 days, 100=100 days.
+const INTENTION_DONE_STREAK_MILESTONES = [7, 14, 30, 50, 100];
 
 
 // Cumulative focus-time milestones (in minutes) for the pomodoro_lifetime_milestone badge.
@@ -937,7 +937,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // Fires before intention_missing (5): a completed intention supersedes the "please set" nudge.
   // todayIntentionDate === todayStr guard prevents stale done state from a previous day from firing.
   // Four tiers based on intentionDoneStreak (milestone checked first):
-  //   milestone (7/14/30 days): distinct celebration badge for weekly/biweekly/monthly execution milestones.
+  //   milestone (7/14/30/50/100 days): distinct celebration badge for weekly/biweekly/monthly/50d/100d milestones.
   //   month_flawless (streak ≥ currentMonthDay, currentMonthDay ≥ MIN_MONTH_DAYS): every day of the month
   //     completed — fires after milestone so streak-30 on Jan 30 shows the milestone, not the flawless badge.
   //   streak ≥ 3 (non-milestone, non-flawless): streak count badge — rewards sustained execution.
@@ -1126,7 +1126,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     return { text: "🍅 포모도로 목표까지 1세션!", level: "info" };
   }
 
-  // 7.41. Pomodoro goal streak milestone: pomodoroGoalStreak + 1 (today) hits 7/14/30 consecutive days
+  // 7.41. Pomodoro goal streak milestone: pomodoroGoalStreak + 1 (today) hits 7/14/30/50/100 consecutive days
   // where the daily sessionGoal was met or exceeded — a quality milestone complementing focus_streak (quantity).
   // Fires BEFORE focus_streak_milestone (7.42): completing the configured goal is a higher bar than any session.
   // Fires AFTER pomodoro_last_one (7): one-session-away urgency preempts milestone celebration.
@@ -1174,7 +1174,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     }
   }
 
-  // 7.422. Intention done streak milestone approach: intentionDoneStreak is 1–2 days away from the next milestone (7, 14, or 30).
+  // 7.422. Intention done streak milestone approach: intentionDoneStreak is 1–2 days away from the next milestone (7, 14, 30, 50, or 100).
   // Motivates the user to maintain daily intention completion before hitting a celebration-worthy milestone.
   // Fires AFTER focus_streak_milestone_approach (7.421): focus streak is auto-tracked; intention requires explicit daily
   //   action, so focus approach fires first when both qualify on the same day.
@@ -1191,7 +1191,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     }
   }
 
-  // 7.423. Pomodoro goal streak milestone approach: effective goal streak is 1–2 days away from the next milestone (7, 14, or 30).
+  // 7.423. Pomodoro goal streak milestone approach: effective goal streak is 1–2 days away from the next milestone (7, 14, 30, 50, or 100).
   // effectiveStreak = pomodoroGoalStreak + 1 when today's goal is already met (sessionsToday >= sessionGoal),
   //   otherwise pomodoroGoalStreak (past days only). This mirrors focusStreak semantics — "current streak as if
   //   you complete today's goal" — so the nudge message shows the streak the user has actually earned so far.
@@ -1212,7 +1212,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     }
   }
 
-  // 7.424. Habit streak milestone approach: any habit's streak is 1–2 days away from the next standard milestone (7, 14, or 30).
+  // 7.424. Habit streak milestone approach: any habit's streak is 1–2 days away from the next standard milestone (7, 14, 30, 50, or 100).
   // Completes the 4-domain milestone-approach series alongside focus (7.421), intention (7.422), pomodoro goal (7.423).
   // Fires AFTER pomodoro_goal_streak_milestone_approach (7.423): habit streaks require daily manual check-in,
   //   same explicit-effort rationale as intention (7.422) — placed last in the domain series.
@@ -1227,7 +1227,9 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   //   This badge reaches the 1-day case only after today's check-in (lastChecked === todayStr), so the two
   //   badges cover complementary states: milestone_near = "not yet checked / streak at risk", this badge = "already
   //   checked or 2 days away". The milestone_near threshold set is [7,30,100] (PERSONAL_BEST_MILESTONES); this badge
-  //   covers [7,14,30] (HABIT_STREAK_MILESTONES), so milestone 14 is only reachable via this block.
+  //   covers [7,14,30,50,100] (HABIT_STREAK_MILESTONES), so milestones 14 and 50 are only reachable here.
+  //   Milestone 100 at 2 days away (streak=98) is also only reachable here; at 1 day away (streak=99),
+  //   milestone_near fires first when lastChecked !== todayStr, but this badge fires when lastChecked === todayStr.
   // habits empty → skipped silently.
   {
     const habitApproach = habits.reduce<{ name: string; streak: number; daysLeft: number; next: number } | null>((best, h) => {
