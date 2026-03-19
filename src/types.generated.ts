@@ -110,6 +110,7 @@ export interface WidgetData {
 	intentionDoneBestStreak?: number;
 	focusBestStreak?: number;
 	momentumBestStreak?: number;
+	pomodoroGoalBestStreak?: number;
 	weekGoalHistory?: GoalEntry[];
 	monthGoalHistory?: GoalEntry[];
 	quarterGoalHistory?: GoalEntry[];

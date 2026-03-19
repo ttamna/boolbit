@@ -7988,6 +7988,97 @@ describe("calcTodayInsight — pomodoro_session_best_tie (priority 7.491, after 
   });
 });
 
+// ── pomodoro_goal_streak_record ───────────────────────────────────────────
+describe("calcTodayInsight — pomodoro_goal_streak_record (priority 7.4101, after pomodoro_goal_streak_milestone, before focus_streak_milestone)", () => {
+  // Fires when today's goal is met AND effective streak (pomodoroGoalStreak+1) is a new personal best
+  // that is NOT a standard milestone (7/14/30/50/100). Symmetric sibling of focus_streak_record (7.4205).
+  // pomodoroGoalBestStreak > 3 guard suppresses trivial bests from brief early attempts.
+  // Base: effective streak 10 (9 past days + today), bestStreak=10, non-milestone, goal met.
+  const base = {
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    sessionsToday: 3,
+    sessionGoal: 3 as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    todayIntentionDate: undefined as string | undefined,
+    pomodoroGoalStreak: 9,
+    pomodoroGoalBestStreak: 10,
+  };
+
+  it("shouldFireForNonMilestonePersonalBest", () => {
+    const result = calcTodayInsight({ ...base });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("10일");
+    expect(result!.text).toContain("신기록");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldShowStreakCountInTextForLargerNonMilestoneStreak", () => {
+    // effectiveStreak=22 (non-milestone): record badge fires
+    const result = calcTodayInsight({ ...base, pomodoroGoalStreak: 21, pomodoroGoalBestStreak: 22 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("22일");
+    expect(result!.text).toContain("신기록");
+  });
+
+  it("shouldNotFireWhenBestStreakIsAbsent", () => {
+    // Without pomodoroGoalBestStreak, record badge is skipped; pomodoro_goal_reached fires instead
+    const { pomodoroGoalBestStreak: _skip, ...withoutBest } = base;
+    const result = calcTodayInsight(withoutBest);
+    expect(result?.text).not.toContain("신기록");
+  });
+
+  it("shouldNotFireWhenBestStreakIsThreeOrLess", () => {
+    // pomodoroGoalBestStreak ≤ 3 guard prevents trivial "신기록"; pomodoro_goal_reached fires instead
+    const result = calcTodayInsight({ ...base, pomodoroGoalStreak: 2, pomodoroGoalBestStreak: 3 });
+    expect(result?.text).not.toContain("신기록");
+  });
+
+  it("shouldFireWhenBestStreakIsFourBoundaryIncluded", () => {
+    // pomodoroGoalBestStreak = 4 is the first included value (> 3)
+    const result = calcTodayInsight({ ...base, pomodoroGoalStreak: 3, pomodoroGoalBestStreak: 4 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록");
+  });
+
+  it("shouldNotFireWhenStreakDoesNotEqualBestStreak", () => {
+    // effectiveStreak=10 < bestStreak=12: not the personal best yet; pomodoro_goal_reached fires instead
+    const result = calcTodayInsight({ ...base, pomodoroGoalStreak: 9, pomodoroGoalBestStreak: 12 });
+    expect(result?.text).not.toContain("신기록");
+  });
+
+  it("shouldNotFireWhenGoalNotMet", () => {
+    // sessionsToday=1 < sessionGoal=3: goal not met, effective streak doesn't count today.
+    // pomodoroGoalStreak=0 ensures pomodoro_goal_streak (≥2 guard) doesn't fire either → null.
+    const result = calcTodayInsight({ ...base, sessionsToday: 1, pomodoroGoalStreak: 0 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenSessionGoalIsAbsent", () => {
+    const result = calcTodayInsight({ ...base, sessionGoal: undefined });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByGoalStreakMilestoneAtExactMilestone", () => {
+    // effectiveStreak=7 (milestone) → pomodoro_goal_streak_milestone (7.41) fires first
+    const result = calcTodayInsight({ ...base, pomodoroGoalStreak: 6, pomodoroGoalBestStreak: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7");
+    expect(result!.text).toContain("연속 달성");
+    expect(result!.text).not.toContain("신기록");
+  });
+
+  it("shouldPreemptFocusStreakMilestone", () => {
+    // record badge (7.4101) fires before focus_streak_milestone (7.42)
+    // effectiveStreak=10 (non-milestone) wins over focusStreak=14 (milestone)
+    const result = calcTodayInsight({ ...base, focusStreak: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록");
+    expect(result!.text).not.toContain("연속 집중");
+  });
+});
+
 describe("calcTodayInsight — focus_streak_milestone (priority 7.42, between pomodoro_last_one and pomodoro_goal_streak)", () => {
   // Base: Monday afternoon, intention set, no habits, no pomodoro goal, no competing insights.
   // TODAY = "2024-01-15" is a Monday — afternoon hour avoids all morning-only gates.

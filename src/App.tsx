@@ -1739,7 +1739,17 @@ export default function App() {
     // Update focusBestStreak: max(new streak after this session, stored best).
     const newFocusStreak = calcFocusStreak(newHistory, today);
     const newFocusBestStreak = Math.max(newFocusStreak, snapshot.focusBestStreak ?? 0);
-    persist({ ...snapshot, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects, pomodoroLifetimeMins: newLifetime, focusBestStreak: newFocusBestStreak });
+    // Update pomodoroGoalBestStreak: when today's sessions reach the daily goal, the effective goal
+    // streak (past consecutive goal days + 1 for today) may be a new personal best.
+    // calcPomodoroGoalStreak excludes today, so +1 accounts for today's goal-met contribution.
+    const goalMet = snapshot.pomodoroSessionGoal != null && snapshot.pomodoroSessionGoal > 0 && count >= snapshot.pomodoroSessionGoal;
+    const newPomodoroGoalBestStreak = goalMet
+      ? Math.max(
+          calcPomodoroGoalStreak(newHistory, snapshot.pomodoroSessionGoal!, today) + 1,
+          snapshot.pomodoroGoalBestStreak ?? 0,
+        )
+      : snapshot.pomodoroGoalBestStreak;
+    persist({ ...snapshot, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects, pomodoroLifetimeMins: newLifetime, focusBestStreak: newFocusBestStreak, pomodoroGoalBestStreak: newPomodoroGoalBestStreak });
     if (snapshot.pomodoroNotify !== false) {
       // Notify when the daily session goal is hit exactly (not on every subsequent session).
       if (snapshot.pomodoroSessionGoal !== undefined && snapshot.pomodoroSessionGoal > 0 && count === snapshot.pomodoroSessionGoal) {
@@ -2151,6 +2161,7 @@ export default function App() {
     ) - 1),
     pomodoroGoalStreak,
     prevPomodoroGoalStreak,
+    pomodoroGoalBestStreak: data.pomodoroGoalBestStreak,
     pomodoroSessionBest,
     pomodoroWeekRecord,
     pomodoroRecentAvg,

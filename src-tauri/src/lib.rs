@@ -323,6 +323,8 @@ pub struct WidgetData {
     pub focus_best_streak: Option<u32>,
     #[serde(rename = "momentumBestStreak", default, skip_serializing_if = "Option::is_none")]
     pub momentum_best_streak: Option<u32>,
+    #[serde(rename = "pomodoroGoalBestStreak", default, skip_serializing_if = "Option::is_none")]
+    pub pomodoro_goal_best_streak: Option<u32>,
     #[serde(rename = "habitMorningRemindDate", default, skip_serializing_if = "Option::is_none")]
     pub habit_morning_remind_date: Option<String>,
     #[serde(rename = "momentumMorningRemindDate", default, skip_serializing_if = "Option::is_none")]
