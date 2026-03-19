@@ -4,6 +4,11 @@
 import type { PomodoroDay, MomentumEntry } from "../types";
 import { colors } from "../theme";
 
+// Rolling history retention window for pomodoroHistory.
+// Must exceed the longest report period (31 days for monthly) to ensure full-month coverage.
+// momentumHistory uses 31, intentionHistory uses 35 — align with intentionHistory for consistency.
+const POMODORO_HISTORY_CAP = 35;
+
 /** The three phases of a pomodoro cycle. */
 export type Phase = "focus" | "break" | "longBreak";
 
@@ -41,8 +46,9 @@ export function calcTodaySessionCount(
   return sessionDate === today ? (sessionCount ?? 0) + 1 : 1;
 }
 
-// Upserts today's session count into the rolling 14-day history.
-// Removes any existing entry for today, appends the new count, sorts chronologically, caps at 14.
+// Upserts today's session count into the rolling 35-day history.
+// Removes any existing entry for today, appends the new count, sorts chronologically, caps at POMODORO_HISTORY_CAP.
+// 35-day cap covers full calendar months (28–31 days) so monthly reports see the complete previous month.
 // Does not mutate the input history array.
 // Exported for unit testing; pure function with no side effects.
 export function updatePomodoroHistory(
@@ -52,7 +58,7 @@ export function updatePomodoroHistory(
 ): PomodoroDay[] {
   return [...history.filter(d => d.date !== today), { date: today, count }]
     .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(-14);
+    .slice(-POMODORO_HISTORY_CAP);
 }
 
 // Returns the last 14 YYYY-MM-DD date strings (oldest → newest) anchored at todayStr.
@@ -271,9 +277,8 @@ export function calcWeeklyPomodoroReport(
  * Fires on the 1st of each month at 09:00+ via the monthlyPomodoroReportDate guard in App.tsx.
  * prevMonthDays: all calendar days of the previous month — caller uses calcLastNDays(yesterday, yesterday.getDate())
  *   so the window length matches the actual month length (28/29/30/31) rather than a fixed 30 days.
- * Data constraint: pomodoroHistory is capped at 14 days by updatePomodoroHistory, so this function
- *   aggregates at most the last 14 days of the previous month (same constraint as calcMonthlyHabitReport).
- *   The report is a useful approximation of recent effort, not a full-month total.
+ * Data: pomodoroHistory is capped at 35 days by updatePomodoroHistory, which covers all calendar months
+ *   (28–31 days). This function aggregates the full previous month when the cap has been populated for ≥31 days.
  * Returns null when fewer than 3 active days (count > 0) are found within the window.
  * Thresholds: ≥100 sessions=🔥, ≥40=✅, else=💪.
  * Exported for unit testing; pure function with no side effects.
@@ -299,9 +304,8 @@ export function calcMonthlyPomodoroReport(
 //   quarterlyPomodoroReportDate guard in App.tsx.
 // prevQtrDays: all calendar days of the previous quarter — caller uses
 //   calcLastNDays(yesterday, totalDaysInQuarter(yesterday)) so the window covers exactly Q1–Q4.
-// Note: pomodoroHistory is capped at 14 days, so only the last ≤14 days of the quarter will match.
-//   For this reason the session-count thresholds (≥100=🔥, ≥40=✅) match calcMonthlyPomodoroReport
-//   rather than being scaled by quarter length (×3); the effective data window is the same ≤14 days.
+// Note: pomodoroHistory is capped at 35 days, so only the last ≤35 days of the quarter will match.
+//   Thresholds (≥100=🔥, ≥40=✅) are calibrated for a ~35-day window (not scaled to full quarter length).
 // Returns null when fewer than 3 active (count > 0) days fall within the window.
 // Exported for unit testing; pure function with no side effects.
 export function calcQuarterlyPomodoroReport(
@@ -335,8 +339,8 @@ export function calcPomodoroMorningReminder(
 // Absent history entries are treated as 0 sessions (goal not met — same convention as calcFocusStreak).
 // Returns 0 when sessionGoal ≤ 0 or yesterday did not meet the goal.
 // Only past days are counted — today's sessions are intentionally excluded so this is stable until end-of-day.
-// Loop termination: any absent date → count=0 < sessionGoal → immediate break; history is capped at 14 days
-// (via updatePomodoroHistory) so in practice the loop runs at most 14 iterations. Same pattern as calcFocusStreak.
+// Loop termination: any absent date → count=0 < sessionGoal → immediate break; history is capped at 35 days
+// (via updatePomodoroHistory) so in practice the loop runs at most 35 iterations. Same pattern as calcFocusStreak.
 export function calcPomodoroGoalStreak(
   history: PomodoroDay[],
   sessionGoal: number,
@@ -362,7 +366,7 @@ export function calcPomodoroGoalStreak(
 // Only days present in the history array are counted — absent days are not treated as zero.
 // Zero-count entries (days with count=0) are included in the average, pulling the baseline down;
 // this is intentional — a day with zero sessions is a valid low-productivity data point.
-// History is capped at 14 days by updatePomodoroHistory; today is typically present in the array
+// History is capped at 35 days by updatePomodoroHistory; today is typically present in the array
 // (written by the pomodoro session-complete handler), so today-exclusion via todayStr is load-bearing.
 // Returns 0 when history has no past-day entries (first use or all entries are from today).
 // Exported for unit testing; pure function with no side effects.
@@ -443,9 +447,8 @@ export function calcPomodoroWeekRecord(
 // Fires on January 1st each year at 09:00+ via the yearlyPomodoroReportDate guard in App.tsx.
 // prevYearDays: all calendar days of the previous year — caller uses
 //   calcLastNDays(yesterday, totalDaysInYear(yesterday)) so the window covers exactly Jan 1–Dec 31.
-// Note: pomodoroHistory is capped at 14 days, so only the last ≤14 days of the year will match.
-//   For this reason the session-count thresholds (≥100=🔥, ≥40=✅) match calcQuarterlyPomodoroReport
-//   rather than being scaled by year length; the effective data window is the same ≤14 days.
+// Note: pomodoroHistory is capped at 35 days, so only the last ≤35 days of the year will match.
+//   Thresholds (≥100=🔥, ≥40=✅) are calibrated for a ~35-day window (not scaled to full year length).
 // Returns null when fewer than 3 active (count > 0) days fall within the window.
 // Exported for unit testing; pure function with no side effects.
 export function calcYearlyPomodoroReport(
@@ -605,7 +608,7 @@ export function calcPomodoroMomentumCorrelation(
 // Minimum consecutive past days without any pomodoro session before a focus drought warning fires.
 // Mirrors MIN_INTENTION_MISS_DAYS in intention.ts for threshold symmetry with intention_gap_warning.
 const MIN_FOCUS_DROUGHT_DAYS = 3;
-// Maximum days to look back; matches the 14-day rolling history cap so the lookback is bounded.
+// Maximum days to look back for drought detection; 14 days is sufficient for a 3-day drought signal.
 const FOCUS_DROUGHT_LOOKBACK = 14;
 
 // Returns the number of consecutive past days (ending yesterday) with no pomodoro sessions.

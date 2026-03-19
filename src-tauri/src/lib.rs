@@ -599,14 +599,15 @@ fn load_data() -> WidgetData {
     if data.pomodoro_session_goal == Some(0) {
         data.pomodoro_session_goal = None;
     }
-    // Sanitize pomodoro_history: drop zero-count, dedup by date (keep most-recent count), cap at 14
+    // Sanitize pomodoro_history: drop zero-count, dedup by date (keep most-recent count), cap at 35
+    // 35-day cap covers full calendar months (28–31 days) — mirrors intentionHistory cap.
     // Sort descending so dedup_by_key retains the first (newest) entry per date.
     // Re-sort ascending for consistent chronological storage.
     if let Some(ref mut history) = data.pomodoro_history {
         history.retain(|d| d.count > 0);
         history.sort_by(|a, b| b.date.cmp(&a.date));
         history.dedup_by_key(|d| d.date.clone());
-        history.truncate(14);
+        history.truncate(35);
         history.sort_by(|a, b| a.date.cmp(&b.date));
         if history.is_empty() {
             data.pomodoro_history = None;

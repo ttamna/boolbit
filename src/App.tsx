@@ -932,8 +932,8 @@ export default function App() {
   // 1st-of-month morning monthly pomodoro total session count report — fires once per month at 9:00+.
   // Reports the previous month's total sessions and active-day count.
   // monthlyPomodoroReportDate persists the guard so it fires only once per month-1st even after restart.
-  // Design: yesterday-ending window spans the full previous calendar month, but pomodoroHistory
-  //   is capped at 14 days — so the report aggregates at most the last 14 days of the prev month.
+  // Design: yesterday-ending window spans the full previous calendar month.
+  //   pomodoroHistory is capped at 35 days — covers all calendar months (28–31 days) completely.
   // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
   useEffect(() => {
     if (!loaded) return;
@@ -946,7 +946,6 @@ export default function App() {
     yesterday.setDate(yesterday.getDate() - 1);
     // Use yesterday.getDate() (= last day of prev month = total days in prev month)
     // to build a window spanning the full previous calendar month (e.g. 31 for Dec, 28/29 for Feb).
-    // Note: pomodoroHistory is capped at 14 days, so only the last ≤14 days of prevMonthDays will match.
     const prevMonthDays = calcLastNDays(yesterday.toLocaleDateString("sv"), yesterday.getDate());
     const msg = calcMonthlyPomodoroReport(data.pomodoroHistory ?? [], prevMonthDays);
     if (!msg) return;
@@ -964,7 +963,7 @@ export default function App() {
   // Quarter-start morning quarterly pomodoro total session count report — fires once per quarter at 9:00+.
   // Reports the previous calendar quarter's total sessions and active-day count.
   // quarterlyPomodoroReportDate persists the guard so it fires only once per quarter-start even after restart.
-  // Design: pomodoroHistory is capped at 14 days, so only the last ≤14 days of the quarter will match.
+  // Design: pomodoroHistory is capped at 35 days, so only the last ≤35 days of the quarter will match.
   // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
   useEffect(() => {
     if (!loaded) return;
@@ -994,7 +993,7 @@ export default function App() {
   // New Year's morning yearly pomodoro total session count retrospective — fires once per year on Jan 1 at 9:00+.
   // Reports the previous calendar year's total sessions and active-day count.
   // yearlyPomodoroReportDate persists the guard so it fires only once per Jan 1 even after restart.
-  // Design: pomodoroHistory is capped at 14 days, so only the last ≤14 days of the year will match.
+  // Design: pomodoroHistory is capped at 35 days, so only the last ≤35 days of the year will match.
   // Design: date is persisted before the async send (persist-before-send pattern) to prevent duplicates.
   useEffect(() => {
     if (!loaded) return;
@@ -1907,7 +1906,7 @@ export default function App() {
     }
     return count;
   })();
-  // pomodoroSessionBest: max session count on any PAST calendar day in the 14-day rolling history.
+  // pomodoroSessionBest: max session count on any PAST calendar day in the 35-day rolling history.
   // Today's entry is excluded — compare against past days only to detect a genuine new daily record.
   // undefined when no past-day history exists (first use or all entries are today's date).
   const pomodoroSessionBest = (() => {
@@ -2114,7 +2113,7 @@ export default function App() {
   // Returns null when data is insufficient or gap < 15 pt; undefined coercion skips the badge silently.
   const intentionMomentumGap = calcIntentionMomentumCorrelation(data.intentionHistory ?? [], data.momentumHistory ?? [], todayStr) ?? undefined;
   // pomodoroMomentumGap: point gap between avg momentum on pomodoro-goal-met days vs. not-met days.
-  // Derived from 14-day pomodoroHistory × 31-day momentumHistory; requires ≥5 samples in each bucket.
+  // Derived from 35-day pomodoroHistory × 31-day momentumHistory; requires ≥5 samples in each bucket.
   // Returns null when sessionGoal not set, data is insufficient, or gap < 15 pt; undefined coercion skips the badge silently.
   const pomodoroMomentumGap = calcPomodoroMomentumCorrelation(data.pomodoroHistory ?? [], data.momentumHistory ?? [], data.pomodoroSessionGoal, todayStr) ?? undefined;
   // intentionConsecutiveMissDays: consecutive past days without an intention entry; null = brand-new user or < 3 days missed.

@@ -1,5 +1,5 @@
 // ABOUTME: Unit tests for pomodoro pure helpers — calcTodaySessionCount, updatePomodoroHistory, calcLast14Days, calcSessionWeekTrend, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation, calcFocusDroughtDays
-// ABOUTME: Covers today-count reset/increment, 14-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, monthly pomodoro session report, quarterly pomodoro session report, yearly pomodoro session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), per-weekday pomodoro session average with weak/best day detection, weekly goal-hit day count and 14-day rolling goal-hit day count for monthly badge (both via calcPomodoroWeekGoalDays), pomodoro goal-met vs not-met momentum gap (calcPomodoroMomentumCorrelation), consecutive past days without any session for focus drought warning (calcFocusDroughtDays)
+// ABOUTME: Covers today-count reset/increment, 35-day history upsert, date range derivation, prev-7/cur-7 trend logic, badge string (incl. week sessions 7d·N↑), focus streak, section collapsed badge, phase UI mapping, goal-progress percentage, lifetime format, audio feedback graceful fallback, morning start nudge, evening goal-gap nudge, lifetime milestone crossing, weekly pomodoro session report, monthly pomodoro session report, quarterly pomodoro session report, yearly pomodoro session report, goal-streak consecutive past days, recent rolling average sessions (today excluded), ISO-week record pace comparison (current week vs same-length prev-week window), per-weekday pomodoro session average with weak/best day detection, weekly goal-hit day count and 14-day rolling goal-hit day count for monthly badge (both via calcPomodoroWeekGoalDays), pomodoro goal-met vs not-met momentum gap (calcPomodoroMomentumCorrelation), consecutive past days without any session for focus drought warning (calcFocusDroughtDays)
 
 import { describe, it, expect } from "vitest";
 import { calcLast14Days, calcSessionWeekTrend, calcTodaySessionCount, updatePomodoroHistory, calcSessionCountStr, calcPomodoroBadge, calcFocusStreak, phaseAccent, phaseLabel, sessionGoalPct, formatLifetime, playPhaseDone, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation, calcFocusDroughtDays } from "./pomodoro";
@@ -252,30 +252,32 @@ describe("updatePomodoroHistory", () => {
     expect(result[2].date).toBe(TODAY);
   });
 
-  it("should cap at 14 entries when history is full and today is not in it", () => {
-    // Build 14 past entries — adding today makes 15, so oldest is dropped
-    const history: PomodoroDay[] = Array.from({ length: 14 }, (_, i) => ({
-      date: `2026-02-${String(i + 1).padStart(2, "0")}`,
+  it("should cap at 35 entries when history is full and today is not in it", () => {
+    // Build 35 past entries — adding today makes 36, so oldest is dropped
+    const history: PomodoroDay[] = Array.from({ length: 35 }, (_, i) => ({
+      date: new Date(new Date("2026-02-08T00:00:00").getTime() + i * 86400000)
+        .toLocaleDateString("sv"),
       count: i + 1,
     }));
     const result = updatePomodoroHistory(history, TODAY, 1);
-    expect(result).toHaveLength(14);
+    expect(result).toHaveLength(35);
     expect(result[result.length - 1].date).toBe(TODAY);
-    // Oldest entry (2026-02-01) should have been dropped
-    expect(result.some(d => d.date === "2026-02-01")).toBe(false);
+    // Oldest entry (2026-02-08) should have been dropped
+    expect(result.some(d => d.date === "2026-02-08")).toBe(false);
   });
 
-  it("should stay at 14 entries when history already has today and is at the cap", () => {
-    // 13 past entries + today = 14 in, replace today → still 14
+  it("should stay at 35 entries when history already has today and is at the cap", () => {
+    // 34 past entries + today = 35 in, replace today → still 35
     const history: PomodoroDay[] = [
-      ...Array.from({ length: 13 }, (_, i) => ({
-        date: `2026-02-${String(i + 1).padStart(2, "0")}`,
+      ...Array.from({ length: 34 }, (_, i) => ({
+        date: new Date(new Date("2026-02-09T00:00:00").getTime() + i * 86400000)
+          .toLocaleDateString("sv"),
         count: i + 1,
       })),
       { date: TODAY, count: 2 },
     ];
     const result = updatePomodoroHistory(history, TODAY, 8);
-    expect(result).toHaveLength(14);
+    expect(result).toHaveLength(35);
     expect(result.find(d => d.date === TODAY)?.count).toBe(8);
   });
 
@@ -959,17 +961,16 @@ describe("calcMonthlyPomodoroReport", () => {
     expect(result).toContain("99세션");
   });
 
-  it("should work correctly with at most 14 history entries (pomodoroHistory cap constraint)", () => {
-    // pomodoroHistory is capped at 14 days; simulate a realistic 14-entry history
-    // covering the last 14 days of December 2025 (Dec 18–31).
-    const history: PomodoroDay[] = Array.from({ length: 14 }, (_, i) => ({
-      date: `2025-12-${String(18 + i).padStart(2, "0")}`,
-      count: 3, // 14 days × 3 sessions = 42 → ✅
+  it("should work correctly with a full 31-day history covering all of December 2025", () => {
+    // pomodoroHistory is capped at 35 days; a full Dec 2025 (31 days) fits within the cap.
+    const history: PomodoroDay[] = Array.from({ length: 31 }, (_, i) => ({
+      date: `2025-12-${String(i + 1).padStart(2, "0")}`,
+      count: 4, // 31 days × 4 sessions = 124 → 🔥
     }));
     const result = calcMonthlyPomodoroReport(history, DEC_2025);
-    expect(result).toContain("✅");
-    expect(result).toContain("42세션");
-    expect(result).toContain("14일 활성");
+    expect(result).toContain("🔥");
+    expect(result).toContain("124세션");
+    expect(result).toContain("31일 활성");
   });
 });
 
@@ -1172,7 +1173,7 @@ describe("calcPomodoroWeekRecord", () => {
     // 2024-01-21 is a Sunday (+6 from confirmed Monday 2024-01-15).
     // daysSinceMonday=6: current week is Mon Jan 15–Sun Jan 21; prev week is Mon Jan 8–Sun Jan 14.
     const SUN = "2024-01-21";
-    const PREV_SUN_MON = "2024-01-08"; // prev week Monday (13 days ago — within 14-day history cap)
+    const PREV_SUN_MON = "2024-01-08"; // prev week Monday (13 days ago — within 35-day history cap)
     const history = [
       { date: "2024-01-15", count: 2 }, // current Mon
       { date: "2024-01-16", count: 3 }, // current Tue
@@ -1364,8 +1365,8 @@ describe("calcQuarterlyPomodoroReport", () => {
 
 describe("calcYearlyPomodoroReport", () => {
   // prevYearDays = all 365 days of 2025 (not a leap year).
-  // pomodoroHistory is capped at 14 days, so only the last ≤14 days of prevYearDays will match.
-  // Threshold semantics match calcQuarterlyPomodoroReport (same ≤14-day effective window).
+  // pomodoroHistory is capped at 35 days, so only the last ≤35 days of prevYearDays will match.
+  // Threshold semantics match calcQuarterlyPomodoroReport (same ≤35-day effective window).
   const YEAR_2025: string[] = Array.from({ length: 365 }, (_, i) => {
     const d = new Date(2025, 0, 1);
     d.setDate(d.getDate() + i);

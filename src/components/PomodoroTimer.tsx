@@ -47,7 +47,7 @@ interface PomodoroTimerProps {
   onNotifyChange?: (v: boolean) => void; // persist toggle
   initialSound?: boolean;              // audio cue on phase end; absent/false = disabled
   onSoundChange?: (v: boolean) => void; // persist toggle
-  sessionHistory?: PomodoroDay[];      // rolling 14-day daily session counts for the 14-day heatmap
+  sessionHistory?: PomodoroDay[];      // rolling 35-day history (heatmap renders most-recent 14 days)
   lifetimeMins?: number;               // cumulative focus minutes across all sessions; absent = 0
   focusProject?: string;   // name of the ★-marked project; shown in header during focus sessions
   todayIntention?: string; // today's intention text; shown during active focus sessions when not yet accomplished
@@ -266,7 +266,7 @@ export function PomodoroTimer({ initialDurations, onDurationsChange, sessionsTod
   const presetsColor = presetsPhase ? (presetsPhase === "focus" ? focusColor : phaseAccent(presetsPhase)) : phaseColor;
 
   // Last 14 days (oldest to newest) derived from todayStr — recomputed at midnight.
-  // pomodoroHistory is capped at 14 entries in lib.rs sanitize; rendering all 14 uses stored data fully.
+  // pomodoroHistory is capped at 35 entries in lib.rs sanitize; the heatmap renders the most recent 14.
   const last14Days = useMemo(() => calcLast14Days(todayStr), [todayStr]);
 
   // intentionText: trimmed non-empty intention to display during focus sessions; undefined when empty/done
