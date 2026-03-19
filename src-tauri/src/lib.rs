@@ -335,6 +335,10 @@ pub struct WidgetData {
     pub quarterly_habit_report_date: Option<String>,
     #[serde(rename = "yearlyHabitReportDate", default, skip_serializing_if = "Option::is_none")]
     pub yearly_habit_report_date: Option<String>,
+    #[serde(rename = "weeklyPerfectDayReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub weekly_perfect_day_report_date: Option<String>,
+    #[serde(rename = "monthlyPerfectDayReportDate", default, skip_serializing_if = "Option::is_none")]
+    pub monthly_perfect_day_report_date: Option<String>,
     #[serde(rename = "quarterlyPerfectDayReportDate", default, skip_serializing_if = "Option::is_none")]
     pub quarterly_perfect_day_report_date: Option<String>,
     #[serde(rename = "yearlyPerfectDayReportDate", default, skip_serializing_if = "Option::is_none")]
@@ -536,6 +540,8 @@ fn default_data() -> WidgetData {
         monthly_habit_report_date: None,
         quarterly_habit_report_date: None,
         yearly_habit_report_date: None,
+        weekly_perfect_day_report_date: None,
+        monthly_perfect_day_report_date: None,
         quarterly_perfect_day_report_date: None,
         yearly_perfect_day_report_date: None,
         monthly_momentum_report_date: None,
@@ -941,6 +947,8 @@ fn load_data() -> WidgetData {
     sanitize_date(&mut data.monthly_habit_report_date);
     sanitize_date(&mut data.quarterly_habit_report_date);
     sanitize_date(&mut data.yearly_habit_report_date);
+    sanitize_date(&mut data.weekly_perfect_day_report_date);
+    sanitize_date(&mut data.monthly_perfect_day_report_date);
     sanitize_date(&mut data.quarterly_perfect_day_report_date);
     sanitize_date(&mut data.yearly_perfect_day_report_date);
     sanitize_date(&mut data.weekly_intention_report_date);
