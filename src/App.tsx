@@ -1736,7 +1736,10 @@ export default function App() {
       : snapshot.projects;
     const prevLifetime = snapshot.pomodoroLifetimeMins ?? 0;
     const newLifetime = prevLifetime + Math.max(0, focusMins); // guard: negative focusMins must not shrink cumulative total
-    persist({ ...snapshot, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects, pomodoroLifetimeMins: newLifetime });
+    // Update focusBestStreak: max(new streak after this session, stored best).
+    const newFocusStreak = calcFocusStreak(newHistory, today);
+    const newFocusBestStreak = Math.max(newFocusStreak, snapshot.focusBestStreak ?? 0);
+    persist({ ...snapshot, pomodoroSessionsDate: today, pomodoroSessions: count, pomodoroHistory: newHistory, projects: updatedProjects, pomodoroLifetimeMins: newLifetime, focusBestStreak: newFocusBestStreak });
     if (snapshot.pomodoroNotify !== false) {
       // Notify when the daily session goal is hit exactly (not on every subsequent session).
       if (snapshot.pomodoroSessionGoal !== undefined && snapshot.pomodoroSessionGoal > 0 && count === snapshot.pomodoroSessionGoal) {
@@ -2168,6 +2171,7 @@ export default function App() {
     perfectDayStreak: habitsPerfectStreak,
     perfectDayBestStreak: data.perfectDayBestStreak,
     intentionDoneBestStreak: data.intentionDoneBestStreak,
+    focusBestStreak: data.focusBestStreak,
     habitWeekRate: habitsWeekRate ?? undefined,
     // habitPrevWeekRate: same 14-day window's first half (days 7–13 ago) — already computed for habitsWeekTrend.
     habitPrevWeekRate: habitsPrevWeekRate ?? undefined,

@@ -18354,3 +18354,98 @@ describe("calcTodayInsight — focus_recovery (priority 6.98, after habit_multi_
   });
 });
 
+
+// ── focus_streak_record ───────────────────────────────────────────────────
+describe("calcTodayInsight — focus_streak_record (priority 7.4205, after focus_streak_milestone, before focus_streak_milestone_approach)", () => {
+  // Fires when the user hits a new all-time best focus streak that is NOT a standard milestone (7/14/30/50/100).
+  // Symmetric sibling of perfect_day_streak_record (4.R) and intention_done_streak_record (4.5.R).
+  // Requires sessionsToday > 0 so the streak counts today's contribution (mirrors focus_streak_milestone semantics).
+  // focusBestStreak > 3 guard suppresses trivial bests (e.g. bestStreak=2 from a brief early start).
+  // Base uses focusStreak=10: non-milestone (not in [7,14,30,50,100]), > 3, and < 15 (TODAY day 15) to avoid
+  // triggering pomodoro_month_flawless (focusStreak ≥ currentMonthDay) in negative-test cases.
+  const base = {
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    sessionsToday: 1,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    todayIntentionDate: undefined as string | undefined,
+    focusStreak: 10,
+    focusBestStreak: 10,
+  };
+
+  it("shouldFireForNonMilestonePersonalBest", () => {
+    const result = calcTodayInsight({ ...base });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("10일");
+    expect(result!.text).toContain("신기록");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldShowStreakCountInTextForLargerNonMilestoneStreak", () => {
+    // focusStreak=22 is non-milestone; focus_streak_record (7.4205) fires before pomodoro_month_flawless (11.08)
+    const result = calcTodayInsight({ ...base, focusStreak: 22, focusBestStreak: 22 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("22일");
+    expect(result!.text).toContain("신기록");
+  });
+
+  it("shouldNotFireWhenBestStreakIsAbsent", () => {
+    // focusStreak=10 (< day 15) avoids pomodoro_month_flawless in the negative case
+    const { focusBestStreak: _skip, ...withoutBest } = base;
+    const result = calcTodayInsight(withoutBest);
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenBestStreakIsThreeOrLess", () => {
+    // focusBestStreak ≤ 3 guard prevents trivial "신기록" on the first few days
+    const result = calcTodayInsight({ ...base, focusStreak: 3, focusBestStreak: 3 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireWhenBestStreakIsFourBoundaryIncluded", () => {
+    // focusBestStreak = 4 is the first included value (> 3)
+    const result = calcTodayInsight({ ...base, focusStreak: 4, focusBestStreak: 4 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록");
+  });
+
+  it("shouldNotFireWhenStreakDoesNotEqualBestStreak", () => {
+    // streak=10 < bestStreak=12: this is not the best yet; focusStreak=10 < day 15 avoids pomodoro_month_flawless
+    const result = calcTodayInsight({ ...base, focusStreak: 10, focusBestStreak: 12 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenSessionsTodayIsZero", () => {
+    // sessionsToday = 0 → streak is built from yesterday; today has not yet contributed
+    const result = calcTodayInsight({ ...base, sessionsToday: 0 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByFocusStreakMilestoneAtExactMilestone", () => {
+    // focusStreak = 14 (milestone) → focus_streak_milestone (7.42) fires first
+    const result = calcTodayInsight({ ...base, focusStreak: 14, focusBestStreak: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14일");
+    expect(result!.text).not.toContain("신기록");
+    expect(result!.text).toContain("연속 집중");
+  });
+
+  it("shouldNotBePreemptedByFocusStreakMilestoneForNonMilestoneStreak", () => {
+    // focusStreak=10 non-milestone: focus_streak_record fires; focus_streak_milestone never fires
+    const result = calcTodayInsight({ ...base });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록");
+    expect(result!.text).not.toContain("연속 집중 중!");
+  });
+
+  it("shouldPreemptFocusStreakMilestoneApproach", () => {
+    // focus_streak_record (7.4205) fires before focus_streak_milestone_approach (7.421)
+    // streak=12 is 2 days from milestone 14; record badge fires first when 12 === bestStreak
+    const result = calcTodayInsight({ ...base, focusStreak: 12, focusBestStreak: 12 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록");
+    expect(result!.text).not.toContain("마일스톤");
+  });
+});

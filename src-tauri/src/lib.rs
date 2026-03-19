@@ -319,6 +319,8 @@ pub struct WidgetData {
     pub perfect_day_best_streak: Option<u32>,
     #[serde(rename = "intentionDoneBestStreak", default, skip_serializing_if = "Option::is_none")]
     pub intention_done_best_streak: Option<u32>,
+    #[serde(rename = "focusBestStreak", default, skip_serializing_if = "Option::is_none")]
+    pub focus_best_streak: Option<u32>,
     #[serde(rename = "habitMorningRemindDate", default, skip_serializing_if = "Option::is_none")]
     pub habit_morning_remind_date: Option<String>,
     #[serde(rename = "momentumMorningRemindDate", default, skip_serializing_if = "Option::is_none")]
