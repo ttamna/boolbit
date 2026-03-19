@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_multi_streak, focus_recovery, habit_streak_record, momentum_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach, focus_streak_broken, momentum_streak_broken)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_multi_streak, focus_recovery, habit_streak_record, momentum_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_maintained, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach, focus_streak_broken, momentum_streak_broken)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -14507,8 +14507,8 @@ describe("calcTodayInsight — pomodoro_week_goal_declined (priority 10.3824, af
   });
 });
 
-// ── pomodoro_week_improved (priority 10.383, after pomodoro_week_goal_declined, before pomodoro_week_declined) ──
-describe("calcTodayInsight — pomodoro_week_improved (priority 10.383, after pomodoro_week_goal_declined, before pomodoro_week_declined)", () => {
+// ── pomodoro_week_improved (priority 10.383, after pomodoro_week_goal_declined, before pomodoro_week_maintained) ──
+describe("calcTodayInsight — pomodoro_week_improved (priority 10.383, after pomodoro_week_goal_declined, before pomodoro_week_maintained)", () => {
   const base = () => ({
     habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
     todayStr: TODAY,
@@ -14546,10 +14546,11 @@ describe("calcTodayInsight — pomodoro_week_improved (priority 10.383, after po
     expect(result!.text).toContain("5");
   });
 
-  it("shouldNotFireWhenImprovementBelow3Sessions", () => {
-    // delta=2 (below threshold) → no badge
+  it("shouldFireMaintainedNotImprovedWhenGainIsBelow3Sessions", () => {
+    // delta=+2 (below improved threshold) → improved doesn't fire; pomodoro_week_maintained fires instead
     const result = calcTodayInsight({ ...base(), pomodoroWeekSessions: 5, pomodoroPrevWeekSessions: 3 });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info"); // maintained, not success (improved)
   });
 
   it("shouldNotFireWhenPrevWeekSessionsIsZero", () => {
@@ -14603,8 +14604,78 @@ describe("calcTodayInsight — pomodoro_week_improved (priority 10.383, after po
   });
 });
 
-// ── pomodoro_week_declined (priority 10.384, after pomodoro_week_improved, before momentum_recovery) ──────
-describe("calcTodayInsight — pomodoro_week_declined (priority 10.384, after pomodoro_week_improved, before momentum_recovery)", () => {
+// ── pomodoro_week_maintained (priority 10.3835, after pomodoro_week_improved, before pomodoro_week_declined) ──
+describe("calcTodayInsight — pomodoro_week_maintained (priority 10.3835, after pomodoro_week_improved, before pomodoro_week_declined)", () => {
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWhenDeltaIsExactly0", () => {
+    // cur=5, prev=5 → |delta|=0 ≤ 2, prev ≥ 3, cur ≥ 1 → fires
+    const result = calcTodayInsight({ ...base(), pomodoroWeekSessions: 5, pomodoroPrevWeekSessions: 5 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldFireWhenDeltaIsPlus2", () => {
+    // cur=5, prev=3 → |delta|=2, prev=3 ≥ 3, cur=5 ≥ 1 → fires
+    const result = calcTodayInsight({ ...base(), pomodoroWeekSessions: 5, pomodoroPrevWeekSessions: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldFireWhenDeltaIsMinus2", () => {
+    // cur=3, prev=5 → |delta|=2, prev=5 ≥ 3, cur=3 ≥ 1 → fires
+    const result = calcTodayInsight({ ...base(), pomodoroWeekSessions: 3, pomodoroPrevWeekSessions: 5 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldIncludeCurrentSessionCountInBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroWeekSessions: 6, pomodoroPrevWeekSessions: 5 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("6");
+  });
+
+  it("shouldNotFireWhenPrevWeekSessionsBelow3", () => {
+    // prev=2 < 3 → no badge (minimum meaningful baseline not met)
+    const result = calcTodayInsight({ ...base(), pomodoroWeekSessions: 3, pomodoroPrevWeekSessions: 2 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByPomodoroWeekImproved", () => {
+    // delta=+3 (at improved threshold) → improved fires first (priority 10.383 < 10.3835)
+    const result = calcTodayInsight({ ...base(), pomodoroWeekSessions: 6, pomodoroPrevWeekSessions: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // improved fires, not maintained
+  });
+
+  it("shouldFireBeforePomodoroWeekDeclined", () => {
+    // delta=-2 → maintained fires; declined requires |delta| ≥ 3
+    const result = calcTodayInsight({ ...base(), pomodoroWeekSessions: 3, pomodoroPrevWeekSessions: 5 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info"); // maintained fires, not warning (declined)
+  });
+
+  it("shouldNotFireWhenPomodoroWeekSessionsAbsent", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroPrevWeekSessions: 5 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroPrevWeekSessionsAbsent", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroWeekSessions: 5 });
+    expect(result).toBeNull();
+  });
+});
+
+// ── pomodoro_week_declined (priority 10.384, after pomodoro_week_maintained, before momentum_recovery) ──────
+describe("calcTodayInsight — pomodoro_week_declined (priority 10.384, after pomodoro_week_maintained, before momentum_recovery)", () => {
   const base = () => ({
     habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
     todayStr: TODAY,
@@ -14642,10 +14713,11 @@ describe("calcTodayInsight — pomodoro_week_declined (priority 10.384, after po
     expect(result!.text).toContain("5");
   });
 
-  it("shouldNotFireWhenDeclineBelow3Sessions", () => {
-    // delta=2 (below threshold) → no badge
+  it("shouldFireMaintainedNotDeclinedWhenDeclineIsBelow3Sessions", () => {
+    // delta=-2 (below declined threshold) → declined doesn't fire; pomodoro_week_maintained fires instead
     const result = calcTodayInsight({ ...base(), pomodoroWeekSessions: 3, pomodoroPrevWeekSessions: 5 });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info"); // maintained, not warning (declined)
   });
 
   it("shouldNotFireWhenPrevWeekSessionsIsZero", () => {
