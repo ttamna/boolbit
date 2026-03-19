@@ -1053,10 +1053,12 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   // intention done is surfaced as the next-best signal when habits are still in progress.
   // Fires before intention_missing (5): a completed intention supersedes the "please set" nudge.
   // todayIntentionDate === todayStr guard prevents stale done state from a previous day from firing.
-  // Six tiers based on intentionDoneStreak (milestone checked first):
+  // Seven tiers based on intentionDoneStreak (milestone checked first):
   //   milestone (7/14/30/50/100 days): distinct celebration badge for weekly/biweekly/monthly/50d/100d milestones.
   //   month_flawless (streak ≥ currentMonthDay, currentMonthDay ≥ MIN_MONTH_DAYS): every day of the month
   //     completed — fires after milestone so streak-30 on Jan 30 shows the milestone, not the flawless badge.
+  //   week_flawless (streak ≥ daysElapsedInWeek, daysElapsedInWeek ≥ MIN_WEEK_TRIFECTA_DAYS): every day of
+  //     the ISO week so far — fires after month_flawless so month always takes precedence.
   //   record (streak === intentionDoneBestStreak, bestStreak > 3, non-milestone, non-flawless): new personal best.
   //   streak ≥ 3 (non-milestone, non-flawless, non-record): streak count badge — rewards sustained execution.
   //   recovery (intentionConsecutiveMissDays ≥ 3, streak < 3): returning after a gap — preempts generic.
@@ -1068,6 +1070,12 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     const intentionMonthDay = parseInt(todayStr.slice(8, 10), 10);
     if (intentionDoneStreak != null && intentionDoneStreak >= intentionMonthDay && intentionMonthDay >= MIN_MONTH_DAYS) {
       return { text: `✍️ 이번 달 매일 의도 달성! (${intentionMonthDay}일)`, level: "success" };
+    }
+    // 4.5.WF week_flawless tier: intention set AND done every day of the ISO week so far (≥5 days elapsed).
+    // Fires after month_flawless early-return so month_flawless always takes precedence.
+    // daysLeftWeek gate mirrors MIN_WEEK_TRIFECTA_DAYS so this only fires when the week is well underway.
+    if (intentionDoneStreak != null && daysLeftWeek != null && (8 - daysLeftWeek) >= MIN_WEEK_TRIFECTA_DAYS && intentionDoneStreak >= (8 - daysLeftWeek)) {
+      return { text: `✨ 이번 주 매일 의도 달성! (${8 - daysLeftWeek}일)`, level: "success" };
     }
     if (intentionDoneStreak != null && intentionDoneStreak >= 3) {
       // 4.5.R record tier: non-milestone personal best — more celebratory than the generic count badge.
@@ -1997,13 +2005,13 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
         return { text: `⚡ 이번 주 매일 모멘텀 달성! (${daysElapsedInWeek}일)`, level: "success" };
       }
 
-      // 10.3294. Intention week flawless: intention was set AND marked done every day of the ISO week so far.
-      // intentionDoneStreak ≥ daysElapsedInWeek covers all days of the week; todayIntentionDone === true
-      //   is an explicit guard because intentionDoneStreak can be positive (counting past done days) even
-      //   when today's intention is not done — the explicit guard prevents a false positive.
-      // Absent intentionDoneStreak → silently skipped. Absent/false todayIntentionDone → silently skipped.
-      if (todayIntentionDone === true && intentionDoneStreak != null && intentionDoneStreak >= daysElapsedInWeek) {
-        return { text: `✨ 이번 주 매일 의도 달성! (${daysElapsedInWeek}일)`, level: "success" };
+      // 10.3294. Intention week flawless nudge: streak nearly covers the ISO week (≥ daysElapsedInWeek−1)
+      //   but today's intention is not yet done — motivational prompt to complete the week.
+      // Fires only when todayIntentionDone !== true (today not done); when today IS done, the week_flawless
+      //   tier inside intention_done (priority 4.5.WF) fires much earlier and this block is never reached.
+      // Absent intentionDoneStreak → silently skipped. daysElapsedInWeek−1 guard: tolerates exactly one miss.
+      if (todayIntentionDone !== true && intentionDoneStreak != null && intentionDoneStreak >= daysElapsedInWeek - 1) {
+        return { text: `✨ 이번 주 ${intentionDoneStreak}일 연속 의도 달성 — 오늘도 완성하세요!`, level: "success" };
       }
     }
   }

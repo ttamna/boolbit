@@ -15276,91 +15276,47 @@ describe("calcTodayInsight — momentum_week_flawless (priority 10.3293, after p
   });
 });
 
-// ── intention_week_flawless ────────────────────────────────
-describe("calcTodayInsight — intention_week_flawless (priority 10.3294, after momentum_week_flawless, before week_balanced)", () => {
-  // FRIDAY = "2024-01-19" → ISO week Friday, daysLeftWeek=3, daysElapsedInWeek=5 ≥ MIN_WEEK_TRIFECTA_DAYS(5).
-  // habits: streak=3 < 5 → habit NOT flawless → habit_week_flawless suppressed.
-  // focusStreak=3/sessionsToday=0 → pomodoro NOT flawless → pomodoro_week_flawless suppressed.
-  // momentumStreak=3/score absent → momentum NOT flawless → momentum_week_flawless suppressed.
-  // intentionDoneStreak=8 ≥ 5, todayIntentionDone=true → intention IS flawless.
-  // intentionDoneStreak=8: outside approach window [5,6,12,13,28,29,48,49,98,99] → intention_done_streak_milestone_approach suppressed.
+// ── intention_week_flawless nudge ─────────────────────────
+describe("calcTodayInsight — intention_week_flawless nudge (priority 10.3294, after momentum_week_flawless, fires when week perfect but today's intention not yet done)", () => {
+  // FRIDAY = "2024-01-19" → daysLeftWeek=3, daysElapsedInWeek=5 ≥ MIN_WEEK_TRIFECTA_DAYS(5).
+  // Base: todayIntentionDone=false (today not done → nudge fires), intentionDoneStreak=4 (Mon-Thu done).
+  // 4 ≥ daysElapsedInWeek(5)−1=4 → nudge fires: "이번 주 4일 연속 의도 달성 — 오늘도 완성하세요!"
+  // habits: streak=3 < 5 → habit NOT flawless. momentumStreak=3 < 5 → momentum NOT flawless.
   const FRIDAY = "2024-01-19";
+  const SATURDAY = "2024-01-20";
   const THURSDAY = "2024-01-18";
 
   function base() {
     return {
-      habits: [{ name: "운동", streak: 3, lastChecked: FRIDAY }], // habit NOT flawless
+      habits: [{ name: "운동", streak: 3, lastChecked: FRIDAY }],
       todayStr: FRIDAY,
       nowHour: 15,
-      // todayIntentionDate=undefined suppresses intention_done (which requires todayIntentionDate===todayStr).
-      // todayIntentionDone=true still triggers intention_week_flawless as intended.
-      todayIntentionDate: undefined as string | undefined,
-      todayIntentionDone: true as boolean | undefined,
-      sessionsToday: 0,            // pomodoro_week_flawless suppressed
+      todayIntentionDate: undefined as string | undefined,  // intention_done block suppressed
+      todayIntentionDone: false as boolean | undefined,     // nudge fires only when today not done
+      sessionsToday: 0,
       sessionGoal: undefined as number | undefined,
       habitsAllDoneDate: undefined as string | undefined,
-      daysLeftWeek: 3,
-      focusStreak: 3 as number | undefined,    // < 5 → pomodoro NOT flawless
-      momentumStreak: 3 as number | undefined, // < 5 → momentum NOT flawless
+      daysLeftWeek: 3,                                     // Friday → daysElapsedInWeek=5
+      intentionDoneStreak: 4 as number | undefined,        // Mon-Thu done; 4 ≥ 5−1=4 → qualifies
+      intentionDoneBestStreak: 10 as number | undefined,
+      focusStreak: 0 as number | undefined,
+      momentumStreak: 3 as number | undefined,             // < 5 → momentum NOT flawless
       momentumHistory: [] as Array<{ date: string; score: number; tier: "high" | "mid" | "low" }>,
-      intentionDoneStreak: 8 as number | undefined, // ≥ 5 → intention IS flawless; 8 outside approach window
     };
   }
 
-  it("shouldFireOnFridayWhenOnlyIntentionIsFlawless", () => {
-    // intentionDoneStreak=8 ≥ daysElapsedInWeek(5), todayIntentionDone=true, other domains not flawless → fires
+  it("shouldFireNudgeOnFridayWhenWeekPerfectButTodayNotDone", () => {
+    // streak=4 ≥ daysElapsedInWeek(5)−1=4, today not done → nudge fires with streak=4
     const result = calcTodayInsight(base());
     expect(result).not.toBeNull();
     expect(result!.level).toBe("success");
-    expect(result!.text).toContain("이번 주 매일 의도 달성");
-    expect(result!.text).toContain("5일");
+    expect(result!.text).toContain("오늘도 완성하세요");
+    expect(result!.text).toContain("4일 연속 의도 달성");
   });
 
-  it("shouldNotFireWhenTodayIntentionNotDone", () => {
-    // todayIntentionDone=false → explicit guard blocks the badge even if streak covers prior days
-    const result = calcTodayInsight({ ...base(), todayIntentionDone: false });
-    expect(result?.text ?? "").not.toContain("이번 주 매일 의도 달성");
-  });
-
-  it("shouldNotFireWhenTodayIntentionDoneAbsent", () => {
-    // todayIntentionDone=undefined → absent field treated same as false; badge silently skipped
-    const result = calcTodayInsight({ ...base(), todayIntentionDone: undefined });
-    expect(result?.text ?? "").not.toContain("이번 주 매일 의도 달성");
-  });
-
-  it("shouldNotFireWhenIntentionDoneStreakInsufficient", () => {
-    // intentionDoneStreak=4 < daysElapsedInWeek(5) → missed at least one day this week
-    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 4 });
-    expect(result?.text ?? "").not.toContain("이번 주 매일 의도 달성");
-  });
-
-  it("shouldNotFireWhenIntentionDoneStreakAbsent", () => {
-    // intentionDoneStreak=undefined → no streak data; badge silently skipped
-    const result = calcTodayInsight({ ...base(), intentionDoneStreak: undefined });
-    expect(result?.text ?? "").not.toContain("이번 주 매일 의도 달성");
-  });
-
-  it("shouldNotFireOnThursday", () => {
-    // daysLeftWeek=4, daysElapsedInWeek=4 < MIN_WEEK_TRIFECTA_DAYS(5) → too early for weekly badge.
-    // habits.lastChecked=THURSDAY (consistent with todayStr) so almost_perfect_day is suppressed and
-    //   the MIN_WEEK_TRIFECTA_DAYS gate is the actual reason the badge does not fire.
-    // intentionDoneStreak=8: outside approach window([5,6,12,13,28,29]) → approach badge suppressed;
-    //   streak 8 > daysElapsedInWeek(4) so the day-count gate is the sole blocker for the flawless badge.
-    const result = calcTodayInsight({
-      ...base(),
-      todayStr: THURSDAY,
-      habits: [{ name: "운동", streak: 3, lastChecked: THURSDAY }],
-      daysLeftWeek: 4,
-      intentionDoneStreak: 8,
-    });
-    expect(result).toBeNull();
-  });
-
-  it("shouldFireOnSaturdayShowingSixDays", () => {
-    // Saturday: daysLeftWeek=2, daysElapsedInWeek=6; streak=8 (≥6) qualifies; text shows 6일.
-    // intentionDoneStreak=8: outside approach window → approach badge suppressed.
-    // habit.lastChecked=SATURDAY prevents almost_perfect_day from preempting (habit done today).
-    const SATURDAY = "2024-01-20";
+  it("shouldFireNudgeOnSaturdayWhenFiveDaysPerfectButSaturdayNotDone", () => {
+    // Saturday: daysLeftWeek=2, daysElapsedInWeek=6; streak=8 ≥ 6−1=5 → nudge fires.
+    // streak=8 is outside approach window [5,6,12,13,...] so approach badge is suppressed.
     const result = calcTodayInsight({
       ...base(),
       todayStr: SATURDAY,
@@ -15369,38 +15325,62 @@ describe("calcTodayInsight — intention_week_flawless (priority 10.3294, after 
       intentionDoneStreak: 8,
     });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("이번 주 매일 의도 달성");
-    expect(result!.text).toContain("6일");
+    expect(result!.text).toContain("오늘도 완성하세요");
+    expect(result!.text).toContain("8일 연속 의도 달성");
+  });
+
+  it("shouldNotFireNudgeWhenTodayAlreadyDone", () => {
+    // todayIntentionDone=true → nudge guard (todayIntentionDone !== true) blocks
+    const result = calcTodayInsight({ ...base(), todayIntentionDone: true });
+    expect(result?.text ?? "").not.toContain("오늘도 완성하세요");
+  });
+
+  it("shouldNotFireNudgeWhenStreakInsufficient", () => {
+    // streak=3 < daysElapsedInWeek(5)−1=4 → missed at least two days this week
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 3 });
+    expect(result?.text ?? "").not.toContain("오늘도 완성하세요");
+  });
+
+  it("shouldNotFireNudgeWhenIntentionDoneStreakAbsent", () => {
+    // intentionDoneStreak=undefined → no streak data; nudge silently skipped
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: undefined });
+    expect(result?.text ?? "").not.toContain("오늘도 완성하세요");
+  });
+
+  it("shouldNotFireNudgeOnThursday", () => {
+    // daysLeftWeek=4, daysElapsedInWeek=4 < MIN_WEEK_TRIFECTA_DAYS(5) → gate blocks nudge.
+    // streak=3 ≥ 4−1=3 would otherwise qualify; MIN_WEEK_TRIFECTA_DAYS is the sole blocker.
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: THURSDAY,
+      habits: [{ name: "운동", streak: 3, lastChecked: THURSDAY }],
+      daysLeftWeek: 4,
+      intentionDoneStreak: 3,
+    });
+    expect(result).toBeNull();
   });
 
   it("shouldBePreemptedByMomentumWeekFlawless", () => {
-    // todayIntentionDate=undefined suppresses intention_done (which needs todayIntentionDate===todayStr).
-    // todayIntentionDone=true still holds so intention_week_flawless would qualify, but
-    // momentumStreak=5 AND score=50 ≥ 40 → momentum_week_flawless (10.3293) fires first.
+    // momentumStreak=5 AND score=50 ≥ 40 → momentum_week_flawless (10.3293) fires before nudge (10.3294)
     const result = calcTodayInsight({
       ...base(),
-      todayIntentionDate: undefined,
       momentumStreak: 5,
       momentumHistory: [{ date: FRIDAY, score: 50, tier: "mid" as const }],
     });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("이번 주 매일 모멘텀"); // momentum fires first
-    expect(result!.text).not.toContain("이번 주 매일 의도 달성");
+    expect(result!.text).toContain("이번 주 매일 모멘텀");
+    expect(result!.text).not.toContain("오늘도 완성하세요");
   });
 
   it("shouldBePreemptedByHabitWeekFlawless", () => {
-    // todayIntentionDate=undefined suppresses intention_done (which needs todayIntentionDate===todayStr).
-    // todayIntentionDone=true still holds so intention_week_flawless would qualify, but
-    // habit streak=8 ≥ 5, lastChecked=FRIDAY → habit_week_flawless (10.3291) fires first.
-    // streak=8 is outside approach window [5,6,12,13,28,29,48,49,98,99].
+    // habit streak=8 ≥ 5, lastChecked=FRIDAY → habit_week_flawless (10.3291) fires before nudge (10.3294)
     const result = calcTodayInsight({
       ...base(),
-      todayIntentionDate: undefined,
       habits: [{ name: "운동", streak: 8, lastChecked: FRIDAY }],
     });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("이번 주 개근"); // habit fires first
-    expect(result!.text).not.toContain("이번 주 매일 의도 달성");
+    expect(result!.text).toContain("이번 주 개근");
+    expect(result!.text).not.toContain("오늘도 완성하세요");
   });
 });
 
@@ -18227,6 +18207,99 @@ describe("calcTodayInsight — intention_month_flawless (tier within intention_d
     expect(result).not.toBeNull();
     expect(result!.text).toContain("마일스톤"); // milestone fires
     expect(result!.text).not.toContain("이번 달 매일 의도"); // flawless preempted
+  });
+});
+
+// ── intention_done week_flawless tier ─────────────────────────────────────
+describe("calcTodayInsight — intention_done week_flawless tier (priority 4.5.WF, fires after month_flawless, before record)", () => {
+  // ABOUTME: Tests the week_flawless tier inside the intention_done block (priority 4.5).
+  // ABOUTME: Fires when today's intention is done AND the ISO week has been flawless so far (≥5 days elapsed).
+  // FRIDAY = "2024-01-19" → ISO week Friday, daysLeftWeek=3, daysElapsedInWeek=5.
+  // todayIntentionDate=FRIDAY ensures intention_done block is entered (date matches todayStr).
+  // intentionDoneStreak=5 ≥ daysElapsedInWeek(5) → week_flawless tier fires.
+  // currentMonthDay=19 ≥ MIN_MONTH_DAYS(10) BUT streak(5) < 19 → month_flawless NOT triggered.
+  // intentionDoneBestStreak=10 > streak(5) → record NOT triggered.
+  const FRIDAY = "2024-01-19";
+  const SATURDAY = "2024-01-20";
+  const THURSDAY = "2024-01-18";
+
+  function base() {
+    return {
+      habits: [{ name: "운동", streak: 3, lastChecked: FRIDAY }],
+      todayStr: FRIDAY,
+      nowHour: 15,
+      todayIntentionDate: FRIDAY,
+      todayIntentionDone: true as boolean | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+      daysLeftWeek: 3,  // Friday → daysElapsedInWeek = 8−3 = 5
+      intentionDoneStreak: 5 as number | undefined,
+      intentionDoneBestStreak: 10 as number | undefined,  // > streak → no record tier
+    };
+  }
+
+  it("shouldFireWeekFlawlessTierOnFriday", () => {
+    // daysElapsed=5, streak=5 ≥ 5, todayIntentionDate=todayStr → week_flawless tier fires
+    const result = calcTodayInsight(base());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("이번 주 매일 의도 달성");
+    expect(result!.text).toContain("5일");
+  });
+
+  it("shouldShowSixDaysOnSaturday", () => {
+    // Saturday: daysLeftWeek=2 → daysElapsed=6; streak=6 ≥ 6 → fires showing 6일
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: SATURDAY,
+      todayIntentionDate: SATURDAY,
+      daysLeftWeek: 2,
+      intentionDoneStreak: 6,
+      habits: [{ name: "운동", streak: 3, lastChecked: SATURDAY }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이번 주 매일 의도 달성");
+    expect(result!.text).toContain("6일");
+  });
+
+  it("shouldNotFireWhenDaysElapsedLessThan5", () => {
+    // Thursday: daysLeftWeek=4 → daysElapsed=4 < MIN_WEEK_TRIFECTA_DAYS(5) → gate not met; streak tier fires
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: THURSDAY,
+      todayIntentionDate: THURSDAY,
+      daysLeftWeek: 4,
+      intentionDoneStreak: 4,
+      habits: [{ name: "운동", streak: 3, lastChecked: THURSDAY }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("4일 연속 의도 달성");
+    expect(result!.text).not.toContain("이번 주 매일 의도 달성");
+  });
+
+  it("shouldNotFireWhenStreakLessThanDaysElapsed", () => {
+    // intentionDoneStreak=4 < daysElapsed(5) → missed a day this week; falls to streak≥3 tier
+    const result = calcTodayInsight({ ...base(), intentionDoneStreak: 4 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("4일 연속 의도 달성");
+    expect(result!.text).not.toContain("이번 주 매일 의도 달성");
+  });
+
+  it("shouldBePreemptedByMonthFlawless", () => {
+    // Jan 20 (currentMonthDay=20 ≥ MIN_MONTH_DAYS=10): streak(20) ≥ 20 → month_flawless fires first.
+    // daysElapsed=6 and streak(20) ≥ 6 → week_flawless would also qualify; month takes precedence.
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: SATURDAY,
+      todayIntentionDate: SATURDAY,
+      daysLeftWeek: 2,
+      intentionDoneStreak: 20,
+      habits: [{ name: "운동", streak: 3, lastChecked: SATURDAY }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("이번 달 매일 의도 달성");
+    expect(result!.text).not.toContain("이번 주 매일 의도 달성");
   });
 });
 
