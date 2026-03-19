@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_multi_streak, focus_recovery, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -18229,9 +18229,12 @@ describe("calcTodayInsight — focus_drought_warning (priority 10.215, after int
   });
 
   it("shouldNotFireWhenSessionsTodayIsPositive", () => {
-    // sessionsToday > 0 → user already started a session today → no drought warning
+    // sessionsToday > 0 → drought warning suppressed; focus_recovery fires instead
     const result = calcTodayInsight({ ...base, sessionsToday: 1 });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // focus_recovery, not warning
+    expect(result!.text).toContain("재개");
+    expect(result!.text).not.toContain("포모도로 없음"); // focus_drought_warning suppressed
   });
 
   it("shouldNotFireWhenFocusDroughtDaysIsUndefined", () => {
@@ -18262,6 +18265,92 @@ describe("calcTodayInsight — focus_drought_warning (priority 10.215, after int
     expect(result).not.toBeNull();
     expect(result!.text).toContain("연속 미완료"); // habit_consecutive_miss preempts
     expect(result!.text).not.toContain("포모도로"); // focus_drought_warning suppressed
+  });
+});
+
+// ── focus_recovery ────────────────────────────────────────────────────────
+describe("calcTodayInsight — focus_recovery (priority 6.98, after habit_multi_streak, before pomodoro_last_one)", () => {
+  // Fires when user breaks a 3+ day focus drought by doing at least 1 session today.
+  // Symmetric pair to focus_drought_warning (10.215): warning when sessionsToday=0; recovery when sessionsToday>0.
+  // Both require focusDroughtDays non-null (≥3 guaranteed by calcFocusDroughtDays).
+  const base = {
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    sessionsToday: 1,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    todayIntentionDate: undefined as string | undefined,
+    focusDroughtDays: 3,
+  };
+
+  it("shouldFireFocusRecoveryWhen3DaysDroughtAndSessionToday", () => {
+    const result = calcTodayInsight({ ...base });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("3일 만에");
+    expect(result!.text).toContain("재개");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldShowDroughtDaysCountInRecoveryText", () => {
+    const result = calcTodayInsight({ ...base, focusDroughtDays: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7일 만에");
+    expect(result!.text).toContain("재개");
+  });
+
+  it("shouldNotFireWhenSessionsTodayIsZero", () => {
+    // sessionsToday=0 → drought still active; focus_drought_warning fires instead
+    const result = calcTodayInsight({ ...base, sessionsToday: 0 });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("재개");
+    expect(result!.level).toBe("warning");
+    expect(result!.text).toContain("포모도로 없음"); // focus_drought_warning, not another warning badge
+  });
+
+  it("shouldNotFireWhenFocusDroughtDaysIsUndefined", () => {
+    const { focusDroughtDays: _skip, ...withoutDrought } = base;
+    const result = calcTodayInsight(withoutDrought);
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByHabitComebackAtHigherPriority", () => {
+    // habit_comeback (6.9) fires before focus_recovery (6.98)
+    const result = calcTodayInsight({
+      ...base,
+      habits: [{ name: "운동", streak: 3, lastChecked: TODAY, bestStreak: 14 }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("회복");
+    expect(result!.text).not.toContain("재개");
+  });
+
+  it("shouldBePreemptedByHabitMultiStreakAtHigherPriority", () => {
+    // habit_multi_streak (6.95) fires before focus_recovery (6.98)
+    const result = calcTodayInsight({
+      ...base,
+      habits: [
+        { name: "운동", streak: 7 },
+        { name: "독서", streak: 8 },
+        { name: "명상", streak: 9 },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("스트릭");
+    expect(result!.text).not.toContain("재개");
+  });
+
+  it("shouldPreemptPomodoroLastOne", () => {
+    // focus_recovery (6.98) fires before pomodoro_last_one (7)
+    const result = calcTodayInsight({
+      ...base,
+      sessionGoal: 4,
+      sessionsToday: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // focus_recovery, not pomodoro_last_one (info)
+    expect(result!.text).toContain("재개");
+    expect(result!.text).not.toContain("목표까지 1세션");
   });
 });
 
