@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_multi_streak, focus_recovery, habit_streak_record, momentum_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_maintained, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach, focus_streak_broken, momentum_streak_broken)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_sustained_peak + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_all_streak + habit_multi_streak, focus_recovery, habit_streak_record, momentum_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_maintained, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach, focus_streak_broken, momentum_streak_broken)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -3987,7 +3987,10 @@ describe("calcTodayInsight", () => {
   });
 
   it("shouldPreferHighestMilestoneStreakWhenMultipleHitsPersonalBest", () => {
-    // Both at milestones: 7 and 30; 30 wins (higher)
+    // Both at milestones: 7 and 30; 30 wins (higher).
+    // habit_all_streak yields via anyAtPersonalBestMilestone guard: 운동(30, bestStreak=30, lastChecked=TODAY)
+    //   satisfies streak ∈ [7,30,100] AND streak===bestStreak AND checked today → habit_all_streak defers
+    //   to the more specific personal_best celebration, so no dummy guard habit is needed.
     const result = calcTodayInsight({
       habits: [
         { name: "독서", streak: 7, lastChecked: TODAY, bestStreak: 7 },
@@ -4314,11 +4317,13 @@ describe("calcTodayInsight", () => {
   });
 
   it("shouldPreferHighestBestStreakWhenMultipleStreakRecordQualify", () => {
-    // Both at non-milestone personal bests; highest bestStreak wins
+    // Both at non-milestone personal bests; highest bestStreak wins.
+    // 더미 streak=3 < 7: prevents habit_all_streak from preempting.
     const result = calcTodayInsight({
       habits: [
         { name: "독서", streak: 8, lastChecked: TODAY, bestStreak: 8 },
         { name: "운동", streak: 12, lastChecked: TODAY, bestStreak: 12 },
+        { name: "더미", streak: 3, lastChecked: TODAY, bestStreak: 3 },
       ],
       todayStr: TODAY,
       nowHour: 14,
@@ -4659,11 +4664,13 @@ describe("calcTodayInsight", () => {
   });
 
   it("shouldReturnHighestStreakHabitWhenMultipleStreakRecessionsQualify", () => {
-    // Both habits broke yesterday — recession picks the one with higher streak
+    // Both habits broke yesterday — recession picks the one with higher streak.
+    // 더미 streak=3 < 7: prevents habit_all_streak from preempting.
     const result = calcTodayInsight({
       habits: [
         habit("요가", 7, DAYS_2_AGO),
         habit("운동", 12, DAYS_2_AGO),
+        habit("더미", 3, DAYS_2_AGO),
       ],
       todayStr: TODAY,
       nowHour: 14,
@@ -5429,6 +5436,96 @@ describe("calcTodayInsight — no_focus_project (priority 6.5, between period_st
     });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("집중"); // no_focus_project wins over deadline_soon
+  });
+});
+
+describe("calcTodayInsight — momentum_sustained_peak (priority 10.505, all 3 days ≥65 high-tier, non-strictly-rising)", () => {
+  // Base: afternoon, no habits, no sessions. todayIntentionDate set to suppress period_start.
+  // Only momentumHistory varies per test.
+  function sustainedPeakBase() {
+    return {
+      habits: [] as Array<{ name: string; streak: number; lastChecked?: string }>,
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY as string | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+    };
+  }
+
+  it("shouldFireWhenAllThreeDaysAbove65AndNonMonotone", () => {
+    // [70,68,72] — 68 < 70 so not strictly rising; all ≥ 65 → sustained_peak fires.
+    const result = calcTodayInsight({
+      ...sustainedPeakBase(),
+      momentumHistory: [
+        { date: DAYS_2_AGO, score: 70, tier: "high" as const },
+        { date: YESTERDAY, score: 68, tier: "high" as const },
+        { date: TODAY, score: 72, tier: "high" as const },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("고점");
+  });
+
+  it("shouldNotFireWhenStrictlyRisingTrendPreemptsIt", () => {
+    // [66,72,80] — strictly rising (72>66, 80>72); all ≥65 — momentum_rise (10.5) fires instead.
+    const result = calcTodayInsight({
+      ...sustainedPeakBase(),
+      momentumHistory: [
+        { date: DAYS_2_AGO, score: 66, tier: "high" as const },
+        { date: YESTERDAY, score: 72, tier: "high" as const },
+        { date: TODAY, score: 80, tier: "high" as const },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("상승");    // momentum_rise fires
+    expect(result!.text).not.toContain("고점"); // sustained_peak does not fire
+  });
+
+  it("shouldNotFireWhenAnyDayScoreBelow65", () => {
+    // STABLE_HISTORY: [60,55,65] — 55 < 65 and 60 < 65 → sustained_peak threshold not met.
+    // avg=60 ≥ 40, stable trend → momentum_maintained fires instead.
+    const result = calcTodayInsight({
+      ...sustainedPeakBase(),
+      momentumHistory: STABLE_HISTORY,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("고점");   // sustained_peak does not fire
+    expect(result!.text).toContain("꾸준히");     // momentum_maintained fires
+  });
+
+  it("shouldFireBeforeMomentumMaintained", () => {
+    // All 3 days ≥65, non-monotone → sustained_peak (10.505) fires; maintained (10.51) skipped.
+    const result = calcTodayInsight({
+      ...sustainedPeakBase(),
+      momentumHistory: [
+        { date: DAYS_2_AGO, score: 70, tier: "high" as const },
+        { date: YESTERDAY, score: 68, tier: "high" as const },
+        { date: TODAY, score: 72, tier: "high" as const },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("고점");       // sustained_peak wins
+    expect(result!.text).not.toContain("꾸준히"); // momentum_maintained does not fire
+  });
+
+  it("shouldNotFireWhenHistoryAbsent", () => {
+    const result = calcTodayInsight({ ...sustainedPeakBase() });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWithFewerThanThreeDaysOfHistory", () => {
+    // Only 2 entries — sustained_peak requires ≥3 consecutive days.
+    const result = calcTodayInsight({
+      ...sustainedPeakBase(),
+      momentumHistory: [
+        { date: YESTERDAY, score: 70, tier: "high" as const },
+        { date: TODAY, score: 72, tier: "high" as const },
+      ],
+    });
+    expect(result).toBeNull();
   });
 });
 
@@ -6910,11 +7007,13 @@ describe("calcTodayInsight — habit_target_near (priority 11.05, between person
   });
 
   it("shouldPickHabitClosestToTarget", () => {
-    // 독서 gap=1, 운동 gap=2 → 독서(gap 최소)가 선택됨
+    // 독서 gap=1, 운동 gap=2 → 독서(gap 최소)가 선택됨.
+    // 더미 streak=0 (no checkHistory): prevents habit_all_streak and habit_diversity_warning from preempting.
     const result = calcTodayInsight({
       habits: [
         { name: "독서", streak: 9, lastChecked: YESTERDAY, targetStreak: 10 },
         { name: "운동", streak: 18, lastChecked: YESTERDAY, targetStreak: 20 },
+        { name: "더미", streak: 0 },
       ],
       todayStr: TODAY,
       nowHour: 11,
@@ -10513,9 +10612,11 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     }
 
     it("shouldReturnMultiStreakBadgeWhenThreeHabitsEachOnSevenPlusDayStreak", () => {
+      // 3 of 4 habits qualify (일기=3 below 7): habit_all_streak needs ALL → doesn't fire;
+      // habit_multi_streak fires because 3 qualify (≥ MIN_MULTI_STREAK_HABITS).
       const result = calcTodayInsight({
         ...multiStreakBase(),
-        habits: [habit("운동", 7), habit("독서", 10), habit("명상", 14)],
+        habits: [habit("운동", 7), habit("독서", 10), habit("명상", 14), habit("일기", 3)],
       });
       expect(result).not.toBeNull();
       expect(result!.level).toBe("success");
@@ -10524,19 +10625,22 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
     });
 
     it("shouldShowCorrectCountWhenFourHabitsQualify", () => {
+      // 4 of 5 habits qualify (영어=3 below 7): habit_all_streak needs ALL → doesn't fire;
+      // habit_multi_streak fires with count=4.
       const result = calcTodayInsight({
         ...multiStreakBase(),
-        habits: [habit("운동", 8), habit("독서", 9), habit("명상", 10), habit("일기", 7)],
+        habits: [habit("운동", 8), habit("독서", 9), habit("명상", 10), habit("일기", 7), habit("영어", 3)],
       });
       expect(result).not.toBeNull();
       expect(result!.text).toContain("4");
     });
 
-    it("shouldNotFireWhenOnlyTwoHabitsOnSevenPlusStreak", () => {
-      // 2 habits qualify — below the threshold of 3
+    it("shouldNotFireWhenOnlyTwoOfThreeHabitsQualify", () => {
+      // 2 of 3 habits qualify (명상=3 below 7): habit_all_streak needs ALL → doesn't fire;
+      // habit_multi_streak needs ≥3 qualifiers → doesn't fire.
       const result = calcTodayInsight({
         ...multiStreakBase(),
-        habits: [habit("운동", 7), habit("독서", 10)],
+        habits: [habit("운동", 7), habit("독서", 10), habit("명상", 3)],
       });
       expect(result).toBeNull();
     });
@@ -10597,6 +10701,79 @@ describe("calcTodayInsight — project_context_switching (priority 10.05, betwee
       expect(result!.text).not.toContain("포모도로"); // pomodoro_last_one does not fire
     });
   });
+
+describe("calcTodayInsight — habit_all_streak (priority 6.93, ALL habits ≥2 each ≥7d streak)", () => {
+  // Base: afternoon, no checked-in today, no sessions, no projects, no intention.
+  // Only habits are set per test. Avoids all higher-priority badges.
+  function allStreakBase() {
+    return {
+      habits: [] as ReturnType<typeof habit>[],
+      todayStr: TODAY,
+      nowHour: 13,
+      todayIntentionDate: undefined as string | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+    };
+  }
+
+  it("shouldFireWhenAllTwoHabitsEachOnSevenPlusDayStreak", () => {
+    const result = calcTodayInsight({
+      ...allStreakBase(),
+      habits: [habit("운동", 10), habit("독서", 8)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("모든 습관 7일+");
+  });
+
+  it("shouldFireWhenAllThreeHabitsOnSevenPlusDayStreak", () => {
+    const result = calcTodayInsight({
+      ...allStreakBase(),
+      habits: [habit("운동", 10), habit("독서", 8), habit("명상", 14)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("모든 습관 7일+");
+  });
+
+  it("shouldNotFireWithOnlyOneHabit", () => {
+    // Single habit at ≥7d streak — habit_all_streak requires ≥2 habits.
+    const result = calcTodayInsight({
+      ...allStreakBase(),
+      habits: [habit("운동", 10)],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenNotAllHabitsQualify", () => {
+    // 2 of 3 habits qualify — not ALL habits on ≥7d streak.
+    // habit_all_streak skips (not all qualify); habit_multi_streak skips (only 2 qualify < 3).
+    const result = calcTodayInsight({
+      ...allStreakBase(),
+      habits: [habit("운동", 10), habit("독서", 8), habit("명상", 3)],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireBeforeHabitMultiStreak", () => {
+    // habit_all_streak (6.93) fires before habit_multi_streak (6.95) when ALL habits qualify.
+    // sessionsToday=2/3 means pomodoro_last_one (7) would fire — all_streak preempts it.
+    const result = calcTodayInsight({
+      ...allStreakBase(),
+      habits: [habit("운동", 10), habit("독서", 8), habit("명상", 14)],
+      sessionsToday: 2,
+      sessionGoal: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("모든 습관 7일+");
+    expect(result!.text).not.toContain("포모도로");
+  });
+
+  it("shouldNotFireWithNoHabits", () => {
+    const result = calcTodayInsight({ ...allStreakBase(), habits: [] });
+    expect(result).toBeNull();
+  });
+});
 
 describe("calcTodayInsight — momentum_recovery (priority 10.39, between habit_week_declined and pomodoro_today_above_avg)", () => {
   // Base: afternoon, no habits, no sessions, no projects, no goals, no intention.
@@ -11319,11 +11496,14 @@ describe("calcTodayInsight — habit_best_streak_approach (priority 11.02, betwe
     });
 
     it("shouldPickHabitWithSmallestGapWhenMultipleQualify", () => {
+      // 더미 streak=3 < 7: prevents habit_all_streak from preempting.
+      // 더미 has no lastChecked today so it doesn't qualify for habit_best_streak_approach.
       const result = calcTodayInsight({
         ...base(),
         habits: [
           { name: "독서", streak: 8, lastChecked: TODAY, bestStreak: 10 }, // gap=2
           { name: "운동", streak: 9, lastChecked: TODAY, bestStreak: 10 }, // gap=1
+          { name: "더미", streak: 3 },
         ],
       });
       expect(result).not.toBeNull();
@@ -12135,10 +12315,12 @@ describe("calcTodayInsight — habit_target_halfway (priority 11.06, between hab
     // 운동: streak=15, targetStreak=30, halfway → habit_target_halfway (11.06) would fire
     // habit_target_near has higher priority (11.05 < 11.06)
     // Both checked today: confirms ordering is due to priority, not missing lastChecked guard.
+    // 더미 streak=0 (no checkHistory): prevents habit_all_streak and habit_diversity_warning from preempting.
     const result = calcTodayInsight({
       habits: [
         { name: "독서", streak: 9, lastChecked: TODAY, targetStreak: 10 },
         { name: "운동", streak: 15, lastChecked: TODAY, targetStreak: 30 },
+        { name: "더미", streak: 0 },
       ],
       todayStr: TODAY,
       nowHour: 9,
@@ -12211,12 +12393,19 @@ describe("calcTodayInsight — habit_target_halfway (priority 11.06, between hab
   });
 
   it("shouldPickHabitWithHighestTargetWhenMultipleAtMidpoint", () => {
-    // 두 습관 모두 midpoint: 독서(14/28), 운동(50/100). targetStreak 높은 것(100) 우선.
-    // 독서 streak=14 < currentMonthDay(15) → habit_month_perfect/habit_month_excellent 발동 방지.
+    // 두 습관 모두 midpoint: 독서(7/14), 운동(14/28). targetStreak 높은 것(28) 우선.
+    // 독서 streak=7 < currentMonthDay(15) → habit_month_perfect 발동 방지.
+    // 운동 streak=14 < currentMonthDay(15) → habit_month_perfect 발동 방지.
+    // 더미 streak=4, lastChecked=TODAY: active peer (≥1), 4 < 7 prevents habit_all_streak.
+    //   lastChecked=TODAY: excluded from priority-3 milestone_near (h.lastChecked !== todayStr guard).
+    //   habit_streak_milestone_approach: 7-4=3 > 2 → safe (not within 2 days of any milestone).
+    //   더미(4): avgOthers=(7+14)/2=10.5, 4 ≥ 10.5*0.3=3.15 → no diversity_warning.
+    //   독서(7): avgOthers=(14+4)/2=9, 7 ≥ 9*0.3=2.7 → no diversity_warning.
     const result = calcTodayInsight({
       habits: [
-        { name: "독서", streak: 14, lastChecked: TODAY, targetStreak: 28 },
-        { name: "운동", streak: 50, lastChecked: TODAY, targetStreak: 100 },
+        { name: "독서", streak: 7, lastChecked: TODAY, targetStreak: 14 },
+        { name: "운동", streak: 14, lastChecked: TODAY, targetStreak: 28 },
+        { name: "더미", streak: 4, lastChecked: TODAY },
       ],
       todayStr: TODAY,
       nowHour: 9,
@@ -12227,9 +12416,9 @@ describe("calcTodayInsight — habit_target_halfway (priority 11.06, between hab
       weekGoal: "test",
     });
     expect(result).not.toBeNull();
-    expect(result!.text).toContain("운동"); // higher target (100) selected
-    expect(result!.text).toContain("50");
-    expect(result!.text).toContain("100");
+    expect(result!.text).toContain("운동"); // higher target (28) selected
+    expect(result!.text).toContain("14");
+    expect(result!.text).toContain("28");
     expect(result!.text).not.toContain("독서");
   });
 });
@@ -12347,10 +12536,12 @@ describe("calcTodayInsight — habit_target_hit (priority 11.04, between habit_b
     // 운동: streak=11, targetStreak=12, gap=1 → habit_target_near (11.05) candidate
     // 운동 streak=11 < currentMonthDay(15) → habit_month_perfect/habit_month_excellent 발동 방지
     // habit_target_hit fires first (11.04 < 11.05)
+    // 더미 streak=0 (no checkHistory): prevents habit_all_streak and habit_diversity_warning from preempting.
     const result = calcTodayInsight({
       habits: [
         { name: "독서", streak: 15, lastChecked: TODAY, targetStreak: 15 },
         { name: "운동", streak: 11, lastChecked: TODAY, targetStreak: 12 },
+        { name: "더미", streak: 0 },
       ],
       todayStr: TODAY,
       nowHour: 9,
@@ -12371,10 +12562,12 @@ describe("calcTodayInsight — habit_target_hit (priority 11.04, between habit_b
     //   triggers !targetStreak||streak!==targetStreak guard) → habit_target_hit fires
     // 운동: streak=21, targetStreak=21, bestStreak=21 → same pattern; 21 ∉ PERSONAL_BEST_MILESTONES
     // Both fire habit_target_hit; picks highest targetStreak → 운동 (21)
+    // 더미 streak=0 (no checkHistory): prevents habit_all_streak and habit_diversity_warning from preempting.
     const result = calcTodayInsight({
       habits: [
         { name: "독서", streak: 14, lastChecked: TODAY, targetStreak: 14, bestStreak: 14 },
         { name: "운동", streak: 21, lastChecked: TODAY, targetStreak: 21, bestStreak: 21 },
+        { name: "더미", streak: 0 },
       ],
       todayStr: TODAY,
       nowHour: 9,
@@ -12817,11 +13010,14 @@ describe("calcTodayInsight — habit_month_flawless (priority 11.07, after habit
   it("shouldPickHabitWithHighestStreak", () => {
     // 운동(streak=20) qualifies (≥15=currentMonthDay); 독서(streak=11) does not → 운동 selected.
     // 독서 streak=11 < currentMonthDay(15) prevents habit_month_perfect from preempting.
+    // 더미 streak=0 (no checkHistory): prevents habit_all_streak (since 독서=11 ≥7 would make all qualify)
+    //   and habit_diversity_warning from preempting.
     const result = calcTodayInsight({
       ...base(),
       habits: [
         { name: "독서", streak: 11, lastChecked: TODAY },
         { name: "운동", streak: 20, lastChecked: TODAY },
+        { name: "더미", streak: 0 },
       ],
     });
     expect(result).not.toBeNull();
