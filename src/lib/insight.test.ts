@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, perfect_day_streak_milestone_approach)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -8229,6 +8229,130 @@ describe("calcTodayInsight — intention_done milestone tier (priority 4.5, with
     expect(milestoneResult!.text).toContain("마일스톤");
     expect(streakResult!.text).not.toContain("마일스톤");
     expect(streakResult!.text).toContain("연속 의도 달성"); // regular streak text
+  });
+});
+
+// ── intention_done_streak_record ─────────────────────────────────────────
+describe("calcTodayInsight — intention_done_streak_record (within intention_done block, priority 4.5)", () => {
+  // Record tier inside the streak ≥ 3 branch of intention_done:
+  //   intentionDoneStreak === intentionDoneBestStreak AND intentionDoneBestStreak > 3
+  //   AND NOT a milestone (7/14/30/50/100) AND todayIntentionDone AND todayIntentionDate === todayStr
+  //   → "신기록" variant badge fires.
+  // month_flawless (streak ≥ currentMonthDay, currentMonthDay ≥ 10) preempts record when applicable.
+  // Base: day-5 of January (currentMonthDay=5 < 10 → no month_flawless gate), afternoon.
+  const TODAY_IDR = "2024-01-05";
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY_IDR,
+    nowHour: 14,
+    todayIntentionDate: TODAY_IDR,
+    todayIntentionDone: true as boolean | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldShowRecordMessageAtNonMilestonePersonalBest", () => {
+    // intentionDoneStreak=10 (not a milestone), intentionDoneBestStreak=10 → "신기록" fires
+    const result = calcTodayInsight({
+      ...base(),
+      intentionDoneStreak: 10,
+      intentionDoneBestStreak: 10,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("10");
+    expect(result!.text).toContain("의도 달성");
+    expect(result!.text).toContain("신기록");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldShowRecordMessageOneDayPastMilestone", () => {
+    // intentionDoneStreak=8 (one past milestone 7), intentionDoneBestStreak=8 → "신기록" fires
+    const result = calcTodayInsight({
+      ...base(),
+      intentionDoneStreak: 8,
+      intentionDoneBestStreak: 8,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("8");
+    expect(result!.text).toContain("신기록");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldShowRecordMessageWhenBestStreakIsExactlyFour", () => {
+    // intentionDoneBestStreak=4 (> 3 boundary, included side) → "신기록" fires
+    const result = calcTodayInsight({
+      ...base(),
+      intentionDoneStreak: 4,
+      intentionDoneBestStreak: 4,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("4");
+    expect(result!.text).toContain("신기록");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotShowRecordMessageWhenBestStreakIsTrivialThree", () => {
+    // intentionDoneBestStreak=3 (≤ 3 guard excluded): regular streak badge fires without "신기록"
+    const result = calcTodayInsight({
+      ...base(),
+      intentionDoneStreak: 3,
+      intentionDoneBestStreak: 3,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("3");
+    expect(result!.text).not.toContain("신기록");
+    expect(result!.text).toContain("연속 의도 달성");
+  });
+
+  it("shouldNotShowRecordMessageWhenCurrentStreakBelowBest", () => {
+    // streak=8, bestStreak=9 → gap > 0, not a record → regular streak badge
+    const result = calcTodayInsight({
+      ...base(),
+      intentionDoneStreak: 8,
+      intentionDoneBestStreak: 9,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("8");
+    expect(result!.text).not.toContain("신기록");
+  });
+
+  it("shouldNotShowRecordMessageAtMilestoneValue", () => {
+    // intentionDoneStreak=7 AND intentionDoneBestStreak=7 → milestone badge fires first, not record
+    const result = calcTodayInsight({
+      ...base(),
+      intentionDoneStreak: 7,
+      intentionDoneBestStreak: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("마일스톤");
+    expect(result!.text).not.toContain("신기록");
+  });
+
+  it("shouldNotShowRecordMessageWhenMonthFlawlessFires", () => {
+    // day 10 in month, intentionDoneStreak=10 === currentMonthDay (10) ≥ MIN_MONTH_DAYS (10)
+    // → month_flawless fires before the record check
+    const result = calcTodayInsight({
+      ...base(),
+      todayStr: "2024-01-10",
+      todayIntentionDate: "2024-01-10",
+      intentionDoneStreak: 10,
+      intentionDoneBestStreak: 10,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("신기록"); // month_flawless preempted record
+  });
+
+  it("shouldFireRecordWhenStreakEqualsPersonalBestAndAboveMonthDay", () => {
+    // streak=15 > currentMonthDay=5 → month_flawless NOT triggered (5 < 10); record fires
+    const result = calcTodayInsight({
+      ...base(),
+      intentionDoneStreak: 15,
+      intentionDoneBestStreak: 15,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("15");
+    expect(result!.text).toContain("신기록");
   });
 });
 

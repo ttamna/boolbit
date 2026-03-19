@@ -1549,10 +1549,28 @@ export default function App() {
     // Only meaningful when an intention exists; false is stored as absent to keep JSON lean
     // Capture prevDone before persist so the false→true transition can be detected below.
     const prevDone = snapshot.todayIntentionDone;
+    // Update intentionDoneBestStreak on done=true: max(full-history streak, stored best).
+    // calcIntentionDoneStreak is capped at 7 for UI display; iterate history directly (up to 34
+    // days back) to get the uncapped streak needed for accurate best-streak tracking.
+    // updatedHistory is already sliced to the last 35 entries, so 34 is the effective lookback cap.
+    let intentionDoneBestUpdate = {};
+    if (done) {
+      const doneSet = new Set<string>(updatedHistory.filter(e => e.done === true).map(e => e.date));
+      const base = new Date(today + "T00:00:00");
+      let fullStreak = 1; // today is done=true
+      for (let back = 1; back <= 34; back++) {
+        const d = new Date(base);
+        d.setDate(d.getDate() - back);
+        if (!doneSet.has(d.toLocaleDateString("sv"))) break;
+        fullStreak++;
+      }
+      intentionDoneBestUpdate = { intentionDoneBestStreak: Math.max(fullStreak, snapshot.intentionDoneBestStreak ?? 0) };
+    }
     persist({
       ...snapshot,
       todayIntentionDone: done || undefined,
       intentionHistory: updatedHistory.length > 0 ? updatedHistory : undefined,
+      ...intentionDoneBestUpdate,
     });
     // Notify on false→true transition only (prevDone captured before persist, safer than re-reading dataRef).
     const notifyBody = calcIntentionDoneNotify(done, prevDone, snapshot.todayIntention);
@@ -2147,6 +2165,7 @@ export default function App() {
     // When ≥ 3, the perfect_day badge shows the streak count instead of a generic celebration.
     perfectDayStreak: habitsPerfectStreak,
     perfectDayBestStreak: data.perfectDayBestStreak,
+    intentionDoneBestStreak: data.intentionDoneBestStreak,
     habitWeekRate: habitsWeekRate ?? undefined,
     // habitPrevWeekRate: same 14-day window's first half (days 7–13 ago) — already computed for habitsWeekTrend.
     habitPrevWeekRate: habitsPrevWeekRate ?? undefined,

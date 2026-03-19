@@ -107,6 +107,7 @@ export interface WidgetData {
 	pomodoroLifetimeMins?: number;
 	habitsAllDoneDate?: string;
 	perfectDayBestStreak?: number;
+	intentionDoneBestStreak?: number;
 	weekGoalHistory?: GoalEntry[];
 	monthGoalHistory?: GoalEntry[];
 	quarterGoalHistory?: GoalEntry[];
