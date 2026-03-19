@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone, pomodoro_today_above_avg, habit_multi_streak, habit_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -5325,6 +5325,161 @@ describe("calcTodayInsight — momentum_maintained (priority 10.51, after moment
       momentumHistory: highAvgLowToday,
     });
     expect(result).toBeNull();
+  });
+});
+
+describe("calcTodayInsight — triple_momentum_correlation (priority 10.515, after momentum_maintained, before habit_momentum_correlation)", () => {
+  // Tests for triple_momentum_correlation badge — fires when ALL THREE behavioral domains
+  // (habitMomentumGap, intentionMomentumGap, pomodoroMomentumGap) are ≥ 15 simultaneously.
+  // Preempts individual domain badges (10.52–10.54); shows Math.min of all three gaps.
+  // Base: no higher-priority triggers (no habits, nowHour=14, no momentum trend active)
+  const base = () => ({
+    habits: [],
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldReturnTripleCorrelationWhenAllThreeGapsAbove15", () => {
+    // all 3 gaps ≥ 15 → triple_momentum_correlation fires; minGap=16 (min of 20, 18, 16)
+    const result = calcTodayInsight({
+      ...base(),
+      habitMomentumGap: 20,
+      intentionMomentumGap: 18,
+      pomodoroMomentumGap: 16,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("+16"); // shows minGap (16 = min(20, 18, 16))
+    expect(result!.text).not.toContain("+20"); // individual habitMomentumGap NOT shown
+    expect(result!.text).not.toContain("+18"); // individual intentionMomentumGap NOT shown
+  });
+
+  it("shouldReturnTripleCorrelationWhenAllGapsExactly15", () => {
+    // boundary: all 3 gaps at threshold → triple fires showing minGap=15
+    const result = calcTodayInsight({
+      ...base(),
+      habitMomentumGap: 15,
+      intentionMomentumGap: 15,
+      pomodoroMomentumGap: 15,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("+15");
+    expect(result!.text).toContain("습관·의도·집중");
+  });
+
+  it("shouldNotReturnTripleCorrelationWhenHabitGapBelow15", () => {
+    // habitMomentumGap=14 < 15 → triple not met; falls through to intention_momentum_correlation (10.53)
+    const result = calcTodayInsight({
+      ...base(),
+      habitMomentumGap: 14,
+      intentionMomentumGap: 18,
+      pomodoroMomentumGap: 16,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도 달성일"); // intentionMomentumGap (10.53) text: "의도 달성일 모멘텀 평균 +18pt ↑"
+    expect(result!.text).toContain("+18"); // confirms 10.53 gap value is shown
+    expect(result!.text).not.toContain("습관·의도·집중"); // triple NOT fired
+  });
+
+  it("shouldNotReturnTripleCorrelationWhenIntentionGapBelow15", () => {
+    // intentionMomentumGap=14 < 15 → triple not met; falls through to habit_momentum_correlation (10.52)
+    const result = calcTodayInsight({
+      ...base(),
+      habitMomentumGap: 20,
+      intentionMomentumGap: 14,
+      pomodoroMomentumGap: 16,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관 완료일"); // habitMomentumGap (10.52) text: "습관 완료일 모멘텀 평균 +20pt ↑"
+    expect(result!.text).toContain("+20"); // confirms 10.52 gap value is shown
+    expect(result!.text).not.toContain("습관·의도·집중"); // triple NOT fired
+  });
+
+  it("shouldNotReturnTripleCorrelationWhenPomodoroGapBelow15", () => {
+    // pomodoroMomentumGap=14 < 15 → triple not met; falls through to habit_momentum_correlation (10.52)
+    const result = calcTodayInsight({
+      ...base(),
+      habitMomentumGap: 20,
+      intentionMomentumGap: 18,
+      pomodoroMomentumGap: 14,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관 완료일"); // habitMomentumGap (10.52) text: "습관 완료일 모멘텀 평균 +20pt ↑"
+    expect(result!.text).toContain("+20"); // confirms 10.52 gap value is shown
+    expect(result!.text).not.toContain("습관·의도·집중"); // triple NOT fired
+  });
+
+  it("shouldNotReturnTripleCorrelationWhenOnlyTwoGapsPresent", () => {
+    // pomodoroMomentumGap absent → triple not met; falls through to habit_momentum_correlation (10.52)
+    const result = calcTodayInsight({
+      ...base(),
+      habitMomentumGap: 20,
+      intentionMomentumGap: 18,
+      // pomodoroMomentumGap: absent
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관 완료일"); // habit correlation (10.52) fires
+    expect(result!.text).not.toContain("습관·의도·집중"); // triple NOT fired
+  });
+
+  it("shouldPreemptHabitCorrelationWhenAllThreeGapsPresent", () => {
+    // triple (10.515) preempts habit_momentum_correlation (10.52) when all 3 gaps qualify
+    const result = calcTodayInsight({
+      ...base(),
+      habitMomentumGap: 20,
+      intentionMomentumGap: 18,
+      pomodoroMomentumGap: 17,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·의도·집중"); // triple fires
+    expect(result!.text).not.toContain("+20"); // individual habit gap NOT shown
+  });
+
+  it("shouldPrioritizeMomentumMaintainedOverTripleCorrelation", () => {
+    // momentum_maintained (10.51) fires before triple_momentum_correlation (10.515)
+    // STABLE_HISTORY provides 3-day stable trend with avg=60 ≥ 40 → triggers momentum_maintained
+    const result = calcTodayInsight({
+      ...base(),
+      habitMomentumGap: 20,
+      intentionMomentumGap: 18,
+      pomodoroMomentumGap: 16,
+      momentumHistory: STABLE_HISTORY, // stable trend avg=60 → momentum_maintained fires
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("유지"); // momentum_maintained (10.51) wins
+    expect(result!.text).not.toContain("습관·의도·집중");
+  });
+
+  it("shouldPrioritizeTripleCorrelationOverGoalDone", () => {
+    // triple_momentum_correlation (10.515) fires before goal_done (10.7)
+    const result = calcTodayInsight({
+      ...base(),
+      habitMomentumGap: 20,
+      intentionMomentumGap: 18,
+      pomodoroMomentumGap: 16,
+      weekGoal: "주간 목표",
+      weekGoalDone: true,
+      daysLeftWeek: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·의도·집중"); // triple fires
+    expect(result!.text).not.toContain("주간 목표 달성!"); // goal_done badge suppressed
+  });
+
+  it("shouldContainAllDomainKeywordsInText", () => {
+    // badge text must reference 습관·의도·집중 to distinguish from single-domain badges
+    const result = calcTodayInsight({
+      ...base(),
+      habitMomentumGap: 20,
+      intentionMomentumGap: 18,
+      pomodoroMomentumGap: 16,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("습관·의도·집중");
   });
 });
 
