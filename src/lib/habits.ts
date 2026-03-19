@@ -552,6 +552,52 @@ export function calcYearlyPerfectDayReport(habits: Habit[], prevYearDays: string
   return `💪 지난 해 ${perfectCount}/${total}일 모든 습관 달성 — 꾸준히 도전해봐요!`;
 }
 
+// Returns a desktop-notification body summarising last week's count of "perfect days" —
+// days on which ALL habits were checked. Complements calcWeeklyHabitReport (average rate per habit)
+// by surfacing how often the user achieved full-portfolio completion on a single day.
+// Fires every Monday at 09:00+ via the weeklyPerfectDayReportDate guard in App.tsx.
+// prevWeekDays: the 7 calendar days ending yesterday — caller uses
+//   calcLastNDays(yesterday, 7). When called on Monday (as App.tsx ensures), covers Mon–Sun of the previous week.
+// Returns null when habits is empty, prevWeekDays is empty, or no perfect day occurred (avoids
+//   discouraging zero-count notifications; lower-bound noise is suppressed deliberately).
+// Exported for unit testing; pure function with no side effects.
+export function calcWeeklyPerfectDayReport(habits: Habit[], prevWeekDays: string[]): string | null {
+  if (habits.length === 0 || prevWeekDays.length === 0) return null;
+  const total = prevWeekDays.length;
+  const perfectCount = prevWeekDays.filter(day =>
+    habits.every(h => !!(h.checkHistory?.includes(day)))
+  ).length;
+  if (perfectCount === 0) return null;
+  if (perfectCount === total) return `🌟 지난 주 ${perfectCount}/${total}일 모든 습관 달성 — 완벽한 한 주!`;
+  const rate = Math.round((perfectCount / total) * 100);
+  if (rate >= 70) return `✅ 지난 주 ${perfectCount}/${total}일 모든 습관 달성 — 훌륭해요!`;
+  if (rate >= 40) return `📊 지난 주 ${perfectCount}/${total}일 모든 습관 달성 — 이번 주엔 더 해봐요!`;
+  return `💪 지난 주 ${perfectCount}/${total}일 모든 습관 달성 — 꾸준히 도전해봐요!`;
+}
+
+// Returns a desktop-notification body summarising last month's count of "perfect days" —
+// days on which ALL habits were checked. Complements calcMonthlyHabitReport (average rate per habit)
+// by surfacing how often the user achieved full-portfolio completion on a single day.
+// Fires on the 1st of each month at 09:00+ via the monthlyPerfectDayReportDate guard in App.tsx.
+// prevMonthDays: all calendar days of the previous month — caller uses
+//   calcLastNDays(yesterday, yesterday.getDate()) so the window covers exactly the previous month.
+// Returns null when habits is empty, prevMonthDays is empty, or no perfect day occurred (avoids
+//   discouraging zero-count notifications; lower-bound noise is suppressed deliberately).
+// Exported for unit testing; pure function with no side effects.
+export function calcMonthlyPerfectDayReport(habits: Habit[], prevMonthDays: string[]): string | null {
+  if (habits.length === 0 || prevMonthDays.length === 0) return null;
+  const total = prevMonthDays.length;
+  const perfectCount = prevMonthDays.filter(day =>
+    habits.every(h => !!(h.checkHistory?.includes(day)))
+  ).length;
+  if (perfectCount === 0) return null;
+  if (perfectCount === total) return `🌟 지난 달 ${perfectCount}/${total}일 모든 습관 달성 — 완벽한 한 달!`;
+  const rate = Math.round((perfectCount / total) * 100);
+  if (rate >= 70) return `✅ 지난 달 ${perfectCount}/${total}일 모든 습관 달성 — 훌륭해요!`;
+  if (rate >= 40) return `📊 지난 달 ${perfectCount}/${total}일 모든 습관 달성 — 이번 달엔 더 해봐요!`;
+  return `💪 지난 달 ${perfectCount}/${total}일 모든 습관 달성 — 꾸준히 도전해봐요!`;
+}
+
 // Compares average momentum score on days ALL habits were done vs. days they were NOT all done.
 // Uses momentumHistory (up to 31 past entries) as the analysis window; today is excluded so
 // the live in-progress score does not skew the correlation.

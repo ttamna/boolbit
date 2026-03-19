@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcQuarterlyPerfectDayReport, calcYearlyHabitReport, calcYearlyPerfectDayReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, and calcHabitMomentumCorrelation pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, quarterly perfect-day count report, yearly habit completion rate report, yearly perfect-day count report, per-weekday habit completion rate analysis, morning habit activation nudge, and habit-momentum correlation gap (all-done days vs not-all-done days avg momentum delta)
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcQuarterlyPerfectDayReport, calcYearlyHabitReport, calcYearlyPerfectDayReport, calcWeeklyPerfectDayReport, calcMonthlyPerfectDayReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, and calcHabitMomentumCorrelation pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, quarterly perfect-day count report, yearly habit completion rate report, yearly perfect-day count report, Monday morning weekly perfect-day count report, monthly perfect-day count report, per-weekday habit completion rate analysis, morning habit activation nudge, and habit-momentum correlation gap (all-done days vs not-all-done days avg momentum delta)
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcQuarterlyPerfectDayReport, calcYearlyHabitReport, calcYearlyPerfectDayReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, calcHabitMomentumCorrelation } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcQuarterlyPerfectDayReport, calcYearlyHabitReport, calcYearlyPerfectDayReport, calcWeeklyPerfectDayReport, calcMonthlyPerfectDayReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, calcHabitMomentumCorrelation } from "./habits";
 import type { Habit, MomentumEntry } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -2068,6 +2068,239 @@ describe("calcYearlyPerfectDayReport", () => {
     expect(msg).not.toBeNull();
     expect(msg).toContain("366/366");
     expect(msg).toContain("완벽한 한 해");
+  });
+});
+
+// 7-day window for weekly perfect day report tests: Jan 13–19 2026 (Mon–Sun)
+const WEEKLY_PERFECT_DAY_WINDOW: string[] = Array.from({ length: 7 }, (_, i) => {
+  const d = new Date(2026, 0, 13 + i); // Jan 13 2026 (Monday)
+  return d.toLocaleDateString("sv");
+});
+
+// 10-day window for exact-boundary tests: Jan 10–19 2026
+const WEEKLY_PERFECT_DAY_WINDOW_10: string[] = Array.from({ length: 10 }, (_, i) => {
+  const d = new Date(2026, 0, 10 + i);
+  return d.toLocaleDateString("sv");
+});
+
+describe("calcWeeklyPerfectDayReport", () => {
+  beforeEach(() => { _habitId = 0; });
+
+  it("shouldReturnNullWhenHabitsIsEmpty", () => {
+    expect(calcWeeklyPerfectDayReport([], WEEKLY_PERFECT_DAY_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenWindowIsEmpty", () => {
+    const h = makeHabit({ checkHistory: [...WEEKLY_PERFECT_DAY_WINDOW] });
+    expect(calcWeeklyPerfectDayReport([h], [])).toBeNull();
+  });
+
+  it("shouldReturnNullWhenNoPerfectDaysExist", () => {
+    // 2 habits: h1 done on even-indexed days, h2 done on odd-indexed days → no day has BOTH done
+    const evenDays = WEEKLY_PERFECT_DAY_WINDOW.filter((_, i) => i % 2 === 0);
+    const oddDays = WEEKLY_PERFECT_DAY_WINDOW.filter((_, i) => i % 2 !== 0);
+    const h1 = makeHabit({ checkHistory: evenDays });
+    const h2 = makeHabit({ checkHistory: oddDays });
+    expect(calcWeeklyPerfectDayReport([h1, h2], WEEKLY_PERFECT_DAY_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturn100PctMessageWhenAllDaysArePerfect", () => {
+    // 1 habit, all 7 days done → 7/7 = 100%
+    const h = makeHabit({ checkHistory: [...WEEKLY_PERFECT_DAY_WINDOW] });
+    const msg = calcWeeklyPerfectDayReport([h], WEEKLY_PERFECT_DAY_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("7/7");
+    expect(msg).toContain("완벽한 한 주");
+  });
+
+  it("shouldReturnHighTierMessageWhenRateAbove70Pct", () => {
+    // 8/10 = 80% (clearly above 70% boundary; exact boundary tested separately at shouldReturnHighTierAtExact70PctBoundary)
+    const h = makeHabit({ checkHistory: WEEKLY_PERFECT_DAY_WINDOW_10.slice(0, 8) });
+    const msg = calcWeeklyPerfectDayReport([h], WEEKLY_PERFECT_DAY_WINDOW_10);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("8/10");
+    expect(msg).toContain("훌륭해요");
+    expect(msg).not.toContain("이번 주엔");
+    expect(msg).not.toContain("꾸준히");
+  });
+
+  it("shouldReturnMidTierMessageWhenRateBetween40And70Pct", () => {
+    // 1 habit, 3/7 days → round(3/7 * 100) = round(42.9) = 43% (≥40, <70)
+    const h = makeHabit({ checkHistory: WEEKLY_PERFECT_DAY_WINDOW.slice(0, 3) });
+    const msg = calcWeeklyPerfectDayReport([h], WEEKLY_PERFECT_DAY_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("3/7");
+    expect(msg).toContain("이번 주엔");
+    expect(msg).not.toContain("훌륭해요");
+    expect(msg).not.toContain("꾸준히");
+  });
+
+  it("shouldReturnLowTierMessageWhenRateBelow40Pct", () => {
+    // 1 habit, 2/7 days → round(2/7 * 100) = round(28.6) = 29% (<40)
+    const h = makeHabit({ checkHistory: WEEKLY_PERFECT_DAY_WINDOW.slice(0, 2) });
+    const msg = calcWeeklyPerfectDayReport([h], WEEKLY_PERFECT_DAY_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("2/7");
+    expect(msg).toContain("꾸준히");
+    expect(msg).not.toContain("훌륭해요");
+    expect(msg).not.toContain("이번 주엔");
+  });
+
+  it("shouldCountPerfectDaysRequiringAllHabitsDone", () => {
+    // 2 habits: h1 done all 7 days, h2 done only first 4 days → 4 perfect days
+    const h1 = makeHabit({ checkHistory: [...WEEKLY_PERFECT_DAY_WINDOW] });
+    const h2 = makeHabit({ checkHistory: WEEKLY_PERFECT_DAY_WINDOW.slice(0, 4) });
+    const msg = calcWeeklyPerfectDayReport([h1, h2], WEEKLY_PERFECT_DAY_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("4/7");
+  });
+
+  it("shouldReturnHighTierAtExact70PctBoundary", () => {
+    // 7/10 = 70% → high tier boundary (≥70)
+    const h = makeHabit({ checkHistory: WEEKLY_PERFECT_DAY_WINDOW_10.slice(0, 7) });
+    const msg = calcWeeklyPerfectDayReport([h], WEEKLY_PERFECT_DAY_WINDOW_10);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("7/10");
+    expect(msg).toContain("훌륭해요");
+    expect(msg).not.toContain("이번 주엔");
+  });
+
+  it("shouldReturnMidTierAtExact40PctBoundary", () => {
+    // 4/10 = 40% → mid tier boundary (≥40, <70)
+    const h = makeHabit({ checkHistory: WEEKLY_PERFECT_DAY_WINDOW_10.slice(0, 4) });
+    const msg = calcWeeklyPerfectDayReport([h], WEEKLY_PERFECT_DAY_WINDOW_10);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("4/10");
+    expect(msg).toContain("이번 주엔");
+    expect(msg).not.toContain("훌륭해요");
+  });
+
+  it("shouldIgnoreCheckHistoryOutsideWindow", () => {
+    // habit has check-ins outside the window (Nov 2025) → perfectCount = 0 → null
+    const h = makeHabit({ checkHistory: ["2025-11-01", "2025-11-30"] });
+    expect(calcWeeklyPerfectDayReport([h], WEEKLY_PERFECT_DAY_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturn100PctMessageWith2HabitsBothAllDaysDone", () => {
+    // 2 habits both checked all 7 days → every() fires for all days → 7/7 = 100%
+    const h1 = makeHabit({ checkHistory: [...WEEKLY_PERFECT_DAY_WINDOW] });
+    const h2 = makeHabit({ checkHistory: [...WEEKLY_PERFECT_DAY_WINDOW] });
+    const msg = calcWeeklyPerfectDayReport([h1, h2], WEEKLY_PERFECT_DAY_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("7/7");
+    expect(msg).toContain("완벽한 한 주");
+  });
+});
+
+// 10-day sub-window from MONTHLY_REPORT_WINDOW (Dec 1–10 2025) for exact-boundary tests.
+const MONTHLY_PERFECT_DAY_WINDOW_10: string[] = MONTHLY_REPORT_WINDOW.slice(0, 10);
+
+describe("calcMonthlyPerfectDayReport", () => {
+  beforeEach(() => { _habitId = 0; });
+
+  it("shouldReturnNullWhenHabitsIsEmpty", () => {
+    expect(calcMonthlyPerfectDayReport([], MONTHLY_REPORT_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenWindowIsEmpty", () => {
+    const h = makeHabit({ checkHistory: [...MONTHLY_REPORT_WINDOW] });
+    expect(calcMonthlyPerfectDayReport([h], [])).toBeNull();
+  });
+
+  it("shouldReturnNullWhenNoPerfectDaysExist", () => {
+    // 2 habits: h1 done on even-indexed days, h2 done on odd-indexed days → no day has BOTH done
+    const evenDays = MONTHLY_REPORT_WINDOW.filter((_, i) => i % 2 === 0);
+    const oddDays = MONTHLY_REPORT_WINDOW.filter((_, i) => i % 2 !== 0);
+    const h1 = makeHabit({ checkHistory: evenDays });
+    const h2 = makeHabit({ checkHistory: oddDays });
+    expect(calcMonthlyPerfectDayReport([h1, h2], MONTHLY_REPORT_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturn100PctMessageWhenAllDaysArePerfect", () => {
+    // 1 habit, all 31 days done → 31/31 = 100%
+    const h = makeHabit({ checkHistory: [...MONTHLY_REPORT_WINDOW] });
+    const msg = calcMonthlyPerfectDayReport([h], MONTHLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("31/31");
+    expect(msg).toContain("완벽한 한 달");
+  });
+
+  it("shouldReturnHighTierMessageWhenRateAbove70Pct", () => {
+    // 1 habit, 25/31 days → round(25/31 * 100) = round(80.6) = 81% (≥70)
+    const h = makeHabit({ checkHistory: MONTHLY_REPORT_WINDOW.slice(0, 25) });
+    const msg = calcMonthlyPerfectDayReport([h], MONTHLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("25/31");
+    expect(msg).toContain("훌륭해요");
+    expect(msg).not.toContain("이번 달엔");
+    expect(msg).not.toContain("꾸준히");
+  });
+
+  it("shouldReturnMidTierMessageWhenRateBetween40And70Pct", () => {
+    // 1 habit, 15/31 days → round(15/31 * 100) = round(48.4) = 48% (≥40, <70)
+    const h = makeHabit({ checkHistory: MONTHLY_REPORT_WINDOW.slice(0, 15) });
+    const msg = calcMonthlyPerfectDayReport([h], MONTHLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("15/31");
+    expect(msg).toContain("이번 달엔");
+    expect(msg).not.toContain("훌륭해요");
+    expect(msg).not.toContain("꾸준히");
+  });
+
+  it("shouldReturnLowTierMessageWhenRateBelow40Pct", () => {
+    // 1 habit, 10/31 days → round(10/31 * 100) = round(32.3) = 32% (<40)
+    const h = makeHabit({ checkHistory: MONTHLY_REPORT_WINDOW.slice(0, 10) });
+    const msg = calcMonthlyPerfectDayReport([h], MONTHLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("10/31");
+    expect(msg).toContain("꾸준히");
+    expect(msg).not.toContain("훌륭해요");
+    expect(msg).not.toContain("이번 달엔");
+  });
+
+  it("shouldCountPerfectDaysRequiringAllHabitsDone", () => {
+    // 2 habits: h1 done all 31 days, h2 done only first 12 days → 12 perfect days
+    const h1 = makeHabit({ checkHistory: [...MONTHLY_REPORT_WINDOW] });
+    const h2 = makeHabit({ checkHistory: MONTHLY_REPORT_WINDOW.slice(0, 12) });
+    const msg = calcMonthlyPerfectDayReport([h1, h2], MONTHLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("12/31");
+  });
+
+  it("shouldReturnHighTierAtExact70PctBoundary", () => {
+    // 7/10 = 70% → high tier boundary (≥70)
+    const h = makeHabit({ checkHistory: MONTHLY_PERFECT_DAY_WINDOW_10.slice(0, 7) });
+    const msg = calcMonthlyPerfectDayReport([h], MONTHLY_PERFECT_DAY_WINDOW_10);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("7/10");
+    expect(msg).toContain("훌륭해요");
+    expect(msg).not.toContain("이번 달엔");
+  });
+
+  it("shouldReturnMidTierAtExact40PctBoundary", () => {
+    // 4/10 = 40% → mid tier boundary (≥40, <70)
+    const h = makeHabit({ checkHistory: MONTHLY_PERFECT_DAY_WINDOW_10.slice(0, 4) });
+    const msg = calcMonthlyPerfectDayReport([h], MONTHLY_PERFECT_DAY_WINDOW_10);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("4/10");
+    expect(msg).toContain("이번 달엔");
+    expect(msg).not.toContain("훌륭해요");
+  });
+
+  it("shouldIgnoreCheckHistoryOutsideWindow", () => {
+    // habit has check-ins outside the window (Nov 2025) → perfectCount = 0 → null
+    const h = makeHabit({ checkHistory: ["2025-11-01", "2025-11-30"] });
+    expect(calcMonthlyPerfectDayReport([h], MONTHLY_REPORT_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturn100PctMessageWith2HabitsBothAllDaysDone", () => {
+    // 2 habits both checked all 31 days → every() fires for all days → 31/31 = 100%
+    const h1 = makeHabit({ checkHistory: [...MONTHLY_REPORT_WINDOW] });
+    const h2 = makeHabit({ checkHistory: [...MONTHLY_REPORT_WINDOW] });
+    const msg = calcMonthlyPerfectDayReport([h1, h2], MONTHLY_REPORT_WINDOW);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("31/31");
+    expect(msg).toContain("완벽한 한 달");
   });
 });
 

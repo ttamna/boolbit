@@ -146,6 +146,8 @@ export interface WidgetData {
 	monthlyHabitReportDate?: string;
 	quarterlyHabitReportDate?: string;
 	yearlyHabitReportDate?: string;
+	weeklyPerfectDayReportDate?: string;
+	monthlyPerfectDayReportDate?: string;
 	quarterlyPerfectDayReportDate?: string;
 	yearlyPerfectDayReportDate?: string;
 	monthlyMomentumReportDate?: string;
