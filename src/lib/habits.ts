@@ -276,7 +276,8 @@ export function calcHabitMilestoneApproachNotify(
 
 // Perfect-day consecutive streak milestones: 7, 14, 30, 50, 100 days.
 // Each value marks a significant sustained commitment threshold worth a dedicated notification.
-const PERFECT_DAY_MILESTONES: number[] = [7, 14, 30, 50, 100];
+// Exported so insight.ts can reuse the same thresholds without duplicating the array.
+export const PERFECT_DAY_MILESTONES: number[] = [7, 14, 30, 50, 100];
 
 // Returns the desktop notification body when the perfect-day streak hits a significant milestone.
 // A "perfect day" means all habits were completed on that calendar day.

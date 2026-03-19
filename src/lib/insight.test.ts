@@ -1021,22 +1021,6 @@ describe("calcTodayInsight", () => {
     expect(result!.text).toContain("연속");
   });
 
-  it("shouldShowStreakCountWhenPerfectDayStreakIs7", () => {
-    const result = calcTodayInsight({
-      habits: [habit("운동", 5, TODAY)],
-      todayStr: TODAY,
-      nowHour: 15,
-      todayIntentionDate: TODAY,
-      sessionsToday: 0,
-      sessionGoal: undefined,
-      habitsAllDoneDate: TODAY,
-      perfectDayStreak: 7,
-    });
-    expect(result).not.toBeNull();
-    expect(result!.level).toBe("success");
-    expect(result!.text).toContain("7");
-    expect(result!.text).toContain("연속");
-  });
 
   it("shouldShowGenericMessageWhenPerfectDayStreakIsBelow3", () => {
     const result = calcTodayInsight({
@@ -1104,6 +1088,112 @@ describe("calcTodayInsight", () => {
     expect(result!.level).toBe("success");
     expect(result!.text).toContain("완벽");
     expect(result!.text).not.toContain("연속");
+  });
+
+  // ── perfect_day_streak_milestone ──────────────────────────────────────────
+  it("shouldShowMilestoneMessageWhenPerfectDayStreakIs7", () => {
+    // Milestone tier fires when streak hits 7 — special celebration over generic count badge.
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("7");
+    expect(result!.text).toContain("마일스톤");
+  });
+
+  it("shouldShowMilestoneMessageWhenPerfectDayStreakIs14", () => {
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 14,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("14");
+    expect(result!.text).toContain("마일스톤");
+  });
+
+  it("shouldShowMilestoneMessageWhenPerfectDayStreakIs30", () => {
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 30,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("30");
+    expect(result!.text).toContain("마일스톤");
+  });
+
+  it("shouldShowMilestoneMessageWhenPerfectDayStreakIs50", () => {
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 50,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("50");
+    expect(result!.text).toContain("마일스톤");
+  });
+
+  it("shouldShowMilestoneMessageWhenPerfectDayStreakIs100", () => {
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("100");
+    expect(result!.text).toContain("마일스톤");
+  });
+
+  it("shouldShowGenericStreakCountWhenPerfectDayStreakIsNonMilestone", () => {
+    // Non-milestone streak (e.g. 8, between milestones 7 and 14) shows "N일 연속" without "마일스톤"
+    const result = calcTodayInsight({
+      habits: [habit("운동", 5, TODAY)],
+      todayStr: TODAY,
+      nowHour: 15,
+      todayIntentionDate: TODAY,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: TODAY,
+      perfectDayStreak: 8,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("8");
+    expect(result!.text).toContain("연속");
+    expect(result!.text).not.toContain("마일스톤");
   });
 
   // ── intention_missing ──────────────────────────────────────────────────────
