@@ -683,6 +683,15 @@ const FOCUS_STREAK_MILESTONES = [7, 14, 30, 50, 100];
 // Symmetric with focus/momentum milestone approach series (both use [7,14,30,50,100]).
 const HABIT_STREAK_MILESTONES = [7, 14, 30, 50, 100];
 
+// Milestones for habit_all_streak_milestone: when ALL habits (≥2) simultaneously reach a threshold,
+// show the actual milestone number instead of the generic "7일+" text. Descending order so find() picks highest.
+// 14=two weeks, 30=one month, 50=50 days, 100=100 days — streaks 7-13d fall through to generic fallback text.
+// NOTE: 30 and 100 overlap with PERSONAL_BEST_MILESTONES. When any habit is at streak∈{30,100} AND
+//   lastChecked=TODAY AND streak===bestStreak, the anyAtPersonalBestMilestone guard fires and the milestone
+//   path is suppressed — the personal_best badge (lower priority number in chain) wins instead. This is
+//   intentional: an individual personal-best is a rarer, more specific achievement than the collective total.
+const ALL_STREAK_MILESTONES = [100, 50, 30, 14] as const;
+
 // Consecutive qualifying-momentum-day milestones (score ≥ 40) that trigger a momentum_streak_milestone badge.
 // Mirrors FOCUS_STREAK_MILESTONES thresholds: 7=one week, 14=two weeks, 30=one month, 50=50 days, 100=100 days.
 const MOMENTUM_STREAK_MILESTONES = [7, 14, 30, 50, 100];
@@ -1300,6 +1309,9 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   //   The `lastChecked === TODAY` requirement is intentional: personal_best also requires lastChecked=TODAY,
   //   so the yield guard fires exactly when personal_best WOULD fire. If the milestone was hit yesterday,
   //   personal_best was already shown yesterday — today's habit_all_streak is then appropriate.
+  //   The habit_all_streak_milestone (sub-path) is inside the same yield guard by design: when an individual
+  //   habit just hit a personal-best (e.g. all at 30d streak, one of them also at bestStreak=30 checked today),
+  //   the personal_best badge is more specific and should take precedence over the collective milestone text.
   if (habits.length >= 2 && habits.every(h => h.streak >= 7)) {
     const monthDay = parseInt(todayStr.slice(8, 10), 10);
     const allPerfectMonth = monthDay >= 14 &&
@@ -1310,6 +1322,10 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
            PERSONAL_BEST_MILESTONES.indexOf(h.streak) !== -1
     );
     if (!allPerfectMonth && !anyAtPersonalBestMilestone) {
+      const allMilestone = ALL_STREAK_MILESTONES.find(m => habits.every(h => h.streak >= m));
+      if (allMilestone) {
+        return { text: `🏆 모든 습관 ${allMilestone}일+ 스트릭! 전체 루틴이 완벽한 흐름`, level: "success" };
+      }
       return { text: "🌟 모든 습관 7일+ 스트릭! 전체 루틴이 완벽한 흐름", level: "success" };
     }
   }

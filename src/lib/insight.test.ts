@@ -10811,6 +10811,148 @@ describe("calcTodayInsight — habit_all_streak (priority 6.93, ALL habits ≥2 
   });
 });
 
+describe("calcTodayInsight — habit_all_streak_milestone (priority 6.93, within habit_all_streak block, highest milestone tier 14/30/50/100d)", () => {
+  // ABOUTME: Tests for habit_all_streak_milestone: when ALL habits (≥2) are simultaneously on
+  // ABOUTME: a streak ≥ milestone threshold (14/30/50/100d), the badge shows the actual milestone
+  // ABOUTME: number instead of the generic "7일+" text. Highest qualifying threshold wins.
+  //
+  // Base: afternoon, no lastChecked (avoids allPerfectMonth/anyAtPersonalBestMilestone guards),
+  // no sessions, no intention. TODAY=2024-01-15 (monthDay=15, inside MIN_MONTH_DAYS=10 window).
+  function milestoneBase() {
+    return {
+      habits: [] as ReturnType<typeof habit>[],
+      todayStr: TODAY,
+      nowHour: 13,
+      todayIntentionDate: undefined as string | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+    };
+  }
+
+  it("shouldShow14dMilestoneWhenAllHabitsAt14dExactly", () => {
+    const result = calcTodayInsight({
+      ...milestoneBase(),
+      habits: [habit("운동", 14), habit("독서", 14)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("14일+");
+    expect(result!.text).not.toContain("7일+");
+  });
+
+  it("shouldShow14dMilestoneWhenAllHabitsAbove14ButBelow30", () => {
+    const result = calcTodayInsight({
+      ...milestoneBase(),
+      habits: [habit("운동", 20), habit("독서", 25)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14일+");
+    expect(result!.text).not.toContain("30일+");
+  });
+
+  it("shouldShow30dMilestoneWhenAllHabitsAt30dExactly", () => {
+    const result = calcTodayInsight({
+      ...milestoneBase(),
+      habits: [habit("운동", 30), habit("독서", 30)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("30일+");
+    expect(result!.text).not.toContain("14일+");
+    expect(result!.text).not.toContain("7일+");
+  });
+
+  it("shouldShow30dMilestoneWhenAllHabitsAbove30ButBelow50", () => {
+    const result = calcTodayInsight({
+      ...milestoneBase(),
+      habits: [habit("운동", 45), habit("독서", 40)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("30일+");
+    expect(result!.text).not.toContain("50일+");
+  });
+
+  it("shouldShow50dMilestoneWhenAllHabitsAt50dExactly", () => {
+    const result = calcTodayInsight({
+      ...milestoneBase(),
+      habits: [habit("운동", 50), habit("독서", 52)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("50일+");
+    expect(result!.text).not.toContain("30일+");
+  });
+
+  it("shouldShow100dMilestoneWhenAllHabitsAt100dExactly", () => {
+    const result = calcTodayInsight({
+      ...milestoneBase(),
+      habits: [habit("운동", 100), habit("독서", 105)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("100일+");
+    expect(result!.text).not.toContain("50일+");
+  });
+
+  it("shouldShow100dWhenAllHabitsWellAbove100d", () => {
+    // 100 is the highest milestone — even at 200d it shows 100일+
+    const result = calcTodayInsight({
+      ...milestoneBase(),
+      habits: [habit("운동", 200), habit("독서", 150)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("100일+");
+  });
+
+  it("shouldShowGeneric7dWhenAllHabitsAt7to13d", () => {
+    // Below the 14d threshold — falls through to generic "7일+" badge
+    const result = calcTodayInsight({
+      ...milestoneBase(),
+      habits: [habit("운동", 10), habit("독서", 13)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("7일+");
+    expect(result!.text).not.toContain("14일+");
+  });
+
+  it("shouldShowGeneric7dWhenOneHabitBelowMilestoneThreshold", () => {
+    // One habit at 30d, the other at 13d — minimum is 13 < 14 → no milestone
+    const result = calcTodayInsight({
+      ...milestoneBase(),
+      habits: [habit("운동", 30), habit("독서", 13)],
+    });
+    expect(result).not.toBeNull();
+    // habit_all_streak block fires (both ≥7) but no milestone since min < 14
+    expect(result!.text).toContain("7일+");
+    expect(result!.text).not.toContain("14일+");
+  });
+
+  it("shouldUseLowestHabitStreakToPickMilestone", () => {
+    // 3 habits: two at 60d, one at 35d — min is 35 → qualifies for 30d but NOT 50d
+    const result = calcTodayInsight({
+      ...milestoneBase(),
+      habits: [habit("운동", 60), habit("독서", 35), habit("명상", 60)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("30일+");
+    expect(result!.text).not.toContain("50일+");
+  });
+
+  it("shouldDeferToPersonalBestWhenAnyHabitAtPersonalBestMilestoneOverlap", () => {
+    // All habits at streak=30 (qualifies for 30d milestone), but one also has bestStreak=30 AND lastChecked=TODAY.
+    // anyAtPersonalBestMilestone fires → yield to personal_best; habit_all_streak_milestone is intentionally suppressed.
+    // 30 and 100 overlap between ALL_STREAK_MILESTONES and PERSONAL_BEST_MILESTONES — personal_best takes precedence.
+    const result = calcTodayInsight({
+      ...milestoneBase(),
+      habits: [
+        habit("운동", 30, TODAY, 30),  // at personal best today (streak===bestStreak, streak∈PERSONAL_BEST_MILESTONES)
+        habit("독서", 30),              // no lastChecked → not triggering personal_best
+      ],
+    });
+    // Should NOT show the collective "30일+" milestone text — defers to personal_best badge further in chain
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("모든 습관 30일+");
+  });
+});
+
 describe("calcTodayInsight — momentum_recovery (priority 10.39, between habit_week_declined and pomodoro_today_above_avg)", () => {
   // Base: afternoon, no habits, no sessions, no projects, no goals, no intention.
   // Only momentumHistory is set per test. Avoids all higher-priority badges.
