@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_sustained_peak + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_all_streak + habit_multi_streak, focus_recovery, focus_streak_record, habit_streak_record, momentum_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_record, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_maintained, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, pomodoro_month_goal_improved, pomodoro_month_goal_declined, pomodoro_month_improved, pomodoro_month_maintained, pomodoro_month_declined, perfect_day_streak_milestone_approach, intention_done_streak_broken, focus_streak_broken, momentum_streak_broken, intention_gap_warning, focus_drought_warning, month_quadrafecta_flawless, month_trifecta_flawless, habit_month_flawless, pomodoro_month_flawless, momentum_month_flawless, habit_all_streak_milestone + habit_all_streak_milestone_approach)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_sustained_peak + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_all_streak + habit_multi_streak, focus_recovery, focus_streak_record, focus_best_streak_approach, habit_streak_record, momentum_streak_record, momentum_best_streak_approach, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_record, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_maintained, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, pomodoro_month_goal_improved, pomodoro_month_goal_declined, pomodoro_month_improved, pomodoro_month_maintained, pomodoro_month_declined, perfect_day_streak_milestone_approach, intention_done_streak_broken, focus_streak_broken, momentum_streak_broken, intention_gap_warning, focus_drought_warning, month_quadrafecta_flawless, month_trifecta_flawless, habit_month_flawless, pomodoro_month_flawless, momentum_month_flawless, habit_all_streak_milestone + habit_all_streak_milestone_approach)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -19556,8 +19556,9 @@ describe("calcTodayInsight — focus_streak_record (priority 7.4205, after focus
   });
 
   it("shouldNotFireWhenStreakDoesNotEqualBestStreak", () => {
-    // streak=10 < bestStreak=12: this is not the best yet; focusStreak=10 < day 15 avoids pomodoro_month_flawless
-    const result = calcTodayInsight({ ...base, focusStreak: 10, focusBestStreak: 12 });
+    // streak=10 < bestStreak=15: gap=5>2 so focus_best_streak_approach also doesn't fire;
+    // focusStreak=10 < day 15 avoids pomodoro_month_flawless
+    const result = calcTodayInsight({ ...base, focusStreak: 10, focusBestStreak: 15 });
     expect(result).toBeNull();
   });
 
@@ -19590,6 +19591,90 @@ describe("calcTodayInsight — focus_streak_record (priority 7.4205, after focus
     const result = calcTodayInsight({ ...base, focusStreak: 12, focusBestStreak: 12 });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("신기록");
+    expect(result!.text).not.toContain("마일스톤");
+  });
+});
+
+// ── focus_best_streak_approach ────────────────────────────────────────────
+describe("calcTodayInsight — focus_best_streak_approach (priority 7.4215, after focus_streak_milestone_approach, before intention_done_streak_milestone_approach)", () => {
+  // ABOUTME: Tests for focus_best_streak_approach badge — fires when focusStreak is 1–2 days from
+  // ABOUTME: focusBestStreak (personal best), sessionsToday > 0, focusBestStreak > 3.
+  // Base: focusStreak=8, focusBestStreak=10 (gap=2), sessionsToday=1, nowHour=14.
+  // focusStreak=8: next milestone=14 (14-8=6>2) → no milestone_approach interference.
+  // focusStreak=8 < 15 (currentMonthDay) → no pomodoro_month_flawless interference in negative tests.
+  const base = {
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    sessionsToday: 1,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    todayIntentionDate: undefined as string | undefined,
+    focusStreak: 8,
+    focusBestStreak: 10,
+  };
+
+  it("shouldFireWithGap1", () => {
+    const result = calcTodayInsight({ ...base, focusStreak: 9 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("역대 최고");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWithGap2", () => {
+    const result = calcTodayInsight({ ...base });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("역대 최고");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWithGap3", () => {
+    // focusStreak=8, focusBestStreak=11: gap=3>2 → doesn't fire
+    const result = calcTodayInsight({ ...base, focusBestStreak: 11 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenGap0RecordFiresInstead", () => {
+    // gap=0: focus_streak_record (7.4205) fires instead (streak === bestStreak)
+    const result = calcTodayInsight({ ...base, focusStreak: 10, focusBestStreak: 10 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록");
+    expect(result!.text).not.toContain("역대 최고까지");
+  });
+
+  it("shouldNotFireWhenBestStreakAbsent", () => {
+    // focusBestStreak absent → approach badge skipped; focusStreak=8 is non-milestone,
+    // 14-8=6>2 so no milestone_approach; focus_streak_record also needs focusBestStreak → null.
+    const { focusBestStreak: _skip, ...withoutBest } = base;
+    const result = calcTodayInsight(withoutBest);
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenBestStreakIsThreeOrLess", () => {
+    const result = calcTodayInsight({ ...base, focusStreak: 2, focusBestStreak: 3 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenSessionsTodayIsZero", () => {
+    const result = calcTodayInsight({ ...base, sessionsToday: 0 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByMilestoneApproachWhenBothQualify", () => {
+    // focusStreak=12 → 2 from milestone 14, also 2 from best 14 → milestone_approach (7.421) wins
+    const result = calcTodayInsight({ ...base, focusStreak: 12, focusBestStreak: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("마일스톤");
+    expect(result!.text).not.toContain("역대 최고까지");
+  });
+
+  it("shouldFireWhenNotNearMilestoneButNearBest", () => {
+    // focusStreak=15 → next milestone 30 (30-15=15>2), focusBestStreak=16 (gap=1)
+    const result = calcTodayInsight({ ...base, focusStreak: 15, focusBestStreak: 16 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("역대 최고");
     expect(result!.text).not.toContain("마일스톤");
   });
 });
@@ -19651,8 +19736,9 @@ describe("calcTodayInsight — momentum_streak_record (priority 10.4601, after m
   });
 
   it("shouldNotFireWhenStreakDoesNotEqualBestStreak", () => {
-    // streak=10 < bestStreak=12: not yet a personal best; streak=10 < 15 avoids momentum_month_flawless
-    const result = calcTodayInsight({ ...base, momentumStreak: 10, momentumBestStreak: 12 });
+    // streak=10 < bestStreak=15: gap=5>2 so momentum_best_streak_approach also doesn't fire;
+    // streak=10 < 15 avoids momentum_month_flawless
+    const result = calcTodayInsight({ ...base, momentumStreak: 10, momentumBestStreak: 15 });
     expect(result).toBeNull();
   });
 
@@ -19691,6 +19777,96 @@ describe("calcTodayInsight — momentum_streak_record (priority 10.4601, after m
     const result = calcTodayInsight({ ...base, momentumStreak: 12, momentumBestStreak: 12 });
     expect(result).not.toBeNull();
     expect(result!.text).toContain("신기록");
+    expect(result!.text).not.toContain("마일스톤");
+  });
+});
+
+// ── momentum_best_streak_approach ─────────────────────────────────────────
+describe("calcTodayInsight — momentum_best_streak_approach (priority 10.4615, after momentum_streak_milestone_approach, before momentum_rise)", () => {
+  // ABOUTME: Tests for momentum_best_streak_approach badge — fires when momentumStreak is 1–2 days from
+  // ABOUTME: momentumBestStreak (personal best), today's momentum score ≥ 40, momentumBestStreak > 3.
+  // Base: momentumStreak=8, momentumBestStreak=10 (gap=2), today score=55 (qualifying).
+  // momentumStreak=8: next milestone=14 (14-8=6>2) → no milestone_approach interference.
+  const todayQualifying = [{ date: TODAY, score: 55, tier: "mid" as const }];
+  const base = {
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+    todayIntentionDate: undefined as string | undefined,
+    momentumStreak: 8,
+    momentumBestStreak: 10,
+    momentumHistory: todayQualifying,
+  };
+
+  it("shouldFireWithGap1", () => {
+    const result = calcTodayInsight({ ...base, momentumStreak: 9 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("1일");
+    expect(result!.text).toContain("역대 최고");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWithGap2", () => {
+    const result = calcTodayInsight({ ...base });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("2일");
+    expect(result!.text).toContain("역대 최고");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldNotFireWithGap3", () => {
+    // momentumStreak=8, momentumBestStreak=11: gap=3>2 → doesn't fire
+    const result = calcTodayInsight({ ...base, momentumBestStreak: 11 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenGap0RecordFiresInstead", () => {
+    // gap=0: momentum_streak_record (10.4601) fires instead (streak === bestStreak)
+    const result = calcTodayInsight({ ...base, momentumStreak: 10, momentumBestStreak: 10 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("신기록");
+    expect(result!.text).not.toContain("역대 최고까지");
+  });
+
+  it("shouldNotFireWhenBestStreakAbsent", () => {
+    // momentumBestStreak absent → approach badge skipped; momentumStreak=8 is non-milestone,
+    // 14-8=6>2 so no milestone_approach; momentum_streak_record also needs momentumBestStreak → null.
+    const { momentumBestStreak: _skip, ...withoutBest } = base;
+    const result = calcTodayInsight(withoutBest);
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenBestStreakIsThreeOrLess", () => {
+    const result = calcTodayInsight({ ...base, momentumStreak: 2, momentumBestStreak: 3 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenTodayScoreLt40", () => {
+    const result = calcTodayInsight({ ...base, momentumHistory: [{ date: TODAY, score: 30, tier: "low" as const }] });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenTodayEntryAbsent", () => {
+    const result = calcTodayInsight({ ...base, momentumHistory: [{ date: YESTERDAY, score: 55, tier: "mid" as const }] });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByMilestoneApproachWhenBothQualify", () => {
+    // momentumStreak=12 → 2 from milestone 14, also 2 from best 14 → milestone_approach (10.461) wins
+    const result = calcTodayInsight({ ...base, momentumStreak: 12, momentumBestStreak: 14 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("마일스톤");
+    expect(result!.text).not.toContain("역대 최고까지");
+  });
+
+  it("shouldFireWhenNotNearMilestoneButNearBest", () => {
+    // momentumStreak=15 → next milestone 30 (30-15=15>2), momentumBestStreak=16 (gap=1)
+    const result = calcTodayInsight({ ...base, momentumStreak: 15, momentumBestStreak: 16 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("역대 최고");
     expect(result!.text).not.toContain("마일스톤");
   });
 });
