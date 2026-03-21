@@ -2035,6 +2035,14 @@ export default function App() {
   const pomodoroPrevWeekSessions = (data.pomodoroHistory ?? [])
     .filter(e => prevWeek7Days.includes(e.date))
     .reduce((sum, e) => sum + e.count, 0);
+  // pomodoroMonthSessions / pomodoroPrevMonthSessions for pomodoro_month_improved/declined badges.
+  // Uses last14Days (current 14-day window) and last28Days.slice(0, 14) (previous 14-day window).
+  const pomodoroMonthSessions = (data.pomodoroHistory ?? [])
+    .filter(e => last14Days.includes(e.date))
+    .reduce((sum, e) => sum + e.count, 0);
+  const pomodoroPrevMonthSessions = (data.pomodoroHistory ?? [])
+    .filter(e => last28Days.slice(0, 14).includes(e.date))
+    .reduce((sum, e) => sum + e.count, 0);
   // pomodoroWeekGoalDays: days in last7Days where session count >= sessionGoal; undefined when no goal set.
   const pomodoroWeekGoalDays = (data.pomodoroSessionGoal && data.pomodoroSessionGoal > 0)
     ? calcPomodoroWeekGoalDays(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, last7Days, pomodoroSessionsToday, todayStr)
@@ -2261,6 +2269,9 @@ export default function App() {
     // pomodoroWeekSessions / pomodoroPrevWeekSessions: rolling 7-day session totals for week-comparison badges.
     pomodoroWeekSessions,
     pomodoroPrevWeekSessions,
+    // pomodoroMonthSessions / pomodoroPrevMonthSessions: rolling 14-day session totals for month-comparison badges.
+    pomodoroMonthSessions,
+    pomodoroPrevMonthSessions,
     // pomodoroWeekGoalDays: days in last7Days goal was met; undefined when sessionGoal not set.
     pomodoroWeekGoalDays,
     // pomodoroWeekPrevGoalDays: days in prevWeek7Days goal was met; undefined when sessionGoal not set.

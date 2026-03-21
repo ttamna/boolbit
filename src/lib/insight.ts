@@ -503,6 +503,32 @@ interface InsightParams {
    */
   pomodoroPrevWeekSessions?: number;
   /**
+   * Total pomodoro sessions over the rolling last 14 calendar days, derived from pomodoroHistory
+   * filtered to last14Days in App.tsx. Today's count reflects the persisted pomodoroHistory entry.
+   * When pomodoroMonthSessions - pomodoroPrevMonthSessions ≥ 5 (and pomodoroPrevMonthSessions ≥ 1),
+   * a "pomodoro_month_improved" success badge fires at priority 10.4445.
+   * When |delta| ≤ 4 AND pomodoroPrevMonthSessions ≥ 5,
+   * a "pomodoro_month_maintained" info badge fires at priority 10.4447.
+   * Absent/undefined = no history data; badge skipped silently.
+   */
+  pomodoroMonthSessions?: number;
+  /**
+   * Total pomodoro sessions over the previous 14-day window (days 14–27 ago),
+   * derived from pomodoroHistory filtered to last28Days.slice(0, 14) in App.tsx.
+   * Used alongside pomodoroMonthSessions to detect 14d-over-14d changes of ≥ 5 sessions:
+   *   When pomodoroMonthSessions - pomodoroPrevMonthSessions ≥ 5 AND pomodoroPrevMonthSessions ≥ 1:
+   *     "pomodoro_month_improved" success badge fires at 10.4445.
+   *   When |delta| ≤ 4 AND pomodoroPrevMonthSessions ≥ 5:
+   *     "pomodoro_month_maintained" info badge fires at 10.4447.
+   *     (pomodoroMonthSessions ≥ 1 is algebraically guaranteed: cur ≥ prev−4 ≥ 5−4 = 1)
+   *   When pomodoroPrevMonthSessions - pomodoroMonthSessions ≥ 5:
+   *     "pomodoro_month_declined" warning badge fires at 10.4449.
+   * pomodoroPrevMonthSessions ≥ 1 guard on the improved badge prevents trivial "records" when
+   * the previous window had zero sessions (no meaningful comparison baseline).
+   * Absent/undefined = no comparison baseline; badges skipped silently.
+   */
+  pomodoroPrevMonthSessions?: number;
+  /**
    * Number of days in the rolling last 7 calendar days on which the user met or exceeded their
    * daily session goal (sessionsToday for today, pomodoroHistory for past days).
    * Computed in App.tsx via calcPomodoroWeekGoalDays(history, sessionGoal, last7Days, sessionsToday, todayStr).
@@ -817,6 +843,8 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     intentionPrevWeekDoneRate,
     pomodoroWeekSessions,
     pomodoroPrevWeekSessions,
+    pomodoroMonthSessions,
+    pomodoroPrevMonthSessions,
     pomodoroWeekGoalDays,
     pomodoroWeekPrevGoalDays,
     intentionMonthDoneRate,
@@ -2757,9 +2785,57 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     }
   }
 
+  // 10.4445. Pomodoro month improved: rolling 14-day session total rose ≥ 5 vs the previous 14-day window.
+  // Threshold ≥ 5 sessions: proportional to pomodoro_week_improved (≥ 3 over 7 days) — avoids noise from
+  //   minor fluctuations in a 14-day window while signalling genuine improvement.
+  // pomodoroPrevMonthSessions ≥ 1 guard: prevents trivial "records" when previous window had zero sessions.
+  // Fires AFTER pomodoro_month_goal_declined (10.444): monthly goal-day signal takes precedence over raw count.
+  // Fires BEFORE pomodoro_month_maintained (10.4447): improvement outweighs stable consistency signal.
+  // Absent params → skipped silently.
+  if (
+    pomodoroMonthSessions !== undefined &&
+    pomodoroPrevMonthSessions !== undefined &&
+    pomodoroPrevMonthSessions >= 1 &&
+    pomodoroMonthSessions - pomodoroPrevMonthSessions >= 5
+  ) {
+    const rise = pomodoroMonthSessions - pomodoroPrevMonthSessions;
+    return { text: `📈 최근 14일 포모도로 ${pomodoroMonthSessions}세션! 이전 14일보다 ${rise}세션 더 집중했어요`, level: "success" };
+  }
+
+  // 10.4447. Pomodoro month maintained: rolling 14-day session total within ±4 of the previous 14-day window.
+  // Threshold prevMonth ≥ 5: at least 5 sessions in previous window (≈2.5/wk) as a meaningful consistency baseline;
+  //   avoids rewarding "2 this period vs 2 last period" which is too sparse to celebrate.
+  // Fires AFTER pomodoro_month_improved (10.4445): improvement is strictly better and fires first.
+  // Fires BEFORE pomodoro_month_declined (10.4449): stable consistency outweighs minor regression
+  //   (a drop ≤ 4 sessions does not meet the "meaningful decline" threshold of 5).
+  // Note: prevMonth ≥ 5 AND |delta| ≤ 4 algebraically guarantee curMonth ≥ 1 (cur ≥ prev−4 ≥ 1).
+  // Absent params → skipped silently.
+  if (
+    pomodoroMonthSessions !== undefined &&
+    pomodoroPrevMonthSessions !== undefined &&
+    pomodoroPrevMonthSessions >= 5 &&
+    Math.abs(pomodoroMonthSessions - pomodoroPrevMonthSessions) <= 4
+  ) {
+    return { text: `🍅 최근 14일 집중 유지! ${pomodoroMonthSessions}세션`, level: "info" };
+  }
+
+  // 10.4449. Pomodoro month declined: rolling 14-day session total dropped ≥ 5 vs the previous 14-day window.
+  // Threshold ≥ 5 mirrors pomodoro_month_improved — avoids noise from minor fluctuations.
+  // Fires AFTER pomodoro_month_maintained (10.4447): a drop ≥ 5 sessions is a genuine regression beyond maintained range.
+  // Fires BEFORE pomodoro_today_above_avg (10.45): a 14-day focus regression outweighs a single-day spike.
+  // Absent params → skipped silently.
+  if (
+    pomodoroMonthSessions !== undefined &&
+    pomodoroPrevMonthSessions !== undefined &&
+    pomodoroPrevMonthSessions - pomodoroMonthSessions >= 5
+  ) {
+    const drop = pomodoroPrevMonthSessions - pomodoroMonthSessions;
+    return { text: `📉 최근 14일 포모도로 ${pomodoroMonthSessions}세션. 이전 14일보다 ${drop}세션 줄었어요`, level: "warning" };
+  }
+
   // 10.45. Pomodoro above recent average: today's session count exceeds the rolling history average by ≥ 2.
   // "Recent average" = average sessions per day across up to 13 past history entries (today excluded).
-  // Fires AFTER pomodoro_month_goal_declined (10.444): sustained 14-day comparative signal checked before single-day spike.
+  // Fires AFTER pomodoro_month_declined (10.4449): sustained 14-day comparative signal checked before single-day spike.
   // Fires BEFORE momentum_rise (10.5): a pomodoro-specific achievement yields to system-wide momentum signals.
   // Threshold ≥ 2 integer sessions above average: prevents noise from fractional-average comparisons and
   //   ensures the badge fires only on genuinely exceptional focus days, not marginal differences (e.g. avg=3.8, today=5).

@@ -18110,6 +18110,239 @@ describe("calcTodayInsight — pomodoro_month_goal_declined (priority 10.444, af
   });
 });
 
+// ── pomodoro_month_improved (priority 10.4445, after pomodoro_month_goal_declined, before pomodoro_month_maintained) ──
+describe("calcTodayInsight — pomodoro_month_improved (priority 10.4445, after pomodoro_month_goal_declined, before pomodoro_month_maintained)", () => {
+  // currentMonthDay=15 ≥ 14 (guard). pomodoroMonthSessions - pomodoroPrevMonthSessions ≥ 5, prev ≥ 1.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWhenImprovementExactly5Sessions", () => {
+    // cur=10, prev=5 → delta=5 (exactly at threshold) → fires
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 10, pomodoroPrevMonthSessions: 5 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldFireWhenImprovementGreaterThan5Sessions", () => {
+    // cur=20, prev=8 → delta=12 → fires
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 20, pomodoroPrevMonthSessions: 8 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldIncludeCurrentSessionCountInBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 15, pomodoroPrevMonthSessions: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("15");
+  });
+
+  it("shouldIncludeRiseSizeInBadgeText", () => {
+    // cur=15, prev=7 → rise=8
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 15, pomodoroPrevMonthSessions: 7 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("8");
+  });
+
+  it("shouldNotFireWhenGainIsBelow5Sessions", () => {
+    // delta=+4 (below improved threshold) → improved doesn't fire; maintained may fire instead
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 9, pomodoroPrevMonthSessions: 5 });
+    expect(result?.level).not.toBe("success");
+  });
+
+  it("shouldNotFireWhenPrevMonthSessionsIsZero", () => {
+    // prev=0 guard: trivial "record" from zero baseline → no badge
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 10, pomodoroPrevMonthSessions: 0 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroMonthSessionsAbsent", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroPrevMonthSessions: 5 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroPrevMonthSessionsAbsent", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 10 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldFireBeforePomodoroTodayAboveAvg", () => {
+    // pomodoro_month_improved (10.4445) fires before pomodoro_today_above_avg (10.45)
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroMonthSessions: 15,
+      pomodoroPrevMonthSessions: 7,
+      pomodoroRecentAvg: 2,
+      sessionsToday: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // improved fires
+    expect(result!.text).not.toContain("평소보다"); // pomodoro_today_above_avg suppressed
+  });
+
+  it("shouldFireEvenWithZeroSessionsToday", () => {
+    // No sessionsToday guard: rolling-window improvement is independent of today's activity.
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 12, pomodoroPrevMonthSessions: 5, sessionsToday: 0 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+  });
+});
+
+// ── pomodoro_month_maintained (priority 10.4447, after pomodoro_month_improved, before pomodoro_month_declined) ──
+describe("calcTodayInsight — pomodoro_month_maintained (priority 10.4447, after pomodoro_month_improved, before pomodoro_month_declined)", () => {
+  // currentMonthDay=15 ≥ 14 (guard). |delta| ≤ 4 AND pomodoroPrevMonthSessions ≥ 5 AND pomodoroMonthSessions ≥ 1.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWhenDeltaIsExactly0", () => {
+    // cur=8, prev=8 → |delta|=0 ≤ 4, prev ≥ 5 → fires
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 8, pomodoroPrevMonthSessions: 8 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldFireWhenDeltaIsPlus4", () => {
+    // cur=9, prev=5 → |delta|=4, prev=5 ≥ 5 → fires
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 9, pomodoroPrevMonthSessions: 5 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldFireWhenDeltaIsMinus4", () => {
+    // cur=5, prev=9 → |delta|=4, prev=9 ≥ 5 → fires
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 5, pomodoroPrevMonthSessions: 9 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldIncludeCurrentSessionCountInBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 10, pomodoroPrevMonthSessions: 8 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("10");
+  });
+
+  it("shouldNotFireWhenPrevMonthSessionsBelow5", () => {
+    // prev=4 < 5 → no badge (minimum meaningful baseline not met)
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 5, pomodoroPrevMonthSessions: 4 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePreemptedByPomodoroMonthImproved", () => {
+    // delta=+5 (at improved threshold) → improved fires first (10.4445 < 10.4447)
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 10, pomodoroPrevMonthSessions: 5 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success"); // improved fires, not maintained
+  });
+
+  it("shouldFireBeforePomodoroMonthDeclined", () => {
+    // delta=-4 → maintained fires; declined requires |delta| ≥ 5
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 5, pomodoroPrevMonthSessions: 9 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info"); // maintained fires, not warning (declined)
+  });
+
+  it("shouldNotFireWhenPomodoroMonthSessionsAbsent", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroPrevMonthSessions: 8 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroPrevMonthSessionsAbsent", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 8 });
+    expect(result).toBeNull();
+  });
+});
+
+// ── pomodoro_month_declined (priority 10.4449, after pomodoro_month_maintained, before pomodoro_today_above_avg) ──
+describe("calcTodayInsight — pomodoro_month_declined (priority 10.4449, after pomodoro_month_maintained, before pomodoro_today_above_avg)", () => {
+  // currentMonthDay=15 ≥ 14 (guard). pomodoroPrevMonthSessions - pomodoroMonthSessions ≥ 5.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWhenDropExactly5Sessions", () => {
+    // prev=10, cur=5 → drop=5 (exactly at threshold) → fires
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 5, pomodoroPrevMonthSessions: 10 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+  });
+
+  it("shouldFireWhenDropGreaterThan5Sessions", () => {
+    // prev=15, cur=5 → drop=10 → fires
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 5, pomodoroPrevMonthSessions: 15 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning");
+  });
+
+  it("shouldIncludeCurrentSessionCountInBadgeText", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 4, pomodoroPrevMonthSessions: 12 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("4");
+  });
+
+  it("shouldIncludeDropSizeInBadgeText", () => {
+    // prev=12, cur=4 → drop=8
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 4, pomodoroPrevMonthSessions: 12 });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("8");
+  });
+
+  it("shouldNotFireWhenDropIsBelow5Sessions", () => {
+    // prev=9, cur=5 → drop=4 (below declined threshold) → declined doesn't fire; maintained may fire instead
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 5, pomodoroPrevMonthSessions: 9 });
+    expect(result?.level).not.toBe("warning");
+  });
+
+  it("shouldBePreemptedByPomodoroMonthMaintained", () => {
+    // delta=-4 → maintained fires (not declined), declined requires drop ≥ 5
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 5, pomodoroPrevMonthSessions: 9 });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info"); // maintained, not warning (declined)
+  });
+
+  it("shouldFireBeforePomodoroTodayAboveAvg", () => {
+    // pomodoro_month_declined (10.4449) fires before pomodoro_today_above_avg (10.45)
+    const result = calcTodayInsight({
+      ...base(),
+      pomodoroMonthSessions: 3,
+      pomodoroPrevMonthSessions: 10,
+      pomodoroRecentAvg: 2,
+      sessionsToday: 5,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("warning"); // declined fires
+    expect(result!.text).not.toContain("평소보다"); // pomodoro_today_above_avg suppressed
+  });
+
+  it("shouldNotFireWhenPomodoroMonthSessionsAbsent", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroPrevMonthSessions: 10 });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPomodoroPrevMonthSessionsAbsent", () => {
+    const result = calcTodayInsight({ ...base(), pomodoroMonthSessions: 3 });
+    expect(result).toBeNull();
+  });
+});
+
 // ── pomodoro_month_flawless ──────────────────────────────────────────────────
 describe("calcTodayInsight — pomodoro_month_flawless (priority 11.08, after habit_month_flawless)", () => {
   // TODAY = "2024-01-15" → day 15 of January, currentMonthDay = 15 ≥ MIN_MONTH_DAYS (10)
