@@ -24,6 +24,7 @@ import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentum
 import { calcTodayInsight } from "./lib/insight";
 import { calcActiveStreaks } from "./lib/streaks";
 import { calcNextAction } from "./lib/nextAction";
+import { calcCompletionConfidence } from "./lib/completionConfidence";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -2163,6 +2164,18 @@ export default function App() {
     pomodoroGoal: data.pomodoroSessionGoal ?? 0,
     pomodoroSessionsDate: data.pomodoroSessionsDate,
   });
+  // completionConfidence: real-time probability of completing all daily routines, based on historical rates and current progress
+  const completionConfidence = calcCompletionConfidence({
+    habits: habitsArr,
+    intentionHistory: data.intentionHistory ?? [],
+    pomodoroHistory: data.pomodoroHistory ?? [],
+    pomodoroGoal: data.pomodoroSessionGoal ?? 0,
+    todayStr,
+    intentionText: data.todayIntention,
+    intentionDate: data.todayIntentionDate,
+    pomodoroSessions: data.pomodoroSessions ?? 0,
+    pomodoroSessionsDate: data.pomodoroSessionsDate,
+  });
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2523,6 +2536,7 @@ export default function App() {
           trend={momentumTrend ?? undefined}
           activeStreaks={activeStreaks}
           nextAction={nextAction}
+          completionConfidence={completionConfidence?.pct ?? null}
         />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {
