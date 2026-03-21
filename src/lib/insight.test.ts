@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_sustained_peak + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_all_streak + habit_multi_streak, focus_recovery, focus_streak_record, habit_streak_record, momentum_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_maintained, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, pomodoro_month_goal_improved, pomodoro_month_goal_declined, pomodoro_month_improved, pomodoro_month_maintained, pomodoro_month_declined, perfect_day_streak_milestone_approach, intention_done_streak_broken, focus_streak_broken, momentum_streak_broken, intention_gap_warning, focus_drought_warning, month_quadrafecta_flawless, month_trifecta_flawless, habit_month_flawless, pomodoro_month_flawless, momentum_month_flawless, habit_all_streak_milestone + habit_all_streak_milestone_approach)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_sustained_peak + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_all_streak + habit_multi_streak, focus_recovery, focus_streak_record, habit_streak_record, momentum_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_record, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_maintained, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, pomodoro_month_goal_improved, pomodoro_month_goal_declined, pomodoro_month_improved, pomodoro_month_maintained, pomodoro_month_declined, perfect_day_streak_milestone_approach, intention_done_streak_broken, focus_streak_broken, momentum_streak_broken, intention_gap_warning, focus_drought_warning, month_quadrafecta_flawless, month_trifecta_flawless, habit_month_flawless, pomodoro_month_flawless, momentum_month_flawless, habit_all_streak_milestone + habit_all_streak_milestone_approach)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -13912,6 +13912,166 @@ describe("calcTodayInsight — momentum_near_tier (priority 7.6, after pomodoro_
     expect(result!.text).toContain("습관 하나만");
     expect(result!.text).toContain("최고의 하루");
     expect(result!.text).not.toContain("집중 1세션");
+  });
+});
+
+// ── momentum_week_record (priority 10.3799, just before momentum_week_strong) ─────────────────────────
+describe("calcTodayInsight — momentum_week_record (priority 10.3799, before momentum_week_strong)", () => {
+  // Base: afternoon, no habits, no sessions, no goals, no intention — avoids all higher-priority badges.
+  const base = () => ({
+    habits: [] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; targetStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 15,
+    todayIntentionDate: undefined as string | undefined,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  // Helper: generate N consecutive MomentumEntry objects ending at TODAY (2024-01-15).
+  const makeHistory = (scores: number[]): Array<{ date: string; score: number; tier: "high" | "mid" | "low" }> => {
+    const base = new Date("2024-01-15T00:00:00");
+    return scores.map((score, i) => {
+      const d = new Date(base);
+      d.setDate(d.getDate() - (scores.length - 1 - i));
+      const dateStr = d.toLocaleDateString("sv");
+      return { date: dateStr, score, tier: (score >= 65 ? "high" : score >= 40 ? "mid" : "low") as "high" | "mid" | "low" };
+    });
+  };
+
+  it("shouldFireWhenCurrentWindowExceedsAllPreviousWindows", () => {
+    // 14 entries: first 7 avg=40, last 7 avg=55 → current window (last 7) exceeds all previous
+    const history = makeHistory([
+      35, 40, 42, 38, 45, 40, 40,  // older week: avg = 40
+      50, 55, 60, 52, 58, 55, 55,  // current week: avg ≈ 55
+    ]);
+    const result = calcTodayInsight({ ...base(), momentumHistory: history });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("최고 주간 모멘텀");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldIncludeAverageScoreInBadgeText", () => {
+    const history = makeHistory([
+      30, 30, 30, 30, 30, 30, 30,  // older week: avg = 30
+      50, 55, 60, 52, 58, 55, 55,  // current week: avg ≈ 55
+    ]);
+    const result = calcTodayInsight({ ...base(), momentumHistory: history });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("55"); // Math.round of avg
+  });
+
+  it("shouldNotFireWhenLessThan14Entries", () => {
+    // Only 13 entries — insufficient for 2 complete 7-entry windows.
+    // Last 3 entries (52, 58, 55) form a stable trend → momentum_maintained fires instead.
+    const history = makeHistory([35, 40, 42, 38, 45, 40, 40, 50, 55, 60, 52, 58, 55]);
+    const result = calcTodayInsight({ ...base(), momentumHistory: history });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("최고 주간 모멘텀");
+  });
+
+  it("shouldNotFireWhenCurrentAvgEqualsMaxPreviousAvg", () => {
+    // Current avg equals (not exceeds) a previous window avg — ties don't count as records.
+    // All entries = 50: stable trend → momentum_maintained (10.51) fires instead.
+    const history = makeHistory([
+      50, 50, 50, 50, 50, 50, 50,  // older week: avg = 50
+      50, 50, 50, 50, 50, 50, 50,  // current week: avg = 50 (tie)
+    ]);
+    const result = calcTodayInsight({ ...base(), momentumHistory: history });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("최고 주간 모멘텀");
+  });
+
+  it("shouldNotFireWhenCurrentAvgBelow40", () => {
+    // Current window avg < 40 (not meaningful enough to celebrate).
+    // Base has no other firing conditions → result is null.
+    const history = makeHistory([
+      20, 20, 20, 20, 20, 20, 20,  // older week: avg = 20
+      30, 35, 32, 38, 35, 30, 35,  // current week: avg ≈ 33.6 > 20 but < 40
+    ]);
+    const result = calcTodayInsight({ ...base(), momentumHistory: history });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenPreviousWindowHadHigherAvg", () => {
+    // A past window had a higher avg than current — not a record.
+    // Last 3 entries (55, 50, 50): declining → momentum_decline (9.5) fires.
+    const history = makeHistory([
+      70, 75, 72, 68, 74, 71, 70,  // older week: avg ≈ 71.4
+      50, 55, 48, 52, 55, 50, 50,  // current week: avg ≈ 51.4
+    ]);
+    const result = calcTodayInsight({ ...base(), momentumHistory: history });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("최고 주간 모멘텀");
+  });
+
+  it("shouldNotFireWhenMomentumHistoryAbsent", () => {
+    const result = calcTodayInsight({ ...base() });
+    // No momentumHistory → no badge at all (base has no other firing conditions)
+    expect(result).toBeNull();
+  });
+
+  it("shouldWorkWith31EntryHistory", () => {
+    // Full 31-day history: early weeks moderate, current week highest.
+    // Last 3 entries (58, 60, 60) are non-declining to avoid momentum_decline (priority 9.5) preemption.
+    const scores = [
+      ...Array(7).fill(45),   // week 1: avg = 45
+      ...Array(7).fill(50),   // week 2: avg = 50
+      ...Array(7).fill(48),   // week 3: avg = 48
+      ...Array(3).fill(52),   // partial week 4
+      55, 58, 57, 62, 58, 60, 60,  // current window (last 7): avg ≈ 58.6
+    ];
+    const history = makeHistory(scores);
+    const result = calcTodayInsight({ ...base(), momentumHistory: history });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("최고 주간 모멘텀");
+    expect(result!.level).toBe("success");
+  });
+
+  it("shouldPreemptMomentumWeekStrongWhenRecordAndHighTier", () => {
+    // Current week avg = 70 (≥ 65 = strong tier) AND it's a record → record preempts strong.
+    // Last 3 entries (72, 70, 70) are non-declining to avoid momentum_decline (priority 9.5) preemption.
+    const history = makeHistory([
+      40, 42, 38, 45, 40, 40, 35,  // older: avg ≈ 40
+      65, 70, 68, 75, 72, 70, 70,  // current: avg = 70
+    ]);
+    const result = calcTodayInsight({
+      ...base(),
+      momentumHistory: history,
+      momentumWeekAvg7d: 70, // would trigger week_strong
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("최고 주간 모멘텀"); // record fires
+    expect(result!.text).not.toContain("최고의 한 주"); // week_strong text suppressed
+  });
+
+  it("shouldNotPreemptHigherPriorityBadges", () => {
+    // intention_done (priority ~4) fires before momentum_week_record (10.3799)
+    const history = makeHistory([
+      30, 30, 30, 30, 30, 30, 30,
+      55, 58, 60, 62, 60, 58, 57,
+    ]);
+    const result = calcTodayInsight({
+      ...base(),
+      momentumHistory: history,
+      todayIntentionDate: TODAY,
+      todayIntentionDone: true,
+      intentionDoneStreak: 2,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("최고 주간 모멘텀"); // preempted by intention_done
+  });
+
+  it("shouldHandleExactly14Entries", () => {
+    // Minimum: exactly 14 entries → exactly 2 windows (first window vs last window).
+    // Last 3 entries (48, 53, 53) are non-declining to avoid momentum_decline (priority 9.5) preemption.
+    const history = makeHistory([
+      40, 42, 41, 43, 40, 44, 40,  // window 1: avg = 41.4
+      50, 52, 55, 48, 53, 53, 53,  // window 2 (current): avg ≈ 52
+    ]);
+    const result = calcTodayInsight({ ...base(), momentumHistory: history });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("최고 주간 모멘텀");
   });
 });
 
