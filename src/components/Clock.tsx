@@ -1,5 +1,5 @@
 // ABOUTME: Clock component - displays current time and date with 12h/24h format support
-// ABOUTME: Updates every second via setInterval; dailyScore badge + 7-day momentum sparkline + 3-day trend arrow (↑/↓/→) + active streaks ticker below date row
+// ABOUTME: Updates every second via setInterval; dailyScore badge + 7-day momentum sparkline + 3-day trend arrow (↑/↓/→) + active streaks ticker + next action recommendation below date row
 
 import { useState, useEffect, useMemo } from "react";
 import { fonts, fontSizes, colors, radius } from "../theme";
@@ -7,6 +7,7 @@ import type { DailyScore, MomentumTrend } from "../lib/momentum";
 import type { TodayInsight } from "../lib/insight";
 import type { MomentumEntry } from "../types";
 import type { ActiveStreak } from "../lib/streaks";
+import type { NextAction } from "../lib/nextAction";
 
 // Returns the fraction of the calendar day elapsed (0.0 = midnight, 0.5 = noon, 1.0 = end of day).
 // Clamped to [0, 1] so out-of-range inputs (e.g. negative or > 86400 total seconds) stay bounded.
@@ -56,6 +57,8 @@ interface ClockProps {
   trend?: MomentumTrend;
   /** Non-momentum active streaks (days ≥ 2); shown as a compact ticker below the H/P/I breakdown. */
   activeStreaks?: ActiveStreak[];
+  /** Prescriptive next-action recommendation based on daily completion state. */
+  nextAction?: NextAction;
 }
 
 // Maps MomentumTrend to arrow glyph, tooltip label, and display color
@@ -65,7 +68,7 @@ const TREND_DISPLAY: Record<MomentumTrend, { arrow: string; label: string; color
   stable:    { arrow: "→", label: "유지", color: () => colors.textDim },
 };
 
-export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight, momentumStreak, weekAvg, trend, activeStreaks }: ClockProps) {
+export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight, momentumStreak, weekAvg, trend, activeStreaks, nextAction }: ClockProps) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -267,6 +270,19 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
           userSelect: "none",
         }}>
           {insight.text}
+        </div>
+      )}
+      {/* Next action — prescriptive one-liner: what to do next */}
+      {nextAction && (
+        <div style={{
+          marginTop: 3,
+          fontSize: fontSizes.mini,
+          color: nextAction.key === "allDone" ? (accent ?? colors.statusActive) : colors.textLabel,
+          opacity: 0.6,
+          letterSpacing: 0.3,
+          userSelect: "none",
+        }}>
+          {nextAction.key === "allDone" ? nextAction.emoji : "→"} {nextAction.text}
         </div>
       )}
       {/* Day progress bar — shows how much of today has elapsed */}

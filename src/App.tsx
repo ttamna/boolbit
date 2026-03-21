@@ -23,6 +23,7 @@ import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningRemind
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport, calcDayOfWeekMomentumAvg, calcWeakMomentumDay, calcBestMomentumDay } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { calcActiveStreaks } from "./lib/streaks";
+import { calcNextAction } from "./lib/nextAction";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -2152,6 +2153,16 @@ export default function App() {
     data.yearGoal, data.yearGoalDate,
     (data.yearGoalHistory ?? []).filter(e => e.done === true), renderDate,
   ) - 1);
+  // nextAction: prescriptive recommendation of what the user should do next (set intention → habits → pomodoro → allDone)
+  const nextAction = calcNextAction({
+    habits: habitsArr,
+    todayStr,
+    intentionText: data.todayIntention,
+    intentionDate: data.todayIntentionDate,
+    pomodoroSessions: data.pomodoroSessions ?? 0,
+    pomodoroGoal: data.pomodoroSessionGoal ?? 0,
+    pomodoroSessionsDate: data.pomodoroSessionsDate,
+  });
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2511,6 +2522,7 @@ export default function App() {
           weekAvg={momentumWeekAvg ?? undefined}
           trend={momentumTrend ?? undefined}
           activeStreaks={activeStreaks}
+          nextAction={nextAction}
         />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {
