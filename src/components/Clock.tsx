@@ -1,11 +1,12 @@
 // ABOUTME: Clock component - displays current time and date with 12h/24h format support
-// ABOUTME: Updates every second via setInterval; dailyScore badge + 7-day momentum sparkline + 3-day trend arrow (↑/↓/→) below date row
+// ABOUTME: Updates every second via setInterval; dailyScore badge + 7-day momentum sparkline + 3-day trend arrow (↑/↓/→) + active streaks ticker below date row
 
 import { useState, useEffect, useMemo } from "react";
 import { fonts, fontSizes, colors, radius } from "../theme";
 import type { DailyScore, MomentumTrend } from "../lib/momentum";
 import type { TodayInsight } from "../lib/insight";
 import type { MomentumEntry } from "../types";
+import type { ActiveStreak } from "../lib/streaks";
 
 // Returns the fraction of the calendar day elapsed (0.0 = midnight, 0.5 = noon, 1.0 = end of day).
 // Clamped to [0, 1] so out-of-range inputs (e.g. negative or > 86400 total seconds) stay bounded.
@@ -53,6 +54,8 @@ interface ClockProps {
   /** 3-day monotone trend direction; shown as ↑/↓/→ arrow beside the weekAvg badge.
    *  Only rendered when weekAvg is also defined (both live inside the sparkline row). */
   trend?: MomentumTrend;
+  /** Non-momentum active streaks (days ≥ 2); shown as a compact ticker below the H/P/I breakdown. */
+  activeStreaks?: ActiveStreak[];
 }
 
 // Maps MomentumTrend to arrow glyph, tooltip label, and display color
@@ -62,7 +65,7 @@ const TREND_DISPLAY: Record<MomentumTrend, { arrow: string; label: string; color
   stable:    { arrow: "→", label: "유지", color: () => colors.textDim },
 };
 
-export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight, momentumStreak, weekAvg, trend }: ClockProps) {
+export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight, momentumStreak, weekAvg, trend, activeStreaks }: ClockProps) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -232,6 +235,22 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
                 }} />
               </div>
             </div>
+          ))}
+        </div>
+      )}
+      {/* Active streaks ticker — non-momentum domain streaks (perfectDay, intention, focus, pomodoro goal) */}
+      {activeStreaks && activeStreaks.length > 0 && (
+        <div
+          title={activeStreaks.map(s => `${s.label} ${s.days}일 연속`).join(" · ")}
+          style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 4 }}
+        >
+          {activeStreaks.map(s => (
+            <span
+              key={s.key}
+              style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, opacity: 0.65, userSelect: "none" }}
+            >
+              {s.emoji}{s.days}d
+            </span>
           ))}
         </div>
       )}

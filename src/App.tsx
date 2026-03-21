@@ -22,6 +22,7 @@ import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, c
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation, calcFocusDroughtDays } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport, calcDayOfWeekMomentumAvg, calcWeakMomentumDay, calcBestMomentumDay } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
+import { calcActiveStreaks } from "./lib/streaks";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -1989,6 +1990,16 @@ export default function App() {
   const last14Days = calcLastNDays(todayStr, 14);
   const perfectDayWindow = calcLastNDays(todayStr, 101);
   const habitsPerfectStreak = calcPerfectDayStreak(habitsArr, perfectDayWindow);
+  // activeStreaks: non-momentum streaks (perfectDay, intentionDone, focus, pomodoroGoal) with days ≥ 2,
+  // sorted by days descending. Passed to Clock for the persistent streak ticker display.
+  // pomodoroGoalStreak is undefined when no session goal is set — intentionally excluded from the ticker
+  // in that case (no goal = no meaningful goal-streak). Other streaks are always numeric.
+  const activeStreaks = calcActiveStreaks({
+    perfectDayStreak: habitsPerfectStreak,
+    intentionDoneStreak,
+    focusStreak,
+    pomodoroGoalStreak,
+  });
   // last7Days + habitsWeekRate: declared before calcTodayInsight so habitWeekRate feeds the
   // habit_week_excellent insight (priority 10.35). Reused below for intentionWeek, habitsWeekTrend,
   // habitsBadge, and projectsBadge — single source of truth for the current 7-day window.
@@ -2508,6 +2519,7 @@ export default function App() {
           momentumStreak={momentumStreak}
           weekAvg={momentumWeekAvg ?? undefined}
           trend={momentumTrend ?? undefined}
+          activeStreaks={activeStreaks}
         />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {

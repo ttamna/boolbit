@@ -1,5 +1,5 @@
-// ABOUTME: Unit tests for calcDayFraction, formatHour, and Clock component — momentumStreak badge, breakdown bar, weekAvg badge, and momentum trend arrow rendering
-// ABOUTME: Validates day progress fraction (out-of-range clamp), 24h/12h hour formatting, streak badge visibility, H/P/I breakdown bar presence, 7-day average badge, and 3-day trend direction arrow (↑/↓/→)
+// ABOUTME: Unit tests for calcDayFraction, formatHour, and Clock component — momentumStreak badge, breakdown bar, weekAvg badge, momentum trend arrow, and active streaks ticker
+// ABOUTME: Validates day progress fraction (out-of-range clamp), 24h/12h hour formatting, streak badge visibility, H/P/I breakdown bar presence, 7-day average badge, 3-day trend direction arrow (↑/↓/→), and non-momentum streak ticker
 
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -285,5 +285,42 @@ describe("Clock — momentum trend arrow", () => {
     render(<Clock momentumHistory={sparklineHistory} weekAvg={50} trend="stable" />);
     const badge = document.querySelector("[title*='유지']");
     expect(badge).not.toBeNull();
+  });
+});
+
+describe("Clock — activeStreaks ticker", () => {
+  const streaks = [
+    { key: "perfectDay", emoji: "🌟", label: "완벽", days: 7 },
+    { key: "focus", emoji: "⚡", label: "집중", days: 3 },
+  ];
+
+  // All 4 streak emojis checked to ensure entire ticker is absent, not just one domain
+  it("should not render any streak emoji when activeStreaks is absent", () => {
+    render(<Clock />);
+    expect(screen.queryByText(/🌟/)).toBeNull();
+    expect(screen.queryByText(/✨/)).toBeNull();
+    expect(screen.queryByText(/⚡/)).toBeNull();
+    expect(screen.queryByText(/🎯/)).toBeNull();
+  });
+
+  it("should not render any streak emoji when activeStreaks is empty", () => {
+    render(<Clock activeStreaks={[]} />);
+    expect(screen.queryByText(/🌟/)).toBeNull();
+    expect(screen.queryByText(/✨/)).toBeNull();
+    expect(screen.queryByText(/⚡/)).toBeNull();
+    expect(screen.queryByText(/🎯/)).toBeNull();
+  });
+
+  it("should render each streak as emoji + days", () => {
+    render(<Clock activeStreaks={streaks} />);
+    expect(screen.getByText("🌟7d")).toBeDefined();
+    expect(screen.getByText("⚡3d")).toBeDefined();
+  });
+
+  it("should show tooltip with all streak labels", () => {
+    render(<Clock activeStreaks={streaks} />);
+    const el = document.querySelector("[title*='완벽 7일 연속']");
+    expect(el).not.toBeNull();
+    expect(el!.getAttribute("title")).toContain("집중 3일 연속");
   });
 });
