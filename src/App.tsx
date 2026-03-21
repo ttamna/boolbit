@@ -20,7 +20,7 @@ import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
 import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation, calcFocusDroughtDays } from "./lib/pomodoro";
-import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport, calcDayOfWeekMomentumAvg, calcWeakMomentumDay, calcBestMomentumDay } from "./lib/momentum";
+import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport, calcDayOfWeekMomentumAvg, calcWeakMomentumDay, calcBestMomentumDay } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
@@ -1879,6 +1879,8 @@ export default function App() {
   const prevMomentumStreak = calcMomentumStreak(data.momentumHistory ?? [], yesterdayHabitsStr);
   // momentumWeekAvg: rounded average of the rolling momentum history (up to 31 days); null when < 2 entries
   const momentumWeekAvg = calcMomentumWeekAvg(data.momentumHistory ?? []);
+  // momentumTrend: 3-day monotone direction (rising/declining/stable); null when < 3 consecutive days available
+  const momentumTrend = calcMomentumTrend(data.momentumHistory ?? [], todayStr);
   // pomodoroGoalStreak: consecutive PAST days (not today) where sessionGoal was met or exceeded.
   // undefined when sessionGoal is not set (no goal means streak is meaningless).
   const pomodoroGoalStreak = data.pomodoroSessionGoal != null && data.pomodoroSessionGoal > 0
@@ -2505,6 +2507,7 @@ export default function App() {
           insight={todayInsight ?? undefined}
           momentumStreak={momentumStreak}
           weekAvg={momentumWeekAvg ?? undefined}
+          trend={momentumTrend ?? undefined}
         />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {

@@ -1,9 +1,9 @@
 // ABOUTME: Clock component - displays current time and date with 12h/24h format support
-// ABOUTME: Updates every second via setInterval; dailyScore badge + 7-day momentum sparkline below date row
+// ABOUTME: Updates every second via setInterval; dailyScore badge + 7-day momentum sparkline + 3-day trend arrow (↑/↓/→) below date row
 
 import { useState, useEffect, useMemo } from "react";
 import { fonts, fontSizes, colors, radius } from "../theme";
-import type { DailyScore } from "../lib/momentum";
+import type { DailyScore, MomentumTrend } from "../lib/momentum";
 import type { TodayInsight } from "../lib/insight";
 import type { MomentumEntry } from "../types";
 
@@ -50,9 +50,19 @@ interface ClockProps {
   /** Rounded average momentum score over the 7-day history window; shown as "7d·N" badge
    *  inside the sparkline row — only visible when sparkline is rendered (momentumHistory ≥ 2 entries). */
   weekAvg?: number;
+  /** 3-day monotone trend direction; shown as ↑/↓/→ arrow beside the weekAvg badge.
+   *  Only rendered when weekAvg is also defined (both live inside the sparkline row). */
+  trend?: MomentumTrend;
 }
 
-export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight, momentumStreak, weekAvg }: ClockProps) {
+// Maps MomentumTrend to arrow glyph, tooltip label, and display color
+const TREND_DISPLAY: Record<MomentumTrend, { arrow: string; label: string; color: (accent?: string) => string }> = {
+  rising:    { arrow: "↑", label: "상승", color: (a) => a ?? colors.statusActive },
+  declining: { arrow: "↓", label: "하락", color: () => colors.statusPaused },
+  stable:    { arrow: "→", label: "유지", color: () => colors.textDim },
+};
+
+export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight, momentumStreak, weekAvg, trend }: ClockProps) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -161,10 +171,15 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3, marginTop: 5 }}>
           {weekAvg !== undefined && (
             <span
-              title={`최근 7일 모멘텀 평균 ${weekAvg}/100`}
+              title={`최근 7일 모멘텀 평균 ${weekAvg}/100${trend ? ` (${TREND_DISPLAY[trend].label})` : ""}`}
               style={{ ...mono, fontSize: fontSizes.mini, color: colors.textPhantom, marginRight: 2, opacity: 0.7 }}
             >
               7d·{weekAvg}
+              {trend && (
+                <span style={{ color: TREND_DISPLAY[trend].color(accent), marginLeft: 1 }}>
+                  {TREND_DISPLAY[trend].arrow}
+                </span>
+              )}
             </span>
           )}
           {sparklineDays.map((day, di) => {

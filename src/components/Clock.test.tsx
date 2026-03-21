@@ -1,5 +1,5 @@
-// ABOUTME: Unit tests for calcDayFraction, formatHour, and Clock component — momentumStreak badge, breakdown bar, and weekAvg badge rendering
-// ABOUTME: Validates day progress fraction (out-of-range clamp), 24h/12h hour formatting, streak badge visibility, H/P/I breakdown bar presence, and 7-day average badge
+// ABOUTME: Unit tests for calcDayFraction, formatHour, and Clock component — momentumStreak badge, breakdown bar, weekAvg badge, and momentum trend arrow rendering
+// ABOUTME: Validates day progress fraction (out-of-range clamp), 24h/12h hour formatting, streak badge visibility, H/P/I breakdown bar presence, 7-day average badge, and 3-day trend direction arrow (↑/↓/→)
 
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -233,5 +233,57 @@ describe("Clock — weekAvg badge", () => {
   it("should not render weekAvg badge when sparkline is hidden (history < 2 entries)", () => {
     render(<Clock momentumHistory={[sparklineHistory[0]]} weekAvg={60} />);
     expect(screen.queryByText("7d·60")).toBeNull();
+  });
+});
+
+describe("Clock — momentum trend arrow", () => {
+  it("should not render trend arrow when trend is absent", () => {
+    render(<Clock momentumHistory={sparklineHistory} weekAvg={65} />);
+    expect(screen.queryByText("↑")).toBeNull();
+    expect(screen.queryByText("↓")).toBeNull();
+    expect(screen.queryByText("→")).toBeNull();
+  });
+
+  it("should render '↑' when trend is rising", () => {
+    render(<Clock momentumHistory={sparklineHistory} weekAvg={65} trend="rising" />);
+    expect(screen.getByText("↑")).toBeDefined();
+  });
+
+  it("should render '↓' when trend is declining", () => {
+    render(<Clock momentumHistory={sparklineHistory} weekAvg={42} trend="declining" />);
+    expect(screen.getByText("↓")).toBeDefined();
+  });
+
+  it("should render '→' when trend is stable", () => {
+    render(<Clock momentumHistory={sparklineHistory} weekAvg={50} trend="stable" />);
+    expect(screen.getByText("→")).toBeDefined();
+  });
+
+  it("should not render trend arrow when sparkline is hidden (history < 2)", () => {
+    render(<Clock momentumHistory={[sparklineHistory[0]]} weekAvg={50} trend="rising" />);
+    expect(screen.queryByText("↑")).toBeNull();
+  });
+
+  it("should not render trend arrow when weekAvg is absent (trend depends on weekAvg badge)", () => {
+    render(<Clock momentumHistory={sparklineHistory} trend="rising" />);
+    expect(screen.queryByText("↑")).toBeNull();
+  });
+
+  it("should include trend direction in weekAvg tooltip", () => {
+    render(<Clock momentumHistory={sparklineHistory} weekAvg={65} trend="rising" />);
+    const badge = document.querySelector("[title*='상승']");
+    expect(badge).not.toBeNull();
+  });
+
+  it("should show declining trend label in tooltip", () => {
+    render(<Clock momentumHistory={sparklineHistory} weekAvg={42} trend="declining" />);
+    const badge = document.querySelector("[title*='하락']");
+    expect(badge).not.toBeNull();
+  });
+
+  it("should show stable trend label in tooltip", () => {
+    render(<Clock momentumHistory={sparklineHistory} weekAvg={50} trend="stable" />);
+    const badge = document.querySelector("[title*='유지']");
+    expect(badge).not.toBeNull();
   });
 });
