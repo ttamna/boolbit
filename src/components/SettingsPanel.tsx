@@ -1,10 +1,11 @@
 // ABOUTME: SettingsPanel component - collapsible panel for widget appearance settings
-// ABOUTME: Provides opacity slider, theme switcher, GitHub PAT input, and data export/import
+// ABOUTME: Provides opacity slider, theme switcher, GitHub PAT input, data export/import, and lifetime stats
 
-import { useState, useEffect, useRef, CSSProperties } from "react";
+import { useState, useEffect, useRef, useMemo, CSSProperties } from "react";
 import { fontSizes, colors, THEMES, ThemeKey } from "../theme";
 import type { WidgetSettings, WidgetData, SectionKey } from "../types";
 import { buildExportBlob, triggerDownload, parseImportedData } from "../lib/dataIO";
+import { calcLifetimeStats } from "../lib/stats";
 
 type PatStatus = 'idle' | 'testing' | 'ok' | 'error';
 
@@ -369,6 +370,32 @@ export function SettingsPanel({ settings, onUpdate, widgetData, onImport, hidden
             {importMsg.text}
           </span>
         )}
+      </div>
+
+      {/* Lifetime stats — cross-domain achievement summary */}
+      <StatsSection widgetData={widgetData} accent={themeAccent} />
+    </div>
+  );
+}
+
+function StatsSection({ widgetData, accent }: { widgetData?: WidgetData; accent: string }) {
+  const stats = useMemo(() => widgetData ? calcLifetimeStats(widgetData) : [], [widgetData]);
+  if (stats.length === 0) return null;
+
+  return (
+    <div style={{ paddingTop: 10, borderTop: `1px solid ${colors.borderFaint}` }}>
+      <span style={{ fontSize: fontSizes.xs, color: colors.textDim, display: "block", marginBottom: 6 }}>통계</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {stats.map(s => (
+          <div key={s.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{ fontSize: fontSizes.mini, color: colors.textLabel }}>
+              {s.emoji} {s.label}
+            </span>
+            <span style={{ fontSize: fontSizes.mini, color: accent, fontFamily: "monospace", letterSpacing: 0.5 }}>
+              {s.value}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
