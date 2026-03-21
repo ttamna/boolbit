@@ -1291,6 +1291,24 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     return { text: `💪 ${comebackHabit.name} 회복 중! ${comebackHabit.streak}일 연속`, level: "success" };
   }
 
+  // 6.92. Habit all-streak milestone approach: all habits (≥2) are within 1-2 days of simultaneously hitting
+  // an ALL_STREAK_MILESTONES threshold (14/30/50/100d). Fires before habit_all_streak (6.93) so the
+  // approach message takes precedence over the generic portfolio-rhythm badge when the milestone is imminent.
+  // Ascending milestone scan finds the lowest unachieved milestone; when daysAway > 2 the loop breaks
+  // because higher milestones are even farther away.
+  // No lastChecked guard: fires on persisted streak values to motivate today's check-in.
+  if (habits.length >= 2) {
+    const minAllStreak = Math.min(...habits.map(h => h.streak));
+    for (const m of [14, 30, 50, 100]) {
+      if (minAllStreak >= m) continue; // all habits already past this milestone
+      const daysAway = m - minAllStreak;
+      if (daysAway <= 2) {
+        return { text: `🌟 모든 습관 ${m}일 마일스톤 ${daysAway}일 전! 전체 루틴을 완성하세요`, level: "success" };
+      }
+      break; // gap > 2 for lowest unachieved milestone — no approach badge for higher milestones either
+    }
+  }
+
   // 6.93. Habit all-streak: every habit (≥ 2 habits) simultaneously on a ≥7d streak — full portfolio in rhythm.
   // Fires AFTER habit_comeback (6.9): an individual recovery event is rarer and more actionable.
   // Fires BEFORE habit_multi_streak (6.95): when ALL habits qualify, this more specific badge takes priority.

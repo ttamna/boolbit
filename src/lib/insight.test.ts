@@ -1,5 +1,5 @@
 // ABOUTME: Tests for calcTodayInsight — context-aware daily insight surfacing
-// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_sustained_peak + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_all_streak + habit_multi_streak, focus_recovery, focus_streak_record, habit_streak_record, momentum_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_maintained, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, pomodoro_month_goal_improved, pomodoro_month_goal_declined, pomodoro_month_improved, pomodoro_month_maintained, pomodoro_month_declined, perfect_day_streak_milestone_approach, intention_done_streak_broken, focus_streak_broken, momentum_streak_broken, intention_gap_warning, focus_drought_warning, month_quadrafecta_flawless, month_trifecta_flawless, habit_month_flawless, pomodoro_month_flawless, momentum_month_flawless)
+// ABOUTME: Covers all insight types and their priority ordering (including no_focus_project, weak_day_ahead, best_day_ahead, pomodoro_goal_streak, pomodoro_goal_reached, momentum_decline + momentum_rise + momentum_sustained_peak + momentum_maintained, triple_momentum_correlation, habit_momentum_correlation, intention_momentum_correlation, pomodoro_momentum_correlation, open_issues, intention_habit_pomodoro_triple_win, intention_habit_dual_win, habit_pomodoro_dual_win, intention_pomodoro_dual_win, habit_all_done_early, intention_done + intention_done_streak_milestone + intention_done_streak_record + intention_recovery, pomodoro_today_above_avg, habit_all_streak + habit_multi_streak, focus_recovery, focus_streak_record, habit_streak_record, momentum_streak_record, momentum_weak_day_ahead, momentum_best_day_ahead, momentum_near_tier, momentum_recovery, intention_week_perfect, intention_week_excellent, intention_week_maintained, intention_week_improved, intention_week_declined, momentum_week_strong, momentum_week_excellent, momentum_week_maintained, momentum_week_improved, momentum_week_declined, pomodoro_week_goal_perfect, pomodoro_week_goal_excellent, pomodoro_week_goal_maintained, pomodoro_week_goal_improved, pomodoro_week_goal_declined, pomodoro_week_improved, pomodoro_week_maintained, pomodoro_week_declined, week_quadrafecta_flawless, week_trifecta_flawless, habit_week_flawless, pomodoro_week_flawless, momentum_week_flawless, intention_week_flawless, week_balanced, habit_week_perfect, habit_week_excellent, habit_week_maintained, habit_week_improved, habit_week_declined, month_balanced, habit_month_perfect, habit_month_excellent, habit_month_maintained, habit_month_improved, habit_month_declined, intention_month_perfect, intention_month_excellent, intention_month_maintained, intention_month_improved, intention_month_declined, momentum_month_strong, momentum_month_excellent, momentum_month_maintained, momentum_month_improved, momentum_month_declined, pomodoro_month_goal_perfect, pomodoro_month_goal_excellent, pomodoro_month_goal_maintained, pomodoro_month_goal_improved, pomodoro_month_goal_declined, pomodoro_month_improved, pomodoro_month_maintained, pomodoro_month_declined, perfect_day_streak_milestone_approach, intention_done_streak_broken, focus_streak_broken, momentum_streak_broken, intention_gap_warning, focus_drought_warning, month_quadrafecta_flawless, month_trifecta_flawless, habit_month_flawless, pomodoro_month_flawless, momentum_month_flawless, habit_all_streak_milestone + habit_all_streak_milestone_approach)
 
 import { describe, it, expect } from "vitest";
 import { calcTodayInsight } from "./insight";
@@ -10914,13 +10914,13 @@ describe("calcTodayInsight — habit_all_streak_milestone (priority 6.93, within
   });
 
   it("shouldShowGeneric7dWhenOneHabitBelowMilestoneThreshold", () => {
-    // One habit at 30d, the other at 13d — minimum is 13 < 14 → no milestone
+    // One habit at 30d, the other at 11d — minimum is 11, daysAway=3 > 2 → approach badge does NOT fire
+    // habit_all_streak block fires (both ≥7) but no milestone since min < 14
     const result = calcTodayInsight({
       ...milestoneBase(),
-      habits: [habit("운동", 30), habit("독서", 13)],
+      habits: [habit("운동", 30), habit("독서", 11)],
     });
     expect(result).not.toBeNull();
-    // habit_all_streak block fires (both ≥7) but no milestone since min < 14
     expect(result!.text).toContain("7일+");
     expect(result!.text).not.toContain("14일+");
   });
@@ -10950,6 +10950,147 @@ describe("calcTodayInsight — habit_all_streak_milestone (priority 6.93, within
     // Should NOT show the collective "30일+" milestone text — defers to personal_best badge further in chain
     expect(result).not.toBeNull();
     expect(result!.text).not.toContain("모든 습관 30일+");
+  });
+});
+
+describe("calcTodayInsight — habit_all_streak_milestone_approach (priority 6.92, all habits ≥2 within 1-2 days of 14/30/50/100d milestone)", () => {
+  // ABOUTME: Tests for habit_all_streak_milestone_approach: when ALL habits (≥2) are within 1-2 days of
+  // ABOUTME: simultaneously hitting an ALL_STREAK_MILESTONES threshold (14/30/50/100d), show an approach badge.
+  // ABOUTME: Fires at priority 6.92, just before habit_all_streak (6.93) — motivates the final push.
+  // ABOUTME: No lastChecked guard; fires on persisted streak values to motivate today's check-in.
+  //
+  // Base: afternoon, no sessions, no intention. Habits set per test to isolate approach badge.
+  function approachBase() {
+    return {
+      habits: [] as ReturnType<typeof habit>[],
+      todayStr: TODAY,
+      nowHour: 13,
+      todayIntentionDate: undefined as string | undefined,
+      sessionsToday: 0,
+      sessionGoal: undefined as number | undefined,
+      habitsAllDoneDate: undefined as string | undefined,
+    };
+  }
+
+  it("shouldFireWhenAllHabitsOneDayBelow14dMilestone", () => {
+    // min streak = 13 → daysAway = 1 → fires for 14d milestone
+    const result = calcTodayInsight({
+      ...approachBase(),
+      habits: [habit("운동", 13), habit("독서", 13)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("success");
+    expect(result!.text).toContain("14");
+    expect(result!.text).toContain("1일 전");
+  });
+
+  it("shouldFireWhenAllHabitsTwoDaysBelow14dMilestone", () => {
+    // min streak = 12 → daysAway = 2 → fires for 14d milestone
+    const result = calcTodayInsight({
+      ...approachBase(),
+      habits: [habit("운동", 12), habit("독서", 15)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14");
+    expect(result!.text).toContain("2일 전");
+  });
+
+  it("shouldFireWhenAllHabitsOneDayBelow30dMilestone", () => {
+    // min streak = 29 (all already ≥14) → daysAway from 30 = 1
+    // lastChecked=TODAY suppresses milestone_near (priority 3) which also fires for 30d (in PERSONAL_BEST_MILESTONES)
+    const result = calcTodayInsight({
+      ...approachBase(),
+      habits: [habit("운동", 29, TODAY), habit("독서", 29, TODAY)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("30");
+    expect(result!.text).toContain("1일 전");
+  });
+
+  it("shouldFireWhenAllHabitsOneDayBelow50dMilestone", () => {
+    // min streak = 49 (all already ≥30) → daysAway from 50 = 1
+    const result = calcTodayInsight({
+      ...approachBase(),
+      habits: [habit("운동", 49), habit("독서", 49), habit("명상", 49)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("50");
+    expect(result!.text).toContain("1일 전");
+  });
+
+  it("shouldFireWhenAllHabitsOneDayBelow100dMilestone", () => {
+    // min streak = 99 (all already ≥50) → daysAway from 100 = 1
+    // lastChecked=TODAY suppresses milestone_near (priority 3) which also fires for 100d (in PERSONAL_BEST_MILESTONES)
+    const result = calcTodayInsight({
+      ...approachBase(),
+      habits: [habit("운동", 99, TODAY), habit("독서", 99, TODAY)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("100");
+    expect(result!.text).toContain("1일 전");
+  });
+
+  it("shouldNotFireWhenThreeDaysAwayFrom14dMilestone", () => {
+    // min streak = 11 → daysAway = 14-11 = 3 > 2 → approach badge does NOT fire (loop breaks)
+    const result = calcTodayInsight({
+      ...approachBase(),
+      habits: [habit("운동", 11), habit("독서", 12)],
+    });
+    // habit_all_streak (6.93) still fires because all ≥7
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("14");
+    expect(result!.text).not.toContain("일 전");
+  });
+
+  it("shouldNotFireWhenAllHabitsAlreadyAtMilestone", () => {
+    // min streak = 14 (exactly at milestone) → habit_all_streak_milestone fires, not approach
+    const result = calcTodayInsight({
+      ...approachBase(),
+      habits: [habit("운동", 14), habit("독서", 14)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("일 전");
+    expect(result!.text).toContain("14일+"); // milestone fires
+  });
+
+  it("shouldNotFireWithOnlyOneHabit", () => {
+    // habit_all_streak_milestone_approach requires ≥2 habits — collective badge must NOT fire.
+    // Individual habit_streak_milestone_approach (7.84) fires for 운동 at streak=13 (1d from 14d).
+    const result = calcTodayInsight({
+      ...approachBase(),
+      habits: [habit("운동", 13)],
+    });
+    // Collective badge does NOT fire
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("모든 습관");
+    // Individual approach badge fires instead (text: "🏃 운동 13일 연속 중! 1일 더 유지하면 14일 마일스톤")
+    expect(result!.text).toContain("운동");
+    expect(result!.text).toContain("14일 마일스톤");
+  });
+
+  it("shouldFireBeforeHabitAllStreakWhenAllHabitsApproachingMilestone", () => {
+    // Approach (6.92) should preempt the generic habit_all_streak badge (6.93)
+    // lastChecked=TODAY suppresses milestone_near (priority 3) which fires for 독서 at 29 (30d in PERSONAL_BEST_MILESTONES)
+    const result = calcTodayInsight({
+      ...approachBase(),
+      habits: [habit("운동", 28, TODAY), habit("독서", 29, TODAY)],
+    });
+    expect(result).not.toBeNull();
+    // Approach badge fires (30d, 2 days away for 운동), not generic "7일+" text
+    expect(result!.text).toContain("30");
+    expect(result!.text).not.toContain("7일+");
+  });
+
+  it("shouldPickLowestUnachievedMilestoneWhenSomePassed", () => {
+    // habits at [32, 35]: all ≥30 milestone passed; next is 50, daysAway=50-32=18 > 2 → no approach
+    // Falls through to habit_all_streak (6.93) with 30d+ milestone text
+    const result = calcTodayInsight({
+      ...approachBase(),
+      habits: [habit("운동", 32), habit("독서", 35)],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).not.toContain("일 전");
+    expect(result!.text).toContain("30일+"); // milestone fires, not approach
   });
 });
 
