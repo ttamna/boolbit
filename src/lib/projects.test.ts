@@ -1,5 +1,5 @@
 // ABOUTME: Tests for pure functions in lib/projects.ts
-// ABOUTME: Covers calcProjectsBadge, avgRunningProgressPct, sortProjects, calcCompletionForecast, calcProjectPomodoroMilestone, and 11 date/deadline/staleness helpers (incl. dateAfterDays, calcScheduleGap)
+// ABOUTME: Covers calcProjectsBadge, avgRunningProgressPct, sortProjects, calcCompletionForecast, calcProjectPomodoroMilestone, calcFocusSuggestion, and 11 date/deadline/staleness helpers (incl. dateAfterDays, calcScheduleGap)
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
@@ -21,6 +21,7 @@ import {
   calcProjectMilestone,
   calcProjectCompletionNotify,
   calcProjectPomodoroMilestone,
+  calcFocusSuggestion,
 } from "./projects";
 import { colors } from "../theme";
 import type { Project, PomodoroDay } from "../types";
@@ -1316,5 +1317,150 @@ describe("calcProjectPomodoroMilestone", () => {
     const result = calcProjectPomodoroMilestone(15, 26, "My App");
     expect(result).not.toBeNull();
     expect(result).toContain("25");
+  });
+});
+
+// ── calcFocusSuggestion ───────────────────────────────────────────────────────
+// Recommends which project needs attention based on deadline urgency,
+// schedule gap, and focus recency. Returns null when no actionable suggestion.
+
+describe("calcFocusSuggestion — smart project focus recommendation", () => {
+  // All tests use TODAY="2024-06-10" as the anchor date
+
+  it("should return null when projects array is empty", () => {
+    expect(calcFocusSuggestion([], TODAY)).toBeNull();
+  });
+
+  it("should return null when all projects are done", () => {
+    const projects = [
+      makeProject({ id: 1, status: "done" }),
+      makeProject({ id: 2, status: "done" }),
+    ];
+    expect(calcFocusSuggestion(projects, TODAY)).toBeNull();
+  });
+
+  it("should return null when all projects are paused", () => {
+    const projects = [
+      makeProject({ id: 1, status: "paused" }),
+      makeProject({ id: 2, status: "paused" }),
+    ];
+    expect(calcFocusSuggestion(projects, TODAY)).toBeNull();
+  });
+
+  it("should return null when only one active project exists", () => {
+    // Single active project — no alternative to suggest
+    const projects = [
+      makeProject({ id: 1, status: "active", deadline: "2024-06-12", createdDate: "2024-05-01", progress: 30 }),
+    ];
+    expect(calcFocusSuggestion(projects, TODAY)).toBeNull();
+  });
+
+  it("should return null when no project has urgency signals", () => {
+    // Two active projects with no deadlines, no stale focus, high progress — nothing urgent
+    const projects = [
+      makeProject({ id: 1, name: "A", status: "active", progress: 80 }),
+      makeProject({ id: 2, name: "B", status: "active", progress: 90 }),
+    ];
+    expect(calcFocusSuggestion(projects, TODAY)).toBeNull();
+  });
+
+  it("should suggest project with nearest deadline when no focus set", () => {
+    const projects = [
+      makeProject({ id: 1, name: "Far", status: "active", deadline: "2024-07-10", createdDate: "2024-05-01", progress: 50 }),
+      makeProject({ id: 2, name: "Urgent", status: "active", deadline: "2024-06-12", createdDate: "2024-05-01", progress: 20 }),
+    ];
+    const result = calcFocusSuggestion(projects, TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.projectId).toBe(2);
+    expect(result!.name).toBe("Urgent");
+  });
+
+  it("should return null when current focus project is already most urgent", () => {
+    const projects = [
+      makeProject({ id: 1, name: "Focus", status: "active", isFocus: true, deadline: "2024-06-12", createdDate: "2024-05-01", progress: 30 }),
+      makeProject({ id: 2, name: "Other", status: "active", deadline: "2024-07-10", createdDate: "2024-05-01", progress: 50 }),
+    ];
+    expect(calcFocusSuggestion(projects, TODAY)).toBeNull();
+  });
+
+  it("should suggest when non-focus project is much more urgent than focus", () => {
+    // Focus project has a far deadline; another project is about to miss its deadline
+    const projects = [
+      makeProject({ id: 1, name: "Focus", status: "active", isFocus: true, deadline: "2024-08-01", createdDate: "2024-05-01", progress: 50 }),
+      makeProject({ id: 2, name: "Behind", status: "active", deadline: "2024-06-12", createdDate: "2024-05-01", progress: 10 }),
+    ];
+    const result = calcFocusSuggestion(projects, TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.projectId).toBe(2);
+    expect(result!.name).toBe("Behind");
+    expect(result!.reason).toBeTruthy();
+  });
+
+  it("should consider focus staleness when deadlines are absent", () => {
+    // No deadlines, but one project hasn't been worked on in 14 days while the focus project was active today
+    const projects = [
+      makeProject({ id: 1, name: "Recent", status: "active", isFocus: true, lastFocusDate: TODAY }),
+      makeProject({ id: 2, name: "Neglected", status: "active", lastFocusDate: "2024-05-27" }),
+    ];
+    const result = calcFocusSuggestion(projects, TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.projectId).toBe(2);
+    expect(result!.name).toBe("Neglected");
+  });
+
+  it("should consider schedule gap in scoring", () => {
+    // Project A is on schedule; Project B is significantly behind with same deadline
+    const projects = [
+      makeProject({ id: 1, name: "OnTrack", status: "active", deadline: "2024-06-30", createdDate: "2024-05-11", progress: 50 }),
+      makeProject({ id: 2, name: "Behind", status: "active", deadline: "2024-06-30", createdDate: "2024-05-11", progress: 10 }),
+    ];
+    const result = calcFocusSuggestion(projects, TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.projectId).toBe(2);
+  });
+
+  it("should exclude done and paused projects from suggestion", () => {
+    // Done project has urgent deadline — should NOT be suggested
+    const projects = [
+      makeProject({ id: 1, name: "Active", status: "active", deadline: "2024-07-10", createdDate: "2024-05-01", progress: 50 }),
+      makeProject({ id: 2, name: "Done", status: "done", deadline: "2024-06-11", createdDate: "2024-05-01", progress: 90 }),
+      makeProject({ id: 3, name: "Paused", status: "paused", deadline: "2024-06-11", createdDate: "2024-05-01", progress: 10 }),
+    ];
+    // Only 1 eligible project, so returns null (no alternative to suggest)
+    expect(calcFocusSuggestion(projects, TODAY)).toBeNull();
+  });
+
+  it("should include in-progress projects in candidates", () => {
+    const projects = [
+      makeProject({ id: 1, name: "Active", status: "active", deadline: "2024-07-10", createdDate: "2024-05-01", progress: 80 }),
+      makeProject({ id: 2, name: "InProg", status: "in-progress", deadline: "2024-06-12", createdDate: "2024-05-01", progress: 20 }),
+    ];
+    const result = calcFocusSuggestion(projects, TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.projectId).toBe(2);
+  });
+
+  it("should return score field between 0 and 100 on suggestion", () => {
+    const projects = [
+      makeProject({ id: 1, name: "A", status: "active", deadline: "2024-07-10", createdDate: "2024-05-01", progress: 50 }),
+      makeProject({ id: 2, name: "B", status: "active", deadline: "2024-06-12", createdDate: "2024-05-01", progress: 10 }),
+    ];
+    const result = calcFocusSuggestion(projects, TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.score).toBeGreaterThan(0);
+    expect(result!.score).toBeLessThanOrEqual(100);
+  });
+
+  it("should suggest overdue project because it has max deadline urgency", () => {
+    // Project 30 days overdue: deadline factor clamped at 0 days → max score (40 pts).
+    // Combined with schedule gap (progress=10 vs ~100% time elapsed) → high total score.
+    const projects = [
+      makeProject({ id: 1, name: "Relaxed", status: "active", deadline: "2024-07-10", createdDate: "2024-05-01", progress: 50 }),
+      makeProject({ id: 2, name: "Overdue", status: "active", deadline: "2024-05-10", createdDate: "2024-03-01", progress: 10 }),
+    ];
+    const result = calcFocusSuggestion(projects, TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.projectId).toBe(2);
+    expect(result!.score).toBeGreaterThan(0);
   });
 });

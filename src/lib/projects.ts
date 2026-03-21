@@ -1,4 +1,4 @@
-// ABOUTME: Pure helpers for the Projects section — badge, sort, progress, deadline, age, staleness, and milestone logic
+// ABOUTME: Pure helpers for the Projects section — badge, sort, progress, deadline, age, staleness, milestone, and focus suggestion logic
 // ABOUTME: All functions are side-effect-free; time-dependent ones accept injected dates for testing
 
 import type { Project, PomodoroDay } from "../types";
@@ -368,4 +368,167 @@ export function calcProjectMilestone(prevProgress: number, newProgress: number):
   // the last element is always the highest crossed threshold.
   const milestone = crossed[crossed.length - 1];
   return { milestone, label: MILESTONE_LABELS[milestone] };
+}
+
+export interface FocusSuggestion {
+  /** ID of the recommended project. */
+  projectId: number;
+  /** Name of the recommended project. */
+  name: string;
+  /** Human-readable Korean reason for the suggestion. */
+  reason: string;
+  /** Composite urgency score (0–100) — higher means more urgent. */
+  score: number;
+}
+
+// Minimum urgency score for a project to be considered for focus suggestion.
+// Below this threshold, the project has no meaningful urgency signals (no deadline,
+// not behind schedule, recently focused). Prevents noisy suggestions.
+const SUGGESTION_THRESHOLD = 20;
+
+// Margin by which a non-focus project must exceed the current focus project's score
+// to trigger a suggestion. Prevents flip-flopping between similar-urgency projects.
+const FOCUS_MARGIN = 10;
+
+// Computes a 0–100 urgency score for a single project based on three signals:
+//   Deadline proximity (0–40):  exponential as deadline approaches — 40 * e^(-days/7)
+//   Schedule gap (0–30):        linear with how far behind schedule (progress% - timePct%)
+//   Focus staleness (0–30):     linear with days since lastFocusDate, caps at 14d
+// Fully pure: all date math derived from todayStr, never from new Date().
+// Returns 0 when the project has no urgency signals.
+function projectUrgencyScore(project: Project, todayStr: string): number {
+  const todayTs = new Date(todayStr + "T00:00:00").getTime();
+  if (isNaN(todayTs)) return 0;
+  const todayDate = new Date(todayStr + "T00:00:00");
+
+  let deadlineScore = 0;
+  let gapScore = 0;
+  let stalenessScore = 0;
+
+  // Deadline proximity: exponential urgency curve
+  if (project.deadline && /^\d{4}-\d{2}-\d{2}$/.test(project.deadline)) {
+    const deadlineTs = new Date(project.deadline + "T00:00:00").getTime();
+    if (!isNaN(deadlineTs)) {
+      // Clamp to 0: overdue projects score same as due-today (max urgency).
+      // Rationale: an overdue project is at least as urgent as a due-today one.
+      const daysLeft = Math.max(0, (deadlineTs - todayTs) / 86400000);
+      // e^(-days/7): 1.0 at 0 days, 0.37 at 7 days, 0.13 at 14 days, ~0 at 30+ days
+      deadlineScore = 40 * Math.exp(-daysLeft / 7);
+    }
+  }
+
+  // Schedule gap: inject todayDate to stay pure
+  const gap = calcScheduleGap(project.progress, project.createdDate, project.deadline, todayDate);
+  if (gap !== null && gap.gap < 0) {
+    // gap.gap is negative when behind; normalize to 0–30 range (30 = 30+ points behind)
+    gapScore = Math.min(30, Math.abs(gap.gap));
+  }
+
+  // Focus staleness: compute from todayStr directly (lastFocusDaysAgo uses new Date(), which is impure)
+  if (project.lastFocusDate && /^\d{4}-\d{2}-\d{2}$/.test(project.lastFocusDate)) {
+    const focusTs = new Date(project.lastFocusDate + "T00:00:00").getTime();
+    if (!isNaN(focusTs)) {
+      const days = Math.floor((todayTs - focusTs) / 86400000);
+      if (days > 0) {
+        // Linear: 0 at 0 days, 30 at 14+ days
+        stalenessScore = Math.min(30, (days / 14) * 30);
+      }
+    }
+  }
+
+  return Math.min(100, Math.round(deadlineScore + gapScore + stalenessScore));
+}
+
+// Builds a Korean reason string from the project's urgency signals.
+// Fully pure: all date math derived from todayStr, never from new Date().
+function buildReason(project: Project, todayStr: string): string {
+  const todayTs = new Date(todayStr + "T00:00:00").getTime();
+  if (isNaN(todayTs)) return "주의 필요";
+  const todayDate = new Date(todayStr + "T00:00:00");
+
+  const parts: string[] = [];
+
+  // Deadline proximity — computed from todayStr (deadlineDays() uses new Date(), so inline here)
+  if (project.deadline && /^\d{4}-\d{2}-\d{2}$/.test(project.deadline)) {
+    const deadlineTs = new Date(project.deadline + "T00:00:00").getTime();
+    if (!isNaN(deadlineTs)) {
+      const days = Math.floor((deadlineTs - todayTs) / 86400000);
+      if (days <= 0) parts.push("마감 초과");
+      else if (days <= 3) parts.push(`D-${days} 임박`);
+      else if (days <= 7) parts.push(`D-${days}`);
+    }
+  }
+
+  // Schedule gap — inject todayDate to stay pure
+  const gap = calcScheduleGap(project.progress, project.createdDate, project.deadline, todayDate);
+  if (gap !== null && gap.gap < -10) {
+    parts.push(`일정 ${gap.gap}%p 뒤처짐`);
+  }
+
+  // Focus staleness — computed from todayStr (lastFocusDaysAgo() uses new Date(), so inline here)
+  if (project.lastFocusDate && /^\d{4}-\d{2}-\d{2}$/.test(project.lastFocusDate)) {
+    const focusTs = new Date(project.lastFocusDate + "T00:00:00").getTime();
+    if (!isNaN(focusTs)) {
+      const staleDays = Math.floor((todayTs - focusTs) / 86400000);
+      if (staleDays >= 7) parts.push(`${staleDays}일째 미집중`);
+    }
+  }
+
+  return parts.length > 0 ? parts.join(" · ") : "주의 필요";
+}
+
+/**
+ * Recommends which project deserves focus based on deadline urgency,
+ * schedule gap, and focus recency.
+ *
+ * Returns null when:
+ * - Fewer than 2 eligible projects (active/in-progress) — nothing to compare
+ * - The current ★ focus project is already the most urgent
+ * - No project exceeds the urgency threshold
+ *
+ * todayStr: YYYY-MM-DD local date string for deterministic testing.
+ * Pure function with no side effects.
+ */
+export function calcFocusSuggestion(
+  projects: Project[],
+  todayStr: string,
+): FocusSuggestion | null {
+  const eligible = projects.filter(
+    p => p.status === "active" || p.status === "in-progress",
+  );
+
+  if (eligible.length < 2) return null;
+
+  // Score each eligible project
+  const scored = eligible.map(p => ({
+    project: p,
+    score: projectUrgencyScore(p, todayStr),
+  }));
+
+  // Find the current focus project's score (0 if none set)
+  const focusEntry = scored.find(s => s.project.isFocus);
+  const focusScore = focusEntry?.score ?? 0;
+
+  // Sort non-focus projects by score descending; pick the top candidate.
+  // With eligible.length ≥ 2 and at most one isFocus, there is always ≥ 1 non-focus
+  // (even if all projects have isFocus, the filter leaves eligible.length-1 ≥ 1).
+  const sortedNonFocus = scored
+    .filter(s => !s.project.isFocus)
+    .sort((a, b) => b.score - a.score);
+
+  if (sortedNonFocus.length === 0) return null; // defensive: all-isFocus data corruption
+
+  const top = sortedNonFocus[0];
+
+  // Threshold: suggestion must exceed baseline urgency AND surpass the current focus by a margin.
+  // When no focus is set, any project above threshold is worth suggesting.
+  const mustExceed = focusEntry ? focusScore + FOCUS_MARGIN : 0;
+  if (top.score < SUGGESTION_THRESHOLD || top.score <= mustExceed) return null;
+
+  return {
+    projectId: top.project.id,
+    name: top.project.name,
+    reason: buildReason(top.project, todayStr),
+    score: top.score,
+  };
 }

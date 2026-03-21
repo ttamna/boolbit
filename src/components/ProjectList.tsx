@@ -1,12 +1,12 @@
 // ABOUTME: ProjectList component - renders project list with add/delete/reorder in edit mode
-// ABOUTME: paused+done collapsible; ↕ sort; ✕ 전체 bulk-clear; ↺ GitHub refresh; avgRunningProgressPct ambient bar (re-exports avgRunningProgressPct/sortProjects from lib/projects)
+// ABOUTME: paused+done collapsible; ↕ sort; ✕ 전체 bulk-clear; ↺ GitHub refresh; avgRunningProgressPct ambient bar; 💡 focus suggestion (re-exports avgRunningProgressPct/sortProjects from lib/projects)
 
-import { useState, useEffect, type CSSProperties } from "react";
+import { useState, useEffect, useMemo, type CSSProperties } from "react";
 import type { Project } from "../types";
-import { fontSizes, colors, radius } from "../theme";
+import { fonts, fontSizes, colors, radius } from "../theme";
 import { ProjectCard } from "./ProjectCard";
 import { useEditMode } from "../hooks/useEditMode";
-import { avgRunningProgressPct, sortProjects } from "../lib/projects";
+import { avgRunningProgressPct, sortProjects, calcFocusSuggestion } from "../lib/projects";
 // Re-export pure helpers that moved to lib/projects — preserves any existing imports from this module.
 export { avgRunningProgressPct, sortProjects };
 
@@ -19,9 +19,10 @@ interface ProjectListProps {
   sessionsToday?: number;               // today's pomodoro focus sessions; forwarded to ★ focus card
   sessionGoal?: number;                 // daily session goal; forwarded to ★ focus card
   accent?: string;                      // theme accent; forwarded to ProjectCard for isFocus styling
+  todayStr?: string;                    // YYYY-MM-DD local date for focus suggestion; absent = compute from new Date()
 }
 
-export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefreshAll, sessionsToday, sessionGoal, accent }: ProjectListProps) {
+export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefreshAll, sessionsToday, sessionGoal, accent, todayStr: todayStrProp }: ProjectListProps) {
   const [newName, setNewName] = useState("");
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [showPaused, setShowPaused] = useState(false);
@@ -161,9 +162,50 @@ export function ProjectList({ projects, onUpdate, onProjectsChange, pat, onRefre
   // pct: completion percentage — single source used in both tooltip and bar width
   const pct = projects.length > 0 ? Math.round(doneProjects.length / projects.length * 100) : 0;
   const avgPct = avgRunningProgressPct(projects);
+  // Focus suggestion: recommend which project needs attention most urgently.
+  // todayStr derivation inside memo to avoid stale date across midnight boundary.
+  const focusSuggestion = useMemo(
+    () => {
+      const today = todayStrProp ?? new Date().toLocaleDateString("sv");
+      return calcFocusSuggestion(projects, today);
+    },
+    // todayStrProp: when provided (tests, external refresh), deps change on prop change.
+    // When absent, the memo re-fires on projects change; midnight rollover is acceptable lag.
+    [projects, todayStrProp],
+  );
 
   return (
     <div>
+      {/* Focus suggestion — subtle nudge when a non-focus project needs urgent attention */}
+      {focusSuggestion && (
+        <div
+          title={`우선순위 점수: ${focusSuggestion.score}/100 — 클릭하여 집중 프로젝트 변경`}
+          onClick={() => {
+            // Clear isFocus on all other projects before setting the new focus
+            projects.forEach(p => {
+              if (p.isFocus && p.id !== focusSuggestion.projectId) {
+                onUpdate(p.id, { isFocus: undefined });
+              }
+            });
+            onUpdate(focusSuggestion.projectId, { isFocus: true });
+          }}
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "4px 8px", marginBottom: 6, borderRadius: radius.chip,
+            background: `${accent ?? colors.statusProgress}08`,
+            border: `1px solid ${accent ?? colors.statusProgress}20`,
+            cursor: "pointer",
+            transition: "background 0.2s",
+          }}
+        >
+          <span style={{ fontSize: fontSizes.mini, color: accent ?? colors.statusProgress, flexShrink: 0 }}>💡</span>
+          <span style={{ fontSize: fontSizes.mini, color: colors.textSubtle, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span style={{ fontWeight: 600, color: colors.textLow }}>{focusSuggestion.name}</span>
+            {" "}
+            <span style={{ fontFamily: fonts.mono, color: colors.textPhantom }}>{focusSuggestion.reason}</span>
+          </span>
+        </div>
+      )}
       {runningProjects.map(p => (
         <ProjectCard key={p.id} project={p} onUpdate={patch => onUpdate(p.id, patch)} pat={pat} sessionsToday={sessionsToday} sessionGoal={sessionGoal} accent={accent} />
       ))}
