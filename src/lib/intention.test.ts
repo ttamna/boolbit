@@ -429,7 +429,7 @@ describe("calcIntentionDoneStreak", () => {
   });
 
   it("should return 1 when yesterday done in history but today not done", () => {
-    // only past days count when today is not done
+    // streak starts at 0 (today not done), yesterday done → 1
     const history: IntentionEntry[] = [{ date: "2026-03-14", text: "t", done: true }];
     expect(calcIntentionDoneStreak(history, false, TODAY)).toBe(1);
   });
@@ -439,7 +439,7 @@ describe("calcIntentionDoneStreak", () => {
     expect(calcIntentionDoneStreak(history, false, TODAY)).toBe(0);
   });
 
-  it("should cap at 7 with 6 consecutive past done days and today done", () => {
+  it("should return 7 with 6 consecutive past done days and today done", () => {
     const history: IntentionEntry[] = [
       { date: "2026-03-09", text: "t", done: true },
       { date: "2026-03-10", text: "t", done: true },
@@ -451,7 +451,7 @@ describe("calcIntentionDoneStreak", () => {
     expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(7);
   });
 
-  it("should not exceed 7 even when more past done entries exist", () => {
+  it("should return 8 when 7 consecutive past done entries exist and today done", () => {
     const history: IntentionEntry[] = [
       { date: "2026-03-08", text: "t", done: true },
       { date: "2026-03-09", text: "t", done: true },
@@ -461,12 +461,49 @@ describe("calcIntentionDoneStreak", () => {
       { date: "2026-03-13", text: "t", done: true },
       { date: "2026-03-14", text: "t", done: true },
     ];
-    expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(7);
+    expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(8);
   });
 
-  it("should return 6 when today not done and 6 consecutive past done days exist", () => {
-    // today not done → starts from 0, walks 6 back → max 6 (not 7)
+  it("should return 14 for a two-week streak — hits milestone 14", () => {
+    // TODAY = 2026-03-15; 14 consecutive done days = Mar 2 through Mar 15
+    // Uses setDate arithmetic (same pattern as 30-day test) to safely cross month boundaries.
+    const history: IntentionEntry[] = [];
+    const base = new Date("2026-03-15T00:00:00");
+    for (let back = 1; back <= 13; back++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() - back);
+      history.push({ date: d.toLocaleDateString("sv"), text: "t", done: true });
+    }
+    expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(14);
+  });
+
+  it("should return 30 for a one-month streak — hits milestone 30", () => {
+    // TODAY = 2026-03-15; 30 consecutive done days = Feb 14 through Mar 15
+    const history: IntentionEntry[] = [];
+    const base = new Date("2026-03-15T00:00:00");
+    for (let back = 1; back <= 29; back++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() - back);
+      history.push({ date: d.toLocaleDateString("sv"), text: "t", done: true });
+    }
+    expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(30);
+  });
+
+  it("should cap at 35 — loop bound limits lookback to 34 past days", () => {
+    // Even with 40 history entries, the loop only walks back 34 days → max streak = 35 (today + 34)
+    const history: IntentionEntry[] = [];
+    const base = new Date("2026-03-15T00:00:00");
+    for (let back = 1; back <= 40; back++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() - back);
+      history.push({ date: d.toLocaleDateString("sv"), text: "t", done: true });
+    }
+    expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(35);
+  });
+
+  it("should return 7 when today not done and 7 consecutive past done days exist", () => {
     const history: IntentionEntry[] = [
+      { date: "2026-03-08", text: "t", done: true },
       { date: "2026-03-09", text: "t", done: true },
       { date: "2026-03-10", text: "t", done: true },
       { date: "2026-03-11", text: "t", done: true },
@@ -474,7 +511,21 @@ describe("calcIntentionDoneStreak", () => {
       { date: "2026-03-13", text: "t", done: true },
       { date: "2026-03-14", text: "t", done: true },
     ];
-    expect(calcIntentionDoneStreak(history, false, TODAY)).toBe(6);
+    expect(calcIntentionDoneStreak(history, false, TODAY)).toBe(7);
+  });
+
+  it("should stop at gap even in long history", () => {
+    // 9 done days but a gap at day 6 back → streak = 5 + today = 6
+    const history: IntentionEntry[] = [];
+    const base = new Date("2026-03-15T00:00:00");
+    for (let back = 1; back <= 10; back++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() - back);
+      // gap at back=6 (Mar 9)
+      if (back === 6) continue;
+      history.push({ date: d.toLocaleDateString("sv"), text: "t", done: true });
+    }
+    expect(calcIntentionDoneStreak(history, true, TODAY)).toBe(6);
   });
 });
 

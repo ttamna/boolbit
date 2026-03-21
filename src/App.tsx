@@ -1549,21 +1549,11 @@ export default function App() {
     // Only meaningful when an intention exists; false is stored as absent to keep JSON lean
     // Capture prevDone before persist so the false→true transition can be detected below.
     const prevDone = snapshot.todayIntentionDone;
-    // Update intentionDoneBestStreak on done=true: max(full-history streak, stored best).
-    // calcIntentionDoneStreak is capped at 7 for UI display; iterate history directly (up to 34
-    // days back) to get the uncapped streak needed for accurate best-streak tracking.
-    // updatedHistory is already sliced to the last 35 entries, so 34 is the effective lookback cap.
+    // Update intentionDoneBestStreak on done=true: max(current streak, stored best).
+    // calcIntentionDoneStreak walks up to 34 days back (matching the 35-entry history cap).
     let intentionDoneBestUpdate = {};
     if (done) {
-      const doneSet = new Set<string>(updatedHistory.filter(e => e.done === true).map(e => e.date));
-      const base = new Date(today + "T00:00:00");
-      let fullStreak = 1; // today is done=true
-      for (let back = 1; back <= 34; back++) {
-        const d = new Date(base);
-        d.setDate(d.getDate() - back);
-        if (!doneSet.has(d.toLocaleDateString("sv"))) break;
-        fullStreak++;
-      }
+      const fullStreak = calcIntentionDoneStreak(updatedHistory, true, today);
       intentionDoneBestUpdate = { intentionDoneBestStreak: Math.max(fullStreak, snapshot.intentionDoneBestStreak ?? 0) };
     }
     persist({
@@ -1893,15 +1883,16 @@ export default function App() {
     ? calcPomodoroGoalStreak(data.pomodoroHistory ?? [], data.pomodoroSessionGoal, yesterdayHabitsStr)
     : undefined;
   // prevIntentionDoneStreak: consecutive done days ending at the day before yesterdayHabitsStr.
-  // Computed inline (not via calcIntentionDoneStreak) to avoid the 7-day display cap —
-  // we need the actual streak length so the badge message "N일 스트릭 끊어짐" is accurate.
+  // Computed inline (not via calcIntentionDoneStreak) because it counts from a different base date
+  // (yesterdayHabitsStr) and excludes the base day itself — different semantics from the main streak calc.
+  // Bound at 34 matches the 35-entry intentionHistory cap (same as calcIntentionDoneStreak).
   const prevIntentionDoneStreak = (() => {
     const doneSet = new Set(
       (data.intentionHistory ?? []).filter(e => e.done === true).map(e => e.date),
     );
     const base = new Date(yesterdayHabitsStr + "T00:00:00");
     let count = 0;
-    for (let back = 1; back <= 101; back++) {
+    for (let back = 1; back <= 34; back++) {
       const d = new Date(base);
       d.setDate(d.getDate() - back);
       if (!doneSet.has(d.toLocaleDateString("sv"))) break;

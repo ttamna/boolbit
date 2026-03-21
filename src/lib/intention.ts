@@ -125,11 +125,14 @@ export function calcIntentionEveningReminder(
  * Returns the number of consecutive days (including today if done) on which the user marked their
  * daily intention as accomplished (done === true in intentionHistory).
  *
- * - If todayIntentionDone === true: streak starts at 1 (today) then walks up to 6 past days → max 7.
- * - If todayIntentionDone is absent/false: streak starts at 0 then walks up to 6 past days → max 6.
+ * - If todayIntentionDone === true: streak starts at 1 (today) then walks up to 34 past days → max 35.
+ * - If todayIntentionDone is absent/false: streak starts at 0 then walks up to 34 past days → max 34.
  * - Stops at the first past day absent from history or present with done !== true.
  * - Returns 0 when no consecutive done day is reachable.
  *
+ * Loop bound of 34 caps the maximum streak at 35 (today + 34 past days).
+ * This aligns with the 35-entry intentionHistory cap enforced by callers and enables
+ * INTENTION_DONE_STREAK_MILESTONES at 14/30 to fire in the insight engine.
  * Pure function with no side effects; todayStr injected for DST-safe date arithmetic.
  */
 export function calcIntentionDoneStreak(
@@ -141,7 +144,7 @@ export function calcIntentionDoneStreak(
   const doneSet = new Set<string>(history.filter(e => e.done === true).map(e => e.date));
   const base = new Date(todayStr + "T00:00:00");
   let streak = todayIntentionDone === true ? 1 : 0;
-  for (let back = 1; back <= 6; back++) {
+  for (let back = 1; back <= 34; back++) {
     const d = new Date(base);
     d.setDate(d.getDate() - back);
     const dateStr = d.toLocaleDateString("sv");
