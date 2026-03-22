@@ -1,8 +1,8 @@
-// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcQuarterlyPerfectDayReport, calcYearlyHabitReport, calcYearlyPerfectDayReport, calcWeeklyPerfectDayReport, calcMonthlyPerfectDayReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, and calcHabitMomentumCorrelation pure helpers
-// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, quarterly perfect-day count report, yearly habit completion rate report, yearly perfect-day count report, Monday morning weekly perfect-day count report, monthly perfect-day count report, per-weekday habit completion rate analysis, morning habit activation nudge, and habit-momentum correlation gap (all-done days vs not-all-done days avg momentum delta)
+// ABOUTME: Unit tests for calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcQuarterlyPerfectDayReport, calcYearlyHabitReport, calcYearlyPerfectDayReport, calcWeeklyPerfectDayReport, calcMonthlyPerfectDayReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, calcHabitMomentumCorrelation, and calcHabitBottleneck pure helpers
+// ABOUTME: Validates average daily completion rate, per-habit weekly trend statistics, aggregate week-over-week trend, section badge formatting, check-in/undo patch generation, perfect-day streak, milestone badges, completion tracking, target streak progress, audio feedback, evening reminder result, multi-habit milestone approach alerts, Sunday weekly review nudge, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, quarterly perfect-day count report, yearly habit completion rate report, yearly perfect-day count report, Monday morning weekly perfect-day count report, monthly perfect-day count report, per-weekday habit completion rate analysis, morning habit activation nudge, habit-momentum correlation gap, and per-habit bottleneck analysis (highest miss-rate habit identification)
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcQuarterlyPerfectDayReport, calcYearlyHabitReport, calcYearlyPerfectDayReport, calcWeeklyPerfectDayReport, calcMonthlyPerfectDayReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, calcHabitMomentumCorrelation } from "./habits";
+import { calcHabitsWeekRate, calcHabitWeekStats, calcHabitsWeekTrend, calcHabitsBadge, calcCheckInPatch, calcUndoCheckInPatch, calcPerfectDayStreak, getMilestone, getUpcomingMilestone, habitsTodayPct, habitLastCheckDaysAgo, calcTargetStreakPct, playHabitCheck, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcQuarterlyPerfectDayReport, calcYearlyHabitReport, calcYearlyPerfectDayReport, calcWeeklyPerfectDayReport, calcMonthlyPerfectDayReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, calcHabitMomentumCorrelation, calcHabitBottleneck } from "./habits";
 import type { Habit, MomentumEntry } from "../types";
 
 // Fixed 7-day window for deterministic tests (oldest → newest)
@@ -2408,5 +2408,133 @@ describe("calcHabitMomentumCorrelation — habit completion vs. momentum gap (�
     const habits: Habit[] = [{ ...habit, checkHistory: allDoneDates }];
     const result = calcHabitMomentumCorrelation(habits, history, TODAY);
     expect(result).toBe(16);
+  });
+});
+
+// Fixed 14-day window for calcHabitBottleneck tests (oldest → newest).
+const BN_WINDOW = [
+  "2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05",
+  "2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10",
+  "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-14",
+];
+
+describe("calcHabitBottleneck", () => {
+  beforeEach(() => { _habitId = 0; });
+
+  it("shouldReturnNullWhenHabitsEmpty", () => {
+    expect(calcHabitBottleneck([], BN_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenSingleHabit", () => {
+    // Need ≥2 habits for peer comparison.
+    const h = makeHabit({ checkHistory: ["2026-03-01"] });
+    expect(calcHabitBottleneck([h], BN_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenDayWindowEmpty", () => {
+    const h1 = makeHabit({ checkHistory: ["2026-03-01"] });
+    const h2 = makeHabit({ checkHistory: BN_WINDOW.slice() });
+    expect(calcHabitBottleneck([h1, h2], [])).toBeNull();
+  });
+
+  it("shouldIdentifyBottleneckWhenOneHabitClearlyLags", () => {
+    // Habit 1: checked 3/14 days → 79% miss rate → bottleneck
+    // Habit 2: checked 13/14 days → 7% miss rate → strong peer
+    const weak = makeHabit({ name: "풀업", icon: "💪", checkHistory: BN_WINDOW.slice(0, 3) });
+    const strong = makeHabit({ name: "독서", icon: "📖", checkHistory: BN_WINDOW.slice(0, 13) });
+    const result = calcHabitBottleneck([weak, strong], BN_WINDOW);
+    expect(result).toEqual({ name: "풀업", icon: "💪", missRate: 79 });
+  });
+
+  it("shouldReturnNullWhenBothHabitsAtExactly50PctMissRate", () => {
+    // Both habits exactly 50% miss rate → worst missRate is 50, and 50 <= 50 threshold → null.
+    // Also no peer qualifies as ≤30% miss, so the peer guard would reject too.
+    const h1 = makeHabit({ checkHistory: BN_WINDOW.slice(0, 7) }); // 50% miss
+    const h2 = makeHabit({ checkHistory: BN_WINDOW.slice(0, 7) }); // 50% miss
+    expect(calcHabitBottleneck([h1, h2], BN_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenBottleneckMissRateBelow50Pct", () => {
+    // Worst habit: 5/14 missed (36%) — below 50% threshold.
+    const weak = makeHabit({ checkHistory: BN_WINDOW.slice(0, 9) }); // 36% miss
+    const strong = makeHabit({ checkHistory: BN_WINDOW.slice() }); // 0% miss
+    expect(calcHabitBottleneck([weak, strong], BN_WINDOW)).toBeNull();
+  });
+
+  it("shouldReturnNullWhenNoPeerHasMissRateAtOrBelow30Pct", () => {
+    // Both habits have high miss rates — no strong peer for comparison.
+    // h1: 2/14 checked → 86% miss. h2: 4/14 checked → 71% miss. No peer ≤ 30%.
+    const h1 = makeHabit({ checkHistory: BN_WINDOW.slice(0, 2) });
+    const h2 = makeHabit({ checkHistory: BN_WINDOW.slice(0, 4) });
+    expect(calcHabitBottleneck([h1, h2], BN_WINDOW)).toBeNull();
+  });
+
+  it("shouldTreatMissingCheckHistoryAs100PctMissed", () => {
+    // Habit with no checkHistory = never checked in window → 100% miss.
+    const ghost = makeHabit({ name: "운동", icon: "🏋️", checkHistory: undefined });
+    const reliable = makeHabit({ checkHistory: BN_WINDOW.slice() }); // 0% miss
+    const result = calcHabitBottleneck([ghost, reliable], BN_WINDOW);
+    expect(result).toEqual({ name: "운동", icon: "🏋️", missRate: 100 });
+  });
+
+  it("shouldTreatEmptyCheckHistoryAs100PctMissed", () => {
+    const ghost = makeHabit({ name: "명상", icon: "🧘", checkHistory: [] });
+    const reliable = makeHabit({ checkHistory: BN_WINDOW.slice() });
+    const result = calcHabitBottleneck([ghost, reliable], BN_WINDOW);
+    expect(result).toEqual({ name: "명상", icon: "🧘", missRate: 100 });
+  });
+
+  it("shouldPickWorstHabitAmongMultipleCandidates", () => {
+    // 3 habits: one strong, two weak — should pick the weakest.
+    const strong = makeHabit({ checkHistory: BN_WINDOW.slice() }); // 0% miss
+    const mid = makeHabit({ name: "중간", icon: "⚡", checkHistory: BN_WINDOW.slice(0, 5) }); // 64% miss
+    const worst = makeHabit({ name: "최악", icon: "😱", checkHistory: BN_WINDOW.slice(0, 2) }); // 86% miss
+    const result = calcHabitBottleneck([strong, mid, worst], BN_WINDOW);
+    expect(result).toEqual({ name: "최악", icon: "😱", missRate: 86 });
+  });
+
+  it("shouldRoundMissRateToNearestInteger", () => {
+    // 10/14 checked → 4 missed → 28.57% miss → rounds to 29% → below threshold (< 50%).
+    // But wait: if strong peer has 0% miss and this is only "weak", it's below 50% threshold → null.
+    // Let's try: 6/14 checked → 8 missed → 57.14% → rounds to 57%.
+    const weak = makeHabit({ name: "테스트", icon: "🧪", checkHistory: BN_WINDOW.slice(0, 6) });
+    const strong = makeHabit({ checkHistory: BN_WINDOW.slice() });
+    const result = calcHabitBottleneck([weak, strong], BN_WINDOW);
+    expect(result).toEqual({ name: "테스트", icon: "🧪", missRate: 57 });
+  });
+
+  it("shouldIgnoreCheckDatesOutsideWindow", () => {
+    // Habit has check-ins but all outside the window.
+    const outsider = makeHabit({ name: "유령", icon: "👻", checkHistory: ["2025-01-01", "2025-06-15"] });
+    const reliable = makeHabit({ checkHistory: BN_WINDOW.slice() });
+    const result = calcHabitBottleneck([outsider, reliable], BN_WINDOW);
+    expect(result).toEqual({ name: "유령", icon: "👻", missRate: 100 });
+  });
+
+  it("shouldReturnNullWhenExactlyAtBoundary50PctMiss", () => {
+    // 7/14 checked → 50% miss. Threshold is ">" 50%, so exactly 50% → null.
+    const borderline = makeHabit({ checkHistory: BN_WINDOW.slice(0, 7) });
+    const strong = makeHabit({ checkHistory: BN_WINDOW.slice() });
+    expect(calcHabitBottleneck([borderline, strong], BN_WINDOW)).toBeNull();
+  });
+
+  it("shouldPreserveInputOrderOnTiedMissRates", () => {
+    // Two habits tie at 100% miss rate (no checkHistory). Strong peer at 0%.
+    // Stable sort preserves input order → first habit wins.
+    const first = makeHabit({ name: "첫째", icon: "1️⃣", checkHistory: [] });
+    const second = makeHabit({ name: "둘째", icon: "2️⃣", checkHistory: [] });
+    const strong = makeHabit({ checkHistory: BN_WINDOW.slice() });
+    const result = calcHabitBottleneck([first, second, strong], BN_WINDOW);
+    expect(result).toEqual({ name: "첫째", icon: "1️⃣", missRate: 100 });
+  });
+
+  it("shouldFireWhenPeerMissRateJustBelow30Pct", () => {
+    // Peer: 10/14 checked → 4 missed → 28.57% → rounds to 29% ≤ 30% → qualifies as reliable peer.
+    // (Exact 30% is unreachable with a 14-day window; 29% is the closest achievable value below 30.)
+    // Bottleneck: 3/14 checked → 79% miss → above 50%.
+    const weak = makeHabit({ name: "약한", icon: "🌑", checkHistory: BN_WINDOW.slice(0, 3) });
+    const borderPeer = makeHabit({ checkHistory: BN_WINDOW.slice(0, 10) });
+    const result = calcHabitBottleneck([weak, borderPeer], BN_WINDOW);
+    expect(result).toEqual({ name: "약한", icon: "🌑", missRate: 79 });
   });
 });

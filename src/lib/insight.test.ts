@@ -12540,6 +12540,107 @@ describe("calcTodayInsight — habit_diversity_warning (priority 10.22)", () => 
   });
 });
 
+// ── habit_bottleneck (priority 10.225, after habit_diversity_warning, before almost_perfect_day) ─────
+describe("calcTodayInsight — habit_bottleneck (priority 10.225)", () => {
+  // nowHour:14 bypasses all morning-only checks.
+  // All habits checked TODAY → remaining=0, so almost_perfect_day cannot fire.
+  // habitsAllDoneDate:undefined → perfect_day does not fire.
+  // Low streaks prevent habit_diversity_warning (avgOthers below noise floor 4).
+  const base = {
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  };
+
+  // 14-day window ending at TODAY for bottleneck computation.
+  const BN_14 = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date("2024-01-15T00:00:00");
+    d.setDate(d.getDate() - 13 + i);
+    return d.toISOString().slice(0, 10);
+  });
+
+  it("shouldFireWhenOneHabitClearlyLags", () => {
+    // 풀업: checked 3/14 days → 79% miss. 독서: checked 14/14 → 0% miss.
+    // Streaks low to avoid diversity_warning (streak:3 ≤ avgOthers*0.3 check fails when avgOthers=3 < 4).
+    // Include YESTERDAY in checkHistory to prevent habit_consecutive_miss (10.2) from preempting.
+    const result = calcTodayInsight({
+      ...base,
+      habits: [
+        { name: "풀업", streak: 3, lastChecked: TODAY, checkHistory: [BN_14[0], BN_14[6], YESTERDAY] },
+        { name: "독서", streak: 3, lastChecked: TODAY, checkHistory: BN_14.slice() },
+      ],
+      habitBottleneck: { name: "풀업", icon: "💪", missRate: 79 },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("풀업");
+    expect(result!.text).toContain("79%");
+    expect(result!.text).toContain("장애물");
+  });
+
+  it("shouldNotFireWhenHabitBottleneckIsUndefined", () => {
+    const result = calcTodayInsight({
+      ...base,
+      habits: [
+        { name: "풀업", streak: 3, lastChecked: TODAY },
+        { name: "독서", streak: 3, lastChecked: TODAY },
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldBePrecededByHabitDiversityWarning", () => {
+    // diversity_warning (10.22) fires before habit_bottleneck (10.225).
+    // Streak imbalance triggers diversity_warning → chain terminates before bottleneck.
+    const result = calcTodayInsight({
+      ...base,
+      habits: [
+        { name: "운동", streak: 1, lastChecked: TODAY, bestStreak: 5 },
+        { name: "독서", streak: 10, lastChecked: TODAY },
+        { name: "명상", streak: 14, lastChecked: TODAY },
+      ],
+      habitBottleneck: { name: "운동", icon: "🏋️", missRate: 80 },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("뒤처져"); // diversity_warning wins
+    expect(result!.text).not.toContain("장애물"); // bottleneck suppressed
+  });
+
+  it("shouldPrecedeAlmostPerfectDay", () => {
+    // habit_bottleneck (10.225) fires before almost_perfect_day (10.3).
+    // One habit unchecked (remaining=1, nowHour=15) → almost_perfect_day would fire.
+    // But bottleneck takes priority.
+    const result = calcTodayInsight({
+      ...base,
+      nowHour: 15,
+      habits: [
+        { name: "풀업", streak: 2, lastChecked: YESTERDAY },
+        { name: "독서", streak: 2, lastChecked: TODAY },
+      ],
+      habitBottleneck: { name: "풀업", icon: "💪", missRate: 71 },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("장애물"); // bottleneck fires
+    expect(result!.text).not.toContain("완벽한 하루까지"); // almost_perfect_day suppressed
+  });
+
+  it("shouldShowIconInBadgeText", () => {
+    const result = calcTodayInsight({
+      ...base,
+      habits: [
+        { name: "풀업", streak: 2, lastChecked: TODAY },
+        { name: "독서", streak: 2, lastChecked: TODAY },
+      ],
+      habitBottleneck: { name: "풀업", icon: "💪", missRate: 64 },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("💪");
+  });
+});
+
 // ── habit_target_halfway ──────────────────────────────────────────
 describe("calcTodayInsight — habit_target_halfway (priority 11.06, between habit_target_near and intention_streak)", () => {
   // weekGoal: "test" suppresses period_start nudge (TODAY = "2024-01-15" is a Monday).

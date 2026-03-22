@@ -14,7 +14,7 @@ import { useGitHubSync } from "./hooks/useGitHubSync";
 import { fetchRepoData } from "./lib/github";
 import { totalDaysInMonth, totalDaysInQuarter, totalDaysInYear, periodElapsedFraction, daysLeftInWeek, daysLeftInMonth, daysLeftInQuarter, daysLeftInYear, calcLastNDays } from "./lib/datePeriods";
 import { calcIntentionStreak, calcIntentionWeek, calcIntentionWeekTrend, calcIntentionDoneNotify, calcMorningIntentionReminder, calcIntentionEveningReminder, calcIntentionDoneStreak, calcWeeklyIntentionReport, calcMonthlyIntentionReport, calcQuarterlyIntentionReport, calcYearlyIntentionReport, calcDayOfWeekIntentionDoneRate, calcWeakIntentionDay, calcBestIntentionDay, calcIntentionMonthDoneRate, calcIntentionMomentumCorrelation, calcIntentionConsecutiveMiss } from "./lib/intention";
-import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcQuarterlyPerfectDayReport, calcYearlyHabitReport, calcYearlyPerfectDayReport, calcWeeklyPerfectDayReport, calcMonthlyPerfectDayReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, calcHabitMomentumCorrelation } from "./lib/habits";
+import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDayStreak, calcEveningHabitReminder, calcHabitMilestoneApproachNotify, calcWeeklyReviewReminder, calcPerfectDayMilestoneNotify, calcWeeklyHabitReport, calcMonthlyHabitReport, calcQuarterlyHabitReport, calcQuarterlyPerfectDayReport, calcYearlyHabitReport, calcYearlyPerfectDayReport, calcWeeklyPerfectDayReport, calcMonthlyPerfectDayReport, calcDayOfWeekHabitRates, calcWeakDayOfWeek, calcBestDayOfWeek, calcHabitMorningReminder, calcHabitMomentumCorrelation, calcHabitBottleneck } from "./lib/habits";
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcYearlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
@@ -2135,6 +2135,10 @@ export default function App() {
   const intentionConsecutiveMissDays = calcIntentionConsecutiveMiss(data.intentionHistory ?? [], todayStr) ?? undefined;
   // focusDroughtDays: consecutive past days without any pomodoro sessions; null = never started or drought < 3 days.
   const focusDroughtDays = calcFocusDroughtDays(data.pomodoroHistory ?? [], todayStr) ?? undefined;
+  // habitBottleneck: the single habit with the highest miss rate (>50%) over the 14-day window,
+  // when at least one peer habit has miss rate ≤30%. Returns null when no clear bottleneck exists.
+  // Reuses last14Days (declared above for perfectDayStreak) as the analysis window.
+  const habitBottleneck = calcHabitBottleneck(habitsArr, last14Days) ?? undefined;
   // Past consecutive done streaks for each goal period — shared by todayInsight and directionBadge.
   // Excludes the current (in-progress) period; ≥ 2 triggers streak suffix in both contexts.
   // Math.max(0, ...) clamps the result to ≥ 0: when no goal is set for the current period,
@@ -2329,6 +2333,8 @@ export default function App() {
     intentionConsecutiveMissDays,
     // focusDroughtDays: consecutive past days without any pomodoro sessions; undefined = never started or drought < 3 days.
     focusDroughtDays,
+    // habitBottleneck: pre-computed per-habit bottleneck over 14-day window; undefined = no clear bottleneck.
+    habitBottleneck,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 31-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes

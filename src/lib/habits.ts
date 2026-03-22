@@ -1,5 +1,5 @@
 // ABOUTME: Pure helpers for habit statistics and check-in logic, plus audio feedback
-// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, quarterly perfect-day count report, yearly habit completion rate report, yearly perfect-day count report, and per-weekday best/weak day detection
+// ABOUTME: Covers milestone badges, completion tracking, per-habit weekly trend stats, aggregate week-over-week trend, daily completion rate, section badge, check-in patch, perfect-day streak, habit check-in audio cue, morning activation nudge, evening reminder, perfect-day streak milestone notifications, Monday morning weekly habit completion rate report, monthly habit completion rate report, quarterly habit completion rate report, quarterly perfect-day count report, yearly habit completion rate report, yearly perfect-day count report, per-weekday best/weak day detection, and per-habit bottleneck analysis
 
 import type { Habit, MomentumEntry } from "../types";
 
@@ -631,4 +631,48 @@ export function calcHabitMomentumCorrelation(
   if (allDoneCount < MIN_CORRELATION_SAMPLES || notAllDoneCount < MIN_CORRELATION_SAMPLES) return null;
   const gap = Math.round(allDoneTotal / allDoneCount - notAllDoneTotal / notAllDoneCount);
   return gap >= 15 ? gap : null;
+}
+
+export interface HabitBottleneck {
+  name: string;
+  icon: string;
+  /** Percentage of days in the window where this habit was NOT checked (0–100). */
+  missRate: number;
+}
+
+// Identifies the single habit with the highest miss rate over the given day window.
+// Returns the habit with the highest miss rate when:
+//   - ≥ 2 habits (peer comparison requires at least one peer)
+//   - dayWindow is non-empty
+//   - bottleneck miss rate > 50% (more missed than checked)
+//   - at least one peer has miss rate ≤ 30% (bottleneck is meaningful only when a peer is reliable)
+// Missing/empty checkHistory is treated as 100% missed.
+// When multiple habits tie for worst miss rate, sort stability determines winner (input order preserved).
+export function calcHabitBottleneck(
+  habits: Habit[],
+  dayWindow: string[],
+): HabitBottleneck | null {
+  if (habits.length < 2 || dayWindow.length === 0) return null;
+
+  const windowSet = new Set(dayWindow);
+  const total = dayWindow.length;
+
+  const rates = habits.map(h => {
+    const history = h.checkHistory ?? [];
+    const checkedCount = history.filter(d => windowSet.has(d)).length;
+    const missRate = Math.round((total - checkedCount) / total * 100);
+    return { name: h.name, icon: h.icon, missRate };
+  });
+
+  // Sort descending by missRate — first element is the bottleneck candidate.
+  rates.sort((a, b) => b.missRate - a.missRate);
+
+  const bottleneck = rates[0];
+  if (bottleneck.missRate <= 50) return null;
+
+  // At least one peer must have miss rate ≤ 30% for the bottleneck to be meaningful.
+  const hasReliablePeer = rates.slice(1).some(r => r.missRate <= 30);
+  if (!hasReliablePeer) return null;
+
+  return { name: bottleneck.name, icon: bottleneck.icon, missRate: bottleneck.missRate };
 }
