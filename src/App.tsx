@@ -33,6 +33,7 @@ import { calcHabitPortfolio } from "./lib/habitPortfolio";
 import { calcHabitSynergy } from "./lib/habitSynergy";
 import { calcMomentumForecast } from "./lib/momentumForecast";
 import { calcWeekdayProfile } from "./lib/weekProfile";
+import { calcPomodoroPattern } from "./lib/pomodoroPattern";
 import { Clock } from "./components/Clock";
 import { HealthPulse } from "./components/HealthPulse";
 import { DragBar } from "./components/DragBar";
@@ -43,6 +44,7 @@ import { HabitPortfolioCard } from "./components/HabitPortfolioCard";
 import { HabitSynergyCard } from "./components/HabitSynergyCard";
 import { MomentumForecastCard } from "./components/MomentumForecastCard";
 import { WeekdayProfileCard } from "./components/WeekdayProfileCard";
+import { PomodoroPatternCard } from "./components/PomodoroPatternCard";
 import { QuoteRotator } from "./components/QuoteRotator";
 import { InlineEdit } from "./components/InlineEdit";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -2247,6 +2249,12 @@ export default function App() {
     momentumAvgs: calcDayOfWeekMomentumAvg(data.momentumHistory ?? [], last14Days),
     pomodoroGoal: data.pomodoroSessionGoal,
   });
+  // pomodoroPattern: 28-day pomodoro usage pattern analysis (grade, consistency, trend, weekday pattern)
+  const pomodoroPattern = calcPomodoroPattern({
+    pomodoroHistory: data.pomodoroHistory ?? [],
+    pomodoroGoal: data.pomodoroSessionGoal ?? 0,
+    todayStr,
+  });
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2653,31 +2661,36 @@ export default function App() {
           if (key === "pomodoro") return (
             <Fragment key="pomodoro">
               {loaded && (
-                <PomodoroTimer
-                  initialDurations={data.pomodoroDurations}
-                  onDurationsChange={updatePomodoroDurations}
-                  initialAutoStart={data.pomodoroAutoStart}
-                  onAutoStartChange={updatePomodoroAutoStart}
-                  sessionsToday={pomodoroSessionsToday}
-                  onSessionComplete={handlePomodoroSession}
-                  initialOpen={!collapsed.includes("pomodoro")}
-                  onToggleOpen={() => toggleSection("pomodoro")}
-                  sessionGoal={data.pomodoroSessionGoal}
-                  onSessionGoalChange={updatePomodoroSessionGoal}
-                  longBreakInterval={data.pomodoroLongBreakInterval}
-                  onLongBreakIntervalChange={updatePomodoroLongBreakInterval}
-                  initialNotify={data.pomodoroNotify}
-                  onNotifyChange={updatePomodoroNotify}
-                  initialSound={data.pomodoroSound}
-                  onSoundChange={updatePomodoroSound}
-                  sessionHistory={data.pomodoroHistory}
-                  lifetimeMins={data.pomodoroLifetimeMins}
-                  focusProject={focusProject?.name || undefined}
-                  todayIntention={data.todayIntentionDone ? undefined : data.todayIntention}
-                  onMoveUp={up}
-                  onMoveDown={dn}
-                  accent={themeAccent}
-                />
+                <>
+                  <PomodoroTimer
+                    initialDurations={data.pomodoroDurations}
+                    onDurationsChange={updatePomodoroDurations}
+                    initialAutoStart={data.pomodoroAutoStart}
+                    onAutoStartChange={updatePomodoroAutoStart}
+                    sessionsToday={pomodoroSessionsToday}
+                    onSessionComplete={handlePomodoroSession}
+                    initialOpen={!collapsed.includes("pomodoro")}
+                    onToggleOpen={() => toggleSection("pomodoro")}
+                    sessionGoal={data.pomodoroSessionGoal}
+                    onSessionGoalChange={updatePomodoroSessionGoal}
+                    longBreakInterval={data.pomodoroLongBreakInterval}
+                    onLongBreakIntervalChange={updatePomodoroLongBreakInterval}
+                    initialNotify={data.pomodoroNotify}
+                    onNotifyChange={updatePomodoroNotify}
+                    initialSound={data.pomodoroSound}
+                    onSoundChange={updatePomodoroSound}
+                    sessionHistory={data.pomodoroHistory}
+                    lifetimeMins={data.pomodoroLifetimeMins}
+                    focusProject={focusProject?.name || undefined}
+                    todayIntention={data.todayIntentionDone ? undefined : data.todayIntention}
+                    onMoveUp={up}
+                    onMoveDown={dn}
+                    accent={themeAccent}
+                  />
+                  {!collapsed.includes("pomodoro") && (
+                    <PomodoroPatternCard pattern={pomodoroPattern} accent={themeAccent} />
+                  )}
+                </>
               )}
             </Fragment>
           );
