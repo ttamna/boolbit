@@ -30,6 +30,7 @@ import { calcBurnoutRisk } from "./lib/burnoutRisk";
 import { calcConsistencyScore } from "./lib/consistencyScore";
 import { calcGrowthTrajectory } from "./lib/growthTrajectory";
 import { calcHabitPortfolio } from "./lib/habitPortfolio";
+import { calcHabitResilience } from "./lib/habitResilience";
 import { calcHabitSynergy } from "./lib/habitSynergy";
 import { calcMomentumForecast } from "./lib/momentumForecast";
 import { calcWeekdayProfile } from "./lib/weekProfile";
@@ -41,6 +42,7 @@ import { SectionLabel } from "./components/SectionLabel";
 import { ProjectList } from "./components/ProjectList";
 import { HabitStreak } from "./components/HabitStreak";
 import { HabitPortfolioCard } from "./components/HabitPortfolioCard";
+import { HabitResilienceCard } from "./components/HabitResilienceCard";
 import { HabitSynergyCard } from "./components/HabitSynergyCard";
 import { MomentumForecastCard } from "./components/MomentumForecastCard";
 import { WeekdayProfileCard } from "./components/WeekdayProfileCard";
@@ -2236,6 +2238,11 @@ export default function App() {
     habits: habitsArr.map(h => ({ name: h.name, checkHistory: h.checkHistory })),
     dayWindow: last28Days,
   });
+  // habitResilience: per-habit recovery resilience profiling (elastic/moderate/slow/fragile)
+  const habitResilience = calcHabitResilience({
+    habits: habitsArr.map(h => ({ name: h.name, checkHistory: h.checkHistory })),
+    dayWindow: last28Days,
+  });
   // momentumForecast: 7-day momentum score prediction ("productivity weather forecast")
   const momentumForecast = calcMomentumForecast({
     momentumHistory: data.momentumHistory ?? [],
@@ -2654,6 +2661,7 @@ export default function App() {
                   <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} accent={themeAccent} onMilestoneReached={handleHabitMilestone} soundEnabled={data.habitsSound} onSoundChange={updateHabitsSound} />
                   <HabitPortfolioCard portfolio={habitPortfolio} />
                   <HabitSynergyCard synergy={habitSynergy} />
+                  <HabitResilienceCard resilience={habitResilience} />
                 </>
               )}
             </Fragment>

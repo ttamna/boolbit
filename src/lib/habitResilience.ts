@@ -32,7 +32,7 @@ export interface HabitResilienceResult {
 /** Minimum checks within window to include a habit in analysis. */
 const MIN_CHECKS = 2;
 
-const GRADE_EMOJI: Record<ResilienceGrade, string> = {
+export const GRADE_EMOJI: Record<ResilienceGrade, string> = {
   elastic: "🧬",
   moderate: "⏳",
   slow: "🐌",
