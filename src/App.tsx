@@ -30,6 +30,7 @@ import { calcBurnoutRisk } from "./lib/burnoutRisk";
 import { calcConsistencyScore } from "./lib/consistencyScore";
 import { calcGrowthTrajectory } from "./lib/growthTrajectory";
 import { calcHabitPortfolio } from "./lib/habitPortfolio";
+import { calcHabitSynergy } from "./lib/habitSynergy";
 import { calcMomentumForecast } from "./lib/momentumForecast";
 import { calcWeekdayProfile } from "./lib/weekProfile";
 import { Clock } from "./components/Clock";
@@ -39,6 +40,7 @@ import { SectionLabel } from "./components/SectionLabel";
 import { ProjectList } from "./components/ProjectList";
 import { HabitStreak } from "./components/HabitStreak";
 import { HabitPortfolioCard } from "./components/HabitPortfolioCard";
+import { HabitSynergyCard } from "./components/HabitSynergyCard";
 import { MomentumForecastCard } from "./components/MomentumForecastCard";
 import { WeekdayProfileCard } from "./components/WeekdayProfileCard";
 import { QuoteRotator } from "./components/QuoteRotator";
@@ -2227,6 +2229,11 @@ export default function App() {
     habits: habitsArr.map(h => ({ name: h.name, streak: h.streak, bestStreak: h.bestStreak, lastChecked: h.lastChecked })),
     todayStr,
   });
+  // habitSynergy: keystone habit detection — which habit lifts all others when completed
+  const habitSynergy = calcHabitSynergy({
+    habits: habitsArr.map(h => ({ name: h.name, checkHistory: h.checkHistory })),
+    dayWindow: last28Days,
+  });
   // momentumForecast: 7-day momentum score prediction ("productivity weather forecast")
   const momentumForecast = calcMomentumForecast({
     momentumHistory: data.momentumHistory ?? [],
@@ -2638,6 +2645,7 @@ export default function App() {
                 <>
                   <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} accent={themeAccent} onMilestoneReached={handleHabitMilestone} soundEnabled={data.habitsSound} onSoundChange={updateHabitsSound} />
                   <HabitPortfolioCard portfolio={habitPortfolio} />
+                  <HabitSynergyCard synergy={habitSynergy} />
                 </>
               )}
             </Fragment>
