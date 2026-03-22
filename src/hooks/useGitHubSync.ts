@@ -18,6 +18,10 @@ export function useGitHubSync(
   // Track whether we've done the first sync for the current PAT to avoid
   // re-firing immediately when only the interval changes
   const hasSyncedRef = useRef(false);
+  // Track previous PAT so we can detect when it changes to a new value.
+  // Starts as undefined, so the first render always triggers hasSynced reset
+  // (which is redundant since hasSynced starts false, but keeps logic uniform).
+  const prevPatRef = useRef<string | undefined>(undefined);
 
   useEffect(() => { projectsRef.current = projects; }, [projects]);
   useEffect(() => { onBatchUpdateRef.current = onBatchUpdate; }, [onBatchUpdate]);
@@ -25,7 +29,15 @@ export function useGitHubSync(
   useEffect(() => {
     if (!pat) {
       hasSyncedRef.current = false;
+      prevPatRef.current = undefined;
       return;
+    }
+
+    // Reset hasSynced when PAT changes to a new value so we re-sync immediately
+    // without waiting for the next interval tick
+    if (pat !== prevPatRef.current) {
+      hasSyncedRef.current = false;
+      prevPatRef.current = pat;
     }
 
     const sync = async () => {
