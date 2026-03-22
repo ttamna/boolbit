@@ -30,6 +30,7 @@ import { calcBurnoutRisk } from "./lib/burnoutRisk";
 import { calcConsistencyScore } from "./lib/consistencyScore";
 import { calcGrowthTrajectory } from "./lib/growthTrajectory";
 import { calcHabitPortfolio } from "./lib/habitPortfolio";
+import { calcMomentumForecast } from "./lib/momentumForecast";
 import { Clock } from "./components/Clock";
 import { HealthPulse } from "./components/HealthPulse";
 import { DragBar } from "./components/DragBar";
@@ -37,6 +38,7 @@ import { SectionLabel } from "./components/SectionLabel";
 import { ProjectList } from "./components/ProjectList";
 import { HabitStreak } from "./components/HabitStreak";
 import { HabitPortfolioCard } from "./components/HabitPortfolioCard";
+import { MomentumForecastCard } from "./components/MomentumForecastCard";
 import { QuoteRotator } from "./components/QuoteRotator";
 import { InlineEdit } from "./components/InlineEdit";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -2223,6 +2225,11 @@ export default function App() {
     habits: habitsArr.map(h => ({ name: h.name, streak: h.streak, bestStreak: h.bestStreak, lastChecked: h.lastChecked })),
     todayStr,
   });
+  // momentumForecast: 7-day momentum score prediction ("productivity weather forecast")
+  const momentumForecast = calcMomentumForecast({
+    momentumHistory: data.momentumHistory ?? [],
+    todayStr,
+  });
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2596,6 +2603,8 @@ export default function App() {
           growth={growthTrajectory}
           accent={themeAccent}
         />
+
+        <MomentumForecastCard forecast={momentumForecast} accent={themeAccent} />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {
           if (hiddenSections.includes(key)) return null;
