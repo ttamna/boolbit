@@ -40,6 +40,9 @@ export const colors = {
   ciSuccess: "#4ADE80",        // green — build passed
   ciFailure: "#F87171",        // red — build failed or cancelled/timed-out
   ciPending: "#FACC15",        // lighter yellow (≠ statusProgress #FBBF24 amber) — build in flight
+
+  // HealthPulse risk indicator — orange sits between amber (statusProgress) and red (statusPaused)
+  statusWarning: "#FB923C",
 } as const;
 
 export const fonts = {

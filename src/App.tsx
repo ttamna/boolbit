@@ -26,7 +26,11 @@ import { calcActiveStreaks } from "./lib/streaks";
 import { calcNextAction } from "./lib/nextAction";
 import { calcCompletionConfidence } from "./lib/completionConfidence";
 import { calcWeekComparison, calcWeekWindow } from "./lib/weekComparison";
+import { calcBurnoutRisk } from "./lib/burnoutRisk";
+import { calcConsistencyScore } from "./lib/consistencyScore";
+import { calcGrowthTrajectory } from "./lib/growthTrajectory";
 import { Clock } from "./components/Clock";
+import { HealthPulse } from "./components/HealthPulse";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
 import { ProjectList } from "./components/ProjectList";
@@ -2191,6 +2195,27 @@ export default function App() {
     thisWeek: weekWindow.thisWeek,
     lastWeek: weekWindow.lastWeek,
   });
+  // healthPulse: cross-domain vital signs (burnout risk, consistency, growth trajectory)
+  const burnoutRisk = calcBurnoutRisk({
+    momentumHistory: data.momentumHistory ?? [],
+    habits: habitsArr.map(h => ({ streak: h.streak })),
+    pomodoroHistory: data.pomodoroHistory ?? [],
+    intentionHistory: data.intentionHistory ?? [],
+    todayStr,
+  });
+  const consistencyScore = calcConsistencyScore({
+    habits: habitsArr.map(h => ({ checkHistory: h.checkHistory })),
+    pomodoroHistory: data.pomodoroHistory ?? [],
+    intentionHistory: data.intentionHistory ?? [],
+    todayStr,
+  });
+  const growthTrajectory = calcGrowthTrajectory({
+    habits: habitsArr.map(h => ({ checkHistory: h.checkHistory })),
+    pomodoroHistory: data.pomodoroHistory ?? [],
+    intentionHistory: data.intentionHistory ?? [],
+    momentumHistory: data.momentumHistory ?? [],
+    todayStr,
+  });
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2556,6 +2581,13 @@ export default function App() {
           completionConfidence={completionConfidence?.pct ?? null}
           weekSummary={weekComparison.summary}
           weekOverallTrend={weekComparison.overallTrend ?? undefined}
+        />
+
+        <HealthPulse
+          burnout={burnoutRisk}
+          consistency={consistencyScore}
+          growth={growthTrajectory}
+          accent={themeAccent}
         />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {
