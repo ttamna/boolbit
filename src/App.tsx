@@ -31,6 +31,7 @@ import { calcConsistencyScore } from "./lib/consistencyScore";
 import { calcGrowthTrajectory } from "./lib/growthTrajectory";
 import { calcHabitPortfolio } from "./lib/habitPortfolio";
 import { calcMomentumForecast } from "./lib/momentumForecast";
+import { calcWeekdayProfile } from "./lib/weekProfile";
 import { Clock } from "./components/Clock";
 import { HealthPulse } from "./components/HealthPulse";
 import { DragBar } from "./components/DragBar";
@@ -39,6 +40,7 @@ import { ProjectList } from "./components/ProjectList";
 import { HabitStreak } from "./components/HabitStreak";
 import { HabitPortfolioCard } from "./components/HabitPortfolioCard";
 import { MomentumForecastCard } from "./components/MomentumForecastCard";
+import { WeekdayProfileCard } from "./components/WeekdayProfileCard";
 import { QuoteRotator } from "./components/QuoteRotator";
 import { InlineEdit } from "./components/InlineEdit";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -2230,6 +2232,14 @@ export default function App() {
     momentumHistory: data.momentumHistory ?? [],
     todayStr,
   });
+  // weekdayProfile: cross-domain weekday productivity profile (composite score per weekday)
+  const weekdayProfile = calcWeekdayProfile({
+    habitRates: calcDayOfWeekHabitRates(habitsArr, last28Days),
+    pomodoroAvgs: calcDayOfWeekPomodoroAvg(data.pomodoroHistory ?? [], last14Days),
+    intentionRates: calcDayOfWeekIntentionDoneRate(data.intentionHistory ?? [], last28Days),
+    momentumAvgs: calcDayOfWeekMomentumAvg(data.momentumHistory ?? [], last14Days),
+    pomodoroGoal: data.pomodoroSessionGoal,
+  });
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2605,6 +2615,7 @@ export default function App() {
         />
 
         <MomentumForecastCard forecast={momentumForecast} accent={themeAccent} />
+        <WeekdayProfileCard profile={weekdayProfile} accent={themeAccent} />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {
           if (hiddenSections.includes(key)) return null;
