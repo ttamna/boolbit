@@ -29,12 +29,14 @@ import { calcWeekComparison, calcWeekWindow } from "./lib/weekComparison";
 import { calcBurnoutRisk } from "./lib/burnoutRisk";
 import { calcConsistencyScore } from "./lib/consistencyScore";
 import { calcGrowthTrajectory } from "./lib/growthTrajectory";
+import { calcHabitPortfolio } from "./lib/habitPortfolio";
 import { Clock } from "./components/Clock";
 import { HealthPulse } from "./components/HealthPulse";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
 import { ProjectList } from "./components/ProjectList";
 import { HabitStreak } from "./components/HabitStreak";
+import { HabitPortfolioCard } from "./components/HabitPortfolioCard";
 import { QuoteRotator } from "./components/QuoteRotator";
 import { InlineEdit } from "./components/InlineEdit";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -2216,6 +2218,11 @@ export default function App() {
     momentumHistory: data.momentumHistory ?? [],
     todayStr,
   });
+  // habitPortfolio: per-habit state classification (record/milestone_near/risk/growing/recovering/dormant)
+  const habitPortfolio = calcHabitPortfolio({
+    habits: habitsArr.map(h => ({ name: h.name, streak: h.streak, bestStreak: h.bestStreak, lastChecked: h.lastChecked })),
+    todayStr,
+  });
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2608,7 +2615,10 @@ export default function App() {
             <Fragment key="streaks">
               <SectionLabel accent={themeAccent} collapsed={collapsed.includes("streaks")} onToggle={() => toggleSection("streaks")} badge={habitsBadge} onMoveUp={up} onMoveDown={dn}>Streaks</SectionLabel>
               {!collapsed.includes("streaks") && (
-                <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} accent={themeAccent} onMilestoneReached={handleHabitMilestone} soundEnabled={data.habitsSound} onSoundChange={updateHabitsSound} />
+                <>
+                  <HabitStreak habits={data.habits} onUpdate={updateHabit} onHabitsChange={updateHabits} accent={themeAccent} onMilestoneReached={handleHabitMilestone} soundEnabled={data.habitsSound} onSoundChange={updateHabitsSound} />
+                  <HabitPortfolioCard portfolio={habitPortfolio} />
+                </>
               )}
             </Fragment>
           );
