@@ -49,6 +49,7 @@ import { MomentumForecastCard } from "./components/MomentumForecastCard";
 import { WeekdayProfileCard } from "./components/WeekdayProfileCard";
 import { PomodoroPatternCard } from "./components/PomodoroPatternCard";
 import { MomentumCalendarCard } from "./components/MomentumCalendarCard";
+import { WeekComparisonCard } from "./components/WeekComparisonCard";
 import { QuoteRotator } from "./components/QuoteRotator";
 import { InlineEdit } from "./components/InlineEdit";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -2648,6 +2649,7 @@ export default function App() {
         <MomentumForecastCard forecast={momentumForecast} accent={themeAccent} />
         <WeekdayProfileCard profile={weekdayProfile} accent={themeAccent} />
         <MomentumCalendarCard calendar={momentumCalendar} accent={themeAccent} />
+        <WeekComparisonCard comparison={weekComparison} accent={themeAccent} />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {
           if (hiddenSections.includes(key)) return null;
