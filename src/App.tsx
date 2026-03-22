@@ -35,6 +35,7 @@ import { calcHabitSynergy } from "./lib/habitSynergy";
 import { calcMomentumForecast } from "./lib/momentumForecast";
 import { calcWeekdayProfile } from "./lib/weekProfile";
 import { calcPomodoroPattern } from "./lib/pomodoroPattern";
+import { calcMomentumCalendar } from "./lib/momentumCalendar";
 import { Clock } from "./components/Clock";
 import { HealthPulse } from "./components/HealthPulse";
 import { DragBar } from "./components/DragBar";
@@ -47,6 +48,7 @@ import { HabitSynergyCard } from "./components/HabitSynergyCard";
 import { MomentumForecastCard } from "./components/MomentumForecastCard";
 import { WeekdayProfileCard } from "./components/WeekdayProfileCard";
 import { PomodoroPatternCard } from "./components/PomodoroPatternCard";
+import { MomentumCalendarCard } from "./components/MomentumCalendarCard";
 import { QuoteRotator } from "./components/QuoteRotator";
 import { InlineEdit } from "./components/InlineEdit";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -2256,6 +2258,8 @@ export default function App() {
     momentumAvgs: calcDayOfWeekMomentumAvg(data.momentumHistory ?? [], last14Days),
     pomodoroGoal: data.pomodoroSessionGoal,
   });
+  // momentumCalendar: 28-day rolling history grid for the momentum heatmap card
+  const momentumCalendar = calcMomentumCalendar(data.momentumHistory ?? [], todayStr);
   // pomodoroPattern: 28-day pomodoro usage pattern analysis (grade, consistency, trend, weekday pattern)
   const pomodoroPattern = calcPomodoroPattern({
     pomodoroHistory: data.pomodoroHistory ?? [],
@@ -2638,6 +2642,7 @@ export default function App() {
 
         <MomentumForecastCard forecast={momentumForecast} accent={themeAccent} />
         <WeekdayProfileCard profile={weekdayProfile} accent={themeAccent} />
+        <MomentumCalendarCard calendar={momentumCalendar} accent={themeAccent} />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {
           if (hiddenSections.includes(key)) return null;
