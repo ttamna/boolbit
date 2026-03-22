@@ -2,7 +2,7 @@
 // ABOUTME: Verifies per-domain delta computation, trend detection, overall trend, and Korean summary
 
 import { describe, it, expect } from "vitest";
-import { calcWeekComparison } from "./weekComparison";
+import { calcWeekComparison, calcWeekWindow } from "./weekComparison";
 
 const THIS_WEEK = [
   "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19",
@@ -52,6 +52,16 @@ describe("calcWeekComparison", () => {
       const result = calcWeekComparison({
         ...EMPTY_PARAMS,
         habits: [{ checkHistory: [] }],
+      });
+      expect(result.habits).not.toBeNull();
+      expect(result.habits!.thisWeek).toBe(0);
+      expect(result.habits!.lastWeek).toBe(0);
+    });
+
+    it("shouldReturn0WhenAllHabitsHaveUndefinedCheckHistory", () => {
+      const result = calcWeekComparison({
+        ...EMPTY_PARAMS,
+        habits: [{ checkHistory: undefined as unknown as string[] }, { checkHistory: undefined as unknown as string[] }],
       });
       expect(result.habits).not.toBeNull();
       expect(result.habits!.thisWeek).toBe(0);
@@ -230,6 +240,18 @@ describe("calcWeekComparison", () => {
       expect(result.pomodoro!.delta).toBe(3);
       expect(result.pomodoro!.trend).toBe("up");
     });
+
+    it("shouldDetectDownWhenPomodoroDeltaIsNegative3", () => {
+      const result = calcWeekComparison({
+        ...EMPTY_PARAMS,
+        pomodoroHistory: [
+          { date: "2026-03-16", count: 1 },
+          { date: "2026-03-09", count: 4 },
+        ],
+      });
+      expect(result.pomodoro!.delta).toBe(-3);
+      expect(result.pomodoro!.trend).toBe("down");
+    });
   });
 
   // ── overall trend ──────────────────────────────────────────────────────────
@@ -377,8 +399,18 @@ describe("calcWeekComparison", () => {
     expect(result.pomodoro).not.toBeNull();
     expect(result.intention).not.toBeNull();
     expect(result.momentum).not.toBeNull();
+    // pomodoro: 21 vs 14, delta 7 → up
+    expect(result.pomodoro!.thisWeek).toBe(21);
+    expect(result.pomodoro!.lastWeek).toBe(14);
+    expect(result.pomodoro!.trend).toBe("up");
+    // intention: 100% vs 71%, delta 29 → up
+    expect(result.intention!.thisWeek).toBe(100);
+    expect(result.intention!.lastWeek).toBe(71);
+    expect(result.intention!.trend).toBe("up");
     expect(result.overallTrend).toBe("up");
     expect(result.summary).toContain("습관↑");
+    expect(result.summary).toContain("포모↑");
+    expect(result.summary).toContain("의도↑");
     expect(result.summary).toContain("모멘텀↑");
   });
 
@@ -394,5 +426,63 @@ describe("calcWeekComparison", () => {
     });
     expect(result.pomodoro!.thisWeek).toBe(2);
     expect(result.pomodoro!.lastWeek).toBe(0);
+  });
+});
+
+// ── calcWeekWindow ─────────────────────────────────────────────────────────
+
+describe("calcWeekWindow", () => {
+  it("shouldReturnMonThroughSunForBothWeeksWhenMidWeek", () => {
+    // 2026-03-18 is Wednesday
+    const { thisWeek, lastWeek } = calcWeekWindow("2026-03-18");
+    expect(thisWeek).toEqual([
+      "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19",
+      "2026-03-20", "2026-03-21", "2026-03-22",
+    ]);
+    expect(lastWeek).toEqual([
+      "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12",
+      "2026-03-13", "2026-03-14", "2026-03-15",
+    ]);
+  });
+
+  it("shouldHandleMonday", () => {
+    // 2026-03-16 is Monday — this week starts today
+    const { thisWeek, lastWeek } = calcWeekWindow("2026-03-16");
+    expect(thisWeek[0]).toBe("2026-03-16"); // Monday
+    expect(thisWeek[6]).toBe("2026-03-22"); // Sunday
+    expect(lastWeek[0]).toBe("2026-03-09");
+    expect(lastWeek[6]).toBe("2026-03-15");
+  });
+
+  it("shouldHandleSunday", () => {
+    // 2026-03-22 is Sunday — this week ends today
+    const { thisWeek, lastWeek } = calcWeekWindow("2026-03-22");
+    expect(thisWeek[0]).toBe("2026-03-16"); // Monday
+    expect(thisWeek[6]).toBe("2026-03-22"); // Sunday
+    expect(lastWeek[0]).toBe("2026-03-09");
+    expect(lastWeek[6]).toBe("2026-03-15");
+  });
+
+  it("shouldCrossMonthBoundary", () => {
+    // 2026-03-02 is Monday — last week is Feb 23–Mar 1
+    const { thisWeek, lastWeek } = calcWeekWindow("2026-03-02");
+    expect(thisWeek[0]).toBe("2026-03-02");
+    expect(lastWeek[0]).toBe("2026-02-23");
+    expect(lastWeek[6]).toBe("2026-03-01");
+  });
+
+  it("shouldCrossYearBoundary", () => {
+    // 2026-01-01 is Thursday — this week Mon Dec 29 – Sun Jan 4
+    const { thisWeek, lastWeek } = calcWeekWindow("2026-01-01");
+    expect(thisWeek[0]).toBe("2025-12-29"); // Monday
+    expect(thisWeek[6]).toBe("2026-01-04"); // Sunday
+    expect(lastWeek[0]).toBe("2025-12-22");
+    expect(lastWeek[6]).toBe("2025-12-28");
+  });
+
+  it("shouldAlwaysReturn7ElementArrays", () => {
+    const { thisWeek, lastWeek } = calcWeekWindow("2026-06-15");
+    expect(thisWeek).toHaveLength(7);
+    expect(lastWeek).toHaveLength(7);
   });
 });

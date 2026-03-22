@@ -1,5 +1,5 @@
 // ABOUTME: Clock component - displays current time and date with 12h/24h format support
-// ABOUTME: Updates every second via setInterval; dailyScore badge + 7-day momentum sparkline + 3-day trend arrow (↑/↓/→) + active streaks ticker + next action with completion confidence below date row
+// ABOUTME: Updates every second via setInterval; dailyScore badge + 7-day momentum sparkline + 3-day trend arrow (↑/↓/→) + active streaks ticker + week comparison summary + next action with completion confidence below date row
 
 import { useState, useEffect, useMemo } from "react";
 import { fonts, fontSizes, colors, radius } from "../theme";
@@ -8,6 +8,7 @@ import type { TodayInsight } from "../lib/insight";
 import type { MomentumEntry } from "../types";
 import type { ActiveStreak } from "../lib/streaks";
 import type { NextAction } from "../lib/nextAction";
+import type { Trend } from "../lib/weekComparison";
 
 // Returns the fraction of the calendar day elapsed (0.0 = midnight, 0.5 = noon, 1.0 = end of day).
 // Clamped to [0, 1] so out-of-range inputs (e.g. negative or > 86400 total seconds) stay bounded.
@@ -61,6 +62,10 @@ interface ClockProps {
   nextAction?: NextAction;
   /** Predicted probability (0–100) of completing all daily routines; null when insufficient history. */
   completionConfidence?: number | null;
+  /** Cross-domain week-over-week comparison summary (e.g., "습관↑ · 포모↑ · 의도→ · 모멘텀→"). */
+  weekSummary?: string;
+  /** Overall trend direction from week comparison; drives the summary color. */
+  weekOverallTrend?: Trend;
 }
 
 // Maps MomentumTrend to arrow glyph, tooltip label, and display color
@@ -70,7 +75,7 @@ const TREND_DISPLAY: Record<MomentumTrend, { arrow: string; label: string; color
   stable:    { arrow: "→", label: "유지", color: () => colors.textDim },
 };
 
-export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight, momentumStreak, weekAvg, trend, activeStreaks, nextAction, completionConfidence }: ClockProps) {
+export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, momentumHistory, insight, momentumStreak, weekAvg, trend, activeStreaks, nextAction, completionConfidence, weekSummary, weekOverallTrend }: ClockProps) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -257,6 +262,24 @@ export function Clock({ use12h = false, accent, onToggleFormat, dailyScore, mome
               {s.emoji}{s.days}d
             </span>
           ))}
+        </div>
+      )}
+      {/* Week comparison summary — cross-domain week-over-week trend arrows; hidden when data insufficient (overallTrend null) */}
+      {weekSummary && weekOverallTrend != null && (
+        <div
+          title="이번 주 vs 지난 주 도메인별 추세"
+          style={{
+            marginTop: 4,
+            fontSize: fontSizes.mini,
+            color: weekOverallTrend === "up" ? (accent ?? colors.statusActive)
+              : weekOverallTrend === "down" ? colors.statusPaused
+              : colors.textLabel,
+            opacity: 0.6,
+            letterSpacing: 0.3,
+            userSelect: "none",
+          }}
+        >
+          vs {weekSummary}
         </div>
       )}
       {/* Today's insight — context-aware one-liner: streak risk, milestone, intention, pomodoro */}

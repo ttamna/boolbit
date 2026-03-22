@@ -1,5 +1,5 @@
-// ABOUTME: calcWeekComparison — cross-domain week-over-week performance comparison
-// ABOUTME: Computes per-domain (habits, pomodoro, intention, momentum) deltas, trend detection, overall trend by plurality vote, and Korean summary string
+// ABOUTME: Cross-domain week-over-week performance comparison and ISO week boundary generation
+// ABOUTME: Used by Clock to display per-domain (habits, pomodoro, intention, momentum) weekly trends with Korean summary
 
 import type { Habit, PomodoroDay, IntentionEntry, MomentumEntry } from "../types";
 
@@ -180,4 +180,37 @@ export function calcWeekComparison(params: WeekComparisonParams): WeekComparison
     .join(" · ");
 
   return { habits, pomodoro, intention, momentum, overallTrend, summary };
+}
+
+export interface WeekWindow {
+  /** Current ISO week (Mon–Sun), 7 YYYY-MM-DD strings oldest→newest. */
+  thisWeek: string[];
+  /** Previous ISO week (Mon–Sun), 7 YYYY-MM-DD strings oldest→newest. */
+  lastWeek: string[];
+}
+
+/**
+ * Generates ISO week boundaries (Mon–Sun) for the current and previous week.
+ * todayStr: YYYY-MM-DD string identifying the reference date.
+ * Uses local midnight arithmetic — DST-safe (no timestamp math across day boundaries).
+ */
+export function calcWeekWindow(todayStr: string): WeekWindow {
+  const today = new Date(todayStr + "T00:00:00");
+  // getDay(): 0=Sun, 1=Mon, ..., 6=Sat. ISO offset to Monday: (getDay() + 6) % 7.
+  const daysSinceMonday = (today.getDay() + 6) % 7;
+
+  const thisMonday = new Date(today);
+  thisMonday.setDate(today.getDate() - daysSinceMonday);
+
+  const lastMonday = new Date(thisMonday);
+  lastMonday.setDate(thisMonday.getDate() - 7);
+
+  const buildWeek = (monday: Date): string[] =>
+    Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return d.toLocaleDateString("sv");
+    });
+
+  return { thisWeek: buildWeek(thisMonday), lastWeek: buildWeek(lastMonday) };
 }

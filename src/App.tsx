@@ -25,6 +25,7 @@ import { calcTodayInsight } from "./lib/insight";
 import { calcActiveStreaks } from "./lib/streaks";
 import { calcNextAction } from "./lib/nextAction";
 import { calcCompletionConfidence } from "./lib/completionConfidence";
+import { calcWeekComparison, calcWeekWindow } from "./lib/weekComparison";
 import { Clock } from "./components/Clock";
 import { DragBar } from "./components/DragBar";
 import { SectionLabel } from "./components/SectionLabel";
@@ -2176,6 +2177,16 @@ export default function App() {
     pomodoroSessions: data.pomodoroSessions ?? 0,
     pomodoroSessionsDate: data.pomodoroSessionsDate,
   });
+  // weekComparison: cross-domain week-over-week performance comparison for Clock display
+  const weekWindow = calcWeekWindow(todayStr);
+  const weekComparison = calcWeekComparison({
+    habits: habitsArr.map(h => ({ checkHistory: h.checkHistory })),
+    pomodoroHistory: data.pomodoroHistory ?? [],
+    intentionHistory: data.intentionHistory ?? [],
+    momentumHistory: data.momentumHistory ?? [],
+    thisWeek: weekWindow.thisWeek,
+    lastWeek: weekWindow.lastWeek,
+  });
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2537,6 +2548,8 @@ export default function App() {
           activeStreaks={activeStreaks}
           nextAction={nextAction}
           completionConfidence={completionConfidence?.pct ?? null}
+          weekSummary={weekComparison.summary}
+          weekOverallTrend={weekComparison.overallTrend ?? undefined}
         />
 
         {(data.sectionOrder ?? DEFAULT_SECTION_ORDER).map((key, idx, order) => {
