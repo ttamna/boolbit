@@ -20290,3 +20290,137 @@ describe("calcTodayInsight — momentum_streak_broken (priority 10.14, after foc
     expect(result!.text).not.toMatch(/모멘텀.*끊어짐/);
   });
 });
+
+// ── habit_milestone_eta ──────────────────────────────────────────────────
+describe("calcTodayInsight — habit_milestone_eta (priority 11.15, between intention_streak and null)", () => {
+  // ABOUTME: Tests for habit_milestone_eta badge — forward-looking probability forecast for the next
+  // ABOUTME: habit streak milestone (7/14/30/50/100), using geometric survival model p^n from checkHistory.
+  // Base: afternoon (nowHour=14), intention set for today, single habit with streak=4 (3 days from 7-day
+  //   milestone), checked today, no sessions, no goal, no projects, no approach badges firing.
+  //   checkHistory covers 12 of 14 days → dailySuccessRate ≈ 0.857, probability ≈ 0.857^3 ≈ 0.63.
+  // TODAY = "2024-01-15" (Monday); 14-day window = [2024-01-02 .. 2024-01-15].
+  const last14Days = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date("2024-01-15T00:00:00");
+    d.setDate(d.getDate() - 13 + i);
+    return d.toLocaleDateString("sv");
+  });
+  // 12 of 14 days checked (skip day index 3 and 7)
+  const goodHistory = last14Days.filter((_, i) => i !== 3 && i !== 7);
+
+  const etaBase = () => ({
+    habits: [{ name: "독서", streak: 4, lastChecked: TODAY, checkHistory: goodHistory }] as Array<{ name: string; streak: number; lastChecked?: string; bestStreak?: number; checkHistory?: string[] }>,
+    todayStr: TODAY,
+    nowHour: 14,
+    todayIntentionDate: TODAY,
+    sessionsToday: 0,
+    sessionGoal: undefined as number | undefined,
+    habitsAllDoneDate: undefined as string | undefined,
+  });
+
+  it("shouldFireWhenHabitIs3PlusDaysFromMilestoneWithReasonableProbability", () => {
+    // streak=4, next milestone=7, daysRemaining=3, rate=12/14≈0.857, prob≈0.63
+    const result = calcTodayInsight(etaBase());
+    expect(result).not.toBeNull();
+    expect(result!.level).toBe("info");
+    expect(result!.text).toContain("독서");
+    expect(result!.text).toContain("7일");
+    expect(result!.text).toContain("🔥");
+    expect(result!.text).toMatch(/\d+%/); // contains probability percentage
+  });
+
+  it("shouldNotFireWhenNoCheckHistory", () => {
+    // No checkHistory → dailySuccessRate=0 → probability=0 → null
+    const result = calcTodayInsight({
+      ...etaBase(),
+      habits: [{ name: "독서", streak: 4, lastChecked: TODAY }],
+    });
+    // Should return null or some other badge, but NOT the ETA badge
+    // With no habits having checkHistory, ETA is suppressed.
+    // Since no other low-priority badge qualifies either, result is null.
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenProbabilityTooLow", () => {
+    // 3 of 14 days checked (recent 3 — prevents habit_consecutive_miss from firing).
+    // rate=3/14≈0.214, prob=0.214^3≈0.010 < 0.10
+    const recentSparse = last14Days.slice(-3); // last 3 days only
+    const result = calcTodayInsight({
+      ...etaBase(),
+      habits: [{ name: "독서", streak: 4, lastChecked: TODAY, checkHistory: recentSparse }],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("shouldNotFireWhenDaysRemainingIs1Or2_coveredByApproachBadges", () => {
+    // streak=5, next=7, daysRemaining=2 → covered by approach badges → ETA returns null
+    const result = calcTodayInsight({
+      ...etaBase(),
+      habits: [{ name: "독서", streak: 5, lastChecked: TODAY, checkHistory: goodHistory }],
+    });
+    // approach badge at 7.424 fires first (streak=5 → 2 days to 7)
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("마일스톤"); // approach badge text, not ETA
+  });
+
+  it("shouldNotFireWhenPastAllMilestones_testedAtPureFunctionLevel", () => {
+    // streak=105 past all milestones [7,14,30,50,100] → calcMilestoneETA returns null.
+    // At insight level, streak=105 triggers higher-priority badges (month_flawless or almost_perfect_day)
+    // regardless of ETA, so the pure function test in milestoneETA.test.ts is authoritative.
+    // Here we verify that if some badge fires, it's NOT the ETA badge (no "확률" in text).
+    const result = calcTodayInsight({
+      ...etaBase(),
+      habits: [{ name: "독서", streak: 105, lastChecked: TODAY, checkHistory: goodHistory }],
+    });
+    // month_flawless (11.07) fires because streak=105 >= currentMonthDay=15, lastChecked=TODAY.
+    // ETA badge (11.15) never reached.
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("개근"); // month_flawless text
+    expect(result!.text).not.toMatch(/확률/); // NOT the ETA badge
+  });
+
+  it("shouldPickHabitWithHighestProbabilityWhenMultipleQualify", () => {
+    // Two habits: "독서" streak=4 (3 days to 7), "운동" streak=10 (4 days to 14)
+    // Both have same history, but "독서" is closer (3 days) → higher probability
+    const result = calcTodayInsight({
+      ...etaBase(),
+      habits: [
+        { name: "독서", streak: 4, lastChecked: TODAY, checkHistory: goodHistory },
+        { name: "운동", streak: 10, lastChecked: TODAY, checkHistory: goodHistory },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("독서"); // higher probability (0.857^3 vs 0.857^4)
+  });
+
+  it("shouldShowTarget14WhenStreakIsBetween7And12", () => {
+    // streak=8, next milestone=14, daysRemaining=6, rate=12/14≈0.857, prob≈0.857^6≈0.395
+    // lastChecked=TODAY → remaining=0 → almost_perfect_day suppressed.
+    // streak=8 < currentMonthDay=15 → month_flawless suppressed.
+    const result = calcTodayInsight({
+      ...etaBase(),
+      habits: [{ name: "독서", streak: 8, lastChecked: TODAY, checkHistory: goodHistory }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("14일");
+    expect(result!.text).toContain("🔥");
+  });
+
+  it("shouldBePreemptedByIntentionStreak", () => {
+    // intention_streak (11.1) fires before habit_milestone_eta (11.15)
+    const result = calcTodayInsight({
+      ...etaBase(),
+      intentionConsecutiveDays: 7,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("의도");
+    expect(result!.text).not.toContain("예측");
+  });
+
+  it("shouldNotFireWhenHabitsArrayIsEmpty", () => {
+    const result = calcTodayInsight({
+      ...etaBase(),
+      habits: [],
+    });
+    expect(result).toBeNull();
+  });
+});
