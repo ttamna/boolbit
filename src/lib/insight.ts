@@ -684,6 +684,14 @@ interface InsightParams {
    * Absent/undefined = no clear bottleneck detected or feature not wired; badge skipped silently.
    */
   habitBottleneck?: { name: string; icon: string; missRate: number };
+  /**
+   * Pre-computed smart project focus suggestion from calcFocusSuggestion.
+   * When non-null, the no_focus_project insight uses the specific project name and reason
+   * instead of the generic count message.
+   * Absent/undefined = caller has not wired calcFocusSuggestion; falls back to generic.
+   * Null = calcFocusSuggestion returned no clear winner; falls back to generic.
+   */
+  focusSuggestion?: { name: string; reason: string } | null;
 }
 
 // Habit streak milestones at which a personal-best celebration is shown (mirrors getUpcomingMilestone targets).
@@ -884,6 +892,7 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
     intentionConsecutiveMissDays,
     focusDroughtDays,
     habitBottleneck,
+    focusSuggestion,
   } = params;
 
   // 1. Streak at risk: evening (≥ 18h) + high streak (≥ 7) + not yet checked today
@@ -1190,6 +1199,9 @@ export function calcTodayInsight(params: InsightParams): TodayInsight | null {
   if (nowHour < 12 && todayIntentionDate === todayStr && projects && projects.length > 0) {
     const active = projects.filter(p => p.status !== "done" && p.status !== "paused");
     if (active.length > 0 && !active.some(p => p.isFocus === true)) {
+      if (focusSuggestion) {
+        return { text: `🎯 ${focusSuggestion.name}에 집중하세요 — ${focusSuggestion.reason}`, level: "info" };
+      }
       return { text: `🎯 오늘 집중 프로젝트를 선택하세요 · ${active.length}개 진행 중`, level: "info" };
     }
   }

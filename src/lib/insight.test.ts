@@ -5439,6 +5439,68 @@ describe("calcTodayInsight — no_focus_project (priority 6.5, between period_st
     expect(result).not.toBeNull();
     expect(result!.text).toContain("집중"); // no_focus_project wins over deadline_soon
   });
+
+  it("shouldShowProjectNameWhenFocusSuggestionProvided", () => {
+    // When a specific focus suggestion is available, the insight names the project instead of showing a generic count.
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "TacGear", status: "active" },
+        { name: "PolicyVote", status: "in-progress" },
+      ],
+      focusSuggestion: { name: "TacGear", reason: "D-3 임박" },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("TacGear");
+    expect(result!.level).toBe("info");
+  });
+
+  it("shouldShowReasonWhenFocusSuggestionProvided", () => {
+    // The reason string from calcFocusSuggestion appears in the insight text.
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "TacGear", status: "active" },
+        { name: "PolicyVote", status: "in-progress" },
+      ],
+      focusSuggestion: { name: "TacGear", reason: "D-3 임박" },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("D-3 임박");
+  });
+
+  it("shouldFallBackToGenericWhenFocusSuggestionIsNull", () => {
+    // When focusSuggestion is explicitly null (no clear winner), generic count message is used.
+    const result = calcTodayInsight({
+      habits: [],
+      todayStr: TOMORROW,
+      nowHour: 9,
+      todayIntentionDate: TOMORROW,
+      sessionsToday: 0,
+      sessionGoal: undefined,
+      habitsAllDoneDate: undefined,
+      projects: [
+        { name: "TacGear", status: "active" },
+        { name: "PolicyVote", status: "in-progress" },
+      ],
+      focusSuggestion: null,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("2개"); // generic count message
+    expect(result!.text).not.toContain("TacGear");
+  });
 });
 
 describe("calcTodayInsight — momentum_sustained_peak (priority 10.505, all 3 days ≥65 high-tier, non-strictly-rising)", () => {

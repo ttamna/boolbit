@@ -18,7 +18,7 @@ import { calcHabitsWeekRate, calcHabitsWeekTrend, calcHabitsBadge, calcPerfectDa
 import { isoWeekStr, quarterStr, calcWeekGoalStreak, calcMonthGoalStreak, calcQuarterGoalStreak, calcYearGoalStreak, calcGoalSuccessRate, calcLastNWeeks, calcWeekGoalHeatmap, calcLastNMonths, calcMonthGoalHeatmap, calcLastNQuarters, calcQuarterGoalHeatmap, calcLastNYears, calcYearGoalHeatmap, calcMonthlyGoalReminder, calcQuarterlyGoalReminder, calcYearlyGoalReminder, calcGoalCompletionNotify, calcWeeklyGoalMorningReminder, calcMonthlyGoalMorningReminder, calcQuarterlyGoalMorningReminder, calcYearlyGoalMorningReminder, calcWeeklyGoalReport, calcMonthlyGoalReport, calcQuarterlyGoalReport, calcYearlyGoalReport } from "./lib/goalPeriods";
 import { calcGoalExpiry } from "./lib/goalExpiry";
 import { calcDirectionBadge } from "./lib/direction";
-import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone } from "./lib/projects";
+import { calcProjectsBadge, calcProjectMilestone, calcProjectCompletionNotify, calcProjectPomodoroMilestone, calcFocusSuggestion } from "./lib/projects";
 import { calcTodaySessionCount, updatePomodoroHistory, calcPomodoroMorningReminder, calcPomodoroEveningReminder, calcPomodoroLifetimeMilestone, calcWeeklyPomodoroReport, calcMonthlyPomodoroReport, calcQuarterlyPomodoroReport, calcYearlyPomodoroReport, calcPomodoroGoalStreak, calcFocusStreak, calcPomodoroRecentAvg, calcPomodoroWeekRecord, calcDayOfWeekPomodoroAvg, calcWeakPomodoroDay, calcBestPomodoroDay, calcPomodoroWeekGoalDays, calcPomodoroMomentumCorrelation, calcFocusDroughtDays } from "./lib/pomodoro";
 import { calcDailyScore, updateMomentumHistory, calcMomentumStreak, calcMomentumWeekAvg, calcMomentumTrend, calcMomentumEveningDigest, calcMomentumMorningReminder, calcWeeklyMomentumReport, calcMonthlyMomentumReport, calcQuarterlyMomentumReport, calcYearlyMomentumReport, calcDayOfWeekMomentumAvg, calcWeakMomentumDay, calcBestMomentumDay } from "./lib/momentum";
 import { calcTodayInsight } from "./lib/insight";
@@ -2266,6 +2266,9 @@ export default function App() {
     pomodoroGoal: data.pomodoroSessionGoal ?? 0,
     todayStr,
   });
+  // focusSuggestion: recommends which project to focus on based on deadline urgency, schedule gap, and focus staleness.
+  // Computed before calcTodayInsight so it can be passed as a param for the no_focus_project insight.
+  const focusSuggestion = calcFocusSuggestion(data.projects ?? [], todayStr);
   // todayInsight: single most actionable context-aware insight for the Clock badge
   const todayInsight = calcTodayInsight({
     habits: habitsArr,
@@ -2410,6 +2413,8 @@ export default function App() {
     focusDroughtDays,
     // habitBottleneck: pre-computed per-habit bottleneck over 14-day window; undefined = no clear bottleneck.
     habitBottleneck,
+    // focusSuggestion: specific project recommendation for the no_focus_project insight; null when no clear winner.
+    focusSuggestion,
   });
   // Persist today's momentum score whenever it changes — upserts into rolling 31-day history.
   // Uses dataRef.current (not `data`) to avoid stale closure overwriting concurrent changes
