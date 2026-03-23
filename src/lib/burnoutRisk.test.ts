@@ -388,4 +388,78 @@ describe("calcBurnoutRisk", () => {
     expect(result!.factors).toContain("momentum_crash");
     expect(result!.factors).toContain("habit_erosion");
   });
+
+  // ── Signal score precision ────────────────────────────────────────────────
+
+  it("shouldFireMomentumCrashWhenDropIsExactlyAtThreshold", () => {
+    // priorAvg=65 (days 3-7), recentAvg=55 (days 0-2) → drop=10 = threshold → fires
+    // signal score = min(10, 35) = 10; all other signals healthy → total = 10
+    const history = [
+      mEntry(0, 55), mEntry(1, 55), mEntry(2, 55),
+      mEntry(3, 65), mEntry(4, 65), mEntry(5, 65), mEntry(6, 65), mEntry(7, 65),
+    ];
+    const result = calcBurnoutRisk(makeParams({ momentumHistory: history }));
+    expect(result!.factors).toContain("momentum_crash");
+    expect(result!.score).toBe(10);
+  });
+
+  it("shouldNotFireMomentumCrashWhenDropIsOneBelowThreshold", () => {
+    // priorAvg=65, recentAvg=56 → drop=9 < threshold (10) → no signal
+    const history = [
+      mEntry(0, 56), mEntry(1, 56), mEntry(2, 56),
+      mEntry(3, 65), mEntry(4, 65), mEntry(5, 65), mEntry(6, 65), mEntry(7, 65),
+    ];
+    const result = calcBurnoutRisk(makeParams({ momentumHistory: history }));
+    expect(result!.factors).not.toContain("momentum_crash");
+    expect(result!.score).toBe(0);
+  });
+
+  it("shouldCapMomentumCrashSignalAt35WhenDropExceedsCapValue", () => {
+    // priorAvg=80 (days 3-7), recentAvg=30 (days 0-2) → drop=50 → min(50, 35) = 35
+    // all other signals healthy → total score = 35
+    const history = [
+      mEntry(0, 30), mEntry(1, 30), mEntry(2, 30),
+      mEntry(3, 80), mEntry(4, 80), mEntry(5, 80), mEntry(6, 80), mEntry(7, 80),
+    ];
+    const result = calcBurnoutRisk(makeParams({ momentumHistory: history }));
+    expect(result!.score).toBe(35);
+    expect(result!.level).toBe("moderate");
+  });
+
+  it("shouldCapFocusDroughtSignalAt25WhenAllLookbackDaysAreDry", () => {
+    // 7 consecutive dry days (daysAgo 1-7); only entry is daysAgo(8) → consecutiveDry=7
+    // signal = min(7*5, 25) = 25; all other signals healthy → total score = 25
+    const result = calcBurnoutRisk(makeParams({
+      pomodoroHistory: [{ date: daysAgo(8), count: 1 }],
+    }));
+    expect(result!.factors).toContain("focus_drought");
+    expect(result!.score).toBe(25);
+    expect(result!.level).toBe("moderate");
+  });
+
+  it("shouldReturnExactHabitErosionScoreForHalfDormant", () => {
+    // 1 dormant of 2 habits → round(1/2 * 25) = round(12.5) = 13
+    // JS Math.round rounds 0.5 up → 13, not 12
+    // all other signals healthy → total score = 13
+    const result = calcBurnoutRisk(makeParams({
+      habits: [{ streak: 0 }, { streak: 8 }],
+    }));
+    expect(result!.factors).toContain("habit_erosion");
+    expect(result!.score).toBe(13);
+  });
+
+  it("shouldReturnExactIntentionDisconnectScoreForMinimumGapDays", () => {
+    // 4 gap days (minimum threshold) in 7-day window → round(4 * 15/7) = round(8.57) = 9
+    // all other signals healthy → total score = 9
+    const result = calcBurnoutRisk(makeParams({
+      intentionHistory: [
+        { date: daysAgo(1), text: "a", done: true },
+        { date: daysAgo(2), text: "b", done: true },
+        { date: daysAgo(3), text: "c", done: true },
+        // daysAgo(4-7) missing → 4 gap days
+      ],
+    }));
+    expect(result!.factors).toContain("intention_disconnect");
+    expect(result!.score).toBe(9);
+  });
 });
