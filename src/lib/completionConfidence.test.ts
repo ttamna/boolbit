@@ -462,4 +462,132 @@ describe("calcCompletionConfidence", () => {
     expect(result).not.toBeNull();
     expect(result!.pct).toBe(67);
   });
+
+  // ── LOOKBACK_DAYS boundary — 14th day is included, 15th is not ──────────
+
+  it("should include the LOOKBACK_DAYS-th day in the window and exclude LOOKBACK_DAYS+1", () => {
+    // buildWindowDates loops i=1..LOOKBACK_DAYS, so daysAgo(LOOKBACK_DAYS) is the last
+    // day in the window. daysAgo(LOOKBACK_DAYS+1) is outside.
+    // With 3 active days (daysAgo 1, 2, LOOKBACK_DAYS) → activeDays=3 → non-null result.
+    // intention rate = 3/3 = 100% (the outside entry is excluded from intentionDates).
+    const result = calcCompletionConfidence(makeParams({
+      intentionHistory: [
+        { date: daysAgo(1), text: "A" },
+        { date: daysAgo(2), text: "B" },
+        { date: daysAgo(LOOKBACK_DAYS), text: "boundary day" },
+        { date: daysAgo(LOOKBACK_DAYS + 1), text: "outside window" },
+      ],
+    }));
+    expect(result).not.toBeNull();
+    expect(result!.pct).toBe(100);
+  });
+
+  // ── checkHistory: undefined handled as empty array ────────────────────────
+
+  it("should treat undefined checkHistory as empty array with no check-ins", () => {
+    // h.checkHistory ?? [] guard: undefined checkHistory must not throw or inflate rate.
+    // habitsRate = 0/3 = 0% (no check-ins). Overall = intention(100%) × habits(0%) = 0.
+    const result = calcCompletionConfidence(makeParams({
+      habits: [{ lastChecked: undefined, checkHistory: undefined }],
+      intentionHistory: [
+        { date: daysAgo(1), text: "A" },
+        { date: daysAgo(2), text: "B" },
+        { date: daysAgo(3), text: "C" },
+      ],
+    }));
+    expect(result).not.toBeNull();
+    expect(result!.pct).toBe(0);
+  });
+
+  // ── All habits done today boosts habits factor to 100% ───────────────────
+
+  it("should boost habits factor to 100% when all habits are done today despite zero historical rate", () => {
+    // 2 habits with non-overlapping checkHistory → no day has BOTH checked → habitsRate = 0%.
+    // Both lastChecked=TODAY → allHabitsDoneToday=true → habits factor overrides to 1.0.
+    // activeDays = union {daysAgo(1-4)} = 4. intention rate = 2/4 = 50% (daysAgo 3&4 habit-only days).
+    // Overall = 50% × 100% = 50%.
+    const result = calcCompletionConfidence(makeParams({
+      habits: [
+        { lastChecked: TODAY, checkHistory: [daysAgo(1), daysAgo(2)] },
+        { lastChecked: TODAY, checkHistory: [daysAgo(3), daysAgo(4)] },
+      ],
+      intentionHistory: [
+        { date: daysAgo(1), text: "A" },
+        { date: daysAgo(2), text: "B" },
+      ],
+    }));
+    expect(result).not.toBeNull();
+    // habits done today → 100% factor; intention historical rate = 2/4 = 50%
+    expect(result!.pct).toBe(50);
+  });
+
+  // ── pomodoroSessions exactly equals pomodoroGoal → done today ───────────
+
+  it("should count pomodoro as done today when sessions exactly equals goal (>= boundary)", () => {
+    // The check is `todaySessions >= pomodoroGoal` — equality must satisfy it.
+    // Historical pomodoro rate = 1/3. Sessions===goal today → boost pillar to 100%.
+    // intention: 3/3=100% (done today). pomodoro done today. Overall = 100%.
+    const result = calcCompletionConfidence(makeParams({
+      pomodoroGoal: 3,
+      pomodoroSessions: 3,
+      pomodoroSessionsDate: TODAY,
+      intentionText: "Focus",
+      intentionDate: TODAY,
+      intentionHistory: [
+        { date: daysAgo(1), text: "A" },
+        { date: daysAgo(2), text: "B" },
+        { date: daysAgo(3), text: "C" },
+      ],
+      pomodoroHistory: [
+        { date: daysAgo(1), count: 4 },
+        { date: daysAgo(2), count: 1 },
+        { date: daysAgo(3), count: 0 },
+      ],
+    }));
+    expect(result).not.toBeNull();
+    // Both intention and pomodoro done today → both factors = 1.0 → 100%
+    expect(result!.pct).toBe(100);
+  });
+
+  // ── activeDays union deduplication ────────────────────────────────────────
+
+  it("should count a date appearing in both intention and habit history only once in the denominator", () => {
+    // daysAgo(1) and daysAgo(2) appear in BOTH intentionDates and habitDates.
+    // activeDays = Set{daysAgo(1), daysAgo(2), daysAgo(3)} → size 3 (not 4 or 5).
+    // intention rate = 2/3 (daysAgo 3 is habit-only, no intention entry).
+    // habits rate = 3/3 = 100% (habit checked on all 3 active days).
+    // Overall = 2/3 × 100% = 67 (integer after Math.round).
+    const result = calcCompletionConfidence(makeParams({
+      habits: [
+        { lastChecked: undefined, checkHistory: [daysAgo(1), daysAgo(2), daysAgo(3)] },
+      ],
+      intentionHistory: [
+        { date: daysAgo(1), text: "A" },
+        { date: daysAgo(2), text: "B" },
+      ],
+    }));
+    expect(result).not.toBeNull();
+    expect(result!.pct).toBe(67);
+  });
+
+  // ── Multiple habits, some with undefined checkHistory ────────────────────
+
+  it("should return zero habits rate when one habit has no history and another does", () => {
+    // 2 habits: habit1 has 3 days of history, habit2 has undefined → treated as Set{}.
+    // all-checked requires BOTH habits checked → habit2 never satisfies → allCheckedCount = 0.
+    // habitsRate = 0/3 = 0%. intention: 3/3 = 100%. Overall = 0%.
+    const result = calcCompletionConfidence(makeParams({
+      habits: [
+        { lastChecked: undefined, checkHistory: [daysAgo(1), daysAgo(2), daysAgo(3)] },
+        { lastChecked: undefined, checkHistory: undefined },
+      ],
+      intentionHistory: [
+        { date: daysAgo(1), text: "A" },
+        { date: daysAgo(2), text: "B" },
+        { date: daysAgo(3), text: "C" },
+      ],
+    }));
+    expect(result).not.toBeNull();
+    expect(result!.pct).toBe(0);
+  });
 });
