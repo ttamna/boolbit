@@ -177,6 +177,120 @@ describe("calcHabitSynergy", () => {
     expect(calcHabitSynergy({ habits, dayWindow: window })).toBeNull();
   });
 
+  // ── MIN_ACTIVE_DAYS boundary ───────────────────────────────────────────
+
+  test("shouldReturnNullWhenActiveDaysIsExactlySix", () => {
+    // 6 active days is one below MIN_ACTIVE_DAYS (7) → null
+    const window = buildWindow("2026-03-22", 14);
+    const sixDays = window.slice(8); // last 6 days of the 14-day window
+    const habits = [
+      { name: "A", checkHistory: [...sixDays] },
+      { name: "B", checkHistory: sixDays.slice(0, 3) },
+    ];
+    expect(calcHabitSynergy({ habits, dayWindow: window })).toBeNull();
+  });
+
+  test("shouldReturnNonNullWhenActiveDaysIsExactlySeven", () => {
+    // 7 active days = exactly meets MIN_ACTIVE_DAYS threshold → valid result
+    const window = buildWindow("2026-03-22", 14);
+    const sevenDays = window.slice(7); // last 7 days
+    const habits = [
+      { name: "A", checkHistory: [...sevenDays] },
+      { name: "B", checkHistory: sevenDays.slice(0, 5) },
+    ];
+    expect(calcHabitSynergy({ habits, dayWindow: window })).not.toBeNull();
+  });
+
+  // ── Habit done on every active day → skipped as keystone candidate ─────
+
+  test("shouldNotSelectHabitDoneEveryActiveDayAsKeystone", () => {
+    // A is done all 14 days → notDoneDays.length === 0 → skipped by the lift loop
+    // B (first half) and C (second half) have negative lift with each other → no keystone
+    const window = buildWindow("2026-03-22", 14);
+    const habits = [
+      { name: "A", checkHistory: [...window] },      // always done → skipped
+      { name: "B", checkHistory: window.slice(0, 7) }, // done days 0–6
+      { name: "C", checkHistory: window.slice(7) },    // done days 7–13
+    ];
+    const result = calcHabitSynergy({ habits, dayWindow: window });
+    expect(result).not.toBeNull();
+    // A skipped; B & C have negative lift relative to each other (B done → C not done) → no keystone
+    expect(result!.keystone).toBeNull();
+  });
+
+  // ── Tiebreaker: first habit in array wins when lifts are equal ─────────
+
+  test("shouldSelectFirstHabitInArrayWhenTwoHabitsHaveEqualLift", () => {
+    // A: always done (14 days) → skipped (notDoneDays empty)
+    // B: done days 0–6; C: done days 0–6 (same as B) → symmetric, both liftPct=52
+    // D: done days 0–9 → liftPct=47 (lower)
+    // The strict `>` tiebreaker means B is set first and C cannot displace it
+    //
+    // Verification (others=[A,C,D] for B, others=[A,B,D] for C):
+    //   When B/C done (0-6): A,C/B,D all done → avg=100%; round=100
+    //   When B/C not done (7-13): days 7-9 have A+D done (2/3=66.67%), days 10-13 have A only (1/3=33.33%)
+    //   totalRate = 66.67×3 + 33.33×4 = 333.33; avg/7 ≈ 47.6; round=48
+    //   liftPct = 100−48 = 52 for both B and C
+    const window = buildWindow("2026-03-22", 14);
+    const habits = [
+      { name: "A", checkHistory: [...window] },          // always done → skipped
+      { name: "B", checkHistory: window.slice(0, 7) },   // done days 0–6
+      { name: "C", checkHistory: window.slice(0, 7) },   // same days as B → equal lift
+      { name: "D", checkHistory: window.slice(0, 10) },  // done days 0–9 → lower lift
+    ];
+    const result = calcHabitSynergy({ habits, dayWindow: window });
+    expect(result).not.toBeNull();
+    expect(result!.keystone).not.toBeNull();
+    expect(result!.keystone!.habitName).toBe("B"); // B appears before C → B wins
+    expect(result!.keystone!.liftPct).toBe(52);
+  });
+
+  // ── Exact summary string format ────────────────────────────────────────
+
+  test("shouldFormatSummaryWithExactKeystoneString", () => {
+    // 명상 done: days 0–6; 운동 done: all 14; 독서 done: days 0–6
+    // When 명상 done: 운동=100%, 독서=100% → avg=100%
+    // When 명상 not done: 운동=100%, 독서=0% → avg=50%
+    // liftPct=50; summary uses avgOthersWhenDone=100
+    const window = buildWindow("2026-03-22", 14);
+    const firstHalf = window.slice(0, 7);
+    const habits = [
+      { name: "명상", checkHistory: [...firstHalf] },
+      { name: "운동", checkHistory: [...window] },
+      { name: "독서", checkHistory: [...firstHalf] },
+    ];
+    const result = calcHabitSynergy({ habits, dayWindow: window });
+    expect(result!.summary).toBe("🔑 '명상' 할 때 다른 습관 100% 완료");
+  });
+
+  test("shouldFormatNeutralSummaryExactly", () => {
+    // All habits done every day → lift=0 for everyone → no keystone
+    const window = buildWindow("2026-03-22", 14);
+    const habits = [
+      { name: "운동", checkHistory: [...window] },
+      { name: "독서", checkHistory: [...window] },
+    ];
+    const result = calcHabitSynergy({ habits, dayWindow: window });
+    expect(result!.summary).toBe("습관들이 고르게 독립적");
+  });
+
+  // ── Duplicate dates in checkHistory ───────────────────────────────────
+
+  test("shouldDeduplicateDatesInCheckHistoryWithinWindow", () => {
+    // 명상 has each date duplicated — Set inside habitChecks deduplicates them
+    // Result should be identical to the no-duplicate case
+    const window = buildWindow("2026-03-22", 14);
+    const firstHalf = window.slice(0, 7);
+    const habits = [
+      { name: "명상", checkHistory: [...firstHalf, ...firstHalf] }, // doubled
+      { name: "운동", checkHistory: [...window] },
+      { name: "독서", checkHistory: [...firstHalf] },
+    ];
+    const result = calcHabitSynergy({ habits, dayWindow: window });
+    expect(result!.keystone!.habitName).toBe("명상");
+    expect(result!.keystone!.liftPct).toBe(50);
+  });
+
   // ── Minimum lift threshold ─────────────────────────────────────────────
 
   test("shouldReturnNullKeystoneWhenLiftBelowThreshold", () => {
