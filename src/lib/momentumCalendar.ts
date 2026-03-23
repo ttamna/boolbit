@@ -22,8 +22,8 @@ export interface MomentumCalendar {
 }
 
 /** Score → tier boundary constants — must match the rest of the momentum system */
-const HIGH_THRESHOLD = 65;
-const MID_THRESHOLD = 40;
+export const HIGH_THRESHOLD = 65;
+export const MID_THRESHOLD = 40;
 
 function scoreTier(score: number): "high" | "mid" | "low" {
   if (score >= HIGH_THRESHOLD) return "high";

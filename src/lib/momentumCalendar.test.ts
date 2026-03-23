@@ -2,7 +2,7 @@
 // ABOUTME: Covers null thresholds, date range, tier mapping, avg, and missing-day handling
 
 import { describe, it, expect } from "vitest";
-import { calcMomentumCalendar } from "./momentumCalendar";
+import { calcMomentumCalendar, HIGH_THRESHOLD, MID_THRESHOLD } from "./momentumCalendar";
 import type { MomentumEntry } from "../types";
 
 // Build a history array for the last N days (ending at todayStr)
@@ -11,12 +11,19 @@ function makeHistory(todayStr: string, scores: number[]): MomentumEntry[] {
   return scores.map((score, i) => {
     const d = new Date(today);
     d.setDate(d.getDate() - (scores.length - 1 - i));
-    const tier: MomentumEntry["tier"] = score >= 65 ? "high" : score >= 40 ? "mid" : "low";
+    const tier: MomentumEntry["tier"] = score >= HIGH_THRESHOLD ? "high" : score >= MID_THRESHOLD ? "mid" : "low";
     return { date: d.toLocaleDateString("sv"), score, tier };
   });
 }
 
 const TODAY = "2026-03-22";
+
+/** Returns YYYY-MM-DD for N days before TODAY (UTC-safe via sv locale). */
+function daysAgo(n: number): string {
+  const d = new Date(TODAY + "T12:00:00");
+  d.setDate(d.getDate() - n);
+  return d.toLocaleDateString("sv");
+}
 
 describe("calcMomentumCalendar", () => {
   // ── Null cases ────────────────────────────────────────────────────────────────
@@ -155,6 +162,87 @@ describe("calcMomentumCalendar", () => {
   it("returns null with exactly 6 active days", () => {
     const history = makeHistory(TODAY, Array(6).fill(55));
     expect(calcMomentumCalendar(history, TODAY)).toBeNull();
+  });
+
+  // ── Tier boundary values ──────────────────────────────────────────────────────
+
+  it("should assign high tier for score exactly at the 65 threshold", () => {
+    const history = makeHistory(TODAY, Array(7).fill(65));
+    const result = calcMomentumCalendar(history, TODAY);
+    expect(result).not.toBeNull();
+    result!.days.filter(d => d.score !== null).forEach(d => {
+      expect(d.tier).toBe("high");
+    });
+  });
+
+  it("should assign mid tier for score just below the 65 threshold (64)", () => {
+    const history = makeHistory(TODAY, Array(7).fill(64));
+    const result = calcMomentumCalendar(history, TODAY);
+    expect(result).not.toBeNull();
+    result!.days.filter(d => d.score !== null).forEach(d => {
+      expect(d.tier).toBe("mid");
+    });
+  });
+
+  it("should assign mid tier for score exactly at the 40 threshold", () => {
+    const history = makeHistory(TODAY, Array(7).fill(40));
+    const result = calcMomentumCalendar(history, TODAY);
+    expect(result).not.toBeNull();
+    result!.days.filter(d => d.score !== null).forEach(d => {
+      expect(d.tier).toBe("mid");
+    });
+  });
+
+  it("should assign low tier for score just below the 40 threshold (39)", () => {
+    const history = makeHistory(TODAY, Array(7).fill(39));
+    const result = calcMomentumCalendar(history, TODAY);
+    expect(result).not.toBeNull();
+    result!.days.filter(d => d.score !== null).forEach(d => {
+      expect(d.tier).toBe("low");
+    });
+  });
+
+  // ── Out-of-window entries are excluded ─────────────────────────────────────────
+
+  it("should not count entries older than 28 days in activeDays", () => {
+    // 7 in-window entries + 5 entries at offset 28+ (first day outside the 27-day lookback)
+    const inWindow = makeHistory(TODAY, Array(7).fill(50));
+    const outOfWindow: MomentumEntry[] = [28, 29, 30, 31, 32].map(n => ({
+      date: daysAgo(n),
+      score: 80,
+      tier: "high" as const,
+    }));
+    const result = calcMomentumCalendar([...outOfWindow, ...inWindow], TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.activeDays).toBe(7);
+  });
+
+  it("should compute avgScore from in-window entries only when old entries exist", () => {
+    // 7 in-window entries at score 50; 5 out-of-window entries at score 100
+    // avgScore must be 50, not inflated by the old high scores
+    const inWindow = makeHistory(TODAY, Array(7).fill(50));
+    const outOfWindow: MomentumEntry[] = [28, 29, 30, 31, 32].map(n => ({
+      date: daysAgo(n),
+      score: 100,
+      tier: "high" as const,
+    }));
+    const result = calcMomentumCalendar([...outOfWindow, ...inWindow], TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.avgScore).toBeCloseTo(50, 1);
+  });
+
+  // ── Score = 0 is a valid active data point ────────────────────────────────────
+
+  it("should treat score 0 as an active data point with low tier", () => {
+    // Score 0 is a valid momentum score — entry exists in lookup, entry !== null, activeDays++
+    const history = makeHistory(TODAY, [0, 0, 0, 0, 0, 0, 0]);
+    const result = calcMomentumCalendar(history, TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.activeDays).toBe(7);
+    result!.days.filter(d => d.score !== null).forEach(d => {
+      expect(d.tier).toBe("low");
+    });
+    expect(result!.avgScore).toBeCloseTo(0, 1);
   });
 
   // ── History deduplication (same date appears twice) ────────────────────────────
