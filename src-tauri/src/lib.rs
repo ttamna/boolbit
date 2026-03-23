@@ -63,7 +63,7 @@ pub struct GitHubData {
 }
 
 #[typeshare]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Project {
     pub id: u32,
     pub name: String,
@@ -96,7 +96,7 @@ pub struct Project {
 }
 
 #[typeshare]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Habit {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -159,7 +159,7 @@ pub struct PomodoroDurations {
 }
 
 #[typeshare]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct WidgetData {
     pub projects: Vec<Project>,
     pub habits: Vec<Habit>,
@@ -417,16 +417,7 @@ fn default_data() -> WidgetData {
                 metric: "월간 방문자".into(),
                 metric_value: "42".into(),
                 metric_target: "100".into(),
-                github_repo: None,
-                github_data: None,
-                deadline: None,
-                notes: None,
-                is_focus: None,
-                pomodoro_sessions: None,
-                url: None,
-                last_focus_date: None,
-                completed_date: None,
-                created_date: None,
+                ..Default::default()
             },
             Project {
                 id: 2,
@@ -437,16 +428,7 @@ fn default_data() -> WidgetData {
                 metric: "월 수익".into(),
                 metric_value: "₩0".into(),
                 metric_target: "₩300K".into(),
-                github_repo: None,
-                github_data: None,
-                deadline: None,
-                notes: None,
-                is_focus: None,
-                pomodoro_sessions: None,
-                url: None,
-                last_focus_date: None,
-                completed_date: None,
-                created_date: None,
+                ..Default::default()
             },
             Project {
                 id: 3,
@@ -457,23 +439,14 @@ fn default_data() -> WidgetData {
                 metric: "스크린".into(),
                 metric_value: "24".into(),
                 metric_target: "40".into(),
-                github_repo: None,
-                github_data: None,
-                deadline: None,
-                notes: None,
-                is_focus: None,
-                pomodoro_sessions: None,
-                url: None,
-                last_focus_date: None,
-                completed_date: None,
-                created_date: None,
+                ..Default::default()
             },
         ],
         habits: vec![
-            Habit { id: None, name: "푸시업".into(), streak: 0, icon: "💪".into(), last_checked: None, target_streak: None, best_streak: None, check_history: None, notes: None },
-            Habit { id: None, name: "풀업".into(), streak: 0, icon: "🏋️".into(), last_checked: None, target_streak: None, best_streak: None, check_history: None, notes: None },
-            Habit { id: None, name: "폰 사용↓".into(), streak: 0, icon: "📵".into(), last_checked: None, target_streak: None, best_streak: None, check_history: None, notes: None },
-            Habit { id: None, name: "포모도로".into(), streak: 0, icon: "🍅".into(), last_checked: None, target_streak: None, best_streak: None, check_history: None, notes: None },
+            Habit { name: "푸시업".into(), icon: "💪".into(), ..Default::default() },
+            Habit { name: "풀업".into(), icon: "🏋️".into(), ..Default::default() },
+            Habit { name: "폰 사용↓".into(), icon: "📵".into(), ..Default::default() },
+            Habit { name: "포모도로".into(), icon: "🍅".into(), ..Default::default() },
         ],
         quotes: vec![
             "Design so it cannot fail fatally, then execute.".into(),
@@ -481,87 +454,7 @@ fn default_data() -> WidgetData {
             "Ship small, get feedback, adjust.".into(),
             "완벽보다 실행. 실행보다 피드백.".into(),
         ],
-        pomodoro_durations: None,
-        pomodoro_sessions_date: None,
-        pomodoro_sessions: None,
-        pomodoro_auto_start: None,
-        pomodoro_session_goal: None,
-        collapsed_sections: None,
-        quote_interval: None,
-        pomodoro_long_break_interval: None,
-        pomodoro_notify: None,
-        pomodoro_history: None,
-        section_order: None,
-        today_intention: None,
-        today_intention_date: None,
-        today_intention_done: None,
-        intention_history: None,
-        week_goal: None,
-        week_goal_date: None,
-        week_goal_done: None,
-        month_goal: None,
-        month_goal_date: None,
-        month_goal_done: None,
-        quarter_goal: None,
-        quarter_goal_date: None,
-        quarter_goal_done: None,
-        year_goal: None,
-        year_goal_date: None,
-        year_goal_done: None,
-        pomodoro_lifetime_mins: None,
-        habits_all_done_date: None,
-        week_goal_history: None,
-        month_goal_history: None,
-        quarter_goal_history: None,
-        year_goal_history: None,
-        momentum_history: None,
-        habit_evening_remind_date: None,
-        intention_morning_remind_date: None,
-        intention_evening_remind_date: None,
-        pomodoro_morning_remind_date: None,
-        pomodoro_evening_remind_date: None,
-        habit_milestone_approach_date: None,
-        weekly_review_remind_date: None,
-        weekly_goal_morning_remind_date: None,
-        monthly_goal_morning_remind_date: None,
-        quarterly_goal_morning_remind_date: None,
-        weekly_habit_report_date: None,
-        month_goal_remind_date: None,
-        quarter_goal_remind_date: None,
-        year_goal_remind_date: None,
-        momentum_evening_digest_date: None,
-        weekly_momentum_report_date: None,
-        weekly_pomodoro_report_date: None,
-        weekly_goal_report_date: None,
-        monthly_goal_report_date: None,
-        quarterly_goal_report_date: None,
-        yearly_goal_report_date: None,
-        habits_sound: None,
-        pomodoro_sound: None,
-        hidden_sections: None,
-        habit_lifetime_total_checkins: None,
-        perfect_day_best_streak: None,
-        intention_done_best_streak: None,
-        habit_morning_remind_date: None,
-        momentum_morning_remind_date: None,
-        yearly_goal_morning_remind_date: None,
-        weekly_intention_report_date: None,
-        monthly_intention_report_date: None,
-        quarterly_intention_report_date: None,
-        yearly_intention_report_date: None,
-        monthly_habit_report_date: None,
-        quarterly_habit_report_date: None,
-        yearly_habit_report_date: None,
-        weekly_perfect_day_report_date: None,
-        monthly_perfect_day_report_date: None,
-        quarterly_perfect_day_report_date: None,
-        yearly_perfect_day_report_date: None,
-        monthly_momentum_report_date: None,
-        quarterly_momentum_report_date: None,
-        yearly_momentum_report_date: None,
-        monthly_pomodoro_report_date: None,
-        quarterly_pomodoro_report_date: None,
-        yearly_pomodoro_report_date: None,
+        ..Default::default()
     }
 }
 
