@@ -146,4 +146,60 @@ describe("calcLifetimeStats", () => {
     expect(stats.find(s => s.key === "focusTime")).toBeUndefined();
     expect(stats.find(s => s.key === "totalCheckins")).toBeUndefined();
   });
+
+  it("should suppress focusTime when pomodoroLifetimeMins is Infinity", () => {
+    const data: WidgetData = { ...EMPTY_DATA, pomodoroLifetimeMins: Infinity };
+    expect(calcLifetimeStats(data).find(s => s.key === "focusTime")).toBeUndefined();
+  });
+
+  it("should suppress focusTime when pomodoroLifetimeMins is -Infinity", () => {
+    const data: WidgetData = { ...EMPTY_DATA, pomodoroLifetimeMins: -Infinity };
+    expect(calcLifetimeStats(data).find(s => s.key === "focusTime")).toBeUndefined();
+  });
+
+  it("should suppress focusTime when pomodoroLifetimeMins is negative", () => {
+    const data: WidgetData = { ...EMPTY_DATA, pomodoroLifetimeMins: -1 };
+    expect(calcLifetimeStats(data).find(s => s.key === "focusTime")).toBeUndefined();
+  });
+
+  it("should suppress totalCheckins when habitLifetimeTotalCheckins is negative", () => {
+    const data: WidgetData = { ...EMPTY_DATA, habitLifetimeTotalCheckins: -5 };
+    expect(calcLifetimeStats(data).find(s => s.key === "totalCheckins")).toBeUndefined();
+  });
+
+  it("should include completedProjects emoji and label when projects are done", () => {
+    const data: WidgetData = {
+      ...EMPTY_DATA,
+      projects: [
+        { id: 1, name: "Done", status: "done", goal: "", progress: 100, metric: "", metric_value: "", metric_target: "" },
+      ],
+    };
+    const item = calcLifetimeStats(data).find(s => s.key === "completedProjects");
+    expect(item).toBeDefined();
+    expect(item!.emoji).toBe("🎉");
+    expect(item!.label).toBe("완료한 프로젝트");
+  });
+
+  it("should include correct emoji and label for each streak domain when all streaks are positive", () => {
+    const data: WidgetData = {
+      ...EMPTY_DATA,
+      perfectDayBestStreak: 3,
+      intentionDoneBestStreak: 3,
+      focusBestStreak: 3,
+      momentumBestStreak: 3,
+      pomodoroGoalBestStreak: 3,
+    };
+    const stats = calcLifetimeStats(data);
+    const byKey = Object.fromEntries(stats.map(s => [s.key, s]));
+    expect(byKey.perfectDayBest.emoji).toBe("🌟");
+    expect(byKey.perfectDayBest.label).toBe("완벽한 날 최고");
+    expect(byKey.intentionBest.emoji).toBe("✨");
+    expect(byKey.intentionBest.label).toBe("의도 달성 최고");
+    expect(byKey.focusBest.emoji).toBe("🔥");
+    expect(byKey.focusBest.label).toBe("집중 연속 최고");
+    expect(byKey.momentumBest.emoji).toBe("⚡");
+    expect(byKey.momentumBest.label).toBe("모멘텀 연속 최고");
+    expect(byKey.pomodoroBest.emoji).toBe("🎯");
+    expect(byKey.pomodoroBest.label).toBe("포모도로 목표 최고");
+  });
 });
