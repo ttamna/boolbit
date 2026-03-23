@@ -1,8 +1,21 @@
-// ABOUTME: Unit tests for calcYearProgress pure helper function
-// ABOUTME: Validates dayOfYear, daysRemaining, and pct for non-leap/leap years and edge cases (Jan 1, Dec 31, leap day, 400-year rule)
+// ABOUTME: Unit tests for DragBar — calcYearProgress pure helper and component interaction tests
+// ABOUTME: Covers dayOfYear/daysRemaining/pct edge cases plus opacity ±5% clamping, theme cycle wrap, pin toggle, width presets, settings toggle, year bar tooltip
 
-import { describe, it, expect } from "vitest";
-import { calcYearProgress } from "./DragBar";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { calcYearProgress, DragBar } from "./DragBar";
+import type { ThemeKey } from "../theme";
+
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: vi.fn(),
+  currentMonitor: vi.fn(),
+  PhysicalPosition: vi.fn(),
+}));
+
+import { getCurrentWindow } from "@tauri-apps/api/window";
+
+const mockGetCurrentWindow = getCurrentWindow as ReturnType<typeof vi.fn>;
 
 describe("calcYearProgress — non-leap year (2025)", () => {
   it("should return dayOfYear=1, daysRemaining=364, pct=0 on Jan 1 at midnight", () => {
@@ -131,5 +144,159 @@ describe("calcYearProgress — pct accuracy", () => {
     // Noon on Jan 1 = 12 * 3600 * 1000 ms into the year; pct must be > 0
     const { pct } = calcYearProgress(new Date(2025, 0, 1, 12, 0, 0));
     expect(pct).toBeGreaterThan(0);
+  });
+});
+
+// ─── Component interaction tests ───────────────────────────────────────────────
+
+const defaultProps = {
+  hovered: true,
+  onSettingsChange: vi.fn(),
+  settingsOpen: false,
+  onToggleSettings: vi.fn(),
+  currentTheme: "void" as ThemeKey,
+};
+
+// Clear all mock state after every test — prevents call-count bleed across tests
+afterEach(() => vi.clearAllMocks());
+
+describe("DragBar — rendering", () => {
+  it("should render VISION label", () => {
+    render(<DragBar {...defaultProps} />);
+    screen.getByText("VISION");
+  });
+
+  it("should render year progress bar with day-of-year tooltip", () => {
+    render(<DragBar {...defaultProps} />);
+    screen.getByTitle(/Day \d+ · \d+일 남음 · \d+%/);
+  });
+});
+
+describe("DragBar — settings toggle button", () => {
+  it("should call onToggleSettings when settings button is clicked", async () => {
+    const user = userEvent.setup();
+    const onToggleSettings = vi.fn();
+    render(<DragBar {...defaultProps} onToggleSettings={onToggleSettings} />);
+    await user.click(screen.getByTitle("설정"));
+    expect(onToggleSettings).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("DragBar — theme cycle", () => {
+  it("should cycle theme from void to nebula on theme button click", async () => {
+    const user = userEvent.setup();
+    const onSettingsChange = vi.fn();
+    render(<DragBar {...defaultProps} currentTheme="void" onSettingsChange={onSettingsChange} />);
+    await user.click(screen.getByTitle("테마: Void (클릭하여 전환)"));
+    expect(onSettingsChange).toHaveBeenCalledWith({ theme: "nebula" });
+  });
+
+  it("should wrap theme cycle from rose back to void", async () => {
+    const user = userEvent.setup();
+    const onSettingsChange = vi.fn();
+    render(<DragBar {...defaultProps} currentTheme="rose" onSettingsChange={onSettingsChange} />);
+    await user.click(screen.getByTitle("테마: Rose (클릭하여 전환)"));
+    expect(onSettingsChange).toHaveBeenCalledWith({ theme: "void" });
+  });
+});
+
+describe("DragBar — opacity buttons", () => {
+  it("should decrement opacity by 0.05 when minus button is clicked", async () => {
+    const user = userEvent.setup();
+    const onSettingsChange = vi.fn();
+    render(<DragBar {...defaultProps} opacity={0.75} onSettingsChange={onSettingsChange} />);
+    await user.click(screen.getByTitle("투명도 -5% (현재 75%)"));
+    expect(onSettingsChange).toHaveBeenCalledWith({ opacity: 0.7 });
+  });
+
+  it("should increment opacity by 0.05 when plus button is clicked", async () => {
+    const user = userEvent.setup();
+    const onSettingsChange = vi.fn();
+    render(<DragBar {...defaultProps} opacity={0.75} onSettingsChange={onSettingsChange} />);
+    await user.click(screen.getByTitle("투명도 +5% (현재 75%)"));
+    expect(onSettingsChange).toHaveBeenCalledWith({ opacity: 0.8 });
+  });
+
+  it("should clamp opacity at 0.20 minimum when minus is clicked at 0.20", async () => {
+    const user = userEvent.setup();
+    const onSettingsChange = vi.fn();
+    render(<DragBar {...defaultProps} opacity={0.20} onSettingsChange={onSettingsChange} />);
+    await user.click(screen.getByTitle("투명도 -5% (현재 20%)"));
+    expect(onSettingsChange).toHaveBeenCalledWith({ opacity: 0.2 });
+  });
+
+  it("should clamp opacity at 1.0 maximum when plus is clicked at 1.0", async () => {
+    const user = userEvent.setup();
+    const onSettingsChange = vi.fn();
+    render(<DragBar {...defaultProps} opacity={1.0} onSettingsChange={onSettingsChange} />);
+    await user.click(screen.getByTitle("투명도 +5% (현재 100%)"));
+    expect(onSettingsChange).toHaveBeenCalledWith({ opacity: 1.0 });
+  });
+});
+
+describe("DragBar — width preset buttons", () => {
+  it("should disable narrow button when widgetWidth is at minimum 300", () => {
+    render(<DragBar {...defaultProps} widgetWidth={300} onWidthChange={vi.fn()} />);
+    const narrowBtn = screen.getByRole("button", { name: "◂" }) as HTMLButtonElement;
+    expect(narrowBtn.disabled).toBe(true);
+  });
+
+  it("should disable wide button when widgetWidth is at maximum 460", () => {
+    render(<DragBar {...defaultProps} widgetWidth={460} onWidthChange={vi.fn()} />);
+    const wideBtn = screen.getByRole("button", { name: "▸" }) as HTMLButtonElement;
+    expect(wideBtn.disabled).toBe(true);
+  });
+
+  it("should call onWidthChange with 300 when narrow button clicked at 380", async () => {
+    const user = userEvent.setup();
+    const onWidthChange = vi.fn();
+    render(<DragBar {...defaultProps} widgetWidth={380} onWidthChange={onWidthChange} />);
+    await user.click(screen.getByTitle("너비 300px로 변경"));
+    expect(onWidthChange).toHaveBeenCalledWith(300);
+  });
+
+  it("should call onWidthChange with 460 when wide button clicked at 380", async () => {
+    const user = userEvent.setup();
+    const onWidthChange = vi.fn();
+    render(<DragBar {...defaultProps} widgetWidth={380} onWidthChange={onWidthChange} />);
+    await user.click(screen.getByTitle("너비 460px로 변경"));
+    expect(onWidthChange).toHaveBeenCalledWith(460);
+  });
+});
+
+describe("DragBar — pin toggle", () => {
+  let mockSetAlwaysOnTop: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockSetAlwaysOnTop = vi.fn().mockResolvedValue(undefined);
+    mockGetCurrentWindow.mockReturnValue({ setAlwaysOnTop: mockSetAlwaysOnTop });
+  });
+
+  it("should call setAlwaysOnTop(true) and onSettingsChange({pinned:true}) when pin button clicked while unpinned", async () => {
+    const user = userEvent.setup();
+    const onSettingsChange = vi.fn();
+    render(<DragBar {...defaultProps} pinned={false} onSettingsChange={onSettingsChange} />);
+    await act(async () => { await user.click(screen.getByTitle("항상 위 꺼짐 — 클릭하여 켜기")); });
+    expect(mockSetAlwaysOnTop).toHaveBeenCalledWith(true);
+    expect(onSettingsChange).toHaveBeenCalledWith({ pinned: true });
+  });
+
+  it("should call setAlwaysOnTop(false) and onSettingsChange({pinned:false}) when pin button clicked while pinned", async () => {
+    const user = userEvent.setup();
+    const onSettingsChange = vi.fn();
+    render(<DragBar {...defaultProps} pinned={true} onSettingsChange={onSettingsChange} />);
+    await act(async () => { await user.click(screen.getByTitle("항상 위 켜짐 — 클릭하여 끄기")); });
+    expect(mockSetAlwaysOnTop).toHaveBeenCalledWith(false);
+    expect(onSettingsChange).toHaveBeenCalledWith({ pinned: false });
+  });
+
+  it("should NOT call onSettingsChange when setAlwaysOnTop throws", async () => {
+    mockSetAlwaysOnTop = vi.fn().mockRejectedValue(new Error("denied"));
+    mockGetCurrentWindow.mockReturnValue({ setAlwaysOnTop: mockSetAlwaysOnTop });
+    const user = userEvent.setup();
+    const onSettingsChange = vi.fn();
+    render(<DragBar {...defaultProps} pinned={false} onSettingsChange={onSettingsChange} />);
+    await act(async () => { await user.click(screen.getByTitle("항상 위 꺼짐 — 클릭하여 켜기")); });
+    expect(onSettingsChange).not.toHaveBeenCalled();
   });
 });
