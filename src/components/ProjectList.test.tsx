@@ -1,9 +1,17 @@
 // ABOUTME: Regression tests for avgRunningProgressPct and sortProjects re-exported from ProjectList
-// ABOUTME: Imports via ProjectList to verify the re-export chain; canonical tests live in lib/projects.test.ts
+// ABOUTME: and component rendering tests for the focus suggestion banner (focusSuggestion UI)
 
-import { describe, it, expect, beforeEach } from "vitest";
-import { avgRunningProgressPct, sortProjects } from "./ProjectList";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { render, screen, fireEvent, within } from "@testing-library/react";
+import { avgRunningProgressPct, sortProjects, ProjectList } from "./ProjectList";
 import type { Project } from "../types";
+
+// ── Tauri / GitHub mocks needed by ProjectCard rendered inside ProjectList ───
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("../lib/github", () => ({
+  verifyRepo: vi.fn().mockResolvedValue(null),
+  fetchRepoData: vi.fn().mockResolvedValue(null),
+}));
 
 // Auto-incrementing id ensures each makeProject call produces a unique project identity.
 // _testId is reset in beforeEach so tests are independent of execution order.
@@ -235,5 +243,104 @@ describe("sortProjects", () => {
     const sorted = sortProjects([nonFocusImminent, focusOverdue], REF_DATE);
     expect(sorted[0].name).toBe("FocusOverdue");
     expect(sorted[1].name).toBe("NonFocusImminent");
+  });
+});
+
+// ── ProjectList component — focus suggestion banner ───────────────────────────
+// Tests the 💡 banner that appears when calcFocusSuggestion returns a non-null
+// result. Anchored to "2024-06-10" so _testId resets yield predictable IDs.
+// SUGGESTION_THRESHOLD = 20, FOCUS_MARGIN = 10 (see lib/projects.ts).
+// "Urgent": 2-day deadline + 20% progress → urgency score well above threshold.
+
+const BANNER_TODAY = "2024-06-10";
+
+describe("ProjectList — focus suggestion banner", () => {
+  const onUpdate = vi.fn();
+  const onProjectsChange = vi.fn();
+
+  beforeEach(() => {
+    _testId = 0;          // reset auto-increment so id=1/2 are predictable per test
+    vi.clearAllMocks();
+  });
+
+  it("should not render the banner when only one active project exists", () => {
+    render(
+      <ProjectList
+        projects={[makeProject({ name: "Solo" })]}
+        onUpdate={onUpdate}
+        onProjectsChange={onProjectsChange}
+        todayStr={BANNER_TODAY}
+      />
+    );
+    expect(screen.queryByTitle(/우선순위 점수/)).toBeNull();
+  });
+
+  it("should not render the banner when two projects have no urgency signals", () => {
+    // No deadlines, high progress → calcFocusSuggestion returns null
+    render(
+      <ProjectList
+        projects={[
+          makeProject({ name: "A", progress: 80 }),
+          makeProject({ name: "B", progress: 90 }),
+        ]}
+        onUpdate={onUpdate}
+        onProjectsChange={onProjectsChange}
+        todayStr={BANNER_TODAY}
+      />
+    );
+    expect(screen.queryByTitle(/우선순위 점수/)).toBeNull();
+  });
+
+  it("should render the banner with the suggested project name", () => {
+    render(
+      <ProjectList
+        projects={[
+          makeProject({ name: "Far",    deadline: "2024-07-10", createdDate: "2024-05-01", progress: 50 }),
+          makeProject({ name: "Urgent", deadline: "2024-06-12", createdDate: "2024-05-01", progress: 20 }),
+        ]}
+        onUpdate={onUpdate}
+        onProjectsChange={onProjectsChange}
+        todayStr={BANNER_TODAY}
+      />
+    );
+    const banner = screen.getByTitle(/우선순위 점수/);
+    expect(banner).toBeTruthy();
+    expect(within(banner).getByText("Urgent")).toBeTruthy();
+  });
+
+  it("should call onUpdate with isFocus: true for the suggested project when banner is clicked", () => {
+    // After _testId reset: Far=id1, Urgent=id2
+    render(
+      <ProjectList
+        projects={[
+          makeProject({ name: "Far",    deadline: "2024-07-10", createdDate: "2024-05-01", progress: 50 }),
+          makeProject({ name: "Urgent", deadline: "2024-06-12", createdDate: "2024-05-01", progress: 20 }),
+        ]}
+        onUpdate={onUpdate}
+        onProjectsChange={onProjectsChange}
+        todayStr={BANNER_TODAY}
+      />
+    );
+    fireEvent.click(screen.getByTitle(/우선순위 점수/));
+    expect(onUpdate).toHaveBeenCalledWith(2, { isFocus: true });
+  });
+
+  it("should clear isFocus from a previously focused project before setting the new one", () => {
+    // Focus=id1 (far deadline, currently focused), Behind=id2 (imminent deadline)
+    render(
+      <ProjectList
+        projects={[
+          makeProject({ name: "Focus",  isFocus: true, deadline: "2024-08-01", createdDate: "2024-05-01", progress: 50 }),
+          makeProject({ name: "Behind",               deadline: "2024-06-12", createdDate: "2024-05-01", progress: 10 }),
+        ]}
+        onUpdate={onUpdate}
+        onProjectsChange={onProjectsChange}
+        todayStr={BANNER_TODAY}
+      />
+    );
+    fireEvent.click(screen.getByTitle(/우선순위 점수/));
+    // The existing focus (id=1) must be cleared BEFORE the new focus (id=2) is set
+    expect(onUpdate.mock.calls[0]).toEqual([1, { isFocus: undefined }]);
+    expect(onUpdate.mock.calls[1]).toEqual([2, { isFocus: true }]);
   });
 });
