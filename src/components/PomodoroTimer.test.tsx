@@ -1,5 +1,5 @@
-// ABOUTME: Tests for PomodoroTimer behavior — autoStart phase-transition, start-button-always-focus, and
-// ABOUTME: non-active-phase duration editing while timer is running
+// ABOUTME: Tests for PomodoroTimer behavior — autoStart phase-transition, start-button-always-focus,
+// ABOUTME: session completion callback, long-break interval, goal display, focus context row, lifetime badge, reset, skip
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
@@ -258,5 +258,226 @@ describe("PomodoroTimer autoStart phase transitions", () => {
 
     // Timer must still be running (not stopped mid-cycle)
     expect(screen.queryByText("⏸ 일시정지")).not.toBeNull();
+  });
+});
+
+describe("PomodoroTimer session completion callback", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should call onSessionComplete with focus duration when focus phase expires", async () => {
+    const onSessionComplete = vi.fn();
+    // longBreakInterval=99 prevents long break from triggering after first session
+    renderTimer({ onSessionComplete, longBreakInterval: 99 });
+
+    await act(async () => { screen.getByText("▶ 시작").click(); });
+    await advanceSecs(62);
+
+    expect(onSessionComplete).toHaveBeenCalledTimes(1);
+    expect(onSessionComplete).toHaveBeenCalledWith(FOCUS_MINS);
+  });
+
+  it("should NOT call onSessionComplete when break phase expires", async () => {
+    const onSessionComplete = vi.fn();
+    renderTimer({ onSessionComplete, longBreakInterval: 99 });
+
+    await act(async () => { screen.getByText("▶ 시작").click(); });
+    await advanceSecs(62); // focus → 1 session fires
+    await advanceSecs(62); // break → no additional session
+
+    expect(onSessionComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PomodoroTimer long break interval", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should trigger regular break after first focus when interval=2", async () => {
+    renderTimer({ longBreakInterval: 2 });
+
+    await act(async () => { screen.getByText("▶ 시작").click(); });
+    // First focus completes → cycleCount=1, 1 < interval=2 → regular break
+    await advanceSecs(62);
+
+    expect(screen.queryAllByText(/휴식 \d{2}:\d{2}/).length).toBeGreaterThan(0);
+    // Long break must NOT be triggered yet
+    expect(screen.queryAllByText(/긴 휴식 \d{2}:\d{2}/).length).toBe(0);
+  });
+
+  it("should trigger longBreak after reaching longBreakInterval focus completions", async () => {
+    renderTimer({ longBreakInterval: 2 });
+
+    await act(async () => { screen.getByText("▶ 시작").click(); });
+    await advanceSecs(62); // focus 1 → break (cycleCount=1)
+    await advanceSecs(62); // break → focus 2
+    await advanceSecs(62); // focus 2 → longBreak (cycleCount+1=2 >= interval=2)
+
+    expect(screen.queryAllByText(/긴 휴식 \d{2}:\d{2}/).length).toBeGreaterThan(0);
+  });
+});
+
+describe("PomodoroTimer session goal display", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should show N/G세션 format when sessionGoal and sessionsToday are provided", () => {
+    render(<PomodoroTimer initialOpen={true} sessionsToday={2} sessionGoal={4} />);
+    expect(screen.queryByText("2/4세션")).not.toBeNull();
+  });
+
+  it("should show dash when no sessionGoal is set", () => {
+    render(<PomodoroTimer initialOpen={true} sessionsToday={0} />);
+    expect(screen.queryByText("—")).not.toBeNull();
+    expect(screen.queryByText(/\/\d+세션/)).toBeNull();
+  });
+});
+
+describe("PomodoroTimer focus context row", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should show focusProject during active focus session and hide it at rest", async () => {
+    renderTimer({ focusProject: "vision-widget", initialAutoStart: false });
+
+    // At rest — context row not rendered
+    expect(screen.queryByText("vision-widget")).toBeNull();
+
+    await act(async () => { screen.getByText("▶ 시작").click(); });
+
+    // Running in focus phase — context row visible
+    expect(screen.queryByText("vision-widget")).not.toBeNull();
+  });
+
+  it("should show todayIntention during active focus session", async () => {
+    renderTimer({ todayIntention: "오늘의 의도 완수", initialAutoStart: false });
+
+    expect(screen.queryByText("오늘의 의도 완수")).toBeNull();
+
+    await act(async () => { screen.getByText("▶ 시작").click(); });
+
+    expect(screen.queryByText("오늘의 의도 완수")).not.toBeNull();
+  });
+
+  it("should hide focusProject when break phase begins after focus completes", async () => {
+    // autoStart=true so break auto-starts after focus
+    renderTimer({ focusProject: "vision-widget" });
+
+    await act(async () => { screen.getByText("▶ 시작").click(); });
+    expect(screen.queryByText("vision-widget")).not.toBeNull();
+
+    await advanceSecs(62); // focus → break (running && phase="break" → context row hidden)
+
+    expect(screen.queryByText("vision-widget")).toBeNull();
+  });
+});
+
+describe("PomodoroTimer lifetime minutes display", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should show formatted lifetime badge in header when lifetimeMins > 0", () => {
+    // 90 mins → formatLifetime(90) = "1h 30m"
+    render(<PomodoroTimer lifetimeMins={90} />);
+    expect(screen.queryByText("∑1h 30m")).not.toBeNull();
+  });
+
+  it("should not show lifetime badge when lifetimeMins is absent", () => {
+    render(<PomodoroTimer />);
+    expect(screen.queryByText(/∑/)).toBeNull();
+  });
+});
+
+describe("PomodoroTimer reset button", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should stop timer and restore full duration without calling onSessionComplete", async () => {
+    const onSessionComplete = vi.fn();
+    renderTimer({ onSessionComplete, initialAutoStart: false });
+
+    await act(async () => { screen.getByText("▶ 시작").click(); });
+    await advanceSecs(30); // advance 30s → 30s remaining (shows ⏸ 00:30 when paused)
+
+    await act(async () => { screen.getByTitle("현재 단계 처음으로").click(); });
+
+    // Timer stopped and remaining reset to full duration → isPaused=false, shows "▶ 시작"
+    expect(screen.queryByText("▶ 시작")).not.toBeNull();
+    // "⏸ 00:30" (mid-countdown paused state) must not appear since remaining is reset
+    expect(screen.queryByText("⏸ 00:30")).toBeNull();
+    expect(onSessionComplete).not.toHaveBeenCalled();
+  });
+});
+
+describe("PomodoroTimer skip phase", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should skip to break without calling onSessionComplete when focus is running", async () => {
+    const onSessionComplete = vi.fn();
+    renderTimer({ onSessionComplete, initialAutoStart: false });
+
+    await act(async () => { screen.getByText("▶ 시작").click(); });
+    await act(async () => { screen.getByTitle(/다음 단계로 건너뛰기/).click(); });
+
+    // Skip does NOT count as a completed session
+    expect(onSessionComplete).not.toHaveBeenCalled();
+    // Timer stopped (autoStart=false) after phase transition
+    expect(screen.queryByText("▶ 시작")).not.toBeNull();
+  });
+
+  it("should auto-start focus phase when skip is pressed during running break with autoStart=true", async () => {
+    renderTimer({ longBreakInterval: 99, initialAutoStart: true }); // prevent long break; explicit autoStart
+
+    await act(async () => { screen.getByText("▶ 시작").click(); });
+    await advanceSecs(62); // focus → break auto-starts
+
+    // Break is now running — skip should transition to focus and auto-start
+    await act(async () => { screen.getByTitle(/다음 단계로 건너뛰기/).click(); });
+
+    expect(screen.queryByText("⏸ 일시정지")).not.toBeNull();
+    expect(screen.queryAllByText(/집중 \d{2}:\d{2}/).length).toBeGreaterThan(0);
   });
 });

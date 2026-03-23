@@ -220,7 +220,7 @@ describe("fetchRepoData", () => {
     expect(result.ciStatus).toBe("success");
     expect(result.fetchedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
     // verify all 4 expected endpoints were called
-    const urls = mockFetch.mock.calls.map(([url]: [string]) => url);
+    const urls = mockFetch.mock.calls.map(([url]) => url as string);
     expect(urls.some((u: string) => u.includes("/commits?"))).toBe(true);
     expect(urls.some((u: string) => u.includes("/actions/runs"))).toBe(true);
     expect(urls.some((u: string) => u.includes("/pulls?"))).toBe(true);
