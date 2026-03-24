@@ -2620,6 +2620,11 @@ export default function App() {
         onWidthChange={w => updateSettings({ size: { ...settings.size, width: w } })}
       />
 
+      {/* ── Settings panel ── */}
+      {settingsOpen && (
+        <SettingsPanel settings={settings} onUpdate={updateSettings} widgetData={data} onImport={(imported) => { if (imported.hiddenSections !== undefined) { setHiddenSections(imported.hiddenSections); hiddenSectionsRef.current = imported.hiddenSections; } persist(imported); }} hiddenSections={hiddenSections} onHiddenSectionsChange={(next) => { setHiddenSections(next); hiddenSectionsRef.current = next; persist({ ...dataRef.current, hiddenSections: next }); }} />
+      )}
+
       {/* ── Content ── */}
       <div style={s.content}>
         <Clock
@@ -3167,10 +3172,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Settings panel ── */}
-      {settingsOpen && (
-        <SettingsPanel settings={settings} onUpdate={updateSettings} widgetData={data} onImport={(imported) => { if (imported.hiddenSections !== undefined) { setHiddenSections(imported.hiddenSections); hiddenSectionsRef.current = imported.hiddenSections; } persist(imported); }} hiddenSections={hiddenSections} onHiddenSectionsChange={(next) => { setHiddenSections(next); hiddenSectionsRef.current = next; persist({ ...dataRef.current, hiddenSections: next }); }} />
-      )}
     </div>
   );
 }
