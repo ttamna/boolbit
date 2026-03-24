@@ -1,5 +1,5 @@
 // ABOUTME: Unit tests for calcNextAction — prescriptive next-action recommendation based on daily completion state
-// ABOUTME: Covers intention/habit/pomodoro priority chain, edge cases (empty habits, zero goal, stale date), and all-done state
+// ABOUTME: Covers intention/habit/pomodoro priority chain, edge cases (empty habits, zero/negative goal, stale/future dates, whitespace), and all-done state
 
 import { describe, it, expect } from "vitest";
 import { calcNextAction, type NextActionParams } from "./nextAction";
@@ -180,6 +180,59 @@ describe("calcNextAction", () => {
       pomodoroGoal: 3,
       pomodoroSessions: 5,
       pomodoroSessionsDate: TODAY,
+    }));
+    expect(result.key).toBe("allDone");
+  });
+
+  // ── Defensive edge cases ─────────────────────────────────────────────────
+
+  // Negative pomodoroGoal: truthy in the `pomodoroGoal &&` guard but sessionsLeft < 0 → allDone
+  it("should return allDone when pomodoroGoal is negative", () => {
+    const result = calcNextAction(makeParams({
+      intentionText: "Focus",
+      intentionDate: TODAY,
+      habits: [],
+      pomodoroGoal: -1,
+    }));
+    expect(result.key).toBe("allDone");
+  });
+
+  // habit.lastChecked in the future is not equal to todayStr → counted as unchecked today
+  it("should count habit with future lastChecked as remaining", () => {
+    const result = calcNextAction(makeParams({
+      intentionText: "Focus",
+      intentionDate: TODAY,
+      habits: [{ lastChecked: "9999-12-31" }],
+    }));
+    expect(result.key).toBe("completeHabits");
+    expect(result.text).toContain("1");
+  });
+
+  // Float pomodoroGoal: fractional sessions-left still triggers doPomodoro
+  it("should suggest pomodoro when pomodoroGoal is a float and sessions are below it", () => {
+    const result = calcNextAction(makeParams({
+      intentionText: "Focus",
+      intentionDate: TODAY,
+      habits: [],
+      pomodoroGoal: 4.9,
+      pomodoroSessions: 4,
+      pomodoroSessionsDate: TODAY,
+    }));
+    // sessionsLeft = 4.9 - 4 = 0.9 → text contains "0.9"
+    expect(result.key).toBe("doPomodoro");
+    expect(result.text).toContain("0.9");
+  });
+
+  // NaN pomodoroSessions: pomodoroSessionsDate must be TODAY so todaySessions = NaN (not 0);
+  // then sessionsLeft = 4 - NaN = NaN, and `NaN > 0` is false → allDone
+  it("should return allDone when pomodoroSessions is NaN at runtime", () => {
+    const result = calcNextAction(makeParams({
+      intentionText: "Focus",
+      intentionDate: TODAY,
+      habits: [],
+      pomodoroGoal: 4,
+      pomodoroSessions: NaN,
+      pomodoroSessionsDate: TODAY, // required: without this, todaySessions = 0, not NaN
     }));
     expect(result.key).toBe("allDone");
   });
