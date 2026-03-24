@@ -87,7 +87,7 @@ export function SettingsPanel({ settings, onUpdate, widgetData, onImport, hidden
 
   return (
     <div style={{
-      borderTop: `1px solid ${colors.borderFaint}`,
+      borderBottom: `1px solid ${colors.borderFaint}`,
       padding: "10px 24px 14px",
     }}>
       <div style={row}>
