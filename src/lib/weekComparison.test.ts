@@ -252,6 +252,48 @@ describe("calcWeekComparison", () => {
       expect(result.pomodoro!.delta).toBe(-3);
       expect(result.pomodoro!.trend).toBe("down");
     });
+
+    // Symmetric negative stable boundaries — complement the positive stable tests above.
+    // detectTrend uses `<= -threshold` (not `<`), so -4 must still be stable.
+    // Uses momentum avg (score delta) as a proxy for the shared detectTrend rate path.
+    it("shouldDetectStableWhenMomentumDeltaIsNegative4", () => {
+      const result = calcWeekComparison({
+        ...EMPTY_PARAMS,
+        momentumHistory: [
+          ...THIS_WEEK.map(d => ({ date: d, score: 46 })),
+          ...LAST_WEEK.map(d => ({ date: d, score: 50 })),
+        ],
+      });
+      expect(result.momentum!.delta).toBe(-4);
+      expect(result.momentum!.trend).toBe("stable");
+    });
+
+    // Symmetric negative stable for count-based domain (COUNT_THRESHOLD=3).
+    // delta=-2 is inside the stable zone; delta=-3 (down boundary) is covered by shouldDetectDownWhenPomodoroDeltaIsNegative3.
+    it("shouldDetectStableWhenPomodoroDeltaIsNegative2", () => {
+      const result = calcWeekComparison({
+        ...EMPTY_PARAMS,
+        pomodoroHistory: [
+          { date: "2026-03-16", count: 1 },
+          { date: "2026-03-09", count: 3 },
+        ],
+      });
+      expect(result.pomodoro!.delta).toBe(-2);
+      expect(result.pomodoro!.trend).toBe("stable");
+    });
+
+    // Zero delta: neither threshold branch fires → stable.
+    it("shouldDetectStableWhenMomentumDeltaIsZero", () => {
+      const result = calcWeekComparison({
+        ...EMPTY_PARAMS,
+        momentumHistory: [
+          ...THIS_WEEK.map(d => ({ date: d, score: 50 })),
+          ...LAST_WEEK.map(d => ({ date: d, score: 50 })),
+        ],
+      });
+      expect(result.momentum!.delta).toBe(0);
+      expect(result.momentum!.trend).toBe("stable");
+    });
   });
 
   // ── overall trend ──────────────────────────────────────────────────────────
@@ -318,6 +360,31 @@ describe("calcWeekComparison", () => {
     it("shouldBeNullWhenNoDomainsHaveData", () => {
       const result = calcWeekComparison(EMPTY_PARAMS);
       expect(result.overallTrend).toBeNull();
+    });
+
+    // 3 up + 1 down: tests that a down vote does not suppress a clear up majority.
+    // The existing "shouldBeUpWhenMajorityOfDomainsTrendUp" uses 3 up + 1 stable,
+    // which never exercises the `downs > 0` path in the plurality check.
+    it("shouldBeUpWhenThreeDomainsUpAndOneDomainDown", () => {
+      const result = calcWeekComparison({
+        habits: [{ checkHistory: [...THIS_WEEK] }],        // 100% vs 0% → up
+        pomodoroHistory: [
+          { date: "2026-03-16", count: 5 },
+          { date: "2026-03-09", count: 1 },
+        ],                                                 // delta 4 ≥ COUNT_THRESHOLD(3) → up
+        intentionHistory: [
+          ...THIS_WEEK.map(d => ({ date: d, done: true })),
+          ...LAST_WEEK.map(d => ({ date: d, done: false })),
+        ],                                                 // 100% vs 0% → up
+        momentumHistory: [
+          ...THIS_WEEK.map(d => ({ date: d, score: 45 })),
+          ...LAST_WEEK.map(d => ({ date: d, score: 50 })),
+        ],                                                 // delta -5 ≤ -RATE_THRESHOLD(5) → down
+        thisWeek: THIS_WEEK,
+        lastWeek: LAST_WEEK,
+      });
+      // 3 up, 1 down → plurality "up"
+      expect(result.overallTrend).toBe("up");
     });
   });
 
