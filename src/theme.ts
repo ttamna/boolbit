@@ -82,6 +82,7 @@ export const THEMES = {
   aurora:   { name: "Aurora",   bgRgb: "6, 20, 20",   accent: "#2DD4BF" },
   rose:     { name: "Rose",     bgRgb: "22, 6, 14",   accent: "#F472B6" },
   solarized: { name: "Solarized", bgRgb: "0, 43, 54",  accent: "#268BD2" },
+  "solarized-light": { name: "Solarized Light", bgRgb: "253, 246, 227", accent: "#2AA198" },
 } as const;
 
 export type ThemeKey = keyof typeof THEMES;

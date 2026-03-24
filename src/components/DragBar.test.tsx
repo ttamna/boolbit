@@ -199,11 +199,19 @@ describe("DragBar — theme cycle", () => {
     expect(onSettingsChange).toHaveBeenCalledWith({ theme: "solarized" });
   });
 
-  it("should wrap theme cycle from solarized back to void", async () => {
+  it("should cycle theme from solarized to solarized-light on theme button click", async () => {
     const user = userEvent.setup();
     const onSettingsChange = vi.fn();
     render(<DragBar {...defaultProps} currentTheme="solarized" onSettingsChange={onSettingsChange} />);
     await user.click(screen.getByTitle("테마: Solarized (클릭하여 전환)"));
+    expect(onSettingsChange).toHaveBeenCalledWith({ theme: "solarized-light" });
+  });
+
+  it("should wrap theme cycle from solarized-light back to void", async () => {
+    const user = userEvent.setup();
+    const onSettingsChange = vi.fn();
+    render(<DragBar {...defaultProps} currentTheme="solarized-light" onSettingsChange={onSettingsChange} />);
+    await user.click(screen.getByTitle("테마: Solarized Light (클릭하여 전환)"));
     expect(onSettingsChange).toHaveBeenCalledWith({ theme: "void" });
   });
 });

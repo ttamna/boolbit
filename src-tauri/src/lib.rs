@@ -39,7 +39,7 @@ pub struct WidgetSettings {
     pub pinned: Option<bool>,
 }
 
-const VALID_THEMES: &[&str] = &["void", "nebula", "forest", "ember", "midnight", "aurora", "rose"];
+const VALID_THEMES: &[&str] = &["void", "nebula", "forest", "ember", "midnight", "aurora", "rose", "solarized", "solarized-light"];
 const VALID_SECTIONS: &[&str] = &["projects", "streaks", "direction", "pomodoro"];
 const VALID_MOMENTUM_TIERS: &[&str] = &["high", "mid", "low"];
 fn default_theme() -> String { "void".to_string() }

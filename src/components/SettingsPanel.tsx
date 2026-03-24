@@ -126,7 +126,7 @@ export function SettingsPanel({ settings, onUpdate, widgetData, onImport, hidden
                   background: `rgb(${t.bgRgb})`,
                   border: active
                     ? `2px solid ${t.accent}`
-                    : `2px solid rgba(255,255,255,0.15)`,
+                    : `2px solid ${t.accent}40`,
                   cursor: "pointer",
                   padding: 0,
                   overflow: "hidden",
