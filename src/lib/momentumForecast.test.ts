@@ -185,6 +185,28 @@ describe("calcMomentumForecast", () => {
       const saturday = result.days.find(d => d.weekday === 6)!;
       expect(monday.predicted).toBeGreaterThan(saturday.predicted);
     });
+
+    it("should use overall average as fallback for forecast weekdays absent from history", () => {
+      // Only Sundays in history — Mon–Sat have no weekday bucket, so they fall back to overallAvg.
+      // All entries are score 70, so overallAvg = 70 = weekdayAvg[0].
+      // Forecast: Mon–Sat predicted=70 (via overallAvg), Sun predicted=70 (via weekdayAvg).
+      // Confidence: Mon–Sat → samples=0 → "low"; Sun → samples=7 → "high".
+      const sundays = [
+        "2026-02-08", "2026-02-15", "2026-02-22",
+        "2026-03-01", "2026-03-08", "2026-03-15", "2026-03-22",
+      ].map(date => ({ date, score: 70 }));
+      const result = calcMomentumForecast({
+        momentumHistory: sundays,
+        todayStr: "2026-03-22",
+      })!;
+      for (const day of result.days) {
+        expect(day.predicted).toBe(70);
+      }
+      for (const day of result.days.filter(d => d.weekday !== 0)) {
+        expect(day.confidence).toBe("low");
+      }
+      expect(result.days.find(d => d.weekday === 0)!.confidence).toBe("high");
+    });
   });
 
   // ── Recent trend influence ───────────────────────────────────────────────
@@ -403,6 +425,7 @@ describe("calcMomentumForecast", () => {
       })!;
       expect(result.days[0].date).toBe("2027-01-01");
     });
+
   });
 
   // ── Duplicate history entries ──────────────────────────────────────────────
@@ -443,6 +466,31 @@ describe("calcMomentumForecast", () => {
     });
   });
 
+  // ── Input data assumptions ────────────────────────────────────────────────
+
+  describe("input data assumptions", () => {
+    it("should include future-dated entries in weekday averages and recency calculation", () => {
+      // The function processes all history entries regardless of todayStr — entries dated
+      // after todayStr are not filtered out. They raise recentAvg and weekdayAvg for those
+      // weekdays, lifting the weekAvg compared to history without future entries.
+      const base = makeHistory("2026-03-20", 7, 50); // 2026-03-14..2026-03-20, all 50
+      const withFuture = [
+        ...base,
+        { date: "2026-03-21", score: 100 }, // Saturday after todayStr
+        { date: "2026-03-22", score: 100 }, // Sunday after todayStr
+      ];
+      const resultWithFuture = calcMomentumForecast({
+        momentumHistory: withFuture,
+        todayStr: "2026-03-20",
+      })!;
+      const resultWithout = calcMomentumForecast({
+        momentumHistory: base,
+        todayStr: "2026-03-20",
+      })!;
+      expect(resultWithFuture.weekAvg).toBeGreaterThan(resultWithout.weekAvg);
+    });
+  });
+
   // ── Trend classification ──────────────────────────────────────────────────
 
   describe("trend classification", () => {
@@ -476,6 +524,31 @@ describe("calcMomentumForecast", () => {
       })!;
       // With only 3 prior entries (< RECENT_WINDOW=7), prior window is too short
       // for symmetric comparison → trend should be stable despite large score difference
+      expect(result.trend).toBe("stable");
+    });
+
+    it("should classify trend as improving when rawTrendDelta equals threshold (5pp)", () => {
+      // prior 7 days at 50, recent 7 days at 55 → delta = 5 = TREND_THRESHOLD → "improving"
+      // Requires exactly 14 entries so priorEntries is populated (entries.length >= RECENT_WINDOW*2).
+      // The two makeHistory ranges are contiguous and non-overlapping: 03-09..03-15 and 03-16..03-22.
+      const prior7 = makeHistory("2026-03-15", 7, 50);
+      const recent7 = makeHistory("2026-03-22", 7, 55);
+      const result = calcMomentumForecast({
+        momentumHistory: [...prior7, ...recent7],
+        todayStr: "2026-03-22",
+      })!;
+      expect(result.trend).toBe("improving");
+    });
+
+    it("should classify trend as stable when rawTrendDelta is one below threshold (4pp)", () => {
+      // prior 7 days at 50, recent 7 days at 54 → delta = 4 < TREND_THRESHOLD → "stable"
+      // Ranges: 03-09..03-15 (prior, score 50) and 03-16..03-22 (recent, score 54) — no overlap.
+      const prior7 = makeHistory("2026-03-15", 7, 50);
+      const recent7 = makeHistory("2026-03-22", 7, 54);
+      const result = calcMomentumForecast({
+        momentumHistory: [...prior7, ...recent7],
+        todayStr: "2026-03-22",
+      })!;
       expect(result.trend).toBe("stable");
     });
   });
