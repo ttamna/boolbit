@@ -46,6 +46,18 @@ describe("calcDailySuccessRate", () => {
     const rate = calcDailySuccessRate(history, window);
     expect(rate).toBeCloseTo(history.length / 14, 5);
   });
+
+  it("should return 0 when all history entries are outside the window", () => {
+    const window = ["2026-03-20", "2026-03-21", "2026-03-22"];
+    const history = ["2026-03-01", "2026-03-05", "2026-03-10"];
+    expect(calcDailySuccessRate(history, window)).toBe(0);
+  });
+
+  it("should return 1 for a single-day window when history includes that day", () => {
+    const window = ["2026-03-15"];
+    const history = ["2026-03-10", "2026-03-15", "2026-03-20"];
+    expect(calcDailySuccessRate(history, window)).toBe(1);
+  });
 });
 
 describe("calcMilestoneETA", () => {
@@ -158,5 +170,15 @@ describe("calcMilestoneETA", () => {
     const result = calcMilestoneETA(27, MILESTONES, 0.47);
     expect(result).not.toBeNull();
     expect(result!.probability).toBeCloseTo(0.47 ** 3, 3);
+  });
+
+  it("should target the last milestone when streak has surpassed all prior milestones", () => {
+    // streak=35 exceeds milestones 7 and 30 — find() must traverse all and settle on 100
+    const result = calcMilestoneETA(35, MILESTONES, 0.98);
+    expect(result).not.toBeNull();
+    expect(result!.target).toBe(100);
+    expect(result!.daysRemaining).toBe(65);
+    expect(result!.badge).toBe("💎");
+    expect(result!.probability).toBeCloseTo(0.98 ** 65, 3);
   });
 });
