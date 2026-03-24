@@ -178,4 +178,36 @@ describe("parseImportedData", () => {
     const result = parseImportedData(json);
     expect(result.ok).toBe(true);
   });
+
+  it("should return ok:false when projects array contains null item", () => {
+    // typeof null === "object" so the explicit p === null guard (line 65) is required
+    const data = { ...MINIMAL_DATA, projects: [null] };
+    const result = parseImportedData(JSON.stringify(data));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("projects");
+  });
+
+  it("should return ok:false when habits array contains null item", () => {
+    // typeof null === "object" so the explicit h === null guard (line 72) is required
+    const data = { ...MINIMAL_DATA, habits: [null] };
+    const result = parseImportedData(JSON.stringify(data));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("habits");
+  });
+
+  it("should return ok:false when project name is a number not a string", () => {
+    // name field exists but typeof 42 !== "string" — type coercion cannot sneak past the guard
+    const data = { ...MINIMAL_DATA, projects: [{ name: 42, status: "active" }] };
+    const result = parseImportedData(JSON.stringify(data));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("projects");
+  });
+
+  it("should return ok:false when habit name is null", () => {
+    // typeof null !== "string" — null name must be rejected even though the field is present
+    const data = { ...MINIMAL_DATA, habits: [{ name: null, streak: 5 }] };
+    const result = parseImportedData(JSON.stringify(data));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("habits");
+  });
 });
