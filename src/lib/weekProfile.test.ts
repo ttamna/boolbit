@@ -240,4 +240,49 @@ describe("calcWeekdayProfile", () => {
     // Wednesday: round((70 + 55) / 2) = round(62.5) = 63
     expect(result.days[3].composite).toBe(63);
   });
+
+  it("should treat habitRate 0 as data-present contributing 0 to composite", () => {
+    // 0 is not null — it means "worst possible performance", not "no data"
+    // The guard `if (habit !== null)` must include 0 in the composite average
+    const result = calcWeekdayProfile(makeParams({
+      habitRates: { ...NULL_RECORD, 2: 0 },
+    }));
+    expect(result.days[2].habitRate).toBe(0);
+    expect(result.days[2].composite).toBe(0);
+  });
+
+  it("should return bestDay 0 and worstDay 0 when all seven days share identical composite", () => {
+    // Seven-way tie: strict > / < comparisons keep the first (lowest) weekday for both
+    const result = calcWeekdayProfile(makeParams({
+      habitRates: { 0: 70, 1: 70, 2: 70, 3: 70, 4: 70, 5: 70, 6: 70 },
+    }));
+    expect(result.bestDay).toBe(0);
+    expect(result.worstDay).toBe(0);
+  });
+
+  it("should round composite to nearest integer at 0.5 boundary (Math.round half-away-from-zero)", () => {
+    // habitRate=0 and intentionRate=1 → avg=(0+1)/2=0.5 → Math.round(0.5)=1, not 0
+    const result = calcWeekdayProfile(makeParams({
+      habitRates: { ...NULL_RECORD, 4: 0 },
+      intentionRates: { ...NULL_RECORD, 4: 1 },
+    }));
+    expect(result.days[4].composite).toBe(1);
+  });
+
+  it("should handle sparse record with missing weekday keys treating absent keys as null", () => {
+    // Code comment: "sparse records are valid TS input" — absent keys yield undefined,
+    // which the `?? null` guard converts to null (no data for those weekdays)
+    const result = calcWeekdayProfile(makeParams({
+      habitRates: { 1: 80, 4: 60 } as Record<number, number | null>,
+    }));
+    expect(result.days[0].composite).toBeNull();
+    expect(result.days[1].composite).toBe(80);
+    expect(result.days[2].composite).toBeNull();
+    expect(result.days[3].composite).toBeNull();
+    expect(result.days[4].composite).toBe(60);
+    expect(result.days[5].composite).toBeNull();
+    expect(result.days[6].composite).toBeNull();
+    expect(result.bestDay).toBe(1);
+    expect(result.worstDay).toBe(4);
+  });
 });
