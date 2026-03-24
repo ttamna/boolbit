@@ -97,4 +97,22 @@ describe("calcActiveStreaks", () => {
     const result2 = calcActiveStreaks({ focusStreak: 0 });
     expect(result1).toEqual(result2);
   });
+
+  // Negative days are excluded by the ≥2 filter — guards against JSON deserialization producing negative numbers
+  it("should exclude negative days when streak data is corrupted", () => {
+    const result = calcActiveStreaks({ perfectDayStreak: -1, focusStreak: 5 });
+    expect(result).toHaveLength(1);
+    expect(result[0].key).toBe("focus");
+    expect(result[0].days).toBe(5);
+  });
+
+  // Large streak values (e.g. year-long runs) should sort correctly without numeric issues
+  it("should sort correctly when one streak value is very large", () => {
+    const result = calcActiveStreaks({ pomodoroGoalStreak: 365, perfectDayStreak: 2 });
+    expect(result).toHaveLength(2);
+    expect(result[0].key).toBe("pomodoroGoal");
+    expect(result[0].days).toBe(365);
+    expect(result[1].key).toBe("perfectDay");
+    expect(result[1].days).toBe(2);
+  });
 });
