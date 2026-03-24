@@ -703,4 +703,101 @@ describe("calcGrowthTrajectory", () => {
       expect(result!.summary).toContain("2주 성장 궤적");
     });
   });
+
+  // ── normalizeDelta cap — pomodoro ×5 scale capped at ±100 ─────────────────
+
+  describe("normalizeDelta cap — pomodoro ×5 factor capped at ±100pp", () => {
+    it("should cap pomodoro normalized delta at +100 when session delta exceeds +20", () => {
+      // delta = 22 - 1 = 21 → raw normalized = 21 × 5 = 105 → capped to 100
+      // Single active domain → overall = 100, grade = "accelerating"
+      const prevDates = datesBack(TODAY, 56).slice(28);
+      const currDates = datesBack(TODAY, 28);
+
+      const result = calcGrowthTrajectory(baseParams({
+        pomodoroHistory: [
+          ...prevDates.map(date => ({ date, count: 1 })),   // prev avg = 1
+          ...currDates.map(date => ({ date, count: 22 })),  // curr avg = 22
+        ],
+      }));
+
+      expect(result).not.toBeNull();
+      expect(result!.domains.pomodoro!.delta).toBe(21);
+      expect(result!.overall).toBe(100);         // min(100, 21×5=105) = 100
+      expect(result!.grade).toBe("accelerating");
+    });
+
+    it("should cap pomodoro normalized delta at -100 when session delta falls below -20", () => {
+      // delta = 1 - 22 = -21 → raw normalized = -21 × 5 = -105 → capped to -100
+      // Single active domain → overall = -100, grade = "declining"
+      const prevDates = datesBack(TODAY, 56).slice(28);
+      const currDates = datesBack(TODAY, 28);
+
+      const result = calcGrowthTrajectory(baseParams({
+        pomodoroHistory: [
+          ...prevDates.map(date => ({ date, count: 22 })),  // prev avg = 22
+          ...currDates.map(date => ({ date, count: 1 })),   // curr avg = 1
+        ],
+      }));
+
+      expect(result).not.toBeNull();
+      expect(result!.domains.pomodoro!.delta).toBe(-21);
+      expect(result!.overall).toBe(-100);        // max(-100, -21×5=-105) = -100
+      expect(result!.grade).toBe("declining");
+    });
+  });
+
+  // ── Duplicate date handling ───────────────────────────────────────────────
+
+  describe("duplicate date handling", () => {
+    it("should use last entry when momentum history has duplicate dates", () => {
+      // Momentum deduplication uses last-entry-wins (Map.set overwrites)
+      // overlapDate gets score=90 first, then score=10 → last entry (10) wins
+      const prevDates = datesBack(TODAY, 56).slice(28);
+      const currDates = datesBack(TODAY, 28);
+      const overlapDate = currDates[0]; // most recent date in current period = TODAY
+      expect(overlapDate).toBe(TODAY);
+
+      const result = calcGrowthTrajectory(baseParams({
+        momentumHistory: [
+          ...prevDates.map(date => ({ date, score: 50 })),
+          ...currDates.map(date => ({ date, score: 90 })),
+          { date: overlapDate, score: 10 }, // appended last → overwrites the 90
+        ],
+      }));
+
+      expect(result).not.toBeNull();
+      // overlapDate = 10; remaining 27 current dates = 90
+      // currAvg = round((10 + 90 × 27) / 28) = round(2440 / 28) = 87
+      expect(result!.domains.momentum!.current).toBe(Math.round((10 + 90 * 27) / 28));
+    });
+
+    it("should sum pomodoro counts when the same date appears multiple times", () => {
+      // Pomodoro deduplication SUMS counts (unlike momentum's last-entry-wins overwrite).
+      // Values are chosen so summation and last-wins produce distinct curr averages:
+      //   With summation: dupeDate = 1+10+5 = 16, others = 1
+      //     → currAvg = round((16 + 27) / 28) = round(43/28) = round(1.535) = 2
+      //   With last-wins (hypothetical bug — last extra = count=5): dupeDate = 5, others = 1
+      //     → currAvg = round((5 + 27) / 28) = round(32/28) = round(1.142) = 1
+      const prevDates = datesBack(TODAY, 56).slice(28);
+      const currDates = datesBack(TODAY, 28);
+      const dupeDate = currDates[0];
+
+      const result = calcGrowthTrajectory(baseParams({
+        pomodoroHistory: [
+          ...prevDates.map(date => ({ date, count: 1 })),   // prev avg = 1
+          ...currDates.map(date => ({ date, count: 1 })),   // base current = 1 for all
+          { date: dupeDate, count: 10 },                    // +10 → running total = 11
+          { date: dupeDate, count: 5 },                     // +5  → running total = 16
+        ],
+      }));
+
+      // Summation: dupeDate=16, 27 others=1 → currSum=43, days=28 → currAvg=round(43/28)=2
+      // Last-wins (bug): dupeDate=5, 27 others=1 → currSum=32, days=28 → currAvg=round(32/28)=1
+      expect(result).not.toBeNull();
+      expect(result!.domains.pomodoro!.current).toBe(2);    // summation, not last-wins
+      expect(result!.domains.pomodoro!.previous).toBe(1);
+      expect(result!.domains.pomodoro!.delta).toBe(1);
+      expect(result!.domains.pomodoro!.trend).toBe("up");
+    });
+  });
 });
