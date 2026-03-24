@@ -127,9 +127,33 @@ describe("calcGoalExpiry — weekGoalStale", () => {
       weekGoalDone: true,
     };
     const result = calcGoalExpiry(data, makeDate("2026-03-15"));
+    expect(result.weekGoalStale).toBe(true);
     expect(result.historyPatch.weekGoalHistory).toEqual([
       { date: "2026-W10", text: "Ship feature", done: true },
     ]);
+  });
+
+  it("should not include done key in historyPatch entry when weekGoalDone is explicitly false", () => {
+    const data: Partial<WidgetData> = {
+      weekGoal: "Ship feature",
+      weekGoalDate: "2026-W10",
+      weekGoalDone: false,
+    };
+    const result = calcGoalExpiry(data, makeDate("2026-03-15"));
+    const entry = result.historyPatch.weekGoalHistory?.[0];
+    expect(entry).toBeDefined();
+    expect(entry).not.toHaveProperty("done");
+  });
+
+  it("should not be stale when weekGoalDate is a future ISO week", () => {
+    // W11 is current; W12 is next week — future date must not trigger expiry
+    const data: Partial<WidgetData> = {
+      weekGoal: "Upcoming goal",
+      weekGoalDate: "2026-W12",
+    };
+    const result = calcGoalExpiry(data, makeDate("2026-03-15")); // 2026-W11
+    expect(result.weekGoalStale).toBe(false);
+    expect(result.historyPatch.weekGoalHistory).toBeUndefined();
   });
 
   it("should preserve existing history entries and append new one", () => {
@@ -197,6 +221,19 @@ describe("calcGoalExpiry — monthGoalStale", () => {
     expect(calcGoalExpiry(data, makeDate("2026-03-15")).monthGoalStale).toBe(true);
   });
 
+  it("should include done:true in historyPatch entry when monthGoalDone is true", () => {
+    const data: Partial<WidgetData> = {
+      monthGoal: "Launch product",
+      monthGoalDate: "2026-02",
+      monthGoalDone: true,
+    };
+    const result = calcGoalExpiry(data, makeDate("2026-03-15"));
+    expect(result.monthGoalStale).toBe(true);
+    expect(result.historyPatch.monthGoalHistory).toEqual([
+      { date: "2026-02", text: "Launch product", done: true },
+    ]);
+  });
+
   it("should cap monthGoalHistory at 12 entries", () => {
     const existing: GoalEntry[] = Array.from({ length: 12 }, (_, i) =>
       makeGoalEntry(`2025-${String(i + 1).padStart(2, "0")}`, `Month goal ${i + 1}`),
@@ -233,6 +270,19 @@ describe("calcGoalExpiry — quarterGoalStale", () => {
     expect(calcGoalExpiry(data, makeDate("2026-04-01")).quarterGoalStale).toBe(true);
   });
 
+  it("should include done:true in historyPatch entry when quarterGoalDone is true", () => {
+    const data: Partial<WidgetData> = {
+      quarterGoal: "Q1 target",
+      quarterGoalDate: "2025-Q4",
+      quarterGoalDone: true,
+    };
+    const result = calcGoalExpiry(data, makeDate("2026-03-15"));
+    expect(result.quarterGoalStale).toBe(true);
+    expect(result.historyPatch.quarterGoalHistory).toEqual([
+      { date: "2025-Q4", text: "Q1 target", done: true },
+    ]);
+  });
+
   it("should cap quarterGoalHistory at 8 entries (oldest dropped when N+1 entries would exceed cap)", () => {
     // 8 unique-dated entries spanning 2 years — no collisions with the stale date "2026-Q1"
     const existing: GoalEntry[] = [
@@ -263,6 +313,19 @@ describe("calcGoalExpiry — yearGoalStale", () => {
   it("should be true when yearGoalDate is a prior year", () => {
     const data: Partial<WidgetData> = { yearGoal: "2025 goal", yearGoalDate: "2025" };
     expect(calcGoalExpiry(data, makeDate("2026-03-15")).yearGoalStale).toBe(true);
+  });
+
+  it("should include done:true in historyPatch entry when yearGoalDone is true", () => {
+    const data: Partial<WidgetData> = {
+      yearGoal: "2025 goal",
+      yearGoalDate: "2025",
+      yearGoalDone: true,
+    };
+    const result = calcGoalExpiry(data, makeDate("2026-03-15"));
+    expect(result.yearGoalStale).toBe(true);
+    expect(result.historyPatch.yearGoalHistory).toEqual([
+      { date: "2025", text: "2025 goal", done: true },
+    ]);
   });
 
   it("should cap yearGoalHistory at 5 entries (oldest dropped when N+1 entries would exceed cap)", () => {
