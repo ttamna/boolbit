@@ -378,4 +378,91 @@ describe("calcHabitResilience", () => {
       grade: "elastic",
     });
   });
+
+  // ── Grade boundary: moderate upper (median gap = 5) ───────────────
+
+  test("shouldGradeModerateWhenMedianGapIsExactlyFive", () => {
+    const window = buildWindow("2026-03-22", 30);
+    // 03-01, (skip 03-02~03-06, 5 days), 03-07, 03-08
+    // dayDiff(03-01, 03-07) = 6, gap = 5 → moderate upper boundary (≤5)
+    const habits = [{
+      name: "독서",
+      checkHistory: ["2026-03-01", "2026-03-07", "2026-03-08"],
+    }];
+    const result = calcHabitResilience({ habits, dayWindow: window });
+
+    expect(result!.habits[0]).toMatchObject({
+      breakCount: 1,
+      medianGapDays: 5,
+      maxGapDays: 5,
+      grade: "moderate",
+    });
+  });
+
+  // ── Summary: all four grades present ─────────────────────────────
+
+  test("shouldSummarizeAllFourGrades", () => {
+    const window = buildWindow("2026-03-22", 90); // 2025-12-23 ~ 2026-03-22
+    const habits = [
+      // elastic: consecutive days, no breaks
+      { name: "elastic", checkHistory: ["2026-03-20", "2026-03-21", "2026-03-22"] },
+      // moderate: gaps=[4,4], median=4
+      { name: "moderate", checkHistory: ["2026-03-01", "2026-03-06", "2026-03-11"] },
+      // slow: gaps=[8,8], median=8
+      { name: "slow", checkHistory: ["2026-02-01", "2026-02-10", "2026-02-19"] },
+      // fragile: gaps=[15], median=15
+      { name: "fragile", checkHistory: ["2026-01-01", "2026-01-17", "2026-01-18"] },
+    ];
+    const result = calcHabitResilience({ habits, dayWindow: window });
+
+    expect(result).not.toBeNull();
+    expect(result!.habits).toHaveLength(4);
+    expect(result!.summary).toBe("🧬1 · ⏳1 · 🐌1 · 💔1");
+  });
+
+  // ── maxGapDays tracked independently of median grade ─────────────
+
+  test("shouldTrackLargeMaxGapDaysWhenMedianGapIsSmall", () => {
+    const window = buildWindow("2026-03-22", 60); // 2026-01-22 ~ 2026-03-22
+    // 5 gaps: [1, 1, 1, 1, 14] — median of odd-length array = sorted[mid] = 1 (elastic)
+    // maxGapDays = 14 despite elastic grade
+    const habits = [{
+      name: "운동",
+      checkHistory: [
+        "2026-02-01", "2026-02-03", "2026-02-05", "2026-02-07", "2026-02-09",
+        "2026-02-24", // dayDiff(02-09, 02-24)=15 → gap=14
+      ],
+    }];
+    const result = calcHabitResilience({ habits, dayWindow: window });
+
+    // sorted gaps=[1,1,1,1,14], n=5 odd, mid=2 → sorted[2]=1
+    expect(result!.habits[0]).toMatchObject({
+      breakCount: 5,
+      medianGapDays: 1,
+      maxGapDays: 14,
+      grade: "elastic",
+    });
+  });
+
+  // ── February boundary (non-leap year) ────────────────────────────
+
+  test("shouldHandleNonLeapYearFebruaryBoundary", () => {
+    const window = buildWindow("2026-03-22", 30); // 2026-02-21 ~ 2026-03-22
+    // 2026 is not a leap year: Feb has 28 days
+    // Feb 28 → Mar 1: dayDiff=1, gap=0 (consecutive — no break)
+    // Mar 1 → Mar 8: dayDiff=7, gap=6 → slow lower boundary
+    const habits = [{
+      name: "운동",
+      checkHistory: ["2026-02-28", "2026-03-01", "2026-03-08"],
+    }];
+    const result = calcHabitResilience({ habits, dayWindow: window });
+
+    // Only 1 break (Feb 28→Mar 1 is consecutive, not a break)
+    expect(result!.habits[0]).toMatchObject({
+      breakCount: 1,
+      medianGapDays: 6,
+      maxGapDays: 6,
+      grade: "slow",
+    });
+  });
 });
