@@ -193,5 +193,46 @@ describe("MomentumForecastCard", () => {
       const arrow = screen.getByText("↑");
       expect(arrow.style.color).toBe("rgb(56, 189, 248)");
     });
+
+    it("should use statusProgress color for score=72 day (below ≥75 threshold) even with accent", () => {
+      const accent = "#38BDF8";
+      render(<MomentumForecastCard forecast={forecastImproving} accent={accent} />);
+      // scoreColor returns statusProgress (#FBBF24) for score 60–74; accent only applies at ≥75
+      const slot = screen.getByTitle("월 72점 (신뢰도: 높음)");
+      const scoreSpan = slot.querySelector("span:last-child") as HTMLElement;
+      expect(scoreSpan.style.color).toBe("rgb(251, 191, 36)"); // statusProgress = #FBBF24
+    });
+
+    it("should use statusPaused color for declining trend arrow even with accent", () => {
+      const accent = "#38BDF8";
+      render(<MomentumForecastCard forecast={forecastDeclining} accent={accent} />);
+      // TREND_COLORS.declining ignores accent and always returns colors.statusPaused
+      const arrow = screen.getByText("↓");
+      expect(arrow.style.color).toBe("rgb(248, 113, 113)"); // statusPaused = #F87171
+    });
+
+    it("should use textDim color for stable trend arrow even with accent", () => {
+      const accent = "#38BDF8";
+      render(<MomentumForecastCard forecast={forecastStable} accent={accent} />);
+      // TREND_COLORS.stable ignores accent and always returns colors.textDim
+      const arrow = screen.getByText("→");
+      expect(arrow.style.color).toBe("rgba(255, 255, 255, 0.42)"); // textDim
+    });
+  });
+
+  describe("weekAvg edge case", () => {
+    it("should render weekAvg=0 as '0' in the footer", () => {
+      const forecastZeroAvg: MomentumForecast = {
+        ...forecastDeclining,
+        weekAvg: 0,
+        summary: "주간 예측 0점(하락세)",
+      };
+      render(<MomentumForecastCard forecast={forecastZeroAvg} />);
+      // Locate the footer span containing "주평균" label, then verify the adjacent value span
+      // forecastDeclining day scores are 30,25,35,28,22,20,18 — none are 0, so "0" is unambiguous
+      const label = screen.getByText("주평균");
+      const avgSpan = label.nextElementSibling as HTMLElement;
+      expect(avgSpan?.textContent).toBe("0");
+    });
   });
 });
