@@ -532,4 +532,76 @@ describe("calcConsistencyScore", () => {
     });
     expect(result!.domains.intention!.activeDays).toBe(1);
   });
+
+  // ── Trend: null when windowDays is 1 (halfSize = 0) ──────────────────────
+
+  it("shouldReturnNullTrendWhenWindowDaysIsOne", () => {
+    // halfSize = Math.floor(1/2) = 0 → detectTrend returns null immediately
+    const result = calcConsistencyScore({
+      habits: [{ checkHistory: [daysAgo(0)] }],
+      pomodoroHistory: [],
+      intentionHistory: [],
+      todayStr: TODAY,
+      windowDays: 1,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.trend).toBeNull();
+  });
+
+  // ── Intention domain null when non-empty history but all entries outside window ─
+
+  it("shouldReturnNullIntentionWhenAllEntriesOutsideWindow", () => {
+    // intentionHistory.length > 0 passes the first guard, but activeDates.size === 0
+    // because all dates are outside the 7-day window → scoreIntention returns null
+    const result = calcConsistencyScore({
+      habits: [{ checkHistory: [daysAgo(0)] }],
+      pomodoroHistory: [],
+      intentionHistory: [
+        { date: daysAgo(10), text: "old goal" }, // outside 7-day window
+        { date: daysAgo(8), text: "also old" },  // outside 7-day window
+      ],
+      todayStr: TODAY,
+      windowDays: 7,
+    });
+    expect(result!.domains.intention).toBeNull();
+  });
+
+  // ── Grade boundary: overall = exactly 90 via two-domain average → elite ──
+
+  it("shouldGradeEliteWhenOverallIsExactly90WithTwoDomains", () => {
+    // windowDays=20: habits 20/20=100%, intention 16/20=80% → average = 90 → elite
+    // verifies gradeFromScore uses >= 90 (inclusive) for elite
+    const allDays = Array.from({ length: 20 }, (_, i) => daysAgo(i));
+    const partialDays = Array.from({ length: 16 }, (_, i) => daysAgo(i));
+    const result = calcConsistencyScore({
+      habits: [{ checkHistory: allDays }],
+      pomodoroHistory: [],
+      intentionHistory: partialDays.map((d) => ({ date: d, text: `g-${d}` })),
+      todayStr: TODAY,
+      windowDays: 20,
+    });
+    expect(result!.domains.habits!.rate).toBe(100);
+    expect(result!.domains.intention!.rate).toBe(80);
+    expect(result!.overall).toBe(90);
+    expect(result!.grade).toBe("elite");
+  });
+
+  // ── Weakest domain when two domains tied at lowest rate ───────────────────
+
+  it("shouldReturnHabitsAsWeakestWhenTiedWithPomodoro", () => {
+    // habits=50%, pomodoro=50%, intention=100%
+    // findWeakest: habits is first in activeDomains and wins the tie (strict < not updated for equal)
+    const halfDays = Array.from({ length: 14 }, (_, i) => daysAgo(i));
+    const allDays = Array.from({ length: DEFAULT_WINDOW_DAYS }, (_, i) => daysAgo(i));
+    const result = calcConsistencyScore({
+      habits: [{ checkHistory: halfDays }],
+      pomodoroHistory: halfDays.map((d) => ({ date: d, count: 2 })),
+      intentionHistory: allDays.map((d) => ({ date: d, text: `g-${d}` })),
+      todayStr: TODAY,
+    });
+    expect(result!.domains.habits!.rate).toBe(50);
+    expect(result!.domains.pomodoro!.rate).toBe(50);
+    expect(result!.domains.intention!.rate).toBe(100);
+    expect(result!.weakestDomain).toBe("habits");
+  });
 });
