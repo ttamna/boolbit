@@ -158,4 +158,73 @@ describe("HabitResilienceCard", () => {
       expect(screen.getByTitle("운동: moderate (중앙값 3일, 최대 5일, 2회 끊김)")).toBeDefined();
     });
   });
+
+  describe("edge cases", () => {
+    // All 4 GRADE_COLORS entries (statusActive/Progress/Warning/Paused) must be distinct values.
+    // Existing test only compares elastic vs fragile; this verifies full 4-way differentiation.
+    // Each color is first asserted truthy to guard against JSDOM not resolving inline style values.
+    it("should apply 4 pairwise distinct colors across all grades", () => {
+      render(<HabitResilienceCard resilience={resilienceMixed} />);
+      const chips = [
+        screen.getByTitle(/운동: elastic/).style.color,   // elastic
+        screen.getByTitle(/독서: moderate/).style.color,  // moderate
+        screen.getByTitle(/명상: slow/).style.color,      // slow
+        screen.getByTitle(/일기: fragile/).style.color,   // fragile
+      ];
+      // Verify each color value is non-empty before checking uniqueness
+      chips.forEach(c => expect(c).toBeTruthy());
+      const uniqueColors = new Set(chips);
+      expect(uniqueColors.size).toBe(4);
+    });
+
+    // buildTooltip() uses breakCount (not grade) as the sole branch condition.
+    // When breakCount=0, "끊김 없음" is shown even if medianGapDays/maxGapDays are non-zero.
+    // This exercises the tooltip branch in isolation at the component level.
+    it("should show 끊김 없음 tooltip when breakCount=0 even with non-zero gap values", () => {
+      const zeroBreakWithGaps: HabitResilienceResult = {
+        habits: [{ name: "운동", breakCount: 0, medianGapDays: 5, maxGapDays: 10, grade: "elastic" }],
+        summary: "🧬1",
+      };
+      render(<HabitResilienceCard resilience={zeroBreakWithGaps} />);
+      expect(screen.getByTitle("운동: elastic (끊김 없음)")).toBeDefined();
+      // breakCount chip must not appear when breakCount is 0
+      expect(screen.queryByText("0회")).toBeNull();
+    });
+
+    // Verifies that a large set of habits (> 4) all render without omission.
+    it("should render all 5 habits when 5 are provided", () => {
+      const fiveHabits: HabitResilienceResult = {
+        habits: [
+          { name: "운동", breakCount: 1, medianGapDays: 1, maxGapDays: 2, grade: "elastic" },
+          { name: "독서", breakCount: 2, medianGapDays: 3, maxGapDays: 5, grade: "moderate" },
+          { name: "명상", breakCount: 3, medianGapDays: 4, maxGapDays: 8, grade: "slow" },
+          { name: "일기", breakCount: 4, medianGapDays: 5, maxGapDays: 10, grade: "fragile" },
+          { name: "영어", breakCount: 0, medianGapDays: 0, maxGapDays: 0, grade: "elastic" },
+        ],
+        summary: "🧬2 · ⏳1 · 🐌1 · 💔1",
+      };
+      render(<HabitResilienceCard resilience={fiveHabits} />);
+      expect(screen.getByText("운동")).toBeDefined();
+      expect(screen.getByText("독서")).toBeDefined();
+      expect(screen.getByText("명상")).toBeDefined();
+      expect(screen.getByText("일기")).toBeDefined();
+      expect(screen.getByText("영어")).toBeDefined();
+    });
+
+    // When ALL habits across mixed grades have breakCount=0, no 회 count chip should appear.
+    it("should suppress all break count chips when every habit has breakCount=0 across mixed grades", () => {
+      const allZeroBreaks: HabitResilienceResult = {
+        habits: [
+          { name: "A", breakCount: 0, medianGapDays: 0, maxGapDays: 0, grade: "elastic" },
+          { name: "B", breakCount: 0, medianGapDays: 0, maxGapDays: 0, grade: "moderate" },
+          { name: "C", breakCount: 0, medianGapDays: 0, maxGapDays: 0, grade: "slow" },
+          { name: "D", breakCount: 0, medianGapDays: 0, maxGapDays: 0, grade: "fragile" },
+        ],
+        summary: "",
+      };
+      render(<HabitResilienceCard resilience={allZeroBreaks} />);
+      // No "N회" text anywhere in the component
+      expect(screen.queryByText(/\d+회/)).toBeNull();
+    });
+  });
 });
