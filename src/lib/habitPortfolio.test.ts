@@ -361,4 +361,49 @@ describe("calcHabitPortfolio", () => {
     });
     expect(result.habits[0].state).toBe("growing");
   });
+
+  // ── Additional edge cases ──────────────────────────────────────────────────
+
+  it("shouldClassifyAsDormantWhenStreakZeroEvenIfCheckedToday", () => {
+    // streak=0 means the consecutive chain is broken; checkedToday does not rescue it
+    // All streak > 0 branches are skipped → falls through to dormant
+    const result = calcHabitPortfolio({
+      habits: [h("운동", 0, TODAY)],
+      todayStr: TODAY,
+    });
+    expect(result.habits[0].state).toBe("dormant");
+  });
+
+  it("shouldClassifyAsGrowingWhenStreakExceedsBestStreak", () => {
+    // streak=4 > bestStreak=2: record guard (streak === bestStreak) fails → not record
+    // streak=4 < 7 → risk skipped regardless of checkedToday; isNearMilestone(4) = false (7−4=3>2)
+    // Isolates the "streak > bestStreak blocks record" path without risk-skip entanglement
+    const result = calcHabitPortfolio({
+      habits: [h("운동", 4, TODAY, 2)],
+      todayStr: TODAY,
+    });
+    expect(result.habits[0].state).toBe("growing");
+  });
+
+  it("shouldClassifyAsRecordWhenLargeStreakEqualsBestStreak", () => {
+    // streak=100, bestStreak=100: streak > 0 ✓ AND streak === bestStreak ✓ AND bestStreak >= 4 ✓ AND checkedToday ✓ → record
+    const result = calcHabitPortfolio({
+      habits: [h("운동", 100, TODAY, 100)],
+      todayStr: TODAY,
+    });
+    expect(result.habits[0].state).toBe("record");
+  });
+
+  it("shouldSummarizeOnlyDormantWhenAllHabitsAreInactive", () => {
+    const result = calcHabitPortfolio({
+      habits: [
+        h("운동", 0, "2026-03-10"),
+        h("독서", 0, undefined),
+        h("명상", 0, "2026-02-01"),
+      ],
+      todayStr: TODAY,
+    });
+    expect(result.counts.dormant).toBe(3);
+    expect(result.summary).toBe("💤3");
+  });
 });
