@@ -100,4 +100,46 @@ describe("HabitSynergyCard", () => {
       expect(screen.getByText("시너지")).toBeDefined();
     });
   });
+
+  describe("display precision and boundary values", () => {
+    it("should display +10%p for liftPct at minimum library boundary (MIN_LIFT_PCT=10)", () => {
+      // calcHabitSynergy enforces MIN_LIFT_PCT=10; verify component renders this boundary correctly
+      const synergy: HabitSynergyResult = {
+        keystone: { habitName: "요가", liftPct: 10, avgOthersWhenDone: 60, avgOthersWhenNotDone: 50 },
+        summary: "",
+      };
+      render(<HabitSynergyCard synergy={synergy} />);
+      expect(screen.getByText("+10%p")).toBeDefined();
+    });
+
+    it("should display 100% for avgOthersWhenDone at ceiling rate", () => {
+      // avgOthersWhenDone=100 is a valid boundary when all other habits are completed
+      const synergy: HabitSynergyResult = {
+        keystone: { habitName: "수영", liftPct: 30, avgOthersWhenDone: 100, avgOthersWhenNotDone: 70 },
+        summary: "",
+      };
+      render(<HabitSynergyCard synergy={synergy} />);
+      expect(screen.getByText("100%")).toBeDefined();
+    });
+
+    it("should display 0% for avgOthersWhenNotDone at floor rate", () => {
+      // avgOthersWhenNotDone=0 is valid when no other habits are ever done on days this habit is skipped
+      const synergy: HabitSynergyResult = {
+        keystone: { habitName: "달리기", liftPct: 75, avgOthersWhenDone: 75, avgOthersWhenNotDone: 0 },
+        summary: "",
+      };
+      render(<HabitSynergyCard synergy={synergy} />);
+      expect(screen.getByText("0%")).toBeDefined();
+    });
+
+    it("should compute tooltip title dynamically from rate values", () => {
+      // Tooltip is a distinct code path from visible spans; verify it reflects the specific fixture values
+      const synergy: HabitSynergyResult = {
+        keystone: { habitName: "수영", liftPct: 30, avgOthersWhenDone: 100, avgOthersWhenNotDone: 70 },
+        summary: "",
+      };
+      render(<HabitSynergyCard synergy={synergy} />);
+      expect(screen.getByTitle("'수영' 할 때 다른 습관 100% vs 안 할 때 70%")).toBeDefined();
+    });
+  });
 });
