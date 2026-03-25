@@ -63,6 +63,26 @@ const HABITS_ONLY_NO_SUMMARY: WeekComparisonResult = {
   summary: "",
 };
 
+// Two non-adjacent domains present — exercises filter with 2 of 4
+const TWO_DOMAINS: WeekComparisonResult = {
+  habits: { thisWeek: 80, lastWeek: 60, delta: 20, trend: "up" },
+  pomodoro: null,
+  intention: null,
+  momentum: { thisWeek: 55, lastWeek: 48, delta: 7, trend: "up" },
+  overallTrend: "up",
+  summary: "습관↑ · 모멘텀↑",
+};
+
+// All three trend directions in one result — up / down / stable
+const MIXED_TRENDS: WeekComparisonResult = {
+  habits: { thisWeek: 85, lastWeek: 72, delta: 13, trend: "up" },
+  pomodoro: { thisWeek: 2, lastWeek: 6, delta: -4, trend: "down" },
+  intention: { thisWeek: 75, lastWeek: 75, delta: 0, trend: "stable" },
+  momentum: { thisWeek: 74, lastWeek: 63, delta: 11, trend: "up" },
+  overallTrend: "up",
+  summary: "습관↑ · 포모↓ · 의도→ · 모멘텀↑",
+};
+
 // ── Tests ────────────────────────────────────────────────────
 
 describe("WeekComparisonCard", () => {
@@ -170,6 +190,44 @@ describe("WeekComparisonCard", () => {
       // Domain row renders but the summary div is absent (guarded by falsy check)
       expect(screen.getByText("습관")).toBeDefined();
       expect(screen.queryByTestId("week-comparison-summary")).toBeNull();
+    });
+  });
+
+  describe("two-domain partial (habits + momentum)", () => {
+    it("should show habits and momentum rows and hide pomodoro and intention", () => {
+      render(<WeekComparisonCard comparison={TWO_DOMAINS} />);
+      expect(screen.getByText("습관")).toBeDefined();
+      expect(screen.getByText("모멘텀")).toBeDefined();
+      expect(screen.queryByText("포모")).toBeNull();
+      expect(screen.queryByText("의도")).toBeNull();
+    });
+  });
+
+  describe("summary data-testid positive path", () => {
+    it("should expose data-testid='week-comparison-summary' when summary text is truthy", () => {
+      render(<WeekComparisonCard comparison={ALL_DOMAINS_DOWN} />);
+      expect(screen.getByTestId("week-comparison-summary")).toBeDefined();
+      expect(screen.getByText(ALL_DOMAINS_DOWN.summary)).toBeDefined();
+    });
+  });
+
+  describe("mixed-trend delta formatting", () => {
+    it("should display +/MINUS/= deltas correctly when trends are mixed across domains", () => {
+      render(<WeekComparisonCard comparison={MIXED_TRENDS} />);
+      expect(screen.getByTitle("습관: 이번 주 85% → 지난 주 72% (+13)")).toBeDefined();
+      expect(screen.getByTitle(`포모도로: 이번 주 2세션 → 지난 주 6세션 (${MINUS}4)`)).toBeDefined();
+      expect(screen.getByTitle("의도: 이번 주 75% → 지난 주 75% (=)")).toBeDefined();
+    });
+  });
+
+  describe("last-week value display", () => {
+    it("should render last-week values as visible text nodes separate from tooltip", () => {
+      render(<WeekComparisonCard comparison={ALL_DOMAINS_UP} />);
+      // Each lastWeek value appears in its own span, distinct from the title attribute
+      expect(screen.getByText("72%")).toBeDefined();    // habits lastWeek (thisWeek is "85%")
+      expect(screen.getByText("3세션")).toBeDefined();  // pomodoro lastWeek (thisWeek is "5세션")
+      expect(screen.getByText("80%")).toBeDefined();    // intention lastWeek (thisWeek is "90%")
+      expect(screen.getByText("63점")).toBeDefined();   // momentum lastWeek (thisWeek is "74점")
     });
   });
 });
