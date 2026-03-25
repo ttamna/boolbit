@@ -136,6 +136,17 @@ describe("PomodoroPatternCard", () => {
       const text = container.textContent ?? "";
       expect(text).not.toContain("목표 달성");
     });
+
+    it("should render goal section when goalHitRate=0 (not null)", () => {
+      // goalHitRate=0 is falsy but !== null, so goal section must appear with 0% and 0일
+      const { container } = render(
+        <PomodoroPatternCard pattern={makePattern({ goalHitRate: 0, goalHitDays: 0 })} />,
+      );
+      const text = container.textContent ?? "";
+      expect(text).toContain("목표 달성");
+      expect(text).toContain("0%");
+      expect(text).toContain("0일");
+    });
   });
 
   describe("consistency indicator", () => {
@@ -224,6 +235,43 @@ describe("PomodoroPatternCard", () => {
       const el = screen.getByTestId("pattern-summary");
       expect(el.textContent).toBe(summary);
     });
+  });
+
+  describe("weekday pattern — edge cases", () => {
+    it("should display 최고 일 when peakDay=0 (falsy index)", () => {
+      // peakDay=0 is falsy; the component must use !== null, not truthy check
+      const { container } = render(
+        <PomodoroPatternCard pattern={makePattern({ peakDay: 0, valleyDay: null })} />,
+      );
+      const text = container.textContent ?? "";
+      expect(text).toContain("최고 일");
+      expect(text).not.toContain("최저");
+    });
+
+    it("should display 최저 only when peakDay=null and valleyDay is set", () => {
+      // valley-only: no peak label and no separator " · " in peak/valley row
+      // use a summary without · so we can assert separator absence on full text
+      const { container } = render(
+        <PomodoroPatternCard
+          pattern={makePattern({ peakDay: null, valleyDay: 3, summary: "테스트 요약" })}
+        />,
+      );
+      const text = container.textContent ?? "";
+      expect(text).toContain("최저 수");
+      expect(text).not.toContain("최고");
+      expect(text).not.toContain(" · ");
+    });
+
+    it("should suppress 최저 when peakDay equals valleyDay", () => {
+      // same-index: only peak is shown; valley label is suppressed
+      const { container } = render(
+        <PomodoroPatternCard pattern={makePattern({ peakDay: 2, valleyDay: 2 })} />,
+      );
+      const text = container.textContent ?? "";
+      expect(text).toContain("최고 화");
+      expect(text).not.toContain("최저");
+    });
+
   });
 
   describe("accent color", () => {
