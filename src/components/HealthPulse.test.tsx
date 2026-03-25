@@ -22,10 +22,28 @@ const burnoutHigh: BurnoutRisk = {
   factors: ["momentum_crash", "habit_erosion"],
 };
 
+const burnoutModerate: BurnoutRisk = {
+  score: 40,
+  level: "moderate",
+  factors: ["momentum_crash"],
+};
+
 const burnoutCritical: BurnoutRisk = {
   score: 85,
   level: "critical",
   factors: ["momentum_crash", "habit_erosion", "focus_drought"],
+};
+
+const consistencyStrong: ConsistencyScore = {
+  domains: {
+    habits: { rate: 78, activeDays: 22, totalDays: 28 },
+    pomodoro: { rate: 71, activeDays: 20, totalDays: 28 },
+    intention: null,
+  },
+  overall: 75,
+  grade: "strong",
+  trend: null,
+  weakestDomain: null,
 };
 
 const consistencyElite: ConsistencyScore = {
@@ -153,6 +171,23 @@ describe("HealthPulse", () => {
       expect(screen.getByText("12")).toBeDefined();
       expect(screen.getByText("양호")).toBeDefined();
     });
+
+    it("should show moderate level with 주의 label and factors in tooltip", () => {
+      render(
+        <HealthPulse burnout={burnoutModerate} consistency={null} growth={null} />,
+      );
+      expect(screen.getByText("40")).toBeDefined();
+      expect(screen.getByText("주의")).toBeDefined();
+      expect(screen.getByTitle(/번아웃 위험: 주의 \(40\/100\) .* momentum_crash/)).toBeDefined();
+    });
+
+    it("should omit factors suffix in tooltip when factors array is empty", () => {
+      render(
+        <HealthPulse burnout={burnoutLow} consistency={null} growth={null} />,
+      );
+      const el = screen.getByTitle("번아웃 위험: 양호 (12/100)");
+      expect(el.title).not.toContain("\u2212");
+    });
   });
 
   describe("consistency grade", () => {
@@ -185,6 +220,14 @@ describe("HealthPulse", () => {
       );
       expect(screen.getByText("→")).toBeDefined();
       expect(screen.getByText("38%")).toBeDefined();
+    });
+
+    it("should render strong grade with percentage and tooltip including grade name", () => {
+      render(
+        <HealthPulse burnout={null} consistency={consistencyStrong} growth={null} />,
+      );
+      expect(screen.getByText("75%")).toBeDefined();
+      expect(screen.getByTitle(/일관성: strong/)).toBeDefined();
     });
 
     it("should omit trend arrow when trend is null", () => {
@@ -220,6 +263,14 @@ describe("HealthPulse", () => {
         <HealthPulse burnout={null} consistency={null} growth={growthStable} />,
       );
       expect(screen.getByText("0")).toBeDefined();
+    });
+
+    it("should omit 강점 from tooltip when strongestDomain is null", () => {
+      render(
+        <HealthPulse burnout={null} consistency={null} growth={growthDeclining} />,
+      );
+      const el = screen.getByTitle(/성장 궤적: declining/);
+      expect(el.title).not.toContain("강점:");
     });
   });
 
