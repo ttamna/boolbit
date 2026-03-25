@@ -52,6 +52,13 @@ const portfolioEmptySummary: HabitPortfolio = {
   summary: "",
 };
 
+// streak=1: minimum threshold for rendering the streak badge (h.streak > 0)
+const portfolioMinStreak: HabitPortfolio = {
+  habits: [{ name: "운동", state: "growing", streak: 1 }],
+  counts: { record: 0, milestone_near: 0, risk: 0, growing: 1, recovering: 0, dormant: 0 },
+  summary: "📈1",
+};
+
 // ── Tests ────────────────────────────────────────────────────
 
 describe("HabitPortfolioCard", () => {
@@ -104,6 +111,12 @@ describe("HabitPortfolioCard", () => {
       render(<HabitPortfolioCard portfolio={portfolioMixed} />);
       expect(screen.queryByText("0d")).toBeNull();
     });
+
+    // streak=1 is the minimum value satisfying h.streak > 0 — must render "1d"
+    it("should display streak count of 1 as '1d' (minimum visible streak)", () => {
+      render(<HabitPortfolioCard portfolio={portfolioMinStreak} />);
+      expect(screen.getByText("1d")).toBeDefined();
+    });
   });
 
   describe("tooltips", () => {
@@ -115,6 +128,12 @@ describe("HabitPortfolioCard", () => {
     it("should show streak 0 in tooltip for dormant habits", () => {
       render(<HabitPortfolioCard portfolio={portfolioMixed} />);
       expect(screen.getByTitle("영어: dormant (0일)")).toBeDefined();
+    });
+
+    // streak=1 boundary: tooltip format uses "(1일)" not "(0일)"
+    it("should show streak 1 as '(1일)' in tooltip", () => {
+      render(<HabitPortfolioCard portfolio={portfolioMinStreak} />);
+      expect(screen.getByTitle("운동: growing (1일)")).toBeDefined();
     });
   });
 
@@ -137,6 +156,34 @@ describe("HabitPortfolioCard", () => {
       // container > label + grid (no 3rd child for summary)
       const topDiv = container.firstElementChild!;
       expect(topDiv.children).toHaveLength(2); // label + grid, no summary
+    });
+
+    // All-dormant portfolio: no habits have non-zero streak so no "Nd" badge should appear
+    it("should not display any streak badge when all habits are dormant", () => {
+      const allDormant: HabitPortfolio = {
+        habits: [
+          { name: "운동", state: "dormant", streak: 0 },
+          { name: "독서", state: "dormant", streak: 0 },
+        ],
+        counts: { record: 0, milestone_near: 0, risk: 0, growing: 0, recovering: 0, dormant: 2 },
+        summary: "💤2",
+      };
+      render(<HabitPortfolioCard portfolio={allDormant} />);
+      expect(screen.queryByText(/^\d+d$/)).toBeNull();
+      expect(screen.getByText("💤2")).toBeDefined();
+    });
+  });
+
+  describe("state emoji per chip", () => {
+    // Verifies STATE_EMOJI mapping is applied inside each chip span (not just in the title attribute)
+    it("should display correct emoji in chip content for all 6 states", () => {
+      render(<HabitPortfolioCard portfolio={portfolioMixed} />);
+      expect(screen.getByTitle(/운동: record/).textContent).toContain("🏆");
+      expect(screen.getByTitle(/독서: milestone_near/).textContent).toContain("🎯");
+      expect(screen.getByTitle(/명상: risk/).textContent).toContain("⚠️");
+      expect(screen.getByTitle(/일기: growing/).textContent).toContain("📈");
+      expect(screen.getByTitle(/스트레칭: recovering/).textContent).toContain("🔄");
+      expect(screen.getByTitle(/영어: dormant/).textContent).toContain("💤");
     });
   });
 
