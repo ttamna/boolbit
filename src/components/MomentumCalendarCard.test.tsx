@@ -189,7 +189,7 @@ describe("MomentumCalendarCard", () => {
       expect(dot.style.background).toBe("rgb(56, 189, 248)");
     });
 
-    it("should not apply accent color to low-tier dot", () => {
+    it("should not apply accent color to low-tier dot — uses statusPaused (#F87171)", () => {
       const accent = "#38BDF8";
       const lowDay = calendarFull.days.find(d => d.tier === "low")!;
       const { container } = render(
@@ -198,7 +198,8 @@ describe("MomentumCalendarCard", () => {
       const titleAttr =
         lowDay.score !== null ? `${lowDay.date} · ${lowDay.score}점` : lowDay.date;
       const dot = container.querySelector(`[title="${titleAttr}"]`) as HTMLElement;
-      expect(dot.style.background).not.toBe("rgb(56, 189, 248)");
+      // low-tier always uses statusPaused regardless of accent: #F87171 → rgb(248, 113, 113)
+      expect(dot.style.background).toBe("rgb(248, 113, 113)");
     });
   });
 
@@ -216,6 +217,44 @@ describe("MomentumCalendarCard", () => {
       const titleAttr = `${highDay.date} · ${highDay.score}점`;
       const dot = container.querySelector(`[title="${titleAttr}"]`) as HTMLElement;
       expect(dot.style.opacity).toBe("0.9");
+    });
+
+    it("should render mid-tier dots with opacity 0.75", () => {
+      const midDay = calendarFull.days.find(d => d.tier === "mid")!;
+      const { container } = render(<MomentumCalendarCard calendar={calendarFull} />);
+      const titleAttr = `${midDay.date} · ${midDay.score}점`;
+      const dot = container.querySelector(`[title="${titleAttr}"]`) as HTMLElement;
+      expect(dot.style.opacity).toBe("0.75");
+    });
+
+    it("should render low-tier dots with opacity 0.6", () => {
+      const lowDay = calendarFull.days.find(d => d.tier === "low")!;
+      const { container } = render(<MomentumCalendarCard calendar={calendarFull} />);
+      const titleAttr = `${lowDay.date} · ${lowDay.score}점`;
+      const dot = container.querySelector(`[title="${titleAttr}"]`) as HTMLElement;
+      expect(dot.style.opacity).toBe("0.6");
+    });
+  });
+
+  describe("default accent fallback", () => {
+    it("should use statusActive (#4ADE80) for high-tier when accent is undefined", () => {
+      const highDay = calendarFull.days.find(d => d.tier === "high")!;
+      const { container } = render(<MomentumCalendarCard calendar={calendarFull} />);
+      const titleAttr = `${highDay.date} · ${highDay.score}점`;
+      const dot = container.querySelector(`[title="${titleAttr}"]`) as HTMLElement;
+      // accent ?? colors.statusActive: #4ADE80 → rgb(74, 222, 128)
+      expect(dot.style.background).toBe("rgb(74, 222, 128)");
+    });
+  });
+
+  describe("dot color by tier", () => {
+    it("should apply statusProgress (#FBBF24) color to mid-tier dot regardless of accent", () => {
+      const midDay = calendarFull.days.find(d => d.tier === "mid")!;
+      const { container } = render(<MomentumCalendarCard calendar={calendarFull} accent="#38BDF8" />);
+      const titleAttr = `${midDay.date} · ${midDay.score}점`;
+      const dot = container.querySelector(`[title="${titleAttr}"]`) as HTMLElement;
+      // mid-tier always uses statusProgress independent of accent: #FBBF24 → rgb(251, 191, 36)
+      expect(dot.style.background).toBe("rgb(251, 191, 36)");
     });
   });
 });
