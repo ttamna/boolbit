@@ -244,5 +244,106 @@ describe("WeekdayProfileCard", () => {
       // Default statusActive is #4ADE80 → rgb(74, 222, 128)
       expect(scoreSpan.style.color).toBe("rgb(74, 222, 128)");
     });
+
+    // Non-best, non-worst day at exactly score=70 meets the ≥70 threshold → statusActive green (#4ADE80)
+    // Verifies scoreColor uses statusActive for any ≥70 score, not just the best day
+    it("should apply statusActive color to non-best day with score exactly 70", () => {
+      const profile = makeProfile({
+        days: {
+          0: makeSlot({ composite: 70 }),
+          1: makeSlot({ composite: 85 }),
+          2: makeSlot({ composite: null }),
+          3: makeSlot({ composite: null }),
+          4: makeSlot({ composite: null }),
+          5: makeSlot({ composite: null }),
+          6: makeSlot({ composite: null }),
+        },
+        bestDay: 1,
+        worstDay: null,  // null so slot[0] is a plain non-best, non-worst case
+      });
+      render(<WeekdayProfileCard profile={profile} />);
+      const slot = screen.getByTitle("일 70점");
+      const scoreSpan = slot.querySelector("[data-score]") as HTMLElement;
+      expect(scoreSpan).not.toBeNull();
+      // score=70 ≥ 70 threshold → statusActive (#4ADE80) → rgb(74, 222, 128)
+      expect(scoreSpan.style.color).toBe("rgb(74, 222, 128)");
+    });
+
+    // score=34 is below the 35 threshold → statusPaused red (#F87171)
+    // Guards the lowest color tier from being confused with statusWarning (≥35)
+    it("should apply statusPaused color to non-best day with score 34", () => {
+      const profile = makeProfile({
+        days: {
+          0: makeSlot({ composite: 34 }),
+          1: makeSlot({ composite: 80 }),
+          2: makeSlot({ composite: null }),
+          3: makeSlot({ composite: null }),
+          4: makeSlot({ composite: null }),
+          5: makeSlot({ composite: null }),
+          6: makeSlot({ composite: null }),
+        },
+        bestDay: 1,
+        worstDay: null,  // null so slot[0] is a plain non-best, non-worst case
+      });
+      render(<WeekdayProfileCard profile={profile} />);
+      const slot = screen.getByTitle("일 34점");
+      const scoreSpan = slot.querySelector("[data-score]") as HTMLElement;
+      expect(scoreSpan).not.toBeNull();
+      // score=34 < 35 threshold → statusPaused (#F87171) → rgb(248, 113, 113)
+      expect(scoreSpan.style.color).toBe("rgb(248, 113, 113)");
+    });
+  });
+
+  describe("composite=0 rendering", () => {
+    // composite=0 is distinct from null — 0 !== null is true so renders bar+score, not dash
+    // Guards against accidental falsy-check (if composite) that would treat 0 as missing data
+    it("should render '0' score and '0점' title for composite=0, not dash or 데이터 없음", () => {
+      const profile = makeProfile({
+        days: {
+          0: makeSlot({ composite: 0 }),
+          1: makeSlot({ composite: 50 }),
+          2: makeSlot({ composite: null }),
+          3: makeSlot({ composite: null }),
+          4: makeSlot({ composite: null }),
+          5: makeSlot({ composite: null }),
+          6: makeSlot({ composite: null }),
+        },
+        bestDay: 1,
+        worstDay: 0,
+      });
+      render(<WeekdayProfileCard profile={profile} />);
+      // buildTitle returns "일 0점 (최저)" — not "일: 데이터 없음"
+      expect(screen.getByTitle("일 0점 (최저)")).toBeDefined();
+      expect(screen.queryByTitle("일: 데이터 없음")).toBeNull();
+      // [data-score] span contains "0"
+      const slot = screen.getByTitle("일 0점 (최저)");
+      const scoreSpan = slot.querySelector("[data-score]") as HTMLElement;
+      expect(scoreSpan).not.toBeNull();
+      expect(scoreSpan.textContent).toBe("0");
+    });
+  });
+
+  describe("summary footer edge cases", () => {
+    // worstDay=null means only best is known — footer shows "최고 X" only, no separator or worst text
+    it("should show best-only summary when worstDay is null", () => {
+      const profile = makeProfile({
+        days: {
+          0: makeSlot({ composite: null }),
+          1: makeSlot({ composite: 60 }),
+          2: makeSlot({ composite: null }),
+          3: makeSlot({ composite: null }),
+          4: makeSlot({ composite: null }),
+          5: makeSlot({ composite: null }),
+          6: makeSlot({ composite: null }),
+        },
+        bestDay: 1,
+        worstDay: null,
+      });
+      const { container } = render(<WeekdayProfileCard profile={profile} />);
+      const text = container.textContent ?? "";
+      expect(text).toContain("최고 월");
+      expect(text).not.toContain("최저");
+      expect(text).not.toContain("·");
+    });
   });
 });
