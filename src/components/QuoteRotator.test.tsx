@@ -1,5 +1,5 @@
 // ABOUTME: Unit tests for QuoteRotator component rendering and interaction behavior
-// ABOUTME: Covers N/M position indicator, empty state, navigation buttons, edit mode lifecycle, and interval preset callbacks
+// ABOUTME: Covers N/M position indicator, empty state, navigation buttons, edit mode lifecycle, interval preset callbacks, and mutation callbacks (delete/add/reorder)
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -134,5 +134,44 @@ describe("QuoteRotator edit mode", () => {
     render(<QuoteRotator quotes={["A"]} onUpdate={noOp} />);
     fireEvent.click(screen.getByTitle("인용구 편집"));
     expect(screen.getByPlaceholderText("새 인용구 추가...")).toBeDefined();
+  });
+});
+
+describe("QuoteRotator edit mode mutations", () => {
+  it("should call onUpdate without the deleted quote when ✕ button is clicked", () => {
+    const onUpdate = vi.fn();
+    render(<QuoteRotator quotes={["First", "Second"]} onUpdate={onUpdate} />);
+    fireEvent.click(screen.getByTitle("인용구 편집"));
+    const deleteButtons = screen.getAllByText("✕");
+    fireEvent.click(deleteButtons[0]);
+    expect(onUpdate).toHaveBeenCalledWith(["Second"]);
+  });
+
+  it("should call onUpdate with appended quote when + button is clicked with non-empty draft", () => {
+    const onUpdate = vi.fn();
+    render(<QuoteRotator quotes={["Existing"]} onUpdate={onUpdate} />);
+    fireEvent.click(screen.getByTitle("인용구 편집"));
+    fireEvent.change(screen.getByPlaceholderText("새 인용구 추가..."), { target: { value: "New quote" } });
+    fireEvent.click(screen.getByText("+"));
+    expect(onUpdate).toHaveBeenCalledWith(["Existing", "New quote"]);
+  });
+
+  it("should NOT call onUpdate when + is clicked with whitespace-only draft", () => {
+    const onUpdate = vi.fn();
+    render(<QuoteRotator quotes={["Existing"]} onUpdate={onUpdate} />);
+    fireEvent.click(screen.getByTitle("인용구 편집"));
+    fireEvent.change(screen.getByPlaceholderText("새 인용구 추가..."), { target: { value: "   " } });
+    fireEvent.click(screen.getByText("+"));
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  it("should call onUpdate with quotes swapped when ↑ button is clicked on second quote", () => {
+    const onUpdate = vi.fn();
+    render(<QuoteRotator quotes={["Alpha", "Beta"]} onUpdate={onUpdate} />);
+    fireEvent.click(screen.getByTitle("인용구 편집"));
+    // Two "위로 이동" buttons: first is disabled (idx=0), second is enabled (idx=1)
+    const moveUpBtns = screen.getAllByTitle("위로 이동");
+    fireEvent.click(moveUpBtns[1]);
+    expect(onUpdate).toHaveBeenCalledWith(["Beta", "Alpha"]);
   });
 });
