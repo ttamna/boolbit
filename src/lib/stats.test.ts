@@ -202,4 +202,39 @@ describe("calcLifetimeStats", () => {
     expect(byKey.pomodoroBest.emoji).toBe("🎯");
     expect(byKey.pomodoroBest.label).toBe("포모도로 목표 최고");
   });
+
+  // Derive expected value from the same toLocaleString call to stay locale-agnostic across ICU builds
+  it("should format totalCheckins with Korean locale thousands separator for large values", () => {
+    const data: WidgetData = { ...EMPTY_DATA, habitLifetimeTotalCheckins: 1_000_000 };
+    const item = calcLifetimeStats(data).find(s => s.key === "totalCheckins");
+    expect(item).toBeDefined();
+    expect(item!.value).toBe(`${(1_000_000).toLocaleString("ko-KR")}회`);
+  });
+
+  // "paused" and "in-progress" are TypeScript union members of Project.status — confirms filter
+  // is an exact string equality check ("done"), not a broader type or truthiness guard
+  it("should not count projects with 'paused' or 'in-progress' status toward completedProjects", () => {
+    const data: WidgetData = {
+      ...EMPTY_DATA,
+      projects: [
+        { id: 1, name: "P1", status: "paused", goal: "", progress: 50, metric: "", metric_value: "", metric_target: "" },
+        { id: 2, name: "P2", status: "in-progress", goal: "", progress: 80, metric: "", metric_value: "", metric_target: "" },
+      ],
+    };
+    expect(calcLifetimeStats(data).find(s => s.key === "completedProjects")).toBeUndefined();
+  });
+
+  // isPositive(1) = true (1 > 0) — best streak of 1 day is shown, not suppressed
+  it("should include best streak of exactly 1 day (minimum positive value)", () => {
+    const data: WidgetData = { ...EMPTY_DATA, pomodoroGoalBestStreak: 1 };
+    const item = calcLifetimeStats(data).find(s => s.key === "pomodoroBest");
+    expect(item).toBeDefined();
+    expect(item!.value).toBe("1일");
+  });
+
+  // Number.isFinite does not coerce — null is not finite, so the stat is suppressed without conversion
+  it("should suppress stat when field is null at runtime (JSON deserialization without type coercion)", () => {
+    const data = { ...EMPTY_DATA, pomodoroLifetimeMins: null } as unknown as WidgetData;
+    expect(calcLifetimeStats(data).find(s => s.key === "focusTime")).toBeUndefined();
+  });
 });
