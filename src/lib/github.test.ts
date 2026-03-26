@@ -60,6 +60,11 @@ describe("calcOpenIssues", () => {
   it("should handle large numbers correctly", () => {
     expect(calcOpenIssues(1000, 100)).toBe(900);
   });
+
+  // rawCount can theoretically be negative from corrupted API responses — clamped to 0
+  it("should return 0 when rawCount is negative", () => {
+    expect(calcOpenIssues(-3, 0)).toBe(0);
+  });
 });
 
 describe("parseLastCommit", () => {
@@ -146,6 +151,24 @@ describe("parseLastCommit", () => {
   it("should return empty string when commit has no message field", () => {
     const commits = [{ commit: { committer: { date: "2026-03-10T00:00:00Z" } } }];
     expect(parseLastCommit(commits, FALLBACK).lastCommitMsg).toBe("");
+  });
+
+  // message: null is distinct from message: undefined — both must be guarded by optional chaining
+  it("should return empty string when commit message field is null", () => {
+    const commits = [{ commit: { committer: { date: "2026-03-10T00:00:00Z" }, message: null } }];
+    expect(parseLastCommit(commits, FALLBACK).lastCommitMsg).toBe("");
+  });
+
+  // API returns per_page=1 but guards must hold when caller passes a full array
+  it("should use only the first commit when multiple commits are provided", () => {
+    const commits = [
+      { commit: { committer: { date: "2026-03-10T12:00:00Z" }, message: "first commit" } },
+      { commit: { committer: { date: "2026-03-09T00:00:00Z" }, message: "second commit" } },
+    ];
+    expect(parseLastCommit(commits, FALLBACK)).toEqual({
+      lastCommitAt: "2026-03-10T12:00:00Z",
+      lastCommitMsg: "first commit",
+    });
   });
 });
 
@@ -290,5 +313,12 @@ describe("fetchRepoData", () => {
     vi.useRealTimers();
     expect(result.lastCommitMsg).toBe("");
     expect(result.lastCommitAt).toBe(fixedDate.toISOString());
+  });
+
+  // workflow_runs field may be absent entirely (e.g., API schema version difference)
+  it("should set ciStatus null when workflow_runs field is absent from runs response", async () => {
+    vi.stubGlobal("fetch", makeFetch({ runs: {} }));
+    const result = await fetchRepoData("pat", "owner/repo");
+    expect(result.ciStatus).toBeNull();
   });
 });
