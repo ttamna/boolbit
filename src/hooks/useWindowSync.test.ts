@@ -178,4 +178,69 @@ describe("useWindowSync", () => {
     expect(mockOnMoved).toHaveBeenCalledTimes(2);
     expect(mockUnlisten).toHaveBeenCalledTimes(1); // first listener cleaned up
   });
+
+  // ─── coordinate edge cases ───
+
+  // Off-screen or multi-monitor positions may be negative — hook must not clamp or reject them
+  test("shouldRestoreNegativePositionCoordinates", () => {
+    const onPositionSave = vi.fn();
+    renderHook(() =>
+      useWindowSync({ settings: makeSettings(-200, -150), settingsLoaded: true, onPositionSave })
+    );
+    expect(MockPhysicalPosition).toHaveBeenCalledWith(-200, -150);
+    expect(mockSetPosition).toHaveBeenCalledTimes(1);
+  });
+
+  // High-DPI displays can report fractional pixel coordinates in both directions:
+  // restore (settings.position → PhysicalPosition) and move events (payload → onPositionSave)
+  test("shouldPassDecimalCoordinatesThroughUnchanged", async () => {
+    const onPositionSave = vi.fn();
+    renderHook(() =>
+      useWindowSync({ settings: makeSettings(100.5, 200.7), settingsLoaded: true, onPositionSave })
+    );
+    // Restore path: fractional settings coords passed to PhysicalPosition without rounding
+    expect(MockPhysicalPosition).toHaveBeenCalledWith(100.5, 200.7);
+
+    await act(async () => { await Promise.resolve(); });
+
+    // Move path: fractional payload coords forwarded to onPositionSave unchanged
+    expect(capturedMovedCallback).toBeDefined();
+    capturedMovedCallback!({ payload: { x: 300.3, y: 400.9 } });
+    expect(onPositionSave).toHaveBeenCalledWith(300.3, 400.9);
+  });
+
+  // ─── error handling ───
+
+  // setPosition rejection is swallowed by .catch(() => {}) — the two effects are independent,
+  // so the move listener must still be registered even when restore fails
+  test("shouldSilentlyIgnoreSetPositionRejection", async () => {
+    mockSetPosition.mockRejectedValueOnce(new Error("set position failed"));
+    const onPositionSave = vi.fn();
+    renderHook(() =>
+      useWindowSync({ settings: makeSettings(), settingsLoaded: true, onPositionSave })
+    );
+    // Let the rejected promise settle — no unhandled rejection should propagate
+    await act(async () => { await Promise.resolve(); });
+
+    // setPosition was attempted before rejecting
+    expect(mockSetPosition).toHaveBeenCalledTimes(1);
+    // Move listener effect is independent — must still have registered
+    expect(mockOnMoved).toHaveBeenCalledTimes(1);
+  });
+
+  // onMoved rejection leaves unlisten undefined — unlisten?.() optional chaining keeps unmount safe
+  test("shouldNotCrashOnUnmountWhenOnMovedRejected", async () => {
+    mockOnMoved.mockRejectedValueOnce(new Error("listener registration failed"));
+    const onPositionSave = vi.fn();
+    const { unmount } = renderHook(() =>
+      useWindowSync({ settings: makeSettings(), settingsLoaded: true, onPositionSave })
+    );
+    // Wait for the rejection to settle (unlisten stays undefined)
+    await act(async () => { await Promise.resolve(); });
+
+    // Confirm the effect ran and exercised the rejection path
+    expect(mockOnMoved).toHaveBeenCalledTimes(1);
+    // Optional chaining on unlisten?.() means this must not throw
+    expect(() => unmount()).not.toThrow();
+  });
 });
