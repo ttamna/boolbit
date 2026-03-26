@@ -49,6 +49,16 @@ describe("resolveCommit — multiline mode", () => {
   it("should return null when both draft and original are empty", () => {
     expect(resolveCommit("", "", true)).toBeNull();
   });
+
+  // Windows CRLF line endings: trimEnd strips both \r and \n; internal content preserved
+  it("should strip trailing Windows CRLF line ending", () => {
+    expect(resolveCommit("hello\r\n", "world", true)).toBe("hello");
+  });
+
+  // Tab-only draft: trimEnd collapses to "" — saves empty string when original is non-empty (multiline allows clearing)
+  it("should save empty string when draft is tab-only and original is non-empty", () => {
+    expect(resolveCommit("\t\t", "hello", true)).toBe("");
+  });
 });
 
 describe("resolveCommit — single-line mode", () => {
@@ -79,4 +89,15 @@ describe("resolveCommit — single-line mode", () => {
   it("should return null when both draft and original are empty", () => {
     expect(resolveCommit("", "", false)).toBeNull();
   });
+
+  // Tab character is whitespace — trim() collapses it to "" → single-line null (cannot clear)
+  it("should return null when draft is a single tab character", () => {
+    expect(resolveCommit("\t", "hello", false)).toBeNull();
+  });
+
+  // Setting an initial value: original is "" and user types a non-empty draft
+  it("should return the non-empty draft when original is empty string", () => {
+    expect(resolveCommit("hello", "", false)).toBe("hello");
+  });
 });
+
