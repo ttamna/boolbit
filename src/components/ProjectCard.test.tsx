@@ -2,8 +2,9 @@
 // ABOUTME: and time-dependent helpers: relativeTime, staleColor, deadlineDays, deadlineRelative, lastFocusDaysAgo, deadlineColor
 
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
-import { projectAgeLabel, timeElapsedPct, deadlinePresetLabel, relativeTime, staleColor, deadlineDays, deadlineRelative, lastFocusDaysAgo, deadlineColor } from "../lib/projects";
+import { projectAgeLabel, timeElapsedPct, deadlinePresetLabel, relativeTime, staleColor, deadlineDays, deadlineRelative, lastFocusDaysAgo, deadlineColor, calcProjectsBadge, type ProjectsBadgeParams } from "../lib/projects";
 import { colors } from "../theme";
+import type { Project } from "../types";
 
 describe("projectAgeLabel", () => {
   it("should return null when dateStr is undefined", () => {
@@ -317,5 +318,78 @@ describe("time-dependent helpers", () => {
     it("should return textSubtle when more than 7 days remain", () => {
       expect(deadlineColor("2025-06-09")).toBe(colors.textSubtle);
     });
+  });
+});
+
+// ── calcProjectsBadge edge cases ──────────────────────────────────────────────
+
+// BADGE_LAST7 is a module-level constant (no Date calls); safe outside fake-timer scope.
+const BADGE_LAST7 = ["2025-05-26", "2025-05-27", "2025-05-28", "2025-05-29", "2025-05-30", "2025-05-31", "2025-06-01"];
+
+function makeProject(overrides: Partial<Project> = {}): Project {
+  return {
+    id: 1,
+    name: "Test",
+    status: "active",
+    goal: "",
+    progress: 50,
+    metric: "",
+    metric_value: "",
+    metric_target: "",
+    ...overrides,
+  };
+}
+
+// todayMidnight constructed inline to avoid fake-timer interaction from the sibling describe block
+function makeBadgeParams(overrides: Partial<ProjectsBadgeParams> = {}): ProjectsBadgeParams {
+  return {
+    projects: [],
+    last7Days: BADGE_LAST7,
+    todayMidnight: new Date("2025-06-01T00:00:00"),
+    ...overrides,
+  };
+}
+
+describe("calcProjectsBadge", () => {
+  it("should return undefined when all projects are done", () => {
+    // nonDoneProjects.length === 0 → early return undefined
+    const params = makeBadgeParams({
+      projects: [
+        makeProject({ id: 1, status: "done" }),
+        makeProject({ id: 2, status: "done" }),
+      ],
+    });
+    expect(calcProjectsBadge(params)).toBeUndefined();
+  });
+
+  it("should truncate multi-word focus name to first word capped at 12 chars in badge prefix", () => {
+    // "MegaLongProjectName Beta" → split→"MegaLongProjectName"→slice(0,12)="MegaLongProj" (12 chars)
+    // exact match proves no extra chars leaked through (e.g. "MegaLongProjectN" would fail)
+    const params = makeBadgeParams({
+      projects: [makeProject({ name: "MegaLongProjectName Beta", isFocus: true, progress: 0 })],
+    });
+    expect(calcProjectsBadge(params)).toBe("★ MegaLongProj · 1/1 · 0%");
+  });
+
+  it("should count deadline today (days=0) as overdue in the ⚠ badge suffix", () => {
+    // ts - todayMs = 0 → Math.floor(0/86400000) = 0 → 0 ≤ 0 → counted as overdue
+    // full badge pinned to document format and verify count is exactly 1 (not ⚠10/⚠11)
+    const params = makeBadgeParams({
+      projects: [makeProject({ deadline: "2025-06-01", progress: 40 })],
+    });
+    expect(calcProjectsBadge(params)).toBe("1/1 · 40% · ⚠1");
+  });
+
+  it("should use focusProjectName param over project isFocus field for focus badge name", () => {
+    // focusProjectName="Override" short-circuits isFocus fallback — "AutoFocus" must NOT appear
+    // exact match proves "AutoFocus" name was not used anywhere in the badge
+    const params = makeBadgeParams({
+      projects: [
+        makeProject({ id: 1, name: "AutoFocus", isFocus: true, progress: 60 }),
+        makeProject({ id: 2, name: "Other", progress: 30 }),
+      ],
+      focusProjectName: "Override",
+    });
+    expect(calcProjectsBadge(params)).toBe("★ Override · 2/2 · 45%");
   });
 });
