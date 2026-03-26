@@ -217,5 +217,43 @@ describe("MomentumCalendarCard", () => {
       const dot = container.querySelector(`[title="${titleAttr}"]`) as HTMLElement;
       expect(dot.style.opacity).toBe("0.9");
     });
+
+    it("should render mid-tier dots with opacity 0.75", () => {
+      const midDay = calendarFull.days.find(d => d.tier === "mid")!;
+      const { container } = render(<MomentumCalendarCard calendar={calendarFull} />);
+      const titleAttr = `${midDay.date} · ${midDay.score}점`;
+      const dot = container.querySelector(`[title="${titleAttr}"]`) as HTMLElement;
+      expect(dot.style.opacity).toBe("0.75");
+    });
+
+    it("should render low-tier dots with opacity 0.6", () => {
+      const lowDay = calendarFull.days.find(d => d.tier === "low")!;
+      const { container } = render(<MomentumCalendarCard calendar={calendarFull} />);
+      const titleAttr = `${lowDay.date} · ${lowDay.score}점`;
+      const dot = container.querySelector(`[title="${titleAttr}"]`) as HTMLElement;
+      expect(dot.style.opacity).toBe("0.6");
+    });
+  });
+
+  describe("stat tooltip with partial calendar", () => {
+    it("should show activeDays and avg in stat tooltip for partial calendar", () => {
+      // Verifies the tooltip text reflects actual activeDays (18), not hardcoded 28
+      render(<MomentumCalendarCard calendar={calendarPartial} />);
+      expect(screen.getByTitle("활성 18일 · 평균 모멘텀 68")).toBeDefined();
+    });
+  });
+
+  describe("accent scope", () => {
+    it("should not apply accent color to mid-tier dot even when accent is provided", () => {
+      // accent only applies to high-tier dots; mid-tier always uses colors.statusProgress
+      const ACCENT = "#FF0000";
+      const midDay = calendarFull.days.find(d => d.tier === "mid")!;
+      const { container } = render(
+        <MomentumCalendarCard calendar={calendarFull} accent={ACCENT} />,
+      );
+      const titleAttr = `${midDay.date} · ${midDay.score}점`;
+      const dot = container.querySelector(`[title="${titleAttr}"]`) as HTMLElement;
+      expect(dot.style.background).not.toBe("rgb(255, 0, 0)");
+    });
   });
 });
