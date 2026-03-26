@@ -226,4 +226,62 @@ describe("useWindowResize", () => {
     expect(mockObserve).toHaveBeenCalledTimes(2); // initial mount + after width change
     expect(MockLogicalSize).toHaveBeenCalledWith(500, 200);
   });
+
+  test("shouldFallbackToContentRectHeightWhenBorderBoxSizeIsEmptyArray", () => {
+    // borderBoxSize=[] → [0] is undefined → ?? falls back to contentRect.height
+    const ref = { current: makeEl(100) };
+    renderHook(() => useWindowResize(ref));
+
+    observerCallback(
+      [{ borderBoxSize: [], contentRect: { height: 275 } } as unknown as ResizeObserverEntry],
+      {} as ResizeObserver
+    );
+    flushRAF();
+
+    expect(MockLogicalSize).toHaveBeenLastCalledWith(380, 275);
+  });
+
+  test("shouldCapToAvailHeightWhenCeilPushesHeightOverLimit", () => {
+    // h=999.4: Math.ceil(999.4)=1000, which exceeds availHeight=999 → capped to 999
+    // Tests the ceil+min interaction at the exact boundary where ceil causes overflow
+    vi.stubGlobal("screen", { availHeight: 999 });
+    const ref = { current: makeEl(999.4) };
+    renderHook(() => useWindowResize(ref));
+
+    expect(MockLogicalSize).toHaveBeenCalledWith(380, 999);
+  });
+
+  test("shouldUseLastEntryWhenMultipleEntriesInSingleCallback", () => {
+    // ResizeObserver can batch multiple entries; code uses entries[entries.length - 1]
+    const ref = { current: makeEl(100) };
+    renderHook(() => useWindowResize(ref));
+
+    observerCallback(
+      [
+        { borderBoxSize: [{ blockSize: 200 }], contentRect: { height: 200 } } as unknown as ResizeObserverEntry,
+        { borderBoxSize: [{ blockSize: 450 }], contentRect: { height: 450 } } as unknown as ResizeObserverEntry,
+      ],
+      {} as ResizeObserver
+    );
+    flushRAF();
+
+    // Exactly 2 calls: 1 immediate on mount + 1 from RAF (not 3 — only last entry is applied)
+    expect(mockSetSize).toHaveBeenCalledTimes(2);
+    expect(MockLogicalSize).toHaveBeenLastCalledWith(380, 450);
+  });
+
+  test("shouldTreatBlockSizeZeroAsValidHeightNotFallbackToContentRect", () => {
+    // ?? only falls back on null/undefined — blockSize=0 is a valid value and must NOT
+    // trigger the contentRect fallback
+    const ref = { current: makeEl(100) };
+    renderHook(() => useWindowResize(ref));
+
+    observerCallback(
+      [{ borderBoxSize: [{ blockSize: 0 }], contentRect: { height: 300 } } as unknown as ResizeObserverEntry],
+      {} as ResizeObserver
+    );
+    flushRAF();
+
+    expect(MockLogicalSize).toHaveBeenLastCalledWith(380, 0);
+  });
 });
