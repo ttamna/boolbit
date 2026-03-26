@@ -33,6 +33,16 @@ describe("buildExportBlob", () => {
     expect(parsed.pomodoroSessions).toBe(3);
     expect(parsed.pomodoroSessionGoal).toBe(5);
   });
+
+  it("should produce pretty-printed JSON with newlines and 2-space indentation", async () => {
+    // JSON.stringify(data, null, 2) — indent=2 guarantees human-readable output for manual editing
+    // Assertion checks an exact indented line to distinguish indent=2 from indent=4/8
+    const blob = buildExportBlob(MINIMAL_DATA);
+    const text = await blob.text();
+    const lines = text.split("\n");
+    // Line 0: "{", line 1: first key indented with exactly 2 spaces (trailing comma present because more keys follow)
+    expect(lines[1]).toBe('  "projects": [],');
+  });
 });
 
 describe("triggerDownload", () => {
@@ -209,5 +219,32 @@ describe("parseImportedData", () => {
     const result = parseImportedData(JSON.stringify(data));
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("habits");
+  });
+
+  // ── Edge cases: root type guard and item primitive guard ──────────────────
+
+  it("should return ok:false when root JSON value is a boolean (not an object)", () => {
+    // typeof true !== "object" → triggers the non-object/non-null/non-array guard
+    // Distinct from string/null/array roots already tested above
+    const result = parseImportedData("true");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("형식");
+  });
+
+  it("should return ok:false when projects array contains a primitive string item", () => {
+    // typeof "item" !== "object" → fails the item type guard (primitive, not {name:string})
+    // Distinct from null-item (passes typeof check but fails === null) and missing-name tests
+    const data = { ...MINIMAL_DATA, projects: ["item"] };
+    const result = parseImportedData(JSON.stringify(data));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("projects");
+  });
+
+  it("should return ok:true when habit name is an empty string (valid string type)", () => {
+    // typeof "" === "string" → passes the name type guard; empty string is structurally valid
+    // Guards test string type, not string length — callers decide what makes a name meaningful
+    const data = { ...MINIMAL_DATA, habits: [{ name: "" }] };
+    const result = parseImportedData(JSON.stringify(data));
+    expect(result.ok).toBe(true);
   });
 });
