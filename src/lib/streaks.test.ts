@@ -115,4 +115,52 @@ describe("calcActiveStreaks", () => {
     expect(result[1].key).toBe("perfectDay");
     expect(result[1].days).toBe(2);
   });
+
+  // Boundary: days = 2 is the exact inclusive minimum — also confirms days = 1 is excluded in same call
+  it("should include streak at exactly the minimum threshold of 2 and exclude streak at 1", () => {
+    const result = calcActiveStreaks({ perfectDayStreak: 2, intentionDoneStreak: 1 });
+    expect(result).toHaveLength(1);
+    expect(result[0].key).toBe("perfectDay");
+    expect(result[0].days).toBe(2);
+  });
+
+  // Days take priority over definition order — a higher-index entry with more days sorts first
+  it("should rank by days first when no tie exists, even if that entry has a lower-priority definition", () => {
+    // intentionDone (STREAK_DEFS index 1) has more days than perfectDay (index 0)
+    const result = calcActiveStreaks({ intentionDoneStreak: 10, perfectDayStreak: 3 });
+    expect(result).toHaveLength(2);
+    expect(result[0].key).toBe("intentionDone"); // 10 days wins over definition priority
+    expect(result[1].key).toBe("perfectDay");
+  });
+
+  // Exactly 3 active streaks — verifies partial param sets produce correct result count and order
+  it("should return 3 active streaks sorted by days when exactly 3 fields exceed threshold", () => {
+    const result = calcActiveStreaks({
+      perfectDayStreak: 9,
+      intentionDoneStreak: 6,
+      pomodoroGoalStreak: 4,
+    });
+    expect(result).toHaveLength(3);
+    expect(result[0].key).toBe("perfectDay");
+    expect(result[0].days).toBe(9);
+    expect(result[1].key).toBe("intentionDone");
+    expect(result[1].days).toBe(6);
+    expect(result[2].key).toBe("pomodoroGoal");
+    expect(result[2].days).toBe(4);
+  });
+
+  // Mixed list: one dominant value + tied pair + minimum — tiebreaker scope is limited to the equal group
+  it("should sort tied subgroup by definition order without affecting non-tied entries", () => {
+    const result = calcActiveStreaks({
+      pomodoroGoalStreak: 100,
+      perfectDayStreak: 5,
+      intentionDoneStreak: 5,
+      focusStreak: 2,
+    });
+    expect(result).toHaveLength(4);
+    expect(result[0].key).toBe("pomodoroGoal");  // 100
+    expect(result[1].key).toBe("perfectDay");    // 5, index 0
+    expect(result[2].key).toBe("intentionDone"); // 5, index 1
+    expect(result[3].key).toBe("focus");         // 2
+  });
 });
