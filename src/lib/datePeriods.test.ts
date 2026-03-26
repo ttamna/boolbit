@@ -274,3 +274,31 @@ describe("calcLastNDays", () => {
     expect(calcLastNDays("2026-03-15", 0)).toEqual([]);
   });
 });
+
+describe("periodElapsedFraction — negative input edge cases", () => {
+  it("should clamp to 1 when daysLeft is negative (elapsed past end of period)", () => {
+    // daysLeft < 0 means today is past the period boundary;
+    // (30 - (-3)) / 30 = 1.1 → Math.min(1, 1.1) = 1
+    expect(periodElapsedFraction(-3, 30)).toBe(1);
+  });
+
+  it("should return 0 when totalDays is negative (degenerate guard covers all totalDays ≤ 0)", () => {
+    // The guard `if (totalDays <= 0) return 0` handles 0 AND negative values
+    expect(periodElapsedFraction(1, -7)).toBe(0);
+  });
+});
+
+describe("daysLeftInMonth — leap day edge cases", () => {
+  it("should return 1 on February 29 of a leap year (last day of that month)", () => {
+    // new Date(2024, 2, 0) === Feb 29, 2024; floor((Feb29 − Feb29) / 86400000) + 1 = 1
+    expect(daysLeftInMonth(new Date(2024, 1, 29))).toBe(1);
+  });
+});
+
+describe("daysLeftInQuarter — leap day edge cases", () => {
+  it("should return 32 on February 29, 2024 within Q1 (Feb 29 + all of March = 32 days)", () => {
+    // Q1 ends March 31; Feb 29 is the last day of Feb in leap year;
+    // floor((Mar31 − Feb29) / 86400000) + 1 = floor(31) + 1 = 32
+    expect(daysLeftInQuarter(new Date(2024, 1, 29))).toBe(32);
+  });
+});
