@@ -590,4 +590,87 @@ describe("calcCompletionConfidence", () => {
     expect(result).not.toBeNull();
     expect(result!.pct).toBe(0);
   });
+
+  // ── Edge cases: today-done boundary conditions ──────────────────────────
+
+  it("should not boost intention factor when intentionText is empty string even if intentionDate matches today", () => {
+    // intentionDate=TODAY but intentionText="" → !!"" = false → intentionDoneToday=false.
+    // pomodoroHistory provides daysAgo(3) as the 3rd active day (intentionHistory daysAgo(3) has
+    // empty text so not counted in intentionDates numerator but pomodoroHistory makes it active).
+    // intentionDates = {daysAgo(1), daysAgo(2)} → intentionRate = 2/3 ≈ 67%.
+    // No habits, pomodoroGoal=0 → confidence = intentionRate = 2/3 → pct = 67.
+    const result = calcCompletionConfidence(makeParams({
+      intentionText: "",
+      intentionDate: TODAY,
+      intentionHistory: [
+        { date: daysAgo(1), text: "A" },
+        { date: daysAgo(2), text: "B" },
+        { date: daysAgo(3), text: "" },
+      ],
+      pomodoroHistory: [{ date: daysAgo(3), count: 1 }],
+    }));
+    expect(result).not.toBeNull();
+    expect(result!.pct).toBe(67);
+  });
+
+  it("should not boost pomodoro factor when pomodoroSessions is one below the goal", () => {
+    // pomodoroGoal=4, sessions=3 today → 3 >= 4 is false → pomodoroGoalMetToday=false.
+    // pomodoroHistory: daysAgo(1) and daysAgo(2) met goal (count=4), daysAgo(3) did not (count=1).
+    // pomodoroRate = 2/3 ≈ 67%. intentionRate = 3/3 = 100% (all 3 active days).
+    // Neither done today → confidence = 100% × 67% = 67.
+    const result = calcCompletionConfidence(makeParams({
+      pomodoroGoal: 4,
+      pomodoroSessions: 3,
+      pomodoroSessionsDate: TODAY,
+      intentionHistory: [
+        { date: daysAgo(1), text: "A" },
+        { date: daysAgo(2), text: "B" },
+        { date: daysAgo(3), text: "C" },
+      ],
+      pomodoroHistory: [
+        { date: daysAgo(1), count: 4 },
+        { date: daysAgo(2), count: 4 },
+        { date: daysAgo(3), count: 1 },
+      ],
+    }));
+    expect(result).not.toBeNull();
+    expect(result!.pct).toBe(67);
+  });
+
+  it("should return 0 when pomodoroGoal is set but pomodoroHistory is empty", () => {
+    // pomodoroGoal=4, pomodoroHistory=[] → pomodoroMap is empty.
+    // All active days have count 0 < 4 → metCount=0, pomodoroRate=0.
+    // intentionRate = 3/3 = 100%. confidence = 100% × 0% = 0.
+    const result = calcCompletionConfidence(makeParams({
+      pomodoroGoal: 4,
+      pomodoroHistory: [],
+      intentionHistory: [
+        { date: daysAgo(1), text: "A" },
+        { date: daysAgo(2), text: "B" },
+        { date: daysAgo(3), text: "C" },
+      ],
+    }));
+    expect(result).not.toBeNull();
+    expect(result!.pct).toBe(0);
+  });
+
+  it("should use historical habits rate when only some habits are done today", () => {
+    // habit1 lastChecked=TODAY, habit2 lastChecked=daysAgo(1) → every() fails → allHabitsDoneToday=false.
+    // habitDates = {daysAgo(1), daysAgo(2), daysAgo(3)} (union of both habits' checkHistory).
+    // allCheckedCount: daysAgo(1)→both ✓, daysAgo(2)→both ✓, daysAgo(3)→habit2 absent ✗ → 2.
+    // habitsRate = 2/3 ≈ 67%. intentionRate = 3/3 = 100%. confidence = 100% × 67% = 67.
+    const result = calcCompletionConfidence(makeParams({
+      habits: [
+        { lastChecked: TODAY, checkHistory: [daysAgo(1), daysAgo(2), daysAgo(3)] },
+        { lastChecked: daysAgo(1), checkHistory: [daysAgo(1), daysAgo(2)] },
+      ],
+      intentionHistory: [
+        { date: daysAgo(1), text: "A" },
+        { date: daysAgo(2), text: "B" },
+        { date: daysAgo(3), text: "C" },
+      ],
+    }));
+    expect(result).not.toBeNull();
+    expect(result!.pct).toBe(67);
+  });
 });
