@@ -61,6 +61,13 @@ describe("SectionLabel toggle behavior", () => {
     render(<SectionLabel>Projects</SectionLabel>);
     await expect(user.click(screen.getByText("Projects"))).resolves.not.toThrow();
   });
+
+  // cursor signals clickability — default when no toggle, pointer when toggle is wired
+  it("should not signal clickability when onToggle is absent", () => {
+    const { container } = render(<SectionLabel>Projects</SectionLabel>);
+    const wrapper = container.firstChild as HTMLElement;
+    expect(wrapper.style.cursor).toBe("default");
+  });
 });
 
 describe("SectionLabel reorder buttons", () => {
@@ -121,5 +128,30 @@ describe("SectionLabel reorder buttons", () => {
     await user.click(screen.getByTitle("섹션 위로 이동"));
     expect(onMoveUp).toHaveBeenCalledTimes(1);
     expect(onToggle).not.toHaveBeenCalled();
+  });
+
+  // showMoveButtons = hovered && (onMoveUp || onMoveDown) — buttons are in DOM but opacity:0
+  // means they are visually hidden; CSS opacity does not remove pointer events in a real browser
+  it("should have opacity 0 on reorder container before hover (buttons visually hidden until hover)", () => {
+    render(<SectionLabel onMoveUp={vi.fn()}>Projects</SectionLabel>);
+    const upBtn = screen.getByTitle("섹션 위로 이동");
+    const reorderContainer = upBtn.parentElement!;
+    expect(reorderContainer.style.opacity).toBe("0");
+  });
+
+  // moveBtnStyle(enabled=false) → opacity: 0.3 — disabled buttons are visually dimmed
+  // This branch is only reachable when one handler is provided but not the other
+  it("should apply 0.3 opacity to disabled up button when only onMoveDown is provided", () => {
+    render(<SectionLabel onMoveDown={vi.fn()}>Projects</SectionLabel>);
+    const upBtn = screen.getByTitle("섹션 위로 이동") as HTMLButtonElement;
+    expect(upBtn.style.opacity).toBe("0.3");
+  });
+
+  // moveBtnStyle(enabled=true) → opacity: 1 — enabled buttons are fully opaque
+  // Symmetric to disabled test above; together they cover both branches of the opacity assignment
+  it("should apply full opacity to enabled up button when onMoveUp is provided", () => {
+    render(<SectionLabel onMoveUp={vi.fn()}>Projects</SectionLabel>);
+    const upBtn = screen.getByTitle("섹션 위로 이동") as HTMLButtonElement;
+    expect(upBtn.style.opacity).toBe("1");
   });
 });
