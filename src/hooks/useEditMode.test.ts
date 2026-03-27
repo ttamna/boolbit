@@ -92,4 +92,50 @@ describe('useEditMode', () => {
     act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  // Unmount while editing — ESC listener must be removed to avoid memory leaks
+  test('shouldRemoveEscListenerOnUnmount', () => {
+    const onClose = vi.fn();
+    const { result, unmount } = renderHook(() => useEditMode(onClose));
+    act(() => result.current.openEditing());
+    unmount();
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    // onClose was NOT called (ESC fired after unmount, listener already removed)
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // closeEditing has no editing-state guard — it always calls onClose unconditionally
+  test('shouldCallOnCloseEvenWhenCloseEditingCalledWhileNotEditing', () => {
+    const onClose = vi.fn();
+    const { result } = renderHook(() => useEditMode(onClose));
+    // Never opened — still calls onClose
+    act(() => result.current.closeEditing());
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // openEditing and closeEditing references must be stable (useCallback) across rerenders
+  test('shouldReturnStableOpenAndCloseEditingReferencesAcrossRerenders', () => {
+    const { result, rerender } = renderHook(() => useEditMode());
+    const open1 = result.current.openEditing;
+    const close1 = result.current.closeEditing;
+    rerender();
+    expect(result.current.openEditing).toBe(open1);
+    expect(result.current.closeEditing).toBe(close1);
+  });
+
+  // Rapid open/close cycles must not accumulate ESC listeners — verified while editing=true
+  test('shouldNotAccumulateEscListenersAfterRapidOpenCloseCycles', () => {
+    const onClose = vi.fn();
+    const { result } = renderHook(() => useEditMode(onClose));
+    // Two complete open/close cycles, then leave editing=true for the ESC test
+    act(() => result.current.openEditing());
+    act(() => result.current.closeEditing());
+    act(() => result.current.openEditing());
+    act(() => result.current.closeEditing());
+    act(() => result.current.openEditing()); // leave editing=true — listener active
+    // ESC fires once; if listeners accumulated, onClose would be called >1 times
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    // 2 explicit closeEditing calls + 1 ESC-triggered close = 3 total
+    expect(onClose).toHaveBeenCalledTimes(3);
+  });
 });
