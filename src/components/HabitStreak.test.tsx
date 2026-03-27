@@ -421,3 +421,64 @@ describe("HabitStreak target streak progress bar", () => {
     expect(screen.queryByTitle(/\d+\/\d+일 — \d+%/)).toBeNull();
   });
 });
+
+describe("HabitStreak neglected indicator", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00Z"));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  // neglectedDays fires when: streak===0, not done today, not atRisk (checked yesterday),
+  // and habitLastCheckDaysAgo returns ≥2 (suppresses 0=today, 1=yesterday which is atRisk)
+  it("should show ⊖Nd badge and tooltip when streak is 0 and last check was 2+ days ago", () => {
+    // today=2026-03-15, last check=2026-03-10 → 5 days ago → ⊖5d with "마지막 체크인: 5일 전"
+    const habit: Habit = { id: "h1", name: "Run", streak: 0, icon: "🏃", checkHistory: ["2026-03-10"] };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.getByTitle("마지막 체크인: 5일 전")).toBeDefined();
+    expect(screen.getByText("⊖5d")).toBeDefined();
+  });
+});
+
+describe("HabitStreak perfect-day streak badge", () => {
+  const TODAY = "2026-03-15";
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-15T12:00:00Z"));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  // N🌟 badge renders only when: all habits done today (no ✓ 전체 button) + perfectStreak ≥ 2
+  // perfectStreak is computed by calcPerfectDayStreak over the last 101 days from todayStr
+  it("should show N🌟 badge with tooltip when all habits done today and consecutively yesterday", () => {
+    // Both habits checked on 2026-03-14 AND 2026-03-15 → perfectStreak=2 → shows "2🌟"
+    const habits: Habit[] = [
+      { id: "h1", name: "Run", streak: 2, icon: "🏃", lastChecked: TODAY, checkHistory: ["2026-03-14", TODAY] },
+      { id: "h2", name: "Read", streak: 2, icon: "📚", lastChecked: TODAY, checkHistory: ["2026-03-14", TODAY] },
+    ];
+    render(<HabitStreak habits={habits} onHabitsChange={vi.fn()} />);
+    expect(screen.getByTitle("2일 연속 전체 완료")).toBeDefined();
+    expect(screen.getByText("2🌟")).toBeDefined();
+  });
+});
+
+describe("HabitStreak below-best indicator", () => {
+  // ↑N renders when bestStreak > streak (personal best not currently matched)
+  // The ★ tests confirm ★ is NOT shown here — this test confirms ↑N IS shown
+  it("should show ↑N indicator with tooltip when current streak is below all-time best", () => {
+    // bestStreak=15 > streak=5 → ↑15 with tooltip "최장 기록 15일"
+    const habit: Habit = { id: "h1", name: "Run", streak: 5, icon: "🏃", bestStreak: 15 };
+    render(<HabitStreak habits={[habit]} />);
+    expect(screen.getByTitle("최장 기록 15일")).toBeDefined();
+    expect(screen.getByText("↑15")).toBeDefined();
+  });
+});
+
+describe("HabitStreak sound toggle", () => {
+  // Sound button is gated on onSoundChange prop being provided
+  it("should show muted button with correct tooltip when onSoundChange provided and sound is off", () => {
+    render(<HabitStreak habits={[]} onHabitsChange={vi.fn()} onSoundChange={vi.fn()} soundEnabled={false} />);
+    expect(screen.getByTitle("체크인 사운드 꺼짐 — 클릭하여 켜기")).toBeDefined();
+  });
+});
