@@ -1463,4 +1463,45 @@ describe("calcFocusSuggestion — smart project focus recommendation", () => {
     expect(result!.projectId).toBe(2);
     expect(result!.score).toBeGreaterThan(0);
   });
+
+  it("should return null when all eligible projects have isFocus true", () => {
+    // Defensive path: sortedNonFocus is empty when every eligible project has isFocus=true.
+    // Prevents a crash and surfaces no suggestion when there is no non-focus candidate to compare.
+    const p1 = makeProject({ id: 1, status: "active", isFocus: true, deadline: "2024-06-12", createdDate: "2024-05-01", progress: 10 });
+    const p2 = makeProject({ id: 2, status: "active", isFocus: true, deadline: "2024-06-13", createdDate: "2024-05-01", progress: 20 });
+    expect(calcFocusSuggestion([p1, p2], TODAY)).toBeNull();
+  });
+
+  it("should treat isFocus on done project as absent — focusScore defaults to 0", () => {
+    // Done project is excluded from eligible; its isFocus flag does NOT inflate mustExceed.
+    // focusEntry = undefined → focusScore = 0 → mustExceed = 0.
+    // The most urgent active non-focus project (deadline in 2 days, low progress) exceeds threshold → suggested.
+    const doneWithFocus = makeProject({ id: 1, status: "done", isFocus: true, deadline: "2024-06-11", createdDate: "2024-05-01", progress: 90 });
+    const urgent = makeProject({ id: 2, name: "Urgent", status: "active", deadline: "2024-06-12", createdDate: "2024-05-01", progress: 10 });
+    const relaxed = makeProject({ id: 3, status: "active", deadline: "2024-07-10", createdDate: "2024-05-01", progress: 50 });
+    const result = calcFocusSuggestion([doneWithFocus, urgent, relaxed], TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.projectId).toBe(2);
+  });
+
+  it("should return null when non-focus score does not exceed focusScore plus FOCUS_MARGIN", () => {
+    // Anti-flip-flop: both projects equally stale (14 days) → stalenessScore 30 each.
+    // focusScore = 30, mustExceed = 40. Non-focus score 30 ≤ 40 → null.
+    // Prevents switching focus when the alternative has no meaningful advantage.
+    const focusProject = makeProject({ id: 1, status: "active", isFocus: true, lastFocusDate: "2024-05-27" });
+    const peer = makeProject({ id: 2, status: "active", lastFocusDate: "2024-05-27" });
+    expect(calcFocusSuggestion([focusProject, peer], TODAY)).toBeNull();
+  });
+
+  it("should suggest when non-focus staleness score just clears focusScore plus FOCUS_MARGIN", () => {
+    // Focus stale 7 days → stalenessScore = round(7/14 * 30) = 15 → mustExceed = 25.
+    // Non-focus stale 14 days → stalenessScore = round(14/14 * 30) = 30.
+    // 30 > 25 AND 30 ≥ SUGGESTION_THRESHOLD (20) → suggestion fires.
+    const focusProject = makeProject({ id: 1, name: "FocusProject", status: "active", isFocus: true, lastFocusDate: "2024-06-03" });
+    const neglected = makeProject({ id: 2, name: "Neglected", status: "active", lastFocusDate: "2024-05-27" });
+    const result = calcFocusSuggestion([focusProject, neglected], TODAY);
+    expect(result).not.toBeNull();
+    expect(result!.projectId).toBe(2);
+    expect(result!.name).toBe("Neglected");
+  });
 });
