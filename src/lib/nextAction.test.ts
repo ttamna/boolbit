@@ -1,5 +1,5 @@
 // ABOUTME: Unit tests for calcNextAction — prescriptive next-action recommendation based on daily completion state
-// ABOUTME: Covers intention/habit/pomodoro priority chain, edge cases (empty habits, zero/negative goal, stale/future dates, whitespace), and all-done state
+// ABOUTME: Covers intention/habit/pomodoro priority chain, edge cases (empty habits, zero/negative/NaN goal, stale/future dates, whitespace, null lastChecked), and all-done state
 
 import { describe, it, expect } from "vitest";
 import { calcNextAction, type NextActionParams } from "./nextAction";
@@ -36,12 +36,34 @@ describe("calcNextAction", () => {
     expect(result.key).toBe("setIntention");
   });
 
+  it("should suggest setting intention when intentionDate is in the future", () => {
+    // Strict equality means only today's date passes; a future-dated intention is also stale
+    const result = calcNextAction(makeParams({
+      intentionText: "Tomorrow's plan",
+      intentionDate: "2026-03-23",
+    }));
+    expect(result.key).toBe("setIntention");
+  });
+
   it("should suggest setting intention when intentionText is empty string", () => {
     const result = calcNextAction(makeParams({
       intentionText: "",
       intentionDate: TODAY,
     }));
     expect(result.key).toBe("setIntention");
+  });
+
+  // Whitespace-only intentionText: !!" " evaluates to true, so the intention is
+  // treated as SET and the priority chain advances to habits/pomodoro.
+  it("should treat whitespace-only intentionText as set and advance to next priority", () => {
+    const result = calcNextAction(makeParams({
+      intentionText: "   ",
+      intentionDate: TODAY,
+      habits: [],
+      // pomodoroGoal uses default 4, pomodoroSessionsDate unset → todaySessions=0 → doPomodoro
+    }));
+    // intention passes (truthy whitespace) → not setIntention → reaches doPomodoro
+    expect(result.key).toBe("doPomodoro");
   });
 
   // ── Priority 2: Habits ─────────────────────────────────────────────────────
@@ -208,6 +230,21 @@ describe("calcNextAction", () => {
     expect(result.text).toContain("1");
   });
 
+  // null lastChecked at runtime: runtime WidgetData may deliver null for an unset field.
+  // null !== todayStr → counts as unchecked today, same as undefined.
+  it("should count habit with null lastChecked at runtime as remaining", () => {
+    const result = calcNextAction(makeParams({
+      intentionText: "Focus",
+      intentionDate: TODAY,
+      habits: [
+        { lastChecked: TODAY },
+        { lastChecked: null as unknown as string },
+      ],
+    }));
+    expect(result.key).toBe("completeHabits");
+    expect(result.text).toContain("1");
+  });
+
   // Float pomodoroGoal: fractional sessions-left still triggers doPomodoro
   it("should suggest pomodoro when pomodoroGoal is a float and sessions are below it", () => {
     const result = calcNextAction(makeParams({
@@ -221,6 +258,20 @@ describe("calcNextAction", () => {
     // sessionsLeft = 4.9 - 4 = 0.9 → text contains "0.9"
     expect(result.key).toBe("doPomodoro");
     expect(result.text).toContain("0.9");
+  });
+
+  // NaN pomodoroGoal: `NaN && sessionsLeft > 0` evaluates to NaN (falsy) → if(NaN) is false → allDone.
+  // Distinct from undefined: both are falsy, but NaN may arrive from malformed persisted JSON numbers.
+  it("should return allDone when pomodoroGoal is NaN at runtime", () => {
+    const result = calcNextAction(makeParams({
+      intentionText: "Focus",
+      intentionDate: TODAY,
+      habits: [],
+      pomodoroGoal: NaN,
+      pomodoroSessions: 0,
+      pomodoroSessionsDate: TODAY,
+    }));
+    expect(result.key).toBe("allDone");
   });
 
   // NaN pomodoroSessions: pomodoroSessionsDate must be TODAY so todaySessions = NaN (not 0);
