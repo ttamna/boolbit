@@ -137,4 +137,87 @@ describe("useSettings", () => {
     expect(result.current.settings.githubPat).toBe("ghp_token123");
     expect(result.current.settings.githubRefreshInterval).toBe(30);
   });
+
+  test("shouldPreserveOptionalFieldsThroughSubsequentUpdateSettingsCalls", async () => {
+    // When backend returns settings with optional fields (e.g. githubPat) and the
+    // user then calls updateSettings with an unrelated patch, the optional field must
+    // survive in both the local state and the next save_settings payload.
+    // This tests the settingsRef round-trip: load → ref includes optional → update spreads ref.
+    const saved = { ...DEFAULT_SETTINGS, githubPat: "ghp_round_trip_test" };
+    mockInvoke.mockResolvedValueOnce(saved);
+    const { result } = renderHook(() => useSettings());
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    vi.clearAllMocks();
+    await act(async () => {
+      await result.current.updateSettings({ opacity: 0.4 });
+    });
+    // Optional field from initial load must survive the patch round-trip
+    expect(result.current.settings.githubPat).toBe("ghp_round_trip_test");
+    expect(result.current.settings.opacity).toBe(0.4);
+    // Save must include the optional field alongside the patched field
+    expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
+      settings: expect.objectContaining({ githubPat: "ghp_round_trip_test", opacity: 0.4 }),
+    });
+  });
+
+  test("shouldPreservePreLoadUpdateWhenLoadReturnsNull", async () => {
+    // Contract: callers are NOT required to await loaded before calling updateSettings.
+    // The hook accepts updates at any lifecycle stage — settingsRef is initialised to
+    // DEFAULT_SETTINGS at construction, so pre-load patches use defaults as a base.
+    // When load subsequently returns null (if(saved) skipped), settingsRef is NOT
+    // overwritten and the pre-load patch survives intact.
+    let resolveLoad!: (v: null) => void;
+    mockInvoke.mockImplementationOnce(() => new Promise((res) => { resolveLoad = res; }));
+    mockInvoke.mockResolvedValue(null); // subsequent save_settings calls
+
+    const { result } = renderHook(() => useSettings());
+    // Call update while load is still pending (ref starts at DEFAULT_SETTINGS)
+    await act(async () => {
+      await result.current.updateSettings({ opacity: 0.2 });
+    });
+    expect(result.current.settings.opacity).toBe(0.2);
+
+    // Resolve load with null → no merge, pre-load update is preserved
+    await act(async () => { resolveLoad(null); });
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    expect(result.current.settings.opacity).toBe(0.2);
+  });
+
+  test("shouldNotReloadSettingsAfterStateChangingUpdate", async () => {
+    // Guard against `useEffect([..., settings])` mis-configuration: if settings or
+    // settingsRef were accidentally added to the effect deps, every updateSettings
+    // call would re-run load_settings. This test triggers a state-changing re-render
+    // via updateSettings and verifies load_settings is NOT called again.
+    const { result } = renderHook(() => useSettings());
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    vi.clearAllMocks(); // only track calls made after initial load
+    await act(async () => {
+      await result.current.updateSettings({ opacity: 0.7 });
+    });
+    const loadCallsAfterUpdate = mockInvoke.mock.calls.filter((c) => c[0] === "load_settings");
+    expect(loadCallsAfterUpdate).toHaveLength(0);
+  });
+
+  test("shouldSaveAllCurrentFieldsNotJustThePatch", async () => {
+    // The backend needs the full merged state on every save, not a sparse patch.
+    // If the impl sent only `{ settings: patch }`, none of the default fields below
+    // would be present — this assertion fails in that case.
+    // Uses objectContaining so optional fields added by load don't cause false failures.
+    const { result } = renderHook(() => useSettings());
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    vi.clearAllMocks();
+    await act(async () => {
+      await result.current.updateSettings({ pinned: true });
+    });
+    expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
+      settings: expect.objectContaining({
+        pinned: true,
+        opacity: DEFAULT_SETTINGS.opacity,
+        theme: DEFAULT_SETTINGS.theme,
+        position: DEFAULT_SETTINGS.position,
+        size: DEFAULT_SETTINGS.size,
+        clockFormat: DEFAULT_SETTINGS.clockFormat,
+      }),
+    });
+  });
 });
