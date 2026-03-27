@@ -248,6 +248,31 @@ describe("calcGoalExpiry — monthGoalStale", () => {
     expect(result.historyPatch.monthGoalHistory!.some(e => e.date === "2026-01")).toBe(true);
     expect(result.historyPatch.monthGoalHistory!.some(e => e.date === "2025-01")).toBe(false);
   });
+
+  it("should not be stale when monthGoalDate is a future month", () => {
+    // Current month is 2026-03; future 2026-04 must not trigger expiry
+    const data: Partial<WidgetData> = {
+      monthGoal: "Upcoming month goal",
+      monthGoalDate: "2026-04",
+    };
+    const result = calcGoalExpiry(data, makeDate("2026-03-15"));
+    expect(result.monthGoalStale).toBe(false);
+    expect(result.historyPatch.monthGoalHistory).toBeUndefined();
+  });
+
+  it("should deduplicate: if same date already in monthGoalHistory, replace with new entry", () => {
+    const existing: GoalEntry[] = [
+      makeGoalEntry("2026-02", "Old February goal"),
+    ];
+    const data: Partial<WidgetData> = {
+      monthGoal: "Updated February goal",
+      monthGoalDate: "2026-02",
+      monthGoalHistory: existing,
+    };
+    const result = calcGoalExpiry(data, makeDate("2026-03-15"));
+    expect(result.historyPatch.monthGoalHistory).toHaveLength(1);
+    expect(result.historyPatch.monthGoalHistory![0]).toEqual({ date: "2026-02", text: "Updated February goal" });
+  });
 });
 
 // ─── quarterGoalStale ──────────────────────────────────────────────────────
@@ -343,6 +368,30 @@ describe("calcGoalExpiry — yearGoalStale", () => {
     expect(result.historyPatch.yearGoalHistory).toHaveLength(5);
     expect(result.historyPatch.yearGoalHistory!.some(e => e.date === "2025")).toBe(true);
     expect(result.historyPatch.yearGoalHistory!.some(e => e.date === "2020")).toBe(false);
+  });
+
+  it("should not be stale when yearGoalDate is a future year", () => {
+    // Current year is 2026; future 2027 must not trigger expiry
+    const data: Partial<WidgetData> = {
+      yearGoal: "Next year big goal",
+      yearGoalDate: "2027",
+    };
+    const result = calcGoalExpiry(data, makeDate("2026-03-15"));
+    expect(result.yearGoalStale).toBe(false);
+    expect(result.historyPatch.yearGoalHistory).toBeUndefined();
+  });
+
+  it("should not include done key in historyPatch entry when yearGoalDone is explicitly false", () => {
+    const data: Partial<WidgetData> = {
+      yearGoal: "2025 goal",
+      yearGoalDate: "2025",
+      yearGoalDone: false,
+    };
+    const result = calcGoalExpiry(data, makeDate("2026-03-15"));
+    expect(result.yearGoalStale).toBe(true);
+    const entry = result.historyPatch.yearGoalHistory?.[0];
+    expect(entry).toBeDefined();
+    expect(entry).not.toHaveProperty("done");
   });
 });
 
