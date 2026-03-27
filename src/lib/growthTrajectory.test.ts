@@ -191,6 +191,23 @@ describe("calcGrowthTrajectory", () => {
       expect(result).not.toBeNull();
       expect(result!.domains.pomodoro).toBeNull();
     });
+
+    it("should have 'stable' trend for pomodoro when avg sessions are unchanged (delta=0)", () => {
+      // COUNT_TREND_THRESHOLD = 1: delta=0 is strictly between -1 and +1 → stable
+      const prevDates = datesBack(TODAY, 56).slice(28);
+      const currDates = datesBack(TODAY, 28);
+
+      const result = calcGrowthTrajectory(baseParams({
+        pomodoroHistory: [
+          ...prevDates.map(date => ({ date, count: 3 })),  // prev avg = 3
+          ...currDates.map(date => ({ date, count: 3 })),  // curr avg = 3, delta = 0
+        ],
+      }));
+
+      expect(result).not.toBeNull();
+      expect(result!.domains.pomodoro!.trend).toBe("stable");
+      expect(result!.domains.pomodoro!.delta).toBe(0);
+    });
   });
 
   describe("intention domain", () => {
@@ -221,6 +238,25 @@ describe("calcGrowthTrajectory", () => {
 
       expect(result).not.toBeNull();
       expect(result!.domains.intention).toBeNull();
+    });
+
+    it("should compute 0% done rate for both periods when all intentions are not done", () => {
+      // done=false for every entry → currentDone=0, previousDone=0 → rate=0, delta=0, stable
+      const prevDates = datesBack(TODAY, 56).slice(28);
+      const currDates = datesBack(TODAY, 28);
+
+      const result = calcGrowthTrajectory(baseParams({
+        intentionHistory: [
+          ...prevDates.map(date => ({ date, text: "task", done: false })),
+          ...currDates.map(date => ({ date, text: "task", done: false })),
+        ],
+      }));
+
+      expect(result).not.toBeNull();
+      expect(result!.domains.intention!.current).toBe(0);
+      expect(result!.domains.intention!.previous).toBe(0);
+      expect(result!.domains.intention!.delta).toBe(0);
+      expect(result!.domains.intention!.trend).toBe("stable");
     });
   });
 
@@ -545,6 +581,22 @@ describe("calcGrowthTrajectory", () => {
       // Summary should contain a growth-related Korean word
       expect(result!.summary).toMatch(/급성장|성장|안정|둔화|하락/);
     });
+
+    it("should include Korean domain label with upward arrow in summary when domain trend is up", () => {
+      // momentum: score 20→80 (large positive delta) → trend "up" → "모멘텀↑" in summary
+      const prevDates = datesBack(TODAY, 56).slice(28);
+      const currDates = datesBack(TODAY, 28);
+
+      const result = calcGrowthTrajectory(baseParams({
+        momentumHistory: [
+          ...prevDates.map(date => ({ date, score: 20 })),
+          ...currDates.map(date => ({ date, score: 80 })),
+        ],
+      }));
+
+      expect(result).not.toBeNull();
+      expect(result!.summary).toContain("모멘텀↑");
+    });
   });
 
   // ── Boundary values ───────────────────────────────────────────────────────
@@ -662,6 +714,36 @@ describe("calcGrowthTrajectory", () => {
 
       expect(result).not.toBeNull();
       expect(result!.domains.habits).toBeNull();
+    });
+
+    it("should exclude habits whose dates fall outside both windows from the denominator", () => {
+      // Habit1 spans both windows → activeHabitCount=1, maxChecks=28
+      // Habit2 has only a date 100 days ago (outside both windows) → contributed=false, not counted
+      // If Habit2 were counted, maxChecks would become 56 and rates would be halved
+      const allDates = datesBack(TODAY, 56);
+      const [y, m, d] = TODAY.split("-").map(Number);
+      const oldDate = new Date(Date.UTC(y, m - 1, d - 100)).toISOString().slice(0, 10);
+
+      const resultWith = calcGrowthTrajectory(baseParams({
+        habits: [
+          { checkHistory: allDates },   // contributes to both periods
+          { checkHistory: [oldDate] },  // outside both windows — should not inflate denominator
+        ],
+      }));
+
+      const resultWithout = calcGrowthTrajectory(baseParams({
+        habits: [{ checkHistory: allDates }],
+      }));
+
+      expect(resultWith).not.toBeNull();
+      expect(resultWithout).not.toBeNull();
+      // Out-of-window habit must NOT inflate maxChecks (which would halve rates to ~50%)
+      // allDates = 56 days of full check-ins → rate = 28/28 = 100% in each period
+      expect(resultWith!.domains.habits!.current).toBe(100);
+      expect(resultWith!.domains.habits!.previous).toBe(100);
+      // Rates must also match single-habit baseline (regression guard)
+      expect(resultWith!.domains.habits!.current).toBe(resultWithout!.domains.habits!.current);
+      expect(resultWith!.domains.habits!.previous).toBe(resultWithout!.domains.habits!.previous);
     });
   });
 
